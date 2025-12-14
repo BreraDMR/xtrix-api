@@ -1,0 +1,74 @@
+from datetime import datetime
+from sqlalchemy.orm import Session
+
+from app.db.models.refresh_token import RefreshToken
+from app.schemas.refresh_token import RefreshTokenCreate
+
+
+def create_refresh_token(db: Session, token_data: RefreshTokenCreate) -> RefreshToken:
+    """Create a new refresh token in the database."""
+    db_token = RefreshToken(
+        token=token_data.token,
+        user_id=token_data.user_id,
+        expires_at=token_data.expires_at,
+    )
+    db.add(db_token)
+    db.commit()
+    db.refresh(db_token)
+    return db_token
+
+
+def get_refresh_token(db: Session, token: str) -> RefreshToken | None:
+    """Get a refresh token by token string."""
+    return db.query(RefreshToken).filter(
+        RefreshToken.token == token,
+        RefreshToken.is_revoked == False,
+    ).first()
+
+
+def revoke_refresh_token(db: Session, token: str) -> bool:
+    """Revoke a refresh token by marking it as revoked."""
+    db_token = db.query(RefreshToken).filter(RefreshToken.token == token).first()
+    if not db_token:
+        return False
+    db_token.is_revoked = True
+    db_token.revoked_at = datetime.utcnow()
+    db.commit()
+    return True
+
+
+def revoke_all_user_tokens(db: Session, user_id: int) -> int:
+    """Revoke all refresh tokens for a user."""
+    tokens = db.query(RefreshToken).filter(
+        RefreshToken.user_id == user_id,
+        RefreshToken.is_revoked == False,
+    ).all()
+    count = len(tokens)
+    for token in tokens:
+        token.is_revoked = True
+        token.revoked_at = datetime.utcnow()
+    db.commit()
+    return count
+
+
+def cleanup_expired_tokens(db: Session) -> int:
+    """Delete expired refresh tokens from the database."""
+    now = datetime.utcnow()
+    expired_tokens = db.query(RefreshToken).filter(
+        RefreshToken.expires_at < now
+    ).all()
+    count = len(expired_tokens)
+    for token in expired_tokens:
+        db.delete(token)
+    db.commit()
+    return count
+
+
+
+
+
+
+
+
+
+
