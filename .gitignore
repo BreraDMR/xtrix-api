@@ -65,6 +65,9 @@ frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 
+# GitHub Pages docs (keep the folder but ignore if empty)
+# docs/.gitkeep
+
 # Mobile
 mobile/.dart_tool/
 mobile/.flutter-plugins
