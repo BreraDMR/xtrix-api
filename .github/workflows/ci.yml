@@ -1,10 +1,13 @@
 name: CI/CD Pipeline
 
+# Временно отключен - используется Railway для деплоя
+# Раскомментируйте, если нужно использовать CI/CD
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
+  workflow_dispatch:  # Только ручной запуск
+  # push:
+  #   branches: [ main, develop ]
+  # pull_request:
+  #   branches: [ main, develop ]
 
 env:
   PYTHON_VERSION: '3.11'
