@@ -19,12 +19,12 @@ COPY . .
 # Create logs directory
 RUN mkdir -p logs
 
-# Expose port
-EXPOSE 8000
+# Expose port (Railway использует переменную PORT)
+EXPOSE ${PORT:-8000}
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/metrics/health/live || exit 1
+    CMD curl -f http://localhost:${PORT:-8000}/metrics/health/live || exit 1
 
-# Run application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run application (используем $PORT для Railway, fallback на 8000 для локальной разработки)
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
