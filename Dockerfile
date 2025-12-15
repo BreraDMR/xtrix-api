@@ -22,6 +22,6 @@ RUN mkdir -p logs
 # Expose port
 EXPOSE 8080
 
-# Run application (Railway устанавливает переменную PORT=8080)
-# Используем PORT напрямую, так как Railway всегда его устанавливает
-CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT
+# Run application (Railway устанавливает переменную PORT)
+# Используем sh -c для правильного раскрытия переменной $PORT
+CMD sh -c "uvicorn app.main:app --host 0.0.0.0 --port \${PORT}"
