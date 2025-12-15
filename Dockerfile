@@ -23,5 +23,5 @@ RUN mkdir -p logs
 EXPOSE 8080
 
 # Run application (Railway устанавливает переменную PORT)
-# Используем sh -c для правильного раскрытия переменной PORT
-CMD sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"
+# Используем exec форму с sh для раскрытия переменной
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
