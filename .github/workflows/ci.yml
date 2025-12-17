@@ -1,13 +1,10 @@
 name: CI/CD Pipeline
 
-# Временно отключен - используется Railway для деплоя
-# Раскомментируйте, если нужно использовать CI/CD
 on:
-  workflow_dispatch:  # Только ручной запуск
-  # push:
-  #   branches: [ main, develop ]
-  # pull_request:
-  #   branches: [ main, develop ]
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
 
 env:
   PYTHON_VERSION: '3.11'
@@ -18,14 +15,13 @@ jobs:
   lint:
     name: Code Linting
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
       
       - name: Install dependencies
         run: |
@@ -46,11 +42,10 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
-    continue-on-error: true
     
     services:
       postgres:
-        image: postgres:15
+        image: postgres:${{ env.POSTGRES_VERSION }}
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -64,7 +59,7 @@ jobs:
           - 5432:5432
       
       redis:
-        image: redis:7
+        image: redis:${{ env.REDIS_VERSION }}
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -79,7 +74,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
       
       - name: Cache pip packages
         uses: actions/cache@v3

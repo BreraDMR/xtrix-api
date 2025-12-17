@@ -70,6 +70,10 @@ app = FastAPI(
             "url": "http://localhost:8000",
             "description": "Development server"
         },
+        {
+            "url": "https://api.xtrix.com",
+            "description": "Production server"
+        },
     ],
 )
 
