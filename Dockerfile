@@ -24,4 +24,4 @@ EXPOSE 8080
 
 # Run application (Railway устанавливает переменную PORT)
 # Применяем миграции и запускаем приложение
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "echo 'Starting deployment...' && echo 'DATABASE_URL: '${DATABASE_URL:0:30}'...' && echo 'Running migrations...' && alembic upgrade head && echo 'Starting uvicorn...' && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
