@@ -44,7 +44,7 @@ class VisitCreate(VisitBase):
     @classmethod
     def validate_date_start(cls, v):
         # Allow past dates for historical records, but warn if too far in the past
-        from datetime import datetime, timedelta
+        from datetime import timedelta
         now = datetime.utcnow()
         if v < now - timedelta(days=365):
             # Allow but could warn
