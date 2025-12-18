@@ -5,12 +5,14 @@ from sqlalchemy.orm import Session
 
 from app.api import deps
 from app.api.core.i18n import _, localize_response
+from app.api.core.logger import get_logger
 from app.api.core.pagination import PaginationParams, PaginatedResponse
 from app.api.crud import crud_service
 from app.db.models.user import User
 from app.schemas.service import ServiceCreate, ServiceOut, ServiceUpdate
 
 router = APIRouter()
+logger = get_logger("services")
 
 
 @router.post("/", response_model=ServiceOut)
@@ -20,10 +22,17 @@ def create_service(
     current_user: User = Depends(deps.role_required("admin", "specialist")),
     locale: str = Depends(deps.get_locale),
 ):
+    logger.info(f"Creating service: name={service.name}, specialist_id={service.specialist_id}, user_id={current_user.id}")
     if current_user.role != "admin" and service.specialist_id != current_user.id:
+        logger.warning(f"Service creation denied: user_id={current_user.id}, attempted_specialist_id={service.specialist_id}")
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    result = crud_service.create_service(db, service)
-    return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
+    try:
+        result = crud_service.create_service(db, service)
+        logger.info(f"Service created successfully: id={result.id}, name={result.name}")
+        return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
+    except Exception as e:
+        logger.error(f"Failed to create service: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create service: {str(e)}")
 
 
 @router.get("/", response_model=PaginatedResponse[ServiceOut])
