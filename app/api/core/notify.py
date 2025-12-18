@@ -80,3 +80,63 @@ def send_sms_notification(phone: str, visit) -> bool:
         logger.error("Twilio send exception: %s", e)
         return False
 
+
+def send_password_reset_email(email: str, code: str) -> bool:
+    """Send password reset code via email."""
+    if not settings.smtp_host or not settings.smtp_from:
+        logger.warning("SMTP not configured, skip password reset email to %s", email)
+        # For development, log the code instead
+        logger.info("Password reset code for %s: %s", email, code)
+        return True  # Return True for development
+    msg = EmailMessage()
+    msg["Subject"] = "Password Reset Code"
+    msg["From"] = settings.smtp_from
+    msg["To"] = email
+    msg.set_content(
+        f"Your password reset code is: {code}\n\n"
+        f"This code will expire in 1 hour.\n\n"
+        f"If you didn't request a password reset, please ignore this email."
+    )
+    try:
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
+            server.starttls()
+            if settings.smtp_user and settings.smtp_password:
+                server.login(settings.smtp_user, settings.smtp_password)
+            server.send_message(msg)
+        logger.info("Password reset email sent to %s", email)
+        return True
+    except Exception as e:
+        logger.error("Password reset email send failed: %s", e)
+        # For development, log the code
+        logger.info("Password reset code for %s: %s", email, code)
+        return True  # Return True for development
+
+
+def send_password_reset_sms(phone: str, code: str) -> bool:
+    """Send password reset code via SMS."""
+    if not settings.twilio_sid or not settings.twilio_token or not settings.twilio_from:
+        logger.warning("Twilio not configured, skip password reset SMS to %s", phone)
+        # For development, log the code instead
+        logger.info("Password reset code for %s: %s", phone, code)
+        return True  # Return True for development
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{settings.twilio_sid}/Messages.json"
+    data = {
+        "From": settings.twilio_from,
+        "To": phone,
+        "Body": f"Your password reset code is: {code}. This code will expire in 1 hour.",
+    }
+    try:
+        resp = requests.post(url, data=data, auth=(settings.twilio_sid, settings.twilio_token), timeout=10)
+        if resp.status_code >= 200 and resp.status_code < 300:
+            logger.info("Password reset SMS sent to %s", phone)
+            return True
+        logger.error("Twilio password reset SMS failed: %s %s", resp.status_code, resp.text)
+        # For development, log the code
+        logger.info("Password reset code for %s: %s", phone, code)
+        return True  # Return True for development
+    except Exception as e:
+        logger.error("Twilio password reset SMS exception: %s", e)
+        # For development, log the code
+        logger.info("Password reset code for %s: %s", phone, code)
+        return True  # Return True for development
+

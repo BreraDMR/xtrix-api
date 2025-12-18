@@ -8,3 +8,4 @@ from app.db.models.work_schedule import WorkSchedule
 from app.db.models.block_slot import BlockSlot
 from app.db.models.refresh_token import RefreshToken
 from app.db.models.audit_log import AuditLog
+from app.db.models.password_reset_token import PasswordResetToken

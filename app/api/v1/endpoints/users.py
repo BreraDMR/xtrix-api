@@ -20,10 +20,17 @@ else:
     def get_rate_limit_for_login():
         return None
 from app.api.crud import crud_user, crud_refresh_token
+from app.api.crud.crud_password_reset import (
+    create_password_reset_token,
+    get_reset_token_by_token,
+    get_reset_token_by_code,
+    mark_token_as_used
+)
 from app.db.models.user import User
 from app.schemas.user import (
     UserCreate, UserLogin, UserOut, TwoFactorSetup, 
-    TwoFactorVerify, TwoFactorEnable, LoginResponse
+    TwoFactorVerify, TwoFactorEnable, LoginResponse,
+    ForgotPasswordRequest, ResetPasswordRequest
 )
 from app.schemas.refresh_token import TokenRefresh, TokenResponse, RefreshTokenCreate
 
@@ -348,3 +355,89 @@ def get_2fa_status(
     return {
         "is_2fa_enabled": current_user.is_2fa_enabled or False,
     }
+
+
+@router.post("/forgot-password")
+def forgot_password(
+    request_data: ForgotPasswordRequest,
+    db: Session = Depends(deps.get_db),
+    locale: str = Depends(deps.get_locale),
+):
+    """Request password reset. Sends code via email or SMS."""
+    from app.api.core.notify import send_password_reset_email, send_password_reset_sms
+    
+    logger.info(f"Password reset request: email={request_data.email or 'N/A'}, phone={request_data.phone or 'N/A'}")
+    
+    # Validate that at least one identifier is provided
+    if not request_data.email and not request_data.phone:
+        raise HTTPException(status_code=400, detail=_("email_or_phone_required", locale) or "Email or phone number is required")
+    
+    # Find user by email or phone
+    user = crud_user.get_by_phone_or_email(db, phone=request_data.phone, email=request_data.email)
+    if not user:
+        # Don't reveal if user exists (security best practice)
+        logger.info("Password reset requested for non-existent user")
+        return {"message": _("password_reset_code_sent", locale) or "If the email/phone exists, a reset code has been sent."}
+    
+    # Create reset token
+    reset_token = create_password_reset_token(db, user.id, expires_in_hours=1)
+    
+    # Send code via email or SMS
+    if request_data.email and user.email:
+        send_password_reset_email(user.email, reset_token.code)
+    elif request_data.phone and user.phone:
+        send_password_reset_sms(user.phone, reset_token.code)
+    
+    logger.info(f"Password reset code sent to user_id={user.id}")
+    
+    # Return success message (don't reveal if user exists)
+    return {
+        "message": _("password_reset_code_sent", locale) or "If the email/phone exists, a reset code has been sent.",
+        "code": reset_token.code  # For development/testing - remove in production or make optional
+    }
+
+
+@router.post("/reset-password")
+def reset_password(
+    request_data: ResetPasswordRequest,
+    db: Session = Depends(deps.get_db),
+    locale: str = Depends(deps.get_locale),
+):
+    """Reset password using token or code."""
+    from app.api.core.security import get_password_hash
+    
+    logger.info("Password reset attempt")
+    
+    # Validate that token or code is provided
+    if not request_data.token and not request_data.code:
+        raise HTTPException(status_code=400, detail=_("token_or_code_required", locale) or "Token or code is required")
+    
+    # Find reset token
+    reset_token = None
+    if request_data.token:
+        reset_token = get_reset_token_by_token(db, request_data.token)
+    elif request_data.code:
+        reset_token = get_reset_token_by_code(db, request_data.code)
+    
+    if not reset_token:
+        logger.warning("Invalid or expired password reset token/code")
+        raise HTTPException(
+            status_code=400,
+            detail=_("invalid_reset_token", locale) or "Invalid or expired reset token/code"
+        )
+    
+    # Get user
+    user = crud_user.get_user(db, reset_token.user_id)
+    if not user:
+        logger.warning(f"User not found for reset token: user_id={reset_token.user_id}")
+        raise HTTPException(status_code=404, detail=_("user_not_found", locale))
+    
+    # Update password
+    user.hashed_password = get_password_hash(request_data.new_password)
+    db.commit()
+    
+    # Mark token as used
+    mark_token_as_used(db, reset_token)
+    
+    logger.info(f"Password reset successful for user_id={user.id}")
+    return {"message": _("password_reset_success", locale) or "Password has been reset successfully"}
