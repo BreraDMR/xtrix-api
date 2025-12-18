@@ -383,18 +383,28 @@ def forgot_password(
     reset_token = create_password_reset_token(db, user.id, expires_in_hours=1)
     
     # Send code via email or SMS
+    email_sent = False
+    sms_sent = False
     if request_data.email and user.email:
-        send_password_reset_email(user.email, reset_token.code)
+        email_sent = send_password_reset_email(user.email, reset_token.code)
     elif request_data.phone and user.phone:
-        send_password_reset_sms(user.phone, reset_token.code)
+        sms_sent = send_password_reset_sms(user.phone, reset_token.code)
     
-    logger.info(f"Password reset code sent to user_id={user.id}")
+    logger.info(f"Password reset code generated for user_id={user.id}, email_sent={email_sent}, sms_sent={sms_sent}, code={reset_token.code}")
     
     # Return success message (don't reveal if user exists)
-    return {
+    # Only return code in development mode if email/SMS not configured
+    response = {
         "message": _("password_reset_code_sent", locale) or "If the email/phone exists, a reset code has been sent.",
-        "code": reset_token.code  # For development/testing - remove in production or make optional
     }
+    
+    # In development mode, if email/SMS not configured, return code for testing
+    # In production, code should be sent via email/SMS only
+    if settings.environment == "development" and not email_sent and not sms_sent:
+        response["code"] = reset_token.code
+        response["message"] = "Password reset code has been generated. Check your email or phone for the code. (Development mode: code shown below for testing)"
+    
+    return response
 
 
 @router.post("/reset-password")
