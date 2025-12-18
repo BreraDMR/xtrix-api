@@ -85,31 +85,69 @@ def send_password_reset_email(email: str, code: str) -> bool:
     """Send password reset code via email."""
     if not settings.smtp_host or not settings.smtp_from:
         logger.warning("SMTP not configured, skip password reset email to %s", email)
-        # For development, log the code instead
         logger.info("Password reset code for %s: %s", email, code)
-        return True  # Return True for development
+        return False  # Return False if not configured
+    
     msg = EmailMessage()
-    msg["Subject"] = "Password Reset Code"
+    msg["Subject"] = "Xtrix - Password Reset Code"
     msg["From"] = settings.smtp_from
     msg["To"] = email
-    msg.set_content(
+    
+    # Plain text version
+    text_content = (
         f"Your password reset code is: {code}\n\n"
         f"This code will expire in 1 hour.\n\n"
-        f"If you didn't request a password reset, please ignore this email."
+        f"If you didn't request a password reset, please ignore this email.\n\n"
+        f"Xtrix Team"
     )
+    
+    # HTML version
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .code {{ font-size: 32px; font-weight: bold; text-align: center; 
+                     background: #f0f0f0; padding: 20px; border-radius: 8px; 
+                     letter-spacing: 8px; margin: 20px 0; color: #2563eb; }}
+            .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; 
+                      color: #666; font-size: 12px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h2>Password Reset Request</h2>
+            <p>You requested a password reset for your Xtrix account.</p>
+            <p>Your password reset code is:</p>
+            <div class="code">{code}</div>
+            <p>This code will expire in <strong>1 hour</strong>.</p>
+            <p>If you didn't request a password reset, please ignore this email.</p>
+            <div class="footer">
+                <p>Xtrix Team</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    msg.set_content(text_content)
+    msg.add_alternative(html_content, subtype='html')
+    
     try:
         with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
             server.starttls()
             if settings.smtp_user and settings.smtp_password:
                 server.login(settings.smtp_user, settings.smtp_password)
             server.send_message(msg)
-        logger.info("Password reset email sent to %s", email)
+        logger.info("Password reset email sent successfully to %s", email)
         return True
     except Exception as e:
-        logger.error("Password reset email send failed: %s", e)
-        # For development, log the code
-        logger.info("Password reset code for %s: %s", email, code)
-        return True  # Return True for development
+        logger.error("Password reset email send failed: %s", str(e))
+        logger.info("Password reset code for %s: %s (logged due to email failure)", email, code)
+        return False
 
 
 def send_password_reset_sms(phone: str, code: str) -> bool:
