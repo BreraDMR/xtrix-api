@@ -82,9 +82,13 @@ def send_sms_notification(phone: str, visit) -> bool:
 
 
 def send_password_reset_email(email: str, code: str) -> bool:
-    """Send password reset code via email using Mailgun API or SMTP."""
+    """Send password reset code via email using Resend, Mailgun API, or SMTP."""
     
-    # Try Mailgun API first (preferred)
+    # Try Resend API first (preferred - works with any email address)
+    if settings.resend_api_key:
+        return _send_email_via_resend(email, code)
+    
+    # Try Mailgun API second
     if settings.mailgun_api_key and settings.mailgun_domain:
         return _send_email_via_mailgun(email, code)
     
@@ -93,9 +97,92 @@ def send_password_reset_email(email: str, code: str) -> bool:
         return _send_email_via_smtp(email, code)
     
     # Not configured
-    logger.warning("Email not configured (no Mailgun or SMTP), skip password reset email to %s", email)
+    logger.warning("Email not configured (no Resend, Mailgun, or SMTP), skip password reset email to %s", email)
     logger.info("Password reset code for %s: %s", email, code)
     return False
+
+
+def _send_email_via_resend(email: str, code: str) -> bool:
+    """Send email using Resend API."""
+    try:
+        # HTML content
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .code {{ font-size: 32px; font-weight: bold; text-align: center; 
+                         background: #f0f0f0; padding: 20px; border-radius: 8px; 
+                         letter-spacing: 8px; margin: 20px 0; color: #2563eb; }}
+                .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; 
+                          color: #666; font-size: 12px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h2>Password Reset Request</h2>
+                <p>You requested a password reset for your Xtrix account.</p>
+                <p>Your password reset code is:</p>
+                <div class="code">{code}</div>
+                <p>This code will expire in <strong>1 hour</strong>.</p>
+                <p>If you didn't request a password reset, please ignore this email.</p>
+                <div class="footer">
+                    <p>Xtrix Team</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Plain text version
+        text_content = (
+            f"Your password reset code is: {code}\n\n"
+            f"This code will expire in 1 hour.\n\n"
+            f"If you didn't request a password reset, please ignore this email.\n\n"
+            f"Xtrix Team"
+        )
+        
+        # Resend API endpoint
+        url = "https://api.resend.com/emails"
+        
+        # Determine "from" address
+        from_email = settings.smtp_from or "onboarding@resend.dev"
+        
+        payload = {
+            "from": f"Xtrix <{from_email}>",
+            "to": [email],
+            "subject": "Xtrix - Password Reset Code",
+            "text": text_content,
+            "html": html_content,
+        }
+        
+        headers = {
+            "Authorization": f"Bearer {settings.resend_api_key}",
+            "Content-Type": "application/json",
+        }
+        
+        response = requests.post(
+            url,
+            json=payload,
+            headers=headers,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            logger.info("Password reset email sent successfully via Resend to %s", email)
+            return True
+        else:
+            logger.error("Resend email send failed: %s %s", response.status_code, response.text)
+            logger.info("Password reset code for %s: %s (logged due to Resend failure)", email, code)
+            return False
+            
+    except Exception as e:
+        logger.error("Resend email send exception: %s", str(e))
+        logger.info("Password reset code for %s: %s (logged due to exception)", email, code)
+        return False
 
 
 def _send_email_via_mailgun(email: str, code: str) -> bool:
