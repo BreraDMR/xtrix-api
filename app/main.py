@@ -84,7 +84,21 @@ app.add_exception_handler(SQLAlchemyError, error_handlers.database_exception_han
 app.add_exception_handler(HTTPException, error_handlers.http_exception_handler)
 app.add_exception_handler(Exception, error_handlers.general_exception_handler)
 
-# Security Headers Middleware (добавляется первым)
+# Middleware для исправления URL при работе за прокси (Railway)
+# Это нужно чтобы редиректы использовали HTTPS вместо HTTP
+@app.middleware("http")
+async def fix_proxy_headers(request: Request, call_next):
+    """Fix URL scheme when behind proxy (Railway) to use HTTPS in redirects."""
+    # Проверяем заголовок X-Forwarded-Proto от Railway прокси
+    if request.headers.get("X-Forwarded-Proto") == "https":
+        # Временно заменяем scheme в URL для правильных редиректов
+        request.scope["scheme"] = "https"
+    elif request.headers.get("X-Forwarded-Ssl") == "on":
+        request.scope["scheme"] = "https"
+    response = await call_next(request)
+    return response
+
+# Security Headers Middleware (добавляется после proxy fix)
 app.add_middleware(SecurityHeadersMiddleware)
 
 # Middleware для логирования запросов и метрик
