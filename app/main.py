@@ -75,6 +75,7 @@ app = FastAPI(
             "description": "Production server"
         },
     ],
+    redirect_slashes=False,  # Disable automatic redirects for trailing slashes
 )
 
 # Register exception handlers for detailed error messages
