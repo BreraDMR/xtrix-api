@@ -143,7 +143,7 @@ def prometheus_metrics(_=Depends(deps.role_required("admin"))):
     return Response(content="\n".join(lines), media_type="text/plain")
 
 
-@router.get("/revenue/")
+@router.get("/revenue")
 def revenue(
     start: datetime,
     end: datetime,
