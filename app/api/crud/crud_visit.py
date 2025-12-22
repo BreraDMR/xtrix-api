@@ -10,15 +10,11 @@ from app.schemas.visit import VisitCreate, VisitUpdate
 
 
 def create_visit(db: Session, visit_in: VisitCreate) -> Visit:
-    try:
-        visit = Visit(**visit_in.dict())
-        db.add(visit)
-        db.commit()
-        db.refresh(visit)
-        return visit
-    except Exception as e:
-        db.rollback()
-        raise  # Re-raise the exception to be handled by the endpoint
+    visit = Visit(**visit_in.dict())
+    db.add(visit)
+    db.commit()
+    db.refresh(visit)
+    return visit
 
 
 def update_visit(db: Session, visit: Visit, update: VisitUpdate) -> Visit:

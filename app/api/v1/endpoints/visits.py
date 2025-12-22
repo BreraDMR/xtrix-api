@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 
 from app.api import deps
 from app.api.core.i18n import _, localize_response
-from app.api.core.logger import get_logger
 from app.api.core.notify import send_notifications
 from app.api.core.pagination import PaginationParams, PaginatedResponse
 from app.db.models.client import Client
@@ -17,7 +16,6 @@ from app.db.models.user import User
 from app.schemas.visit import VisitCreate, VisitOut, VisitUpdate
 
 router = APIRouter()
-logger = get_logger("visits")
 
 
 @router.post("/", response_model=VisitOut)
@@ -27,17 +25,11 @@ def create_visit(
     current_user: User = Depends(deps.role_required("admin", "specialist")),
     locale: str = Depends(deps.get_locale),
 ):
-    logger.info(f"Creating visit: client_id={visit.client_id}, specialist_id={visit.specialist_id}, date_start={visit.date_start}, user_id={current_user.id}")
     if current_user.role != "admin" and visit.specialist_id != current_user.id:
-        logger.warning(f"Visit creation denied: user_id={current_user.id}, attempted_specialist_id={visit.specialist_id}")
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    try:
-        result = crud_visit.create_visit(db, visit)
-        logger.info(f"Visit created successfully: id={result.id}, client_id={result.client_id}")
-        return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
-    except Exception as e:
-        logger.error(f"Failed to create visit: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to create visit: {str(e)}")
+    result = crud_visit.create_visit(db, visit)
+    from app.api.core.i18n import localize_response
+    return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
 
 
 @router.get("/", response_model=PaginatedResponse[VisitOut])

@@ -44,16 +44,8 @@ class VisitCreate(VisitBase):
     @classmethod
     def validate_date_start(cls, v):
         # Allow past dates for historical records, but warn if too far in the past
-        from datetime import timedelta, timezone
-        # Make both datetimes offset-aware for comparison
-        now = datetime.now(timezone.utc)
-        # If v is offset-naive, make it offset-aware
-        if v.tzinfo is None:
-            # Assume UTC if no timezone info
-            v = v.replace(tzinfo=timezone.utc)
-        elif v.tzinfo.utcoffset(v) is None:
-            # If it's a timezone-aware but offset is None, treat as UTC
-            v = v.replace(tzinfo=timezone.utc)
+        from datetime import datetime, timedelta
+        now = datetime.utcnow()
         if v < now - timedelta(days=365):
             # Allow but could warn
             pass

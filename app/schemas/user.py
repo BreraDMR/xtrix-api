@@ -9,6 +9,7 @@ class UserBase(BaseModel):
     phone: Optional[str] = Field(None, max_length=50)
     email: Optional[EmailStr] = None
     role: str = Field(..., description="admin|specialist|client")
+    specialist_type: Optional[str] = Field(None, description="Type of specialist (only for role='specialist')")
     
     @field_validator('phone')
     @classmethod
@@ -36,6 +37,15 @@ class UserBase(BaseModel):
         allowed_roles = ['admin', 'specialist', 'client']
         if v not in allowed_roles:
             raise ValueError(f"Role must be one of: {', '.join(allowed_roles)}")
+        return v
+    
+    @field_validator('specialist_type')
+    @classmethod
+    def validate_specialist_type(cls, v):
+        # Validation for specialist_type format (if needed)
+        # Note: Validation that specialist_type is only for role='specialist' 
+        # should be done in business logic (endpoint/CRUD)
+        # because field validators run independently and role might not be available
         return v
 
 
@@ -86,36 +96,6 @@ class LoginResponse(BaseModel):
     access_token: str | None = None
     refresh_token: str | None = None
     token_type: str = "bearer"
-
-
-class ForgotPasswordRequest(BaseModel):
-    email: Optional[EmailStr] = None
-    phone: Optional[str] = None
-    
-    @field_validator('phone')
-    @classmethod
-    def validate_phone(cls, v):
-        if v is not None and v != "":
-            from app.api.core.security import validate_phone
-            is_valid, error_msg = validate_phone(v)
-            if not is_valid:
-                raise ValueError(error_msg)
-        return v
-
-
-class ResetPasswordRequest(BaseModel):
-    token: Optional[str] = None  # Token from email link
-    code: Optional[str] = None  # 6-digit code from SMS/email
-    new_password: str = Field(..., min_length=8)
-    
-    @field_validator('new_password')
-    @classmethod
-    def validate_password(cls, v):
-        from app.api.core.security import validate_password_strength
-        is_valid, error_msg = validate_password_strength(v)
-        if not is_valid:
-            raise ValueError(error_msg)
-        return v
 
 
 

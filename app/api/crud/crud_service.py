@@ -9,21 +9,11 @@ from app.schemas.service import ServiceCreate, ServiceUpdate
 
 
 def create_service(db: Session, service_in: ServiceCreate) -> Service:
-    # Filter out fields that don't exist in the Service model
-    service_data = service_in.dict()
-    # Service model fields: id, specialist_id, name, duration_minutes, price, is_active, created_at, deleted_at, archived_at
-    # Remove 'features' if present (it's in schema but not in model)
-    service_data.pop('features', None)
-    
-    try:
-        service = Service(**service_data)
-        db.add(service)
-        db.commit()
-        db.refresh(service)
-        return service
-    except Exception as e:
-        db.rollback()
-        raise  # Re-raise the exception to be handled by the endpoint
+    service = Service(**service_in.dict())
+    db.add(service)
+    db.commit()
+    db.refresh(service)
+    return service
 
 
 def update_service(db: Session, service: Service, update: ServiceUpdate) -> Service:

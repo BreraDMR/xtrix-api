@@ -24,6 +24,7 @@ def create_user(db: Session, user_in: UserCreate) -> User:
         phone=user_in.phone,
         email=user_in.email,
         role=user_in.role,
+        specialist_type=user_in.specialist_type if hasattr(user_in, 'specialist_type') else None,
         hashed_password=get_password_hash(user_in.password) if user_in.password else "",
     )
     db.add(user)

@@ -17,6 +17,7 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=True)
     hashed_password = Column(String, nullable=False)
     role = Column(String, nullable=False, default="specialist", index=True)
+    specialist_type = Column(String, nullable=True, index=True)  # Type of specialist (e.g., "massage", "cosmetologist", "dentist")
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     failed_login_attempts = Column(Integer, default=0, nullable=False)
     locked_until = Column(DateTime, nullable=True, index=True)

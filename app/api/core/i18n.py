@@ -199,6 +199,233 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Неверный тип отчета",
         "cz": "Neplatný typ zprávy",
     },
+    # Specialist profile translations
+    "specialist_profile_not_found": {
+        "en": "Specialist profile not found",
+        "ru": "Профиль специалиста не найден",
+        "cz": "Profil specialisty nebyl nalezen",
+    },
+    "profile_already_exists": {
+        "en": "Profile already exists for this user",
+        "ru": "Профиль уже существует для этого пользователя",
+        "cz": "Profil již existuje pro tohoto uživatele",
+    },
+    "user_not_specialist": {
+        "en": "User is not a specialist",
+        "ru": "Пользователь не является специалистом",
+        "cz": "Uživatel není specialista",
+    },
+    # Specialist types and categories
+    "category_beauty": {
+        "en": "Beauty",
+        "ru": "Красота",
+        "cz": "Krása",
+    },
+    "category_wellness": {
+        "en": "Wellness",
+        "ru": "Велнес",
+        "cz": "Wellness",
+    },
+    "category_healthcare": {
+        "en": "Healthcare",
+        "ru": "Здравоохранение",
+        "cz": "Zdravotní péče",
+    },
+    # Specialist type translations (beauty)
+    "specialist_type_massage": {
+        "en": "Massage Therapist",
+        "ru": "Массажист",
+        "cz": "Masér",
+    },
+    "specialist_type_cosmetologist": {
+        "en": "Cosmetologist",
+        "ru": "Косметолог",
+        "cz": "Kosmetička",
+    },
+    "specialist_type_barber": {
+        "en": "Barber",
+        "ru": "Барбер",
+        "cz": "Holič",
+    },
+    "specialist_type_hairdresser": {
+        "en": "Hairdresser",
+        "ru": "Парикмахер",
+        "cz": "Kadeřník",
+    },
+    "specialist_type_esthetician": {
+        "en": "Esthetician",
+        "ru": "Эстетист",
+        "cz": "Estetička",
+    },
+    "specialist_type_nail_technician": {
+        "en": "Nail Technician",
+        "ru": "Мастер маникюра/педикюра",
+        "cz": "Manikérka",
+    },
+    "specialist_type_lash_technician": {
+        "en": "Lash & Brow Technician",
+        "ru": "Мастер по ресницам и бровям",
+        "cz": "Technička řas a obočí",
+    },
+    "specialist_type_makeup_artist": {
+        "en": "Makeup Artist",
+        "ru": "Визажист",
+        "cz": "Vizážistka",
+    },
+    # Specialist type translations (wellness)
+    "specialist_type_physiotherapist": {
+        "en": "Physiotherapist",
+        "ru": "Физиотерапевт",
+        "cz": "Fyzioterapeut",
+    },
+    "specialist_type_nutritionist": {
+        "en": "Nutritionist",
+        "ru": "Нутрициолог",
+        "cz": "Výživový poradce",
+    },
+    "specialist_type_aromatherapist": {
+        "en": "Aromatherapist",
+        "ru": "Ароматерапевт",
+        "cz": "Aromaterapeut",
+    },
+    "specialist_type_fitness_coach": {
+        "en": "Fitness Coach",
+        "ru": "Фитнес-тренер",
+        "cz": "Fitness trenér",
+    },
+    "specialist_type_yoga_instructor": {
+        "en": "Yoga Instructor",
+        "ru": "Инструктор йоги",
+        "cz": "Instruktor jógy",
+    },
+    "specialist_type_psychologist": {
+        "en": "Psychologist",
+        "ru": "Психолог",
+        "cz": "Psycholog",
+    },
+    "specialist_type_psychotherapist": {
+        "en": "Psychotherapist",
+        "ru": "Психотерапевт",
+        "cz": "Psychoterapeut",
+    },
+    # Specialist type translations (healthcare)
+    "specialist_type_therapist": {
+        "en": "Therapist",
+        "ru": "Терапевт",
+        "cz": "Terapeut",
+    },
+    "specialist_type_dentist": {
+        "en": "Dentist",
+        "ru": "Стоматолог",
+        "cz": "Zubař",
+    },
+    "specialist_type_dermatologist": {
+        "en": "Dermatologist",
+        "ru": "Дерматолог",
+        "cz": "Dermatolog",
+    },
+    "specialist_type_doctor": {
+        "en": "Doctor",
+        "ru": "Врач-специалист",
+        "cz": "Lékař",
+    },
+    "specialist_type_cardiologist": {
+        "en": "Cardiologist",
+        "ru": "Кардиолог",
+        "cz": "Kardiolog",
+    },
+    "specialist_type_neurologist": {
+        "en": "Neurologist",
+        "ru": "Невролог",
+        "cz": "Neurolog",
+    },
+    "specialist_type_orthopedist": {
+        "en": "Orthopedist",
+        "ru": "Ортопед",
+        "cz": "Ortoped",
+    },
+    "specialist_type_gynecologist": {
+        "en": "Gynecologist",
+        "ru": "Гинеколог",
+        "cz": "Gynekolog",
+    },
+    "specialist_type_urologist": {
+        "en": "Urologist",
+        "ru": "Уролог",
+        "cz": "Urolog",
+    },
+    "specialist_type_ophthalmologist": {
+        "en": "Ophthalmologist",
+        "ru": "Офтальмолог",
+        "cz": "Oftalmolog",
+    },
+    "specialist_type_endocrinologist": {
+        "en": "Endocrinologist",
+        "ru": "Эндокринолог",
+        "cz": "Endokrinolog",
+    },
+    "specialist_type_pediatrician": {
+        "en": "Pediatrician",
+        "ru": "Педиатр",
+        "cz": "Pediatr",
+    },
+    "specialist_type_surgeon": {
+        "en": "Surgeon",
+        "ru": "Хирург",
+        "cz": "Chirurg",
+    },
+    "specialist_type_oncologist": {
+        "en": "Oncologist",
+        "ru": "Онколог",
+        "cz": "Onkolog",
+    },
+    # Business types
+    "business_type_individual": {
+        "en": "Individual Specialist",
+        "ru": "Индивидуальный специалист",
+        "cz": "Individuální specialista",
+    },
+    "business_type_salon": {
+        "en": "Beauty Salon",
+        "ru": "Салон красоты",
+        "cz": "Kosmetický salón",
+    },
+    "business_type_clinic": {
+        "en": "Clinic",
+        "ru": "Клиника",
+        "cz": "Klinika",
+    },
+    "business_type_hospital": {
+        "en": "Hospital",
+        "ru": "Больница",
+        "cz": "Nemocnice",
+    },
+    "business_type_barbershop": {
+        "en": "Barbershop",
+        "ru": "Барбершоп",
+        "cz": "Holičství",
+    },
+    "business_type_rehab_center": {
+        "en": "Rehabilitation Center",
+        "ru": "Реабилитационный центр",
+        "cz": "Rehabilitační centrum",
+    },
+    # Verification status
+    "verification_status_pending": {
+        "en": "Pending",
+        "ru": "На проверке",
+        "cz": "Čeká na ověření",
+    },
+    "verification_status_verified": {
+        "en": "Verified",
+        "ru": "Подтвержден",
+        "cz": "Ověřeno",
+    },
+    "verification_status_rejected": {
+        "en": "Rejected",
+        "ru": "Отклонен",
+        "cz": "Zamítnuto",
+    },
 }
 
 
@@ -234,6 +461,14 @@ def localize_response(data: Any, locale: str | None = None) -> Any:
                 result[key] = localize_field(value, "status", locale)
             elif key == "subscription_status" and isinstance(value, str):
                 result[key] = localize_field(value, "subscription", locale)
+            elif key == "specialist_type" and isinstance(value, str):
+                result[key] = localize_field(value, "specialist_type", locale)
+            elif key == "specialist_category" and isinstance(value, str):
+                result[key] = localize_field(value, "category", locale)
+            elif key == "business_type" and isinstance(value, str):
+                result[key] = localize_field(value, "business_type", locale)
+            elif key == "is_verified" and isinstance(value, str):
+                result[key] = localize_field(value, "verification_status", locale)
             elif isinstance(value, (dict, list)):
                 result[key] = localize_response(value, locale)
             else:
