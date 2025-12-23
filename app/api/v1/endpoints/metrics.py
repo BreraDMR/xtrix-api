@@ -150,9 +150,17 @@ def revenue(
     db: Session = Depends(deps.get_db),
     _=Depends(deps.role_required("admin", "specialist")),
 ):
+    """
+    Calculate revenue from completed visits only.
+    Only visits with status='completed' are included in the revenue calculation.
+    """
     res = (
         db.query(func.sum(Visit.price))
-        .filter(Visit.date_start >= start, Visit.date_start <= end)
+        .filter(
+            Visit.date_start >= start,
+            Visit.date_start <= end,
+            Visit.status == 'completed'  # Only count completed visits
+        )
         .scalar()
     )
     return {"revenue": res or 0.0}
