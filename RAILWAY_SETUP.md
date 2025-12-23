@@ -154,3 +154,4 @@ JWT_SECRET=your-secret-key-minimum-32-characters
 REDIS_URL=redis://localhost:6379/0
 ```
 
+

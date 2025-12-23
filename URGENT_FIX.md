@@ -143,3 +143,4 @@ exit
 - `VERCEL_SETUP.md` - настройка Vercel
 - `DEPLOYMENT_STATUS.md` - общий статус деплоя
 
+
