@@ -65,8 +65,8 @@ def upgrade():
     op.execute("""
         INSERT INTO businesses (name, business_type, address, description, created_at)
         SELECT DISTINCT
-            LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255) as name,  -- Ограничиваем длину name
-            LEFT(COALESCE(sp.business_type, 'individual'), 50) as business_type,  -- Ограничиваем длину business_type
+            LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255) as name,
+            LEFT(COALESCE(sp.business_type, 'individual'), 50) as business_type,
             MAX(sp.address) as address,
             MAX(sp.description) as description,
             NOW() as created_at
@@ -75,10 +75,11 @@ def upgrade():
         WHERE (u.role = 'specialist' OR u.role = 'admin')
         AND NOT EXISTS (
             SELECT 1 FROM businesses b 
-            WHERE b.name = COALESCE(sp.business_name, u.full_name || '''s Business')
-            AND b.business_type = COALESCE(sp.business_type, 'individual')
+            WHERE b.name = LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255)
+            AND b.business_type = LEFT(COALESCE(sp.business_type, 'individual'), 50)
         )
-        GROUP BY COALESCE(sp.business_name, u.full_name || '''s Business'), COALESCE(sp.business_type, 'individual')
+        GROUP BY LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255), 
+                 LEFT(COALESCE(sp.business_type, 'individual'), 50)
     """)
     
     # Обновляем business_id в users на основе созданных бизнесов
@@ -89,8 +90,8 @@ def upgrade():
             SELECT b.id
             FROM specialist_profiles sp
             JOIN businesses b ON (
-                b.name = COALESCE(sp.business_name, u.full_name || '''s Business')
-                AND b.business_type = COALESCE(sp.business_type, 'individual')
+                b.name = LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255)
+                AND b.business_type = LEFT(COALESCE(sp.business_type, 'individual'), 50)
             )
             WHERE sp.user_id = u.id
             LIMIT 1

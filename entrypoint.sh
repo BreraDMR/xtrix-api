@@ -8,10 +8,12 @@ echo "🚀 Starting application..."
 
 # Run database migrations
 echo "📦 Running database migrations..."
-alembic upgrade head || {
-    echo "❌ Migration failed, but continuing (might be already applied)..."
-    # Don't fail if migration already applied
-}
+if ! alembic upgrade head; then
+    echo "❌ Migration failed! This is critical - application may not work correctly."
+    echo "Checking current migration status..."
+    alembic current || true
+    echo "Attempting to continue, but errors may occur..."
+fi
 
 # Start the application
 echo "✅ Starting uvicorn server on port ${PORT:-8000}..."
