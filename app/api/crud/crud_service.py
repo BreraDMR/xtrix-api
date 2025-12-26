@@ -85,16 +85,68 @@ def list_services(
     except:
         pass
     
-    # Optimized query with joinedload for relationships
-    # Используем defer для отложения загрузки business_id если колонки нет
-    if has_business_id_column:
-        q = db.query(Service).options(joinedload(Service.specialist))
-    else:
-        from sqlalchemy.orm import defer
-        q = db.query(Service).options(
-            joinedload(Service.specialist),
-            defer(Service.business_id)  # Откладываем загрузку, если колонки нет
-        )
+    # Если колонки business_id нет, используем raw SQL сразу
+    if not has_business_id_column:
+        # Используем raw SQL для всех операций
+        from sqlalchemy import text
+        count_sql = "SELECT COUNT(*) FROM services WHERE 1=1"
+        params = {}
+        
+        if not include_deleted:
+            count_sql += " AND deleted_at IS NULL"
+        if not include_archived:
+            count_sql += " AND archived_at IS NULL"
+        if specialist_id:
+            count_sql += " AND specialist_id = :specialist_id"
+            params['specialist_id'] = specialist_id
+        if is_active is not None:
+            count_sql += " AND is_active = :is_active"
+            params['is_active'] = is_active
+        
+        total = db.execute(text(count_sql), params).scalar()
+        
+        # Получаем данные
+        select_sql = """
+            SELECT id, specialist_id, name, duration_minutes, price, is_active, 
+                   created_at, deleted_at, archived_at
+            FROM services
+            WHERE 1=1
+        """
+        select_params = {}
+        
+        if not include_deleted:
+            select_sql += " AND deleted_at IS NULL"
+        if not include_archived:
+            select_sql += " AND archived_at IS NULL"
+        if specialist_id:
+            select_sql += " AND specialist_id = :specialist_id"
+            select_params['specialist_id'] = specialist_id
+        if is_active is not None:
+            select_sql += " AND is_active = :is_active"
+            select_params['is_active'] = is_active
+        
+        if pagination:
+            select_sql += " LIMIT :limit OFFSET :offset"
+            select_params['limit'] = pagination.limit
+            select_params['offset'] = pagination.offset
+        
+        result = db.execute(text(select_sql), select_params)
+        # Конвертируем результат в объекты Service
+        items = []
+        for row in result:
+            service = Service()
+            for key, value in row._mapping.items():
+                setattr(service, key, value)
+            # Загружаем связанные объекты отдельно
+            if service.specialist_id:
+                from app.db.models.user import User
+                service.specialist = db.query(User).filter(User.id == service.specialist_id).first()
+            items.append(service)
+        
+        return items, total
+    
+    # Optimized query with joinedload for relationships (только если колонка существует)
+    q = db.query(Service).options(joinedload(Service.specialist))
     
     # Filter out deleted and archived by default
     if not include_deleted:
