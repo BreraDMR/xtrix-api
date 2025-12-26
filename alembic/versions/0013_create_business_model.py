@@ -45,24 +45,47 @@ def upgrade():
     op.create_index("ix_users_business_id", "users", ["business_id"])
     op.create_index("ix_specialist_profiles_business_id", "specialist_profiles", ["business_id"])
     
-    # Step 4: Try to migrate existing data (with error handling - failures shouldn't block)
+    # Step 4: Create foreign keys BEFORE data migration (can be empty)
+    # Foreign keys can be created even if tables are empty
+    try:
+        op.create_foreign_key(
+            "fk_users_business_id", 
+            "users", 
+            "businesses", 
+            ["business_id"], 
+            ["id"],
+            ondelete="SET NULL"
+        )
+    except Exception as e:
+        print(f"Warning: Could not create FK fk_users_business_id: {e}")
+    
+    try:
+        op.create_foreign_key(
+            "fk_specialist_profiles_business_id",
+            "specialist_profiles",
+            "businesses",
+            ["business_id"],
+            ["id"],
+            ondelete="SET NULL"
+        )
+    except Exception as e:
+        print(f"Warning: Could not create FK fk_specialist_profiles_business_id: {e}")
+    
+    # Step 5: Try to migrate existing data (with error handling - failures shouldn't block)
     conn = op.get_bind()
     
     # Check if there's data to migrate
     try:
         user_count = conn.execute(text("SELECT COUNT(*) FROM users WHERE role IN ('specialist', 'admin')")).scalar()
         if user_count > 0:
-            # Create businesses from existing data
+            # Create businesses from existing data - simplified query
             conn.execute(text("""
                 INSERT INTO businesses (name, business_type, address, description, created_at)
-                SELECT DISTINCT ON (
-                    LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255),
-                    LEFT(COALESCE(sp.business_type, 'individual'), 50)
-                )
+                SELECT DISTINCT
                     LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255) as name,
                     LEFT(COALESCE(sp.business_type, 'individual'), 50) as business_type,
-                    (SELECT MAX(sp2.address) FROM specialist_profiles sp2 WHERE sp2.user_id = u.id LIMIT 1) as address,
-                    (SELECT MAX(sp2.description) FROM specialist_profiles sp2 WHERE sp2.user_id = u.id LIMIT 1) as description,
+                    MAX(sp.address) as address,
+                    MAX(sp.description) as description,
                     NOW() as created_at
                 FROM users u
                 LEFT JOIN specialist_profiles sp ON u.id = sp.user_id
@@ -72,9 +95,11 @@ def upgrade():
                     WHERE b.name = LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255)
                     AND b.business_type = LEFT(COALESCE(sp.business_type, 'individual'), 50)
                 )
+                GROUP BY LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255), 
+                         LEFT(COALESCE(sp.business_type, 'individual'), 50)
             """))
             
-            # Update users.business_id
+            # Update users.business_id - simplified
             conn.execute(text("""
                 UPDATE users u
                 SET business_id = (
@@ -103,33 +128,10 @@ def upgrade():
     except Exception as e:
         # Log error but continue - data migration is not critical, structure is
         print(f"Warning: Data migration failed (non-critical): {e}")
+        import traceback
+        traceback.print_exc()
         pass
     
-    # Step 5: Create foreign keys AFTER everything else
-    # Если таблица businesses пустая, FK все равно можно создать (NULL значения разрешены)
-    try:
-        op.create_foreign_key(
-            "fk_users_business_id", 
-            "users", 
-            "businesses", 
-            ["business_id"], 
-            ["id"],
-            ondelete="SET NULL"
-        )
-    except Exception as e:
-        print(f"Warning: Could not create FK fk_users_business_id: {e}")
-    
-    try:
-        op.create_foreign_key(
-            "fk_specialist_profiles_business_id",
-            "specialist_profiles",
-            "businesses",
-            ["business_id"],
-            ["id"],
-            ondelete="SET NULL"
-        )
-    except Exception as e:
-        print(f"Warning: Could not create FK fk_specialist_profiles_business_id: {e}")
 
 
 def downgrade():
