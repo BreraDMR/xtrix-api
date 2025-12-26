@@ -75,8 +75,26 @@ def list_services(
     include_archived: bool = False,
 ) -> Tuple[list[Service], int]:
     """List services with optional pagination. Returns (items, total_count)."""
+    # Проверяем наличие колонки business_id перед выполнением запроса
+    from sqlalchemy import inspect
+    inspector = inspect(db.bind)
+    has_business_id_column = False
+    try:
+        columns = [col['name'] for col in inspector.get_columns('services')]
+        has_business_id_column = 'business_id' in columns
+    except:
+        pass
+    
     # Optimized query with joinedload for relationships
-    q = db.query(Service).options(joinedload(Service.specialist))
+    # Используем defer для отложения загрузки business_id если колонки нет
+    if has_business_id_column:
+        q = db.query(Service).options(joinedload(Service.specialist))
+    else:
+        from sqlalchemy.orm import defer
+        q = db.query(Service).options(
+            joinedload(Service.specialist),
+            defer(Service.business_id)  # Откладываем загрузку, если колонки нет
+        )
     
     # Filter out deleted and archived by default
     if not include_deleted:
@@ -87,23 +105,12 @@ def list_services(
     # Apply filters
     # Приоритет: если указан business_id, используем его для изоляции данных
     # Но также показываем записи с NULL business_id для обратной совместимости
-    if business_id:
-        # Проверяем наличие колонки business_id в таблице services
-        from sqlalchemy import inspect
-        inspector = inspect(db.bind)
-        has_business_id_column = False
-        try:
-            columns = [col['name'] for col in inspector.get_columns('services')]
-            has_business_id_column = 'business_id' in columns
-        except:
-            pass
-        
-        if has_business_id_column:
-            from sqlalchemy import or_
-            q = q.filter(or_(
-                Service.business_id == business_id,
-                Service.business_id.is_(None)  # Показываем старые записи без business_id
-            ))
+    if business_id and has_business_id_column:
+        from sqlalchemy import or_
+        q = q.filter(or_(
+            Service.business_id == business_id,
+            Service.business_id.is_(None)  # Показываем старые записи без business_id
+        ))
         # Если колонки нет, показываем все услуги (обратная совместимость)
     
     if specialist_id:
@@ -112,7 +119,25 @@ def list_services(
         q = q.filter(Service.is_active == is_active)
     
     # Get total count before pagination
-    total = q.count()
+    # Используем try-except для обработки ошибок с отсутствующей колонкой
+    try:
+        total = q.count()
+    except Exception as e:
+        # Если count падает из-за отсутствующей колонки, используем альтернативный способ
+        if 'business_id' in str(e).lower():
+            # Создаем простой count запрос без business_id
+            count_q = db.query(Service.id)
+            if not include_deleted:
+                count_q = filter_active(count_q)
+            if not include_archived:
+                count_q = count_q.filter(Service.archived_at.is_(None))
+            if specialist_id:
+                count_q = count_q.filter(Service.specialist_id == specialist_id)
+            if is_active is not None:
+                count_q = count_q.filter(Service.is_active == is_active)
+            total = count_q.count()
+        else:
+            raise
     
     # Apply pagination if provided
     if pagination:

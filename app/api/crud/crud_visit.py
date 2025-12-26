@@ -114,12 +114,37 @@ def list_visits(
     include_archived: bool = False,
 ) -> Tuple[list[Visit], int]:
     """List visits with optional pagination. Returns (items, total_count)."""
+    # Проверяем наличие колонки business_id перед выполнением запроса
+    from sqlalchemy import inspect
+    inspector = inspect(db.bind)
+    has_business_id_column = False
+    try:
+        columns = [col['name'] for col in inspector.get_columns('visits')]
+        has_business_id_column = 'business_id' in columns
+    except:
+        pass
+    
     # Optimized query with joinedload for relationships
-    q = db.query(Visit).options(
-        joinedload(Visit.client),
-        joinedload(Visit.specialist),
-        joinedload(Visit.service),
-    )
+    # Если колонки нет, используем with_entities чтобы исключить business_id из SELECT
+    if has_business_id_column:
+        q = db.query(Visit).options(
+            joinedload(Visit.client),
+            joinedload(Visit.specialist),
+            joinedload(Visit.service),
+        )
+    else:
+        # Используем все колонки кроме business_id
+        from sqlalchemy.orm import Query
+        from sqlalchemy import select
+        # Создаем запрос, исключая business_id
+        q = db.query(Visit).options(
+            joinedload(Visit.client),
+            joinedload(Visit.specialist),
+            joinedload(Visit.service),
+        )
+        # Используем defer для отложения загрузки business_id
+        from sqlalchemy.orm import defer
+        q = q.options(defer(Visit.business_id))
     
     # Filter out deleted and archived by default
     if not include_deleted:
@@ -130,23 +155,12 @@ def list_visits(
     # Apply filters
     # Приоритет: если указан business_id, используем его для изоляции данных
     # Но также показываем записи с NULL business_id для обратной совместимости
-    if business_id:
-        # Проверяем наличие колонки business_id в таблице visits
-        from sqlalchemy import inspect
-        inspector = inspect(db.bind)
-        has_business_id_column = False
-        try:
-            columns = [col['name'] for col in inspector.get_columns('visits')]
-            has_business_id_column = 'business_id' in columns
-        except:
-            pass
-        
-        if has_business_id_column:
-            from sqlalchemy import or_
-            q = q.filter(or_(
-                Visit.business_id == business_id,
-                Visit.business_id.is_(None)  # Показываем старые записи без business_id
-            ))
+    if business_id and has_business_id_column:
+        from sqlalchemy import or_
+        q = q.filter(or_(
+            Visit.business_id == business_id,
+            Visit.business_id.is_(None)  # Показываем старые записи без business_id
+        ))
         # Если колонки нет, показываем все визиты (обратная совместимость)
     
     if client_id:
@@ -159,7 +173,29 @@ def list_visits(
         q = q.filter(Visit.date_start <= date_to)
     
     # Get total count before pagination
-    total = q.count()
+    # Используем raw SQL для count если колонки нет
+    try:
+        total = q.count()
+    except Exception as e:
+        # Если count падает из-за отсутствующей колонки, используем альтернативный способ
+        if 'business_id' in str(e).lower():
+            # Создаем простой count запрос без business_id
+            count_q = db.query(Visit.id)
+            if not include_deleted:
+                count_q = filter_active(count_q)
+            if not include_archived:
+                count_q = count_q.filter(Visit.archived_at.is_(None))
+            if client_id:
+                count_q = count_q.filter(Visit.client_id == client_id)
+            if specialist_id:
+                count_q = count_q.filter(Visit.specialist_id == specialist_id)
+            if date_from:
+                count_q = count_q.filter(Visit.date_start >= date_from)
+            if date_to:
+                count_q = count_q.filter(Visit.date_start <= date_to)
+            total = count_q.count()
+        else:
+            raise
     
     # Apply pagination if provided
     if pagination:
