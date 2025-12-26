@@ -106,14 +106,19 @@ def find_or_create_client(
     db.add(client)
     db.flush()  # Получаем ID клиента до commit
     
-    # Создаем связь с бизнесом, если указан business_id
+    # Создаем связь с бизнесом, если указан business_id (только если таблица существует)
     if business_id:
-        from app.db.models.client_business_relation import ClientBusinessRelation
-        business_relation = ClientBusinessRelation(
-            client_id=client.id,
-            business_id=business_id
-        )
-        db.add(business_relation)
+        from sqlalchemy import inspect
+        inspector = inspect(db.bind)
+        has_business_relations = 'client_business_relations' in [t.name for t in inspector.get_table_names()]
+        
+        if has_business_relations:
+            from app.db.models.client_business_relation import ClientBusinessRelation
+            business_relation = ClientBusinessRelation(
+                client_id=client.id,
+                business_id=business_id
+            )
+            db.add(business_relation)
     
     db.commit()
     db.refresh(client)
