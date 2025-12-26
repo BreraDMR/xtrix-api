@@ -71,8 +71,13 @@ def list_services(
     
     # Apply filters
     # Приоритет: если указан business_id, используем его для изоляции данных
+    # Но также показываем записи с NULL business_id для обратной совместимости
     if business_id:
-        q = q.filter(Service.business_id == business_id)
+        from sqlalchemy import or_
+        q = q.filter(or_(
+            Service.business_id == business_id,
+            Service.business_id.is_(None)  # Показываем старые записи без business_id
+        ))
     
     if specialist_id:
         q = q.filter(Service.specialist_id == specialist_id)

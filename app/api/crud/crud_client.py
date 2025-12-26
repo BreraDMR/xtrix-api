@@ -219,20 +219,27 @@ def list_clients(
     
     # Apply filters
     # Приоритет: если указан business_id, используем его для изоляции данных
+    # Но также показываем клиентов без связей для обратной совместимости
     if business_id:
-        # Клиенты, связанные с бизнесом через ClientBusinessRelation
-        q = q.filter(
-            Client.id.in_(
-                db.query(ClientSpecialistRelation.client_id).filter(
-                    ClientSpecialistRelation.business_id == business_id
-                ).union(
-                    db.query(ClientSpecialistRelation.client_id).filter(
-                        ClientSpecialistRelation.specialist_id == owner_id,
-                        ClientSpecialistRelation.business_id == business_id
-                    )
-                )
-            )
+        # Клиенты, связанные с бизнесом через ClientBusinessRelation или ClientSpecialistRelation
+        from app.db.models.client_business_relation import ClientBusinessRelation
+        business_client_ids = db.query(ClientBusinessRelation.client_id).filter(
+            ClientBusinessRelation.business_id == business_id
         )
+        specialist_client_ids = db.query(ClientSpecialistRelation.client_id).filter(
+            ClientSpecialistRelation.business_id == business_id
+        )
+        if owner_id:
+            specialist_client_ids = specialist_client_ids.filter(
+                ClientSpecialistRelation.specialist_id == owner_id
+            )
+        
+        # Объединяем: клиенты с бизнес-связями + клиенты без связей (обратная совместимость)
+        all_client_ids = business_client_ids.union(specialist_client_ids).subquery()
+        q = q.filter(or_(
+            Client.id.in_(db.query(all_client_ids)),
+            ~Client.id.in_(db.query(ClientBusinessRelation.client_id).distinct())  # Клиенты без бизнес-связей
+        ))
     elif owner_id:
         # Для обратной совместимости: фильтр по owner_id через ClientSpecialistRelation
         # Clients owned by the specialist OR linked through relations
