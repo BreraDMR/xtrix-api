@@ -273,16 +273,29 @@ def list_clients(
     elif owner_id:
         # Для обратной совместимости: фильтр по owner_id через ClientSpecialistRelation
         # Clients owned by the specialist OR linked through relations
-        q = q.filter(
-            or_(
-                Client.owner_id == owner_id,
-                Client.id.in_(
-                    db.query(ClientSpecialistRelation.client_id).filter(
-                        ClientSpecialistRelation.specialist_id == owner_id
+        from sqlalchemy import inspect
+        inspector = inspect(db.bind)
+        has_specialist_relations = 'client_specialist_relations' in inspector.get_table_names()
+        
+        if has_specialist_relations:
+            try:
+                # Показываем клиентов с owner_id или связанных через ClientSpecialistRelation
+                q = q.filter(
+                    or_(
+                        Client.owner_id == owner_id,
+                        Client.id.in_(
+                            db.query(ClientSpecialistRelation.client_id).filter(
+                                ClientSpecialistRelation.specialist_id == owner_id
+                            )
+                        )
                     )
                 )
-            )
-        )
+            except Exception:
+                # Если запрос не может быть выполнен, показываем только по owner_id
+                q = q.filter(Client.owner_id == owner_id)
+        else:
+            # Если таблицы нет, показываем только по owner_id
+            q = q.filter(Client.owner_id == owner_id)
     if phone:
         q = q.filter(Client.contact_phone == phone)
     if name:
