@@ -226,12 +226,21 @@ def list_clients(
     # Приоритет: если указан business_id, используем его для изоляции данных
     # Но также показываем старых клиентов (с owner_id) для обратной совместимости
     if business_id:
-        # Проверяем существование таблиц
+        # Проверяем существование таблиц и колонок
         from sqlalchemy import inspect
         inspector = inspect(db.bind)
         table_names = inspector.get_table_names()
         has_business_relations = 'client_business_relations' in table_names
         has_specialist_relations = 'client_specialist_relations' in table_names
+        
+        # Проверяем наличие колонки business_id в client_specialist_relations
+        has_specialist_business_id = False
+        if has_specialist_relations:
+            try:
+                columns = [col['name'] for col in inspector.get_columns('client_specialist_relations')]
+                has_specialist_business_id = 'business_id' in columns
+            except:
+                pass
         
         filters = []
         
@@ -239,8 +248,8 @@ def list_clients(
         if owner_id:
             filters.append(Client.owner_id == owner_id)
         
-        # Если таблицы существуют, добавляем связанных клиентов
-        if has_business_relations or has_specialist_relations:
+        # Если таблицы существуют и имеют нужные колонки, добавляем связанных клиентов
+        if has_business_relations or (has_specialist_relations and has_specialist_business_id):
             try:
                 if has_business_relations:
                     from app.db.models.client_business_relation import ClientBusinessRelation
@@ -249,7 +258,7 @@ def list_clients(
                     )
                     filters.append(Client.id.in_(business_client_ids))
                 
-                if has_specialist_relations:
+                if has_specialist_relations and has_specialist_business_id:
                     specialist_filter = ClientSpecialistRelation.business_id == business_id
                     if owner_id:
                         specialist_filter = and_(
@@ -275,11 +284,22 @@ def list_clients(
         # Clients owned by the specialist OR linked through relations
         from sqlalchemy import inspect
         inspector = inspect(db.bind)
-        has_specialist_relations = 'client_specialist_relations' in inspector.get_table_names()
+        table_names = inspector.get_table_names()
+        has_specialist_relations = 'client_specialist_relations' in table_names
+        
+        # Проверяем наличие колонки business_id (может не быть, если миграция 0014 не применена)
+        has_specialist_business_id = False
+        if has_specialist_relations:
+            try:
+                columns = [col['name'] for col in inspector.get_columns('client_specialist_relations')]
+                has_specialist_business_id = 'business_id' in columns
+            except:
+                pass
         
         if has_specialist_relations:
             try:
                 # Показываем клиентов с owner_id или связанных через ClientSpecialistRelation
+                # Не используем business_id, так как его может не быть
                 q = q.filter(
                     or_(
                         Client.owner_id == owner_id,
