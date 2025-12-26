@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "0015_add_business_id_to_visits_services"
-down_revision = "0014_remove_owner_id_add_business_relations"
+down_revision = "0014_remove_owner_add_business"
 branch_labels = None
 depends_on = None
 
