@@ -8,8 +8,25 @@ from app.db.models.service import Service
 from app.schemas.service import ServiceCreate, ServiceUpdate
 
 
-def create_service(db: Session, service_in: ServiceCreate) -> Service:
-    service = Service(**service_in.dict())
+def create_service(db: Session, service_in: ServiceCreate, business_id: Optional[int] = None) -> Service:
+    """
+    Create a service. Если business_id не указан, берется из specialist_id → User → business_id.
+    """
+    service_data = service_in.dict()
+    
+    # Если business_id не указан, получаем его из specialist
+    if business_id is None and service_data.get('specialist_id'):
+        from app.db.models.user import User
+        specialist = db.query(User).filter(User.id == service_data['specialist_id']).first()
+        if specialist and hasattr(specialist, 'business_id') and specialist.business_id:
+            business_id = specialist.business_id
+    
+    # Убеждаемся, что business_id указан
+    if business_id is None:
+        raise ValueError("business_id is required for Service. Ensure specialist has business_id set.")
+    
+    service_data['business_id'] = business_id
+    service = Service(**service_data)
     db.add(service)
     db.commit()
     db.refresh(service)
@@ -36,7 +53,8 @@ def get_service(db: Session, service_id: int, include_deleted: bool = False) -> 
 def list_services(
     db: Session,
     specialist_id: Optional[int] = None,
-    active_only: bool = False,
+    business_id: Optional[int] = None,  # Новый параметр для изоляции по бизнесу
+    is_active: Optional[bool] = None,  # Переименовано для консистентности
     pagination: Optional[PaginationParams] = None,
     include_deleted: bool = False,
     include_archived: bool = False,
@@ -52,10 +70,14 @@ def list_services(
         q = q.filter(Service.archived_at.is_(None))
     
     # Apply filters
+    # Приоритет: если указан business_id, используем его для изоляции данных
+    if business_id:
+        q = q.filter(Service.business_id == business_id)
+    
     if specialist_id:
         q = q.filter(Service.specialist_id == specialist_id)
-    if active_only:
-        q = q.filter(Service.is_active.is_(True))
+    if is_active is not None:
+        q = q.filter(Service.is_active == is_active)
     
     # Get total count before pagination
     total = q.count()

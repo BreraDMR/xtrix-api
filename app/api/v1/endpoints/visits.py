@@ -27,7 +27,10 @@ def create_visit(
 ):
     if current_user.role != "admin" and visit.specialist_id != current_user.id:
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    result = crud_visit.create_visit(db, visit)
+    
+    # Получаем business_id текущего пользователя
+    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    result = crud_visit.create_visit(db, visit, business_id=business_id)
     from app.api.core.i18n import localize_response
     return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
 
@@ -52,14 +55,20 @@ def visits_list(
         include_deleted = False
         include_archived = False
     
+    # Получаем business_id текущего пользователя для изоляции данных
+    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    
     pagination = PaginationParams(page=page, per_page=per_page)
     visits, total = crud_visit.list_visits(
         db,
         client_id=client_id,
         specialist_id=specialist_id,
+        business_id=business_id,  # Изоляция по бизнесу
         date_from=date_from,
         date_to=date_to,
         pagination=pagination,
+        include_deleted=include_deleted,
+        include_archived=include_archived,
     )
     
     localized_items = [
@@ -82,12 +91,17 @@ def get_visit(
     current_user: User = Depends(deps.role_required("admin", "specialist")),
     locale: str = Depends(deps.get_locale),
 ):
+    # Получаем business_id текущего пользователя для проверки доступа
+    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    
     if current_user.role != "admin":
         include_deleted = False
     
-    visit = crud_visit.get_visit(db, visit_id, include_deleted=include_deleted)
+    visit = crud_visit.get_visit(db, visit_id, include_deleted=include_deleted, business_id=business_id)
     if not visit:
         raise HTTPException(status_code=404, detail=_("visit_not_found", locale))
+    
+    # Дополнительная проверка для не-админов
     if current_user.role != "admin" and visit.specialist_id != current_user.id:
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     return localize_response(visit.dict() if hasattr(visit, 'dict') else visit, locale)

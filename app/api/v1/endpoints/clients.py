@@ -29,13 +29,14 @@ logger = get_logger("clients")
                 "application/json": {
                     "example": {
                         "id": 1,
-                        "owner_id": 1,
+                        "owner_id": None,
                         "full_name": "Jane Smith",
                         "birth_date": "1990-01-15",
                         "gender": "female",
                         "contact_phone": "+1234567890",
                         "contact_email": "jane@example.com",
-                        "spending": 0.0,
+                        "location_lat": null,
+                        "location_lon": null,
                         "created_at": "2024-01-15T10:00:00"
                     }
                 }
@@ -51,13 +52,58 @@ def create_client(
     current_user: User = Depends(deps.role_required("admin", "specialist")),
     locale: str = Depends(deps.get_locale),
 ):
-    logger.info(f"Creating client: name={client.full_name}, owner_id={current_user.id}")
-    # enforce ownership if not admin
-    if current_user.role != "admin" and client.owner_id != current_user.id:
-        logger.warning(f"Client creation denied: user_id={current_user.id}, attempted_owner_id={client.owner_id}")
-        raise HTTPException(status_code=403, detail=_("cannot_create_for_owner", locale))
-    result = crud_client.create_client(db, client)
-    logger.info(f"Client created successfully: id={result.id}, name={result.full_name}")
+    logger.info(f"Creating/finding client: name={client.full_name}, phone={client.contact_phone}, email={client.contact_email}")
+    
+    # Получаем business_id текущего пользователя
+    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    
+    # Используем find_or_create_client для автоматического поиска дубликатов
+    result, was_created = crud_client.find_or_create_client(
+        db=db,
+        client_in=client,
+        business_id=business_id
+    )
+    
+    # Если клиент был найден (не создан), создаем связи с текущим специалистом и бизнесом
+    if not was_created:
+        # Проверяем, есть ли уже связь с текущим специалистом в этом бизнесе
+        from app.db.models.client_specialist_relation import ClientSpecialistRelation
+        existing_relation = db.query(ClientSpecialistRelation).filter(
+            ClientSpecialistRelation.client_id == result.id,
+            ClientSpecialistRelation.specialist_id == current_user.id,
+            ClientSpecialistRelation.business_id == business_id
+        ).first()
+        
+        if not existing_relation and business_id:
+            # Создаем связь специалиста с клиентом
+            from app.api.crud import crud_client_specialist_relation
+            from app.schemas.client_specialist_relation import ClientSpecialistRelationCreate
+            crud_client_specialist_relation.create_relation(
+                db,
+                ClientSpecialistRelationCreate(
+                    client_id=result.id,
+                    specialist_id=current_user.id,
+                    business_id=business_id
+                )
+            )
+            
+            # Создаем связь бизнеса с клиентом, если еще нет
+            from app.db.models.client_business_relation import ClientBusinessRelation
+            existing_business_relation = db.query(ClientBusinessRelation).filter(
+                ClientBusinessRelation.client_id == result.id,
+                ClientBusinessRelation.business_id == business_id
+            ).first()
+            
+            if not existing_business_relation:
+                business_relation = ClientBusinessRelation(
+                    client_id=result.id,
+                    business_id=business_id
+                )
+                db.add(business_relation)
+                db.commit()
+    
+    action = "created" if was_created else "found existing"
+    logger.info(f"Client {action}: id={result.id}, name={result.full_name}")
     return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
 
 
@@ -74,6 +120,9 @@ def list_clients(
     current_user: User = Depends(deps.role_required("admin", "specialist")),
     locale: str = Depends(deps.get_locale),
 ):
+    # Получаем business_id текущего пользователя
+    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    
     if current_user.role != "admin":
         owner_id = current_user.id
         # Non-admin users cannot see deleted/archived
@@ -84,6 +133,7 @@ def list_clients(
     clients, total = crud_client.list_clients(
         db,
         owner_id=owner_id,
+        business_id=business_id,  # Изоляция по бизнесу
         phone=phone,
         name=name,
         pagination=pagination,
@@ -117,8 +167,36 @@ def get_client(
     client = crud_client.get_client(db, client_id, include_deleted=include_deleted)
     if not client:
         raise HTTPException(status_code=404, detail=_("client_not_found", locale))
-    if current_user.role != "admin" and client.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    # Check access: admin, or linked through ClientBusinessRelation/ClientSpecialistRelation
+    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    
+    if current_user.role != "admin":
+        has_access = False
+        
+        # Проверяем доступ через ClientBusinessRelation (приоритет)
+        if business_id:
+            from app.db.models.client_business_relation import ClientBusinessRelation
+            business_relation = db.query(ClientBusinessRelation).filter(
+                ClientBusinessRelation.client_id == client_id,
+                ClientBusinessRelation.business_id == business_id
+            ).first()
+            has_access = business_relation is not None
+        
+        # Для обратной совместимости: проверяем через owner_id или ClientSpecialistRelation
+        if not has_access:
+            if client.owner_id == current_user.id:
+                has_access = True
+            else:
+                from app.db.models.client_specialist_relation import ClientSpecialistRelation
+                relation = db.query(ClientSpecialistRelation).filter(
+                    ClientSpecialistRelation.client_id == client_id,
+                    ClientSpecialistRelation.specialist_id == current_user.id
+                ).first()
+                has_access = relation is not None
+        
+        if not has_access:
+            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     return localize_response(client.dict() if hasattr(client, 'dict') else client, locale)
 
 
@@ -135,9 +213,37 @@ def update_client(
     if not client:
         logger.warning(f"Client not found: id={client_id}")
         raise HTTPException(status_code=404, detail=_("client_not_found", locale))
-    if current_user.role != "admin" and client.owner_id != current_user.id:
-        logger.warning(f"Client update denied: user_id={current_user.id}, client_id={client_id}")
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    # Check access: admin, or linked through ClientBusinessRelation/ClientSpecialistRelation
+    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    
+    if current_user.role != "admin":
+        has_access = False
+        
+        # Проверяем доступ через ClientBusinessRelation (приоритет)
+        if business_id:
+            from app.db.models.client_business_relation import ClientBusinessRelation
+            business_relation = db.query(ClientBusinessRelation).filter(
+                ClientBusinessRelation.client_id == client_id,
+                ClientBusinessRelation.business_id == business_id
+            ).first()
+            has_access = business_relation is not None
+        
+        # Для обратной совместимости: проверяем через owner_id или ClientSpecialistRelation
+        if not has_access:
+            if client.owner_id == current_user.id:
+                has_access = True
+            else:
+                from app.db.models.client_specialist_relation import ClientSpecialistRelation
+                relation = db.query(ClientSpecialistRelation).filter(
+                    ClientSpecialistRelation.client_id == client_id,
+                    ClientSpecialistRelation.specialist_id == current_user.id
+                ).first()
+                has_access = relation is not None
+        
+        if not has_access:
+            logger.warning(f"Client update denied: user_id={current_user.id}, client_id={client_id}")
+            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     result = crud_client.update_client(db, client, payload)
     logger.info(f"Client updated successfully: id={result.id}")
     return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)

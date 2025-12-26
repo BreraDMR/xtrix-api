@@ -22,7 +22,9 @@ def create_service(
 ):
     if current_user.role != "admin" and service.specialist_id != current_user.id:
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    result = crud_service.create_service(db, service)
+    # Получаем business_id текущего пользователя
+    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    result = crud_service.create_service(db, service, business_id=business_id)
     return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
 
 
@@ -36,12 +38,19 @@ def list_services(
     current_user: User = Depends(deps.role_required("admin", "specialist")),
     locale: str = Depends(deps.get_locale),
 ):
+    # Получаем business_id текущего пользователя для изоляции данных
+    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    
     if current_user.role != "admin":
         specialist_id = current_user.id
     
     pagination = PaginationParams(page=page, per_page=per_page)
     services, total = crud_service.list_services(
-        db, specialist_id=specialist_id, active_only=active_only, pagination=pagination
+        db, 
+        specialist_id=specialist_id, 
+        business_id=business_id,  # Изоляция по бизнесу
+        is_active=active_only,
+        pagination=pagination
     )
     
     localized_items = [
@@ -124,13 +133,17 @@ def export_services_csv(
     """Export services to CSV."""
     from app.api.core.export import export_to_csv, prepare_service_export_data
     
+    # Получаем business_id текущего пользователя для изоляции данных
+    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    
     if current_user.role != "admin":
         specialist_id = current_user.id
     
     services, _ = crud_service.list_services(
         db,
         specialist_id=specialist_id,
-        active_only=active_only,
+        business_id=business_id,  # Изоляция по бизнесу
+        is_active=active_only,
         include_deleted=False,
         include_archived=False,
     )
@@ -148,13 +161,17 @@ def export_services_excel(
     """Export services to Excel."""
     from app.api.core.export import export_to_excel, prepare_service_export_data
     
+    # Получаем business_id текущего пользователя для изоляции данных
+    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    
     if current_user.role != "admin":
         specialist_id = current_user.id
     
     services, _ = crud_service.list_services(
         db,
         specialist_id=specialist_id,
-        active_only=active_only,
+        business_id=business_id,  # Изоляция по бизнесу
+        is_active=active_only,
         include_deleted=False,
         include_archived=False,
     )

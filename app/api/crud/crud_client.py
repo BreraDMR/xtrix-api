@@ -1,7 +1,8 @@
 from typing import Optional, Tuple
+from datetime import date
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, and_
 
 from app.api.core.redis_client import (
     cache_client, get_cached_client, invalidate_client,
@@ -12,12 +13,131 @@ from app.api.core.qr_code import generate_qr_code_data, generate_access_password
 from app.api.core.security import get_password_hash, verify_password
 from app.api.core.soft_delete import filter_active, soft_delete, restore_soft_deleted
 from sqlalchemy.orm import joinedload
+from sqlalchemy import or_
 from app.db.models.client import Client
+from app.db.models.client_specialist_relation import ClientSpecialistRelation
 from app.schemas.client import ClientCreate, ClientUpdate, ClientOut
 
 
+def find_client_by_identifiers(
+    db: Session,
+    contact_phone: Optional[str] = None,
+    contact_email: Optional[str] = None,
+    full_name: Optional[str] = None,
+    birth_date: Optional[date] = None,
+) -> Optional[Client]:
+    """
+    Ищет существующего клиента по идентификаторам.
+    Приоритет поиска:
+    1. По контактному телефону (если указан)
+    2. По email (если указан)
+    3. По ФИО + дата рождения (если указаны оба)
+    
+    Returns:
+        Client если найден, None если не найден
+    """
+    query = db.query(Client)
+    query = filter_active(query)  # Исключаем удаленных клиентов
+    
+    # Приоритет 1: Поиск по телефону
+    if contact_phone:
+        phone_cleaned = contact_phone.strip()
+        client = query.filter(Client.contact_phone == phone_cleaned).first()
+        if client:
+            return client
+    
+    # Приоритет 2: Поиск по email
+    if contact_email:
+        email_cleaned = contact_email.strip().lower()
+        client = query.filter(func.lower(Client.contact_email) == email_cleaned).first()
+        if client:
+            return client
+    
+    # Приоритет 3: Поиск по ФИО + дата рождения
+    if full_name and birth_date:
+        name_cleaned = full_name.strip()
+        client = query.filter(
+            and_(
+                func.lower(Client.full_name) == func.lower(name_cleaned),
+                Client.birth_date == birth_date
+            )
+        ).first()
+        if client:
+            return client
+    
+    return None
+
+
+def find_or_create_client(
+    db: Session,
+    client_in: ClientCreate,
+    business_id: Optional[int] = None,
+) -> Tuple[Client, bool]:
+    """
+    Ищет существующего клиента или создает нового.
+    
+    Args:
+        db: Database session
+        client_in: Данные клиента для поиска/создания
+        business_id: ID бизнеса (опционально, для создания связей)
+    
+    Returns:
+        Tuple[Client, bool]: (клиент, был_ли_создан_новый)
+    """
+    # Поиск существующего клиента
+    existing_client = find_client_by_identifiers(
+        db=db,
+        contact_phone=client_in.contact_phone,
+        contact_email=client_in.contact_email,
+        full_name=client_in.full_name,
+        birth_date=client_in.birth_date,
+    )
+    
+    if existing_client:
+        # Клиент найден - возвращаем существующего
+        return existing_client, False
+    
+    # Клиент не найден - создаем нового
+    # Создаем клиента без owner_id (глобальный клиент)
+    client_data = client_in.dict()
+    client_data.pop('owner_id', None)  # Убираем owner_id для глобального клиента
+    
+    client = Client(**client_data)
+    db.add(client)
+    db.flush()  # Получаем ID клиента до commit
+    
+    # Создаем связь с бизнесом, если указан business_id
+    if business_id:
+        from app.db.models.client_business_relation import ClientBusinessRelation
+        business_relation = ClientBusinessRelation(
+            client_id=client.id,
+            business_id=business_id
+        )
+        db.add(business_relation)
+    
+    db.commit()
+    db.refresh(client)
+    
+    # Cache the new client
+    try:
+        cache_client(client.id, ClientOut.from_orm(client).dict())
+        # Invalidate list cache
+        invalidate_client_list()
+    except Exception:
+        pass
+    
+    return client, True
+
+
 def create_client(db: Session, client_in: ClientCreate) -> Client:
-    client = Client(**client_in.dict())
+    """
+    Создает нового клиента без поиска существующих.
+    Используйте find_or_create_client для автоматического поиска дубликатов.
+    """
+    client_data = client_in.dict()
+    client_data.pop('owner_id', None)  # Убираем owner_id для глобального клиента
+    
+    client = Client(**client_data)
     db.add(client)
     db.commit()
     db.refresh(client)
@@ -63,6 +183,7 @@ def get_client(db: Session, client_id: int, include_deleted: bool = False) -> Op
 def list_clients(
     db: Session,
     owner_id: Optional[int] = None,
+    business_id: Optional[int] = None,  # Новый параметр для изоляции по бизнесу
     phone: Optional[str] = None,
     name: Optional[str] = None,
     pagination: Optional[PaginationParams] = None,
@@ -97,8 +218,34 @@ def list_clients(
         q = q.filter(Client.archived_at.is_(None))
     
     # Apply filters
-    if owner_id:
-        q = q.filter(Client.owner_id == owner_id)
+    # Приоритет: если указан business_id, используем его для изоляции данных
+    if business_id:
+        # Клиенты, связанные с бизнесом через ClientBusinessRelation
+        q = q.filter(
+            Client.id.in_(
+                db.query(ClientSpecialistRelation.client_id).filter(
+                    ClientSpecialistRelation.business_id == business_id
+                ).union(
+                    db.query(ClientSpecialistRelation.client_id).filter(
+                        ClientSpecialistRelation.specialist_id == owner_id,
+                        ClientSpecialistRelation.business_id == business_id
+                    )
+                )
+            )
+        )
+    elif owner_id:
+        # Для обратной совместимости: фильтр по owner_id через ClientSpecialistRelation
+        # Clients owned by the specialist OR linked through relations
+        q = q.filter(
+            or_(
+                Client.owner_id == owner_id,
+                Client.id.in_(
+                    db.query(ClientSpecialistRelation.client_id).filter(
+                        ClientSpecialistRelation.specialist_id == owner_id
+                    )
+                )
+            )
+        )
     if phone:
         q = q.filter(Client.contact_phone == phone)
     if name:

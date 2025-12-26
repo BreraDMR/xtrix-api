@@ -26,7 +26,12 @@ def update_visit(db: Session, visit: Visit, update: VisitUpdate) -> Visit:
     return visit
 
 
-def get_visit(db: Session, visit_id: int, include_deleted: bool = False) -> Optional[Visit]:
+def get_visit(
+    db: Session, 
+    visit_id: int, 
+    include_deleted: bool = False,
+    business_id: Optional[int] = None  # Для проверки доступа
+) -> Optional[Visit]:
     """Get visit with optimized query and optional soft-deleted inclusion."""
     query = db.query(Visit).options(
         joinedload(Visit.client),
@@ -35,13 +40,21 @@ def get_visit(db: Session, visit_id: int, include_deleted: bool = False) -> Opti
     )
     if not include_deleted:
         query = filter_active(query)
-    return query.filter(Visit.id == visit_id).first()
+    
+    query = query.filter(Visit.id == visit_id)
+    
+    # Если указан business_id, фильтруем по нему для изоляции
+    if business_id:
+        query = query.filter(Visit.business_id == business_id)
+    
+    return query.first()
 
 
 def list_visits(
     db: Session,
     client_id: Optional[int] = None,
     specialist_id: Optional[int] = None,
+    business_id: Optional[int] = None,  # Новый параметр для изоляции по бизнесу
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
     pagination: Optional[PaginationParams] = None,
@@ -63,6 +76,10 @@ def list_visits(
         q = q.filter(Visit.archived_at.is_(None))
     
     # Apply filters
+    # Приоритет: если указан business_id, используем его для изоляции данных
+    if business_id:
+        q = q.filter(Visit.business_id == business_id)
+    
     if client_id:
         q = q.filter(Visit.client_id == client_id)
     if specialist_id:
