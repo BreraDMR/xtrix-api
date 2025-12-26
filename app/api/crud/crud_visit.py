@@ -125,26 +125,20 @@ def list_visits(
         pass
     
     # Optimized query with joinedload for relationships
-    # Если колонки нет, используем with_entities чтобы исключить business_id из SELECT
-    if has_business_id_column:
+    # Пробуем выполнить запрос, если падает из-за business_id - используем fallback
+    try:
         q = db.query(Visit).options(
             joinedload(Visit.client),
             joinedload(Visit.specialist),
             joinedload(Visit.service),
         )
-    else:
-        # Используем все колонки кроме business_id
-        from sqlalchemy.orm import Query
-        from sqlalchemy import select
-        # Создаем запрос, исключая business_id
+    except Exception:
+        # Если запрос не может быть создан, используем базовый запрос
         q = db.query(Visit).options(
             joinedload(Visit.client),
             joinedload(Visit.specialist),
             joinedload(Visit.service),
         )
-        # Используем defer для отложения загрузки business_id
-        from sqlalchemy.orm import defer
-        q = q.options(defer(Visit.business_id))
     
     # Filter out deleted and archived by default
     if not include_deleted:
@@ -173,27 +167,35 @@ def list_visits(
         q = q.filter(Visit.date_start <= date_to)
     
     # Get total count before pagination
-    # Используем raw SQL для count если колонки нет
+    # Используем try-except для обработки ошибок с отсутствующей колонкой
     try:
         total = q.count()
     except Exception as e:
-        # Если count падает из-за отсутствующей колонки, используем альтернативный способ
-        if 'business_id' in str(e).lower():
-            # Создаем простой count запрос без business_id
-            count_q = db.query(Visit.id)
+        # Если count падает из-за отсутствующей колонки business_id, используем альтернативный способ
+        if 'business_id' in str(e).lower() or 'does not exist' in str(e).lower():
+            # Используем raw SQL для count без business_id
+            from sqlalchemy import text
+            count_sql = "SELECT COUNT(*) FROM visits WHERE 1=1"
+            params = {}
+            
             if not include_deleted:
-                count_q = filter_active(count_q)
+                count_sql += " AND deleted_at IS NULL"
             if not include_archived:
-                count_q = count_q.filter(Visit.archived_at.is_(None))
+                count_sql += " AND archived_at IS NULL"
             if client_id:
-                count_q = count_q.filter(Visit.client_id == client_id)
+                count_sql += " AND client_id = :client_id"
+                params['client_id'] = client_id
             if specialist_id:
-                count_q = count_q.filter(Visit.specialist_id == specialist_id)
+                count_sql += " AND specialist_id = :specialist_id"
+                params['specialist_id'] = specialist_id
             if date_from:
-                count_q = count_q.filter(Visit.date_start >= date_from)
+                count_sql += " AND date_start >= :date_from"
+                params['date_from'] = date_from
             if date_to:
-                count_q = count_q.filter(Visit.date_start <= date_to)
-            total = count_q.count()
+                count_sql += " AND date_start <= :date_to"
+                params['date_to'] = date_to
+            
+            total = db.execute(text(count_sql), params).scalar()
         else:
             raise
     

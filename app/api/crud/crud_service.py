@@ -123,19 +123,25 @@ def list_services(
     try:
         total = q.count()
     except Exception as e:
-        # Если count падает из-за отсутствующей колонки, используем альтернативный способ
-        if 'business_id' in str(e).lower():
-            # Создаем простой count запрос без business_id
-            count_q = db.query(Service.id)
+        # Если count падает из-за отсутствующей колонки business_id, используем альтернативный способ
+        if 'business_id' in str(e).lower() or 'does not exist' in str(e).lower():
+            # Используем raw SQL для count без business_id
+            from sqlalchemy import text
+            count_sql = "SELECT COUNT(*) FROM services WHERE 1=1"
+            params = {}
+            
             if not include_deleted:
-                count_q = filter_active(count_q)
+                count_sql += " AND deleted_at IS NULL"
             if not include_archived:
-                count_q = count_q.filter(Service.archived_at.is_(None))
+                count_sql += " AND archived_at IS NULL"
             if specialist_id:
-                count_q = count_q.filter(Service.specialist_id == specialist_id)
+                count_sql += " AND specialist_id = :specialist_id"
+                params['specialist_id'] = specialist_id
             if is_active is not None:
-                count_q = count_q.filter(Service.is_active == is_active)
-            total = count_q.count()
+                count_sql += " AND is_active = :is_active"
+                params['is_active'] = is_active
+            
+            total = db.execute(text(count_sql), params).scalar()
         else:
             raise
     
