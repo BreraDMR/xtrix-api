@@ -149,7 +149,48 @@ def list_services(
     if pagination:
         q = q.offset(pagination.offset).limit(pagination.limit)
     
-    items = q.all()
+    # Получаем элементы с обработкой ошибок
+    try:
+        items = q.all()
+    except Exception as e:
+        # Если запрос падает из-за отсутствующей колонки business_id, используем raw SQL
+        if 'business_id' in str(e).lower() or 'does not exist' in str(e).lower():
+            from sqlalchemy import text
+            select_sql = """
+                SELECT id, specialist_id, name, duration_minutes, price, is_active, 
+                       created_at, deleted_at, archived_at
+                FROM services
+                WHERE 1=1
+            """
+            params = {}
+            
+            if not include_deleted:
+                select_sql += " AND deleted_at IS NULL"
+            if not include_archived:
+                select_sql += " AND archived_at IS NULL"
+            if specialist_id:
+                select_sql += " AND specialist_id = :specialist_id"
+                params['specialist_id'] = specialist_id
+            if is_active is not None:
+                select_sql += " AND is_active = :is_active"
+                params['is_active'] = is_active
+            
+            if pagination:
+                select_sql += " LIMIT :limit OFFSET :offset"
+                params['limit'] = pagination.limit
+                params['offset'] = pagination.offset
+            
+            result = db.execute(text(select_sql), params)
+            # Конвертируем результат в объекты Service
+            items = []
+            for row in result:
+                service = Service()
+                for key, value in row._mapping.items():
+                    setattr(service, key, value)
+                items.append(service)
+        else:
+            raise
+    
     return items, total
 
 

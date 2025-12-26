@@ -203,7 +203,55 @@ def list_visits(
     if pagination:
         q = q.offset(pagination.offset).limit(pagination.limit)
     
-    items = q.all()
+    # Получаем элементы с обработкой ошибок
+    try:
+        items = q.all()
+    except Exception as e:
+        # Если запрос падает из-за отсутствующей колонки business_id, используем raw SQL
+        if 'business_id' in str(e).lower() or 'does not exist' in str(e).lower():
+            from sqlalchemy import text
+            select_sql = """
+                SELECT id, client_id, specialist_id, service_id, date_start, date_end, 
+                       service_name, note, photo_url, price, status, created_at, 
+                       deleted_at, archived_at
+                FROM visits
+                WHERE 1=1
+            """
+            params = {}
+            
+            if not include_deleted:
+                select_sql += " AND deleted_at IS NULL"
+            if not include_archived:
+                select_sql += " AND archived_at IS NULL"
+            if client_id:
+                select_sql += " AND client_id = :client_id"
+                params['client_id'] = client_id
+            if specialist_id:
+                select_sql += " AND specialist_id = :specialist_id"
+                params['specialist_id'] = specialist_id
+            if date_from:
+                select_sql += " AND date_start >= :date_from"
+                params['date_from'] = date_from
+            if date_to:
+                select_sql += " AND date_start <= :date_to"
+                params['date_to'] = date_to
+            
+            if pagination:
+                select_sql += " LIMIT :limit OFFSET :offset"
+                params['limit'] = pagination.limit
+                params['offset'] = pagination.offset
+            
+            result = db.execute(text(select_sql), params)
+            # Конвертируем результат в объекты Visit
+            items = []
+            for row in result:
+                visit = Visit()
+                for key, value in row._mapping.items():
+                    setattr(visit, key, value)
+                items.append(visit)
+        else:
+            raise
+    
     return items, total
 
 
