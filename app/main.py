@@ -197,12 +197,18 @@ def get_cors_origins():
         "http://127.0.0.1:5173",
     ]
     
+    # Production origins по умолчанию (Vercel)
+    prod_default_origins = [
+        "https://xtrix.vercel.app",
+        "https://xtrix-production.vercel.app",
+    ]
+    
     # Дополнительные из .env
     env_origins = settings.get_cors_origins_list()
     
     if settings.environment == "production":
-        # В продакшене используем только указанные домены из .env
-        return env_origins if env_origins else dev_origins
+        # В продакшене используем указанные домены из .env + defaults
+        return list(set(prod_default_origins + env_origins)) if env_origins else prod_default_origins
     else:
         # В разработке разрешаем локальные + из .env
         return list(set(dev_origins + env_origins))  # Убираем дубликаты
