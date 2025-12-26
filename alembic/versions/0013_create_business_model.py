@@ -16,34 +16,46 @@ depends_on = None
 
 
 def upgrade():
-    # Step 1: Create businesses table structure first
-    op.create_table(
-        "businesses",
-        sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("name", sa.String(), nullable=False),
-        sa.Column("business_type", sa.String(), nullable=False),
-        sa.Column("address", sa.Text(), nullable=True),
-        sa.Column("phone", sa.String(), nullable=True),
-        sa.Column("email", sa.String(), nullable=True),
-        sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
-        sa.Column("deleted_at", sa.DateTime(), nullable=True),
-    )
-    op.create_index("ix_businesses_name", "businesses", ["name"])
-    op.create_index("ix_businesses_business_type", "businesses", ["business_type"])
-    op.create_index("ix_businesses_phone", "businesses", ["phone"])
-    op.create_index("ix_businesses_email", "businesses", ["email"])
-    op.create_index("ix_businesses_created_at", "businesses", ["created_at"])
-    op.create_index("ix_businesses_deleted_at", "businesses", ["deleted_at"])
+    # Step 1: Create businesses table structure first (check if exists)
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    table_names = inspector.get_table_names()
+    
+    if 'businesses' not in table_names:
+        op.create_table(
+            "businesses",
+            sa.Column("id", sa.Integer(), primary_key=True),
+            sa.Column("name", sa.String(), nullable=False),
+            sa.Column("business_type", sa.String(), nullable=False),
+            sa.Column("address", sa.Text(), nullable=True),
+            sa.Column("phone", sa.String(), nullable=True),
+            sa.Column("email", sa.String(), nullable=True),
+            sa.Column("description", sa.Text(), nullable=True),
+            sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
+            sa.Column("deleted_at", sa.DateTime(), nullable=True),
+        )
+        op.create_index("ix_businesses_name", "businesses", ["name"])
+        op.create_index("ix_businesses_business_type", "businesses", ["business_type"])
+        op.create_index("ix_businesses_phone", "businesses", ["phone"])
+        op.create_index("ix_businesses_email", "businesses", ["email"])
+        op.create_index("ix_businesses_created_at", "businesses", ["created_at"])
+        op.create_index("ix_businesses_deleted_at", "businesses", ["deleted_at"])
     
     # Step 2: Add business_id columns FIRST (before foreign keys and data migration)
     # Это критически важно - колонки должны быть созданы до любых операций с данными
-    op.add_column("users", sa.Column("business_id", sa.Integer(), nullable=True))
-    op.add_column("specialist_profiles", sa.Column("business_id", sa.Integer(), nullable=True))
+    # Проверяем, существует ли колонка перед добавлением
+    if 'users' in table_names:
+        users_columns = [col['name'] for col in inspector.get_columns('users')]
+        if 'business_id' not in users_columns:
+            op.add_column("users", sa.Column("business_id", sa.Integer(), nullable=True))
+            op.create_index("ix_users_business_id", "users", ["business_id"])
     
-    # Step 3: Create indexes
-    op.create_index("ix_users_business_id", "users", ["business_id"])
-    op.create_index("ix_specialist_profiles_business_id", "specialist_profiles", ["business_id"])
+    if 'specialist_profiles' in table_names:
+        specialist_profiles_columns = [col['name'] for col in inspector.get_columns('specialist_profiles')]
+        if 'business_id' not in specialist_profiles_columns:
+            op.add_column("specialist_profiles", sa.Column("business_id", sa.Integer(), nullable=True))
+            op.create_index("ix_specialist_profiles_business_id", "specialist_profiles", ["business_id"])
     
     # Step 4: Create foreign keys BEFORE data migration (can be empty)
     # Foreign keys can be created even if tables are empty

@@ -13,7 +13,7 @@ class Visit(Base):
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False, index=True)
     specialist_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=True, index=True)
-    business_id = Column(Integer, ForeignKey("businesses.id"), nullable=False, index=True)  # Для изоляции данных по бизнесам
+    business_id = Column(Integer, ForeignKey("businesses.id"), nullable=True, index=True)  # Для изоляции данных по бизнесам (nullable для обратной совместимости)
     date_start = Column(DateTime, nullable=False, index=True)
     date_end = Column(DateTime, nullable=True, index=True)
     service_name = Column(String, nullable=True)  # fallback если service_id нет

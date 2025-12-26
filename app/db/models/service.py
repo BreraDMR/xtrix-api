@@ -10,7 +10,7 @@ class Service(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     specialist_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    business_id = Column(Integer, ForeignKey("businesses.id"), nullable=False, index=True)  # Для изоляции данных по бизнесам
+    business_id = Column(Integer, ForeignKey("businesses.id"), nullable=True, index=True)  # Для изоляции данных по бизнесам (nullable для обратной совместимости)
     name = Column(String, nullable=False, index=True)
     duration_minutes = Column(Integer, nullable=True)
     price = Column(Float, nullable=True, index=True)
