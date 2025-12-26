@@ -221,11 +221,11 @@ def list_clients(
     # Приоритет: если указан business_id, используем его для изоляции данных
     # Но также показываем старых клиентов (с owner_id) для обратной совместимости
     if business_id:
-        from app.db.models.client_business_relation import ClientBusinessRelation
-        # Клиенты, связанные с бизнесом через ClientBusinessRelation
-        business_client_ids = db.query(ClientBusinessRelation.client_id).filter(
-            ClientBusinessRelation.business_id == business_id
-        )
+        # Проверяем существование таблицы client_business_relations
+        from sqlalchemy import inspect
+        inspector = inspect(db.bind)
+        has_business_relations = 'client_business_relations' in [t.name for t in inspector.get_table_names()]
+        
         # Клиенты, связанные через ClientSpecialistRelation
         specialist_client_ids = db.query(ClientSpecialistRelation.client_id).filter(
             ClientSpecialistRelation.business_id == business_id
@@ -235,12 +235,21 @@ def list_clients(
                 ClientSpecialistRelation.specialist_id == owner_id
             )
         
-        # Объединяем все связанные клиенты
-        all_related_ids = business_client_ids.union(specialist_client_ids)
+        if has_business_relations:
+            # Если таблица существует, используем её
+            from app.db.models.client_business_relation import ClientBusinessRelation
+            business_client_ids = db.query(ClientBusinessRelation.client_id).filter(
+                ClientBusinessRelation.business_id == business_id
+            )
+            # Объединяем все связанные клиенты
+            all_related_ids = business_client_ids.union(specialist_client_ids)
+        else:
+            # Если таблицы нет, используем только ClientSpecialistRelation
+            all_related_ids = specialist_client_ids
         
         # Показываем: связанные клиенты + старые клиенты с owner_id (обратная совместимость)
         q = q.filter(or_(
-            Client.id.in_(all_related_ids),
+            Client.id.in_(all_related_ids) if all_related_ids.count() > 0 else Client.id == -1,  # Если нет связанных, используем несуществующий ID
             Client.owner_id == owner_id  # Старые клиенты
         ))
     elif owner_id:
