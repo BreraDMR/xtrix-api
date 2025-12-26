@@ -14,18 +14,33 @@ def create_service(db: Session, service_in: ServiceCreate, business_id: Optional
     """
     service_data = service_in.dict()
     
-    # Если business_id не указан, получаем его из specialist
-    if business_id is None and service_data.get('specialist_id'):
-        from app.db.models.user import User
-        specialist = db.query(User).filter(User.id == service_data['specialist_id']).first()
-        if specialist and hasattr(specialist, 'business_id') and specialist.business_id:
-            business_id = specialist.business_id
+    # Проверяем наличие колонки business_id в таблице services
+    from sqlalchemy import inspect
+    inspector = inspect(db.bind)
+    has_business_id_column = False
+    try:
+        columns = [col['name'] for col in inspector.get_columns('services')]
+        has_business_id_column = 'business_id' in columns
+    except:
+        pass
     
-    # Убеждаемся, что business_id указан
-    if business_id is None:
-        raise ValueError("business_id is required for Service. Ensure specialist has business_id set.")
+    if has_business_id_column:
+        # Если business_id не указан, получаем его из specialist
+        if business_id is None and service_data.get('specialist_id'):
+            from app.db.models.user import User
+            specialist = db.query(User).filter(User.id == service_data['specialist_id']).first()
+            if specialist and hasattr(specialist, 'business_id') and specialist.business_id:
+                business_id = specialist.business_id
+        
+        # Убеждаемся, что business_id указан (только если колонка существует)
+        if business_id is None:
+            raise ValueError("business_id is required for Service. Ensure specialist has business_id set.")
+        
+        service_data['business_id'] = business_id
+    else:
+        # Если колонки нет, убираем business_id из данных
+        service_data.pop('business_id', None)
     
-    service_data['business_id'] = business_id
     service = Service(**service_data)
     db.add(service)
     db.commit()
@@ -73,11 +88,23 @@ def list_services(
     # Приоритет: если указан business_id, используем его для изоляции данных
     # Но также показываем записи с NULL business_id для обратной совместимости
     if business_id:
-        from sqlalchemy import or_
-        q = q.filter(or_(
-            Service.business_id == business_id,
-            Service.business_id.is_(None)  # Показываем старые записи без business_id
-        ))
+        # Проверяем наличие колонки business_id в таблице services
+        from sqlalchemy import inspect
+        inspector = inspect(db.bind)
+        has_business_id_column = False
+        try:
+            columns = [col['name'] for col in inspector.get_columns('services')]
+            has_business_id_column = 'business_id' in columns
+        except:
+            pass
+        
+        if has_business_id_column:
+            from sqlalchemy import or_
+            q = q.filter(or_(
+                Service.business_id == business_id,
+                Service.business_id.is_(None)  # Показываем старые записи без business_id
+            ))
+        # Если колонки нет, показываем все услуги (обратная совместимость)
     
     if specialist_id:
         q = q.filter(Service.specialist_id == specialist_id)

@@ -20,16 +20,30 @@ def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] 
     """
     visit_data = visit_in.dict()
     
-    # Set business_id if provided, otherwise try to get it from specialist
-    if business_id is None:
-        # Try to get business_id from specialist
-        from app.db.models.user import User
-        specialist = db.query(User).filter(User.id == visit_data.get('specialist_id')).first()
-        if specialist and hasattr(specialist, 'business_id') and specialist.business_id:
-            business_id = specialist.business_id
+    # Проверяем наличие колонки business_id в таблице visits
+    from sqlalchemy import inspect
+    inspector = inspect(db.bind)
+    has_business_id_column = False
+    try:
+        columns = [col['name'] for col in inspector.get_columns('visits')]
+        has_business_id_column = 'business_id' in columns
+    except:
+        pass
     
-    if business_id:
-        visit_data['business_id'] = business_id
+    # Set business_id if provided and column exists, otherwise try to get it from specialist
+    if has_business_id_column:
+        if business_id is None:
+            # Try to get business_id from specialist
+            from app.db.models.user import User
+            specialist = db.query(User).filter(User.id == visit_data.get('specialist_id')).first()
+            if specialist and hasattr(specialist, 'business_id') and specialist.business_id:
+                business_id = specialist.business_id
+        
+        if business_id:
+            visit_data['business_id'] = business_id
+    else:
+        # Если колонки нет, убираем business_id из данных
+        visit_data.pop('business_id', None)
     
     visit = Visit(**visit_data)
     db.add(visit)
@@ -67,11 +81,23 @@ def get_visit(
     # Если указан business_id, фильтруем по нему для изоляции
     # Но также показываем записи с NULL business_id для обратной совместимости
     if business_id:
-        from sqlalchemy import or_
-        query = query.filter(or_(
-            Visit.business_id == business_id,
-            Visit.business_id.is_(None)  # Показываем старые записи без business_id
-        ))
+        # Проверяем наличие колонки business_id в таблице visits
+        from sqlalchemy import inspect
+        inspector = inspect(db.bind)
+        has_business_id_column = False
+        try:
+            columns = [col['name'] for col in inspector.get_columns('visits')]
+            has_business_id_column = 'business_id' in columns
+        except:
+            pass
+        
+        if has_business_id_column:
+            from sqlalchemy import or_
+            query = query.filter(or_(
+                Visit.business_id == business_id,
+                Visit.business_id.is_(None)  # Показываем старые записи без business_id
+            ))
+        # Если колонки нет, показываем все визиты (обратная совместимость)
     
     return query.first()
 
@@ -105,11 +131,23 @@ def list_visits(
     # Приоритет: если указан business_id, используем его для изоляции данных
     # Но также показываем записи с NULL business_id для обратной совместимости
     if business_id:
-        from sqlalchemy import or_
-        q = q.filter(or_(
-            Visit.business_id == business_id,
-            Visit.business_id.is_(None)  # Показываем старые записи без business_id
-        ))
+        # Проверяем наличие колонки business_id в таблице visits
+        from sqlalchemy import inspect
+        inspector = inspect(db.bind)
+        has_business_id_column = False
+        try:
+            columns = [col['name'] for col in inspector.get_columns('visits')]
+            has_business_id_column = 'business_id' in columns
+        except:
+            pass
+        
+        if has_business_id_column:
+            from sqlalchemy import or_
+            q = q.filter(or_(
+                Visit.business_id == business_id,
+                Visit.business_id.is_(None)  # Показываем старые записи без business_id
+            ))
+        # Если колонки нет, показываем все визиты (обратная совместимость)
     
     if client_id:
         q = q.filter(Visit.client_id == client_id)
