@@ -110,7 +110,7 @@ def find_or_create_client(
     if business_id:
         from sqlalchemy import inspect
         inspector = inspect(db.bind)
-        has_business_relations = 'client_business_relations' in [t.name for t in inspector.get_table_names()]
+        has_business_relations = 'client_business_relations' in inspector.get_table_names()
         
         if has_business_relations:
             from app.db.models.client_business_relation import ClientBusinessRelation
@@ -229,7 +229,7 @@ def list_clients(
         # Проверяем существование таблицы client_business_relations
         from sqlalchemy import inspect
         inspector = inspect(db.bind)
-        has_business_relations = 'client_business_relations' in [t.name for t in inspector.get_table_names()]
+        has_business_relations = 'client_business_relations' in inspector.get_table_names()
         
         # Клиенты, связанные через ClientSpecialistRelation
         specialist_client_ids = db.query(ClientSpecialistRelation.client_id).filter(
