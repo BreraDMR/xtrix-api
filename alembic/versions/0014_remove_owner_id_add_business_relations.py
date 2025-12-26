@@ -48,9 +48,11 @@ def upgrade():
     
     # Migrate existing data: create ClientBusinessRelation from Client.owner_id
     # Для каждого клиента с owner_id находим business_id через User и создаем связь
+    # Убираем DISTINCT, так как PostgreSQL не может использовать JSON тип в DISTINCT
+    # NOT EXISTS уже предотвращает дубликаты благодаря уникальному ограничению
     op.execute("""
         INSERT INTO client_business_relations (client_id, business_id, spending, birthday_discount, personal_notes, inventory, created_at)
-        SELECT DISTINCT
+        SELECT
             c.id as client_id,
             u.business_id,
             COALESCE(c.spending, 0.0) as spending,
