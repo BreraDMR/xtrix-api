@@ -72,49 +72,53 @@ def upgrade():
         print(f"Warning: Could not create FK fk_specialist_profiles_business_id: {e}")
     
     # Step 5: Try to migrate existing data (with error handling - failures shouldn't block)
+    # Миграция данных опциональна - если она падает, структура уже создана
     conn = op.get_bind()
     
     # Check if there's data to migrate
     try:
         user_count = conn.execute(text("SELECT COUNT(*) FROM users WHERE role IN ('specialist', 'admin')")).scalar()
-        if user_count > 0:
-            # Create businesses from existing data - simplified query
+        if user_count and user_count > 0:
+            # Create default business for existing users if they don't have one
+            # Simplified: create one business per user
             conn.execute(text("""
-                INSERT INTO businesses (name, business_type, address, description, created_at)
+                INSERT INTO businesses (name, business_type, created_at)
                 SELECT DISTINCT
-                    LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255) as name,
-                    LEFT(COALESCE(sp.business_type, 'individual'), 50) as business_type,
-                    MAX(sp.address) as address,
-                    MAX(sp.description) as description,
+                    COALESCE(sp.business_name, u.full_name || '''s Business', 'Individual Business') as name,
+                    COALESCE(sp.business_type, 'individual') as business_type,
                     NOW() as created_at
                 FROM users u
                 LEFT JOIN specialist_profiles sp ON u.id = sp.user_id
                 WHERE (u.role = 'specialist' OR u.role = 'admin')
                 AND NOT EXISTS (
                     SELECT 1 FROM businesses b 
-                    WHERE b.name = LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255)
-                    AND b.business_type = LEFT(COALESCE(sp.business_type, 'individual'), 50)
+                    WHERE b.name = COALESCE(sp.business_name, u.full_name || '''s Business', 'Individual Business')
+                    AND b.business_type = COALESCE(sp.business_type, 'individual')
                 )
-                GROUP BY LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255), 
-                         LEFT(COALESCE(sp.business_type, 'individual'), 50)
             """))
+            conn.commit()
             
-            # Update users.business_id - simplified
+            # Update users.business_id - simplified approach
             conn.execute(text("""
                 UPDATE users u
                 SET business_id = (
                     SELECT b.id
-                    FROM specialist_profiles sp
-                    JOIN businesses b ON (
-                        b.name = LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255)
-                        AND b.business_type = LEFT(COALESCE(sp.business_type, 'individual'), 50)
+                    FROM businesses b
+                    WHERE b.name = COALESCE(
+                        (SELECT sp.business_name FROM specialist_profiles sp WHERE sp.user_id = u.id LIMIT 1),
+                        u.full_name || '''s Business',
+                        'Individual Business'
                     )
-                    WHERE sp.user_id = u.id
+                    AND b.business_type = COALESCE(
+                        (SELECT sp.business_type FROM specialist_profiles sp WHERE sp.user_id = u.id LIMIT 1),
+                        'individual'
+                    )
                     LIMIT 1
                 )
                 WHERE u.business_id IS NULL
-                AND EXISTS (SELECT 1 FROM specialist_profiles sp2 WHERE sp2.user_id = u.id)
+                AND (u.role = 'specialist' OR u.role = 'admin')
             """))
+            conn.commit()
             
             # Update specialist_profiles.business_id
             conn.execute(text("""
@@ -125,12 +129,13 @@ def upgrade():
                 AND sp.business_id IS NULL
                 AND u.business_id IS NOT NULL
             """))
+            conn.commit()
     except Exception as e:
-        # Log error but continue - data migration is not critical, structure is
-        print(f"Warning: Data migration failed (non-critical): {e}")
+        # Log error but continue - data migration is not critical, structure is already created
+        print(f"Warning: Data migration failed (non-critical, structure already created): {e}")
         import traceback
         traceback.print_exc()
-        pass
+        # Don't re-raise - structure is more important than data
     
 
 
