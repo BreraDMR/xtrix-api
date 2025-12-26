@@ -184,6 +184,15 @@ def list_visits(
         result = db.execute(text(select_sql), select_params)
         # Конвертируем результат в объекты Visit
         items = []
+        
+        # Проверяем наличие business_id в таблице services для безопасной загрузки
+        services_has_business_id = False
+        try:
+            service_columns = [col['name'] for col in inspector.get_columns('services')]
+            services_has_business_id = 'business_id' in service_columns
+        except:
+            pass
+        
         for row in result:
             visit = Visit()
             for key, value in row._mapping.items():
@@ -197,7 +206,19 @@ def list_visits(
                 visit.specialist = db.query(User).filter(User.id == visit.specialist_id).first()
             if visit.service_id:
                 from app.db.models.service import Service
-                visit.service = db.query(Service).filter(Service.id == visit.service_id).first()
+                # Используем raw SQL для Service, если колонки business_id нет
+                if not services_has_business_id:
+                    service_row = db.execute(
+                        text("SELECT id, specialist_id, name, duration_minutes, price, is_active, created_at, deleted_at, archived_at FROM services WHERE id = :id"),
+                        {"id": visit.service_id}
+                    ).first()
+                    if service_row:
+                        service = Service()
+                        for key, value in service_row._mapping.items():
+                            setattr(service, key, value)
+                        visit.service = service
+                else:
+                    visit.service = db.query(Service).filter(Service.id == visit.service_id).first()
             items.append(visit)
         
         return items, total
