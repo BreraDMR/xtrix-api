@@ -219,13 +219,14 @@ def list_clients(
     
     # Apply filters
     # Приоритет: если указан business_id, используем его для изоляции данных
-    # Но также показываем клиентов без связей для обратной совместимости
+    # Но также показываем старых клиентов (с owner_id) для обратной совместимости
     if business_id:
-        # Клиенты, связанные с бизнесом через ClientBusinessRelation или ClientSpecialistRelation
         from app.db.models.client_business_relation import ClientBusinessRelation
+        # Клиенты, связанные с бизнесом через ClientBusinessRelation
         business_client_ids = db.query(ClientBusinessRelation.client_id).filter(
             ClientBusinessRelation.business_id == business_id
         )
+        # Клиенты, связанные через ClientSpecialistRelation
         specialist_client_ids = db.query(ClientSpecialistRelation.client_id).filter(
             ClientSpecialistRelation.business_id == business_id
         )
@@ -234,11 +235,13 @@ def list_clients(
                 ClientSpecialistRelation.specialist_id == owner_id
             )
         
-        # Объединяем: клиенты с бизнес-связями + клиенты без связей (обратная совместимость)
-        all_client_ids = business_client_ids.union(specialist_client_ids).subquery()
+        # Объединяем все связанные клиенты
+        all_related_ids = business_client_ids.union(specialist_client_ids)
+        
+        # Показываем: связанные клиенты + старые клиенты с owner_id (обратная совместимость)
         q = q.filter(or_(
-            Client.id.in_(db.query(all_client_ids)),
-            ~Client.id.in_(db.query(ClientBusinessRelation.client_id).distinct())  # Клиенты без бизнес-связей
+            Client.id.in_(all_related_ids),
+            Client.owner_id == owner_id  # Старые клиенты
         ))
     elif owner_id:
         # Для обратной совместимости: фильтр по owner_id через ClientSpecialistRelation
