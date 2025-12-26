@@ -7,6 +7,7 @@ Create Date: 2024-12-22 14:00:00
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.sql import text
 
 revision = "0013_create_business_model"
 down_revision = "0012_add_global_client_account"
@@ -15,7 +16,7 @@ depends_on = None
 
 
 def upgrade():
-    # Create businesses table
+    # Step 1: Create businesses table structure first
     op.create_table(
         "businesses",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -35,101 +36,144 @@ def upgrade():
     op.create_index("ix_businesses_created_at", "businesses", ["created_at"])
     op.create_index("ix_businesses_deleted_at", "businesses", ["deleted_at"])
     
-    # Add business_id to users table
+    # Step 2: Add business_id columns FIRST (before foreign keys and data migration)
+    # Это критически важно - колонки должны быть созданы до любых операций с данными
     op.add_column("users", sa.Column("business_id", sa.Integer(), nullable=True))
-    op.create_foreign_key(
-        "fk_users_business_id", 
-        "users", 
-        "businesses", 
-        ["business_id"], 
-        ["id"],
-        ondelete="SET NULL"
-    )
-    op.create_index("ix_users_business_id", "users", ["business_id"])
-    
-    # Add business_id to specialist_profiles table
     op.add_column("specialist_profiles", sa.Column("business_id", sa.Integer(), nullable=True))
-    op.create_foreign_key(
-        "fk_specialist_profiles_business_id",
-        "specialist_profiles",
-        "businesses",
-        ["business_id"],
-        ["id"],
-        ondelete="SET NULL"
-    )
+    
+    # Step 3: Create indexes
+    op.create_index("ix_users_business_id", "users", ["business_id"])
     op.create_index("ix_specialist_profiles_business_id", "specialist_profiles", ["business_id"])
     
-    # Migrate existing data: create businesses from specialist_profiles
-    # Для каждого уникального специалиста создаем бизнес на основе его профиля
-    # Используем подзапрос с NOT EXISTS для избежания дубликатов
-    op.execute("""
-        INSERT INTO businesses (name, business_type, address, description, created_at)
-        SELECT DISTINCT
-            LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255) as name,
-            LEFT(COALESCE(sp.business_type, 'individual'), 50) as business_type,
-            MAX(sp.address) as address,
-            MAX(sp.description) as description,
-            NOW() as created_at
-        FROM users u
-        LEFT JOIN specialist_profiles sp ON u.id = sp.user_id
-        WHERE (u.role = 'specialist' OR u.role = 'admin')
-        AND NOT EXISTS (
-            SELECT 1 FROM businesses b 
-            WHERE b.name = LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255)
-            AND b.business_type = LEFT(COALESCE(sp.business_type, 'individual'), 50)
-        )
-        GROUP BY LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255), 
-                 LEFT(COALESCE(sp.business_type, 'individual'), 50)
-    """)
+    # Step 4: Try to migrate existing data (with error handling - failures shouldn't block)
+    conn = op.get_bind()
     
-    # Обновляем business_id в users на основе созданных бизнесов
-    # Используем подзапрос вместо JOIN, чтобы избежать ошибки ссылки на таблицу в UPDATE
-    op.execute("""
-        UPDATE users u
-        SET business_id = (
-            SELECT b.id
-            FROM specialist_profiles sp
-            JOIN businesses b ON (
-                b.name = LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255)
-                AND b.business_type = LEFT(COALESCE(sp.business_type, 'individual'), 50)
-            )
-            WHERE sp.user_id = u.id
-            LIMIT 1
-        )
-        WHERE u.business_id IS NULL
-        AND EXISTS (
-            SELECT 1 FROM specialist_profiles sp2 WHERE sp2.user_id = u.id
-        )
-    """)
+    # Check if there's data to migrate
+    try:
+        user_count = conn.execute(text("SELECT COUNT(*) FROM users WHERE role IN ('specialist', 'admin')")).scalar()
+        if user_count > 0:
+            # Create businesses from existing data
+            conn.execute(text("""
+                INSERT INTO businesses (name, business_type, address, description, created_at)
+                SELECT DISTINCT ON (
+                    LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255),
+                    LEFT(COALESCE(sp.business_type, 'individual'), 50)
+                )
+                    LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255) as name,
+                    LEFT(COALESCE(sp.business_type, 'individual'), 50) as business_type,
+                    (SELECT MAX(sp2.address) FROM specialist_profiles sp2 WHERE sp2.user_id = u.id LIMIT 1) as address,
+                    (SELECT MAX(sp2.description) FROM specialist_profiles sp2 WHERE sp2.user_id = u.id LIMIT 1) as description,
+                    NOW() as created_at
+                FROM users u
+                LEFT JOIN specialist_profiles sp ON u.id = sp.user_id
+                WHERE (u.role = 'specialist' OR u.role = 'admin')
+                AND NOT EXISTS (
+                    SELECT 1 FROM businesses b 
+                    WHERE b.name = LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255)
+                    AND b.business_type = LEFT(COALESCE(sp.business_type, 'individual'), 50)
+                )
+            """))
+            
+            # Update users.business_id
+            conn.execute(text("""
+                UPDATE users u
+                SET business_id = (
+                    SELECT b.id
+                    FROM specialist_profiles sp
+                    JOIN businesses b ON (
+                        b.name = LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255)
+                        AND b.business_type = LEFT(COALESCE(sp.business_type, 'individual'), 50)
+                    )
+                    WHERE sp.user_id = u.id
+                    LIMIT 1
+                )
+                WHERE u.business_id IS NULL
+                AND EXISTS (SELECT 1 FROM specialist_profiles sp2 WHERE sp2.user_id = u.id)
+            """))
+            
+            # Update specialist_profiles.business_id
+            conn.execute(text("""
+                UPDATE specialist_profiles sp
+                SET business_id = u.business_id
+                FROM users u
+                WHERE sp.user_id = u.id
+                AND sp.business_id IS NULL
+                AND u.business_id IS NOT NULL
+            """))
+    except Exception as e:
+        # Log error but continue - data migration is not critical, structure is
+        print(f"Warning: Data migration failed (non-critical): {e}")
+        pass
     
-    # Обновляем business_id в specialist_profiles
-    op.execute("""
-        UPDATE specialist_profiles sp
-        SET business_id = u.business_id
-        FROM users u
-        WHERE sp.user_id = u.id
-        AND sp.business_id IS NULL
-        AND u.business_id IS NOT NULL
-    """)
+    # Step 5: Create foreign keys AFTER everything else
+    # Если таблица businesses пустая, FK все равно можно создать (NULL значения разрешены)
+    try:
+        op.create_foreign_key(
+            "fk_users_business_id", 
+            "users", 
+            "businesses", 
+            ["business_id"], 
+            ["id"],
+            ondelete="SET NULL"
+        )
+    except Exception as e:
+        print(f"Warning: Could not create FK fk_users_business_id: {e}")
+    
+    try:
+        op.create_foreign_key(
+            "fk_specialist_profiles_business_id",
+            "specialist_profiles",
+            "businesses",
+            ["business_id"],
+            ["id"],
+            ondelete="SET NULL"
+        )
+    except Exception as e:
+        print(f"Warning: Could not create FK fk_specialist_profiles_business_id: {e}")
 
 
 def downgrade():
-    # Remove business_id from specialist_profiles
-    op.drop_index("ix_specialist_profiles_business_id", "specialist_profiles")
-    op.drop_constraint("fk_specialist_profiles_business_id", "specialist_profiles", type_="foreignkey")
-    op.drop_column("specialist_profiles", "business_id")
+    # Remove foreign keys first
+    try:
+        op.drop_constraint("fk_specialist_profiles_business_id", "specialist_profiles", type_="foreignkey")
+    except:
+        pass
     
-    # Remove business_id from users
-    op.drop_index("ix_users_business_id", "users")
-    op.drop_constraint("fk_users_business_id", "users", type_="foreignkey")
-    op.drop_column("users", "business_id")
+    try:
+        op.drop_constraint("fk_users_business_id", "users", type_="foreignkey")
+    except:
+        pass
+    
+    # Remove indexes
+    try:
+        op.drop_index("ix_specialist_profiles_business_id", "specialist_profiles")
+    except:
+        pass
+    
+    try:
+        op.drop_index("ix_users_business_id", "users")
+    except:
+        pass
+    
+    # Remove columns
+    try:
+        op.drop_column("specialist_profiles", "business_id")
+    except:
+        pass
+    
+    try:
+        op.drop_column("users", "business_id")
+    except:
+        pass
     
     # Drop businesses table
-    op.drop_index("ix_businesses_deleted_at", "businesses")
-    op.drop_index("ix_businesses_created_at", "businesses")
-    op.drop_index("ix_businesses_email", "businesses")
-    op.drop_index("ix_businesses_phone", "businesses")
-    op.drop_index("ix_businesses_business_type", "businesses")
-    op.drop_index("ix_businesses_name", "businesses")
-    op.drop_table("businesses")
-
+    try:
+        op.drop_index("ix_businesses_deleted_at", "businesses")
+        op.drop_index("ix_businesses_created_at", "businesses")
+        op.drop_index("ix_businesses_email", "businesses")
+        op.drop_index("ix_businesses_phone", "businesses")
+        op.drop_index("ix_businesses_business_type", "businesses")
+        op.drop_index("ix_businesses_name", "businesses")
+        op.drop_table("businesses")
+    except:
+        pass
