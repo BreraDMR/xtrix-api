@@ -226,49 +226,49 @@ def list_clients(
     # Приоритет: если указан business_id, используем его для изоляции данных
     # Но также показываем старых клиентов (с owner_id) для обратной совместимости
     if business_id:
-        # Проверяем существование таблицы client_business_relations
+        # Проверяем существование таблиц
         from sqlalchemy import inspect
         inspector = inspect(db.bind)
-        has_business_relations = 'client_business_relations' in inspector.get_table_names()
+        table_names = inspector.get_table_names()
+        has_business_relations = 'client_business_relations' in table_names
+        has_specialist_relations = 'client_specialist_relations' in table_names
         
-        # Клиенты, связанные через ClientSpecialistRelation
-        specialist_client_ids = db.query(ClientSpecialistRelation.client_id).filter(
-            ClientSpecialistRelation.business_id == business_id
-        )
-        if owner_id:
-            specialist_client_ids = specialist_client_ids.filter(
-                ClientSpecialistRelation.specialist_id == owner_id
-            )
-        
-        if has_business_relations:
-            # Если таблица существует, используем её
-            from app.db.models.client_business_relation import ClientBusinessRelation
-            business_client_ids = db.query(ClientBusinessRelation.client_id).filter(
-                ClientBusinessRelation.business_id == business_id
-            )
-            # Объединяем все связанные клиенты
-            all_related_ids = business_client_ids.union(specialist_client_ids)
-        else:
-            # Если таблицы нет, используем только ClientSpecialistRelation
-            all_related_ids = specialist_client_ids
-        
-        # Показываем: связанные клиенты + старые клиенты с owner_id (обратная совместимость)
-        # Если есть связанные клиенты, показываем их, иначе только старых с owner_id
         filters = []
-        try:
-            related_count = all_related_ids.count()
-            if related_count > 0:
-                filters.append(Client.id.in_(all_related_ids))
-        except:
-            pass  # Если запрос не может быть выполнен, пропускаем
         
+        # Показываем старых клиентов с owner_id (обратная совместимость)
         if owner_id:
             filters.append(Client.owner_id == owner_id)
         
+        # Если таблицы существуют, добавляем связанных клиентов
+        if has_business_relations or has_specialist_relations:
+            try:
+                if has_business_relations:
+                    from app.db.models.client_business_relation import ClientBusinessRelation
+                    business_client_ids = db.query(ClientBusinessRelation.client_id).filter(
+                        ClientBusinessRelation.business_id == business_id
+                    )
+                    filters.append(Client.id.in_(business_client_ids))
+                
+                if has_specialist_relations:
+                    specialist_filter = ClientSpecialistRelation.business_id == business_id
+                    if owner_id:
+                        specialist_filter = and_(
+                            specialist_filter,
+                            ClientSpecialistRelation.specialist_id == owner_id
+                        )
+                    specialist_client_ids = db.query(ClientSpecialistRelation.client_id).filter(
+                        specialist_filter
+                    )
+                    filters.append(Client.id.in_(specialist_client_ids))
+            except Exception as e:
+                # Если запрос не может быть выполнен, используем только owner_id
+                pass
+        
+        # Применяем фильтры
         if filters:
             q = q.filter(or_(*filters))
         elif owner_id:
-            # Если нет связанных и есть owner_id, показываем только по owner_id
+            # Если нет других фильтров, показываем только по owner_id
             q = q.filter(Client.owner_id == owner_id)
     elif owner_id:
         # Для обратной совместимости: фильтр по owner_id через ClientSpecialistRelation
