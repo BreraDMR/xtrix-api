@@ -78,8 +78,7 @@ def upgrade():
                     ondelete="SET NULL"
                 )
         except Exception as e:
-            # Rollback в случае ошибки
-            conn.rollback()
+            # НЕ делаем rollback - Alembic управляет транзакциями
             print(f"Warning: Could not create FK fk_users_business_id: {e}")
     
     if 'specialist_profiles' in table_names:
@@ -97,13 +96,12 @@ def upgrade():
                     ondelete="SET NULL"
                 )
         except Exception as e:
-            # Rollback в случае ошибки
-            conn.rollback()
+            # НЕ делаем rollback - Alembic управляет транзакциями
             print(f"Warning: Could not create FK fk_specialist_profiles_business_id: {e}")
     
     # Step 5: Try to migrate existing data (with error handling - failures shouldn't block)
     # Миграция данных опциональна - если она падает, структура уже создана
-    # Используем новое соединение для миграции данных, чтобы избежать проблем с транзакцией
+    # НЕ используем conn.commit() - Alembic управляет транзакциями сам
     try:
         user_count = conn.execute(text("SELECT COUNT(*) FROM users WHERE role IN ('specialist', 'admin')")).scalar()
         if user_count and user_count > 0:
@@ -157,11 +155,7 @@ def upgrade():
             """))
     except Exception as e:
         # Log error but continue - data migration is not critical, structure is already created
-        # Rollback транзакции для миграции данных, но структура уже создана
-        try:
-            conn.rollback()
-        except:
-            pass
+        # НЕ делаем rollback - Alembic управляет транзакциями
         print(f"Warning: Data migration failed (non-critical, structure already created): {e}")
         import traceback
         traceback.print_exc()
