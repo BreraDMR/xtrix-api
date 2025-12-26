@@ -35,8 +35,8 @@ logger = get_logger("clients")
                         "gender": "female",
                         "contact_phone": "+1234567890",
                         "contact_email": "jane@example.com",
-                        "location_lat": null,
-                        "location_lon": null,
+                        "location_lat": None,
+                        "location_lon": None,
                         "created_at": "2024-01-15T10:00:00"
                     }
                 }

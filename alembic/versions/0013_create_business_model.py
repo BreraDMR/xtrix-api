@@ -65,8 +65,8 @@ def upgrade():
     op.execute("""
         INSERT INTO businesses (name, business_type, address, description, created_at)
         SELECT DISTINCT
-            COALESCE(sp.business_name, u.full_name || '''s Business') as name,
-            COALESCE(sp.business_type, 'individual') as business_type,
+            LEFT(COALESCE(sp.business_name, u.full_name || '''s Business'), 255) as name,  -- Ограничиваем длину name
+            LEFT(COALESCE(sp.business_type, 'individual'), 50) as business_type,  -- Ограничиваем длину business_type
             MAX(sp.address) as address,
             MAX(sp.description) as description,
             NOW() as created_at
