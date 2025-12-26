@@ -8,7 +8,7 @@ Create Date: 2024-12-22 15:00:00
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0014_remove_owner_id_add_business_relations"
+revision = "0014_remove_owner_add_business"
 down_revision = "0013_create_business_model"
 branch_labels = None
 depends_on = None

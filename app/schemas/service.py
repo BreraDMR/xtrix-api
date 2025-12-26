@@ -8,7 +8,6 @@ class ServiceBase(BaseModel):
     duration_minutes: Optional[int] = None
     price: Optional[float] = None
     is_active: Optional[bool] = True
-    features: Optional[str] = None
 
 
 class ServiceCreate(ServiceBase):
