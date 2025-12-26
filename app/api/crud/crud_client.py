@@ -253,10 +253,23 @@ def list_clients(
             all_related_ids = specialist_client_ids
         
         # Показываем: связанные клиенты + старые клиенты с owner_id (обратная совместимость)
-        q = q.filter(or_(
-            Client.id.in_(all_related_ids) if all_related_ids.count() > 0 else Client.id == -1,  # Если нет связанных, используем несуществующий ID
-            Client.owner_id == owner_id  # Старые клиенты
-        ))
+        # Если есть связанные клиенты, показываем их, иначе только старых с owner_id
+        filters = []
+        try:
+            related_count = all_related_ids.count()
+            if related_count > 0:
+                filters.append(Client.id.in_(all_related_ids))
+        except:
+            pass  # Если запрос не может быть выполнен, пропускаем
+        
+        if owner_id:
+            filters.append(Client.owner_id == owner_id)
+        
+        if filters:
+            q = q.filter(or_(*filters))
+        elif owner_id:
+            # Если нет связанных и есть owner_id, показываем только по owner_id
+            q = q.filter(Client.owner_id == owner_id)
     elif owner_id:
         # Для обратной совместимости: фильтр по owner_id через ClientSpecialistRelation
         # Clients owned by the specialist OR linked through relations
