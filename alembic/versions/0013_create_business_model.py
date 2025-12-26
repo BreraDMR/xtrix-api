@@ -59,35 +59,51 @@ def upgrade():
     
     # Step 4: Create foreign keys BEFORE data migration (can be empty)
     # Foreign keys can be created even if tables are empty
-    try:
-        op.create_foreign_key(
-            "fk_users_business_id", 
-            "users", 
-            "businesses", 
-            ["business_id"], 
-            ["id"],
-            ondelete="SET NULL"
-        )
-    except Exception as e:
-        print(f"Warning: Could not create FK fk_users_business_id: {e}")
+    # Проверяем существование constraint перед созданием
+    conn = op.get_bind()
+    inspector = inspect(conn)
     
-    try:
-        op.create_foreign_key(
-            "fk_specialist_profiles_business_id",
-            "specialist_profiles",
-            "businesses",
-            ["business_id"],
-            ["id"],
-            ondelete="SET NULL"
-        )
-    except Exception as e:
-        print(f"Warning: Could not create FK fk_specialist_profiles_business_id: {e}")
+    if 'users' in table_names:
+        try:
+            # Проверяем существующие foreign keys
+            fks = inspector.get_foreign_keys('users')
+            fk_names = [fk['name'] for fk in fks] if fks else []
+            if 'fk_users_business_id' not in fk_names:
+                op.create_foreign_key(
+                    "fk_users_business_id", 
+                    "users", 
+                    "businesses", 
+                    ["business_id"], 
+                    ["id"],
+                    ondelete="SET NULL"
+                )
+        except Exception as e:
+            # Rollback в случае ошибки
+            conn.rollback()
+            print(f"Warning: Could not create FK fk_users_business_id: {e}")
+    
+    if 'specialist_profiles' in table_names:
+        try:
+            # Проверяем существующие foreign keys
+            fks = inspector.get_foreign_keys('specialist_profiles')
+            fk_names = [fk['name'] for fk in fks] if fks else []
+            if 'fk_specialist_profiles_business_id' not in fk_names:
+                op.create_foreign_key(
+                    "fk_specialist_profiles_business_id",
+                    "specialist_profiles",
+                    "businesses",
+                    ["business_id"],
+                    ["id"],
+                    ondelete="SET NULL"
+                )
+        except Exception as e:
+            # Rollback в случае ошибки
+            conn.rollback()
+            print(f"Warning: Could not create FK fk_specialist_profiles_business_id: {e}")
     
     # Step 5: Try to migrate existing data (with error handling - failures shouldn't block)
     # Миграция данных опциональна - если она падает, структура уже создана
-    conn = op.get_bind()
-    
-    # Check if there's data to migrate
+    # Используем новое соединение для миграции данных, чтобы избежать проблем с транзакцией
     try:
         user_count = conn.execute(text("SELECT COUNT(*) FROM users WHERE role IN ('specialist', 'admin')")).scalar()
         if user_count and user_count > 0:
@@ -108,7 +124,6 @@ def upgrade():
                     AND b.business_type = COALESCE(sp.business_type, 'individual')
                 )
             """))
-            conn.commit()
             
             # Update users.business_id - simplified approach
             conn.execute(text("""
@@ -130,7 +145,6 @@ def upgrade():
                 WHERE u.business_id IS NULL
                 AND (u.role = 'specialist' OR u.role = 'admin')
             """))
-            conn.commit()
             
             # Update specialist_profiles.business_id
             conn.execute(text("""
@@ -141,9 +155,13 @@ def upgrade():
                 AND sp.business_id IS NULL
                 AND u.business_id IS NOT NULL
             """))
-            conn.commit()
     except Exception as e:
         # Log error but continue - data migration is not critical, structure is already created
+        # Rollback транзакции для миграции данных, но структура уже создана
+        try:
+            conn.rollback()
+        except:
+            pass
         print(f"Warning: Data migration failed (non-critical, structure already created): {e}")
         import traceback
         traceback.print_exc()
