@@ -82,15 +82,23 @@ def upgrade():
     """)
     
     # Обновляем business_id в users на основе созданных бизнесов
+    # Используем подзапрос вместо JOIN, чтобы избежать ошибки ссылки на таблицу в UPDATE
     op.execute("""
         UPDATE users u
-        SET business_id = b.id
-        FROM specialist_profiles sp
-        JOIN businesses b ON 
-            b.name = COALESCE(sp.business_name, u.full_name || '''s Business')
-            AND b.business_type = COALESCE(sp.business_type, 'individual')
-        WHERE u.id = sp.user_id
-        AND u.business_id IS NULL
+        SET business_id = (
+            SELECT b.id
+            FROM specialist_profiles sp
+            JOIN businesses b ON (
+                b.name = COALESCE(sp.business_name, u.full_name || '''s Business')
+                AND b.business_type = COALESCE(sp.business_type, 'individual')
+            )
+            WHERE sp.user_id = u.id
+            LIMIT 1
+        )
+        WHERE u.business_id IS NULL
+        AND EXISTS (
+            SELECT 1 FROM specialist_profiles sp2 WHERE sp2.user_id = u.id
+        )
     """)
     
     # Обновляем business_id в specialist_profiles
