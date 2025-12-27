@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 
-from app.api.core.pagination import PaginationParams, paginate_query
+from app.api.core.pagination import PaginationParams
 from app.db.models.salary_calculation import SalaryCalculation
 from app.db.models.employee import Employee
 from app.db.models.visit import Visit
@@ -137,11 +137,11 @@ def list_salary_calculations(
     query = query.order_by(SalaryCalculation.calculated_at.desc())
     
     # Применяем пагинацию
+    total = query.count()
     if pagination:
-        return paginate_query(query, pagination)
-    else:
-        total = query.count()
-        return query.all(), total
+        query = query.offset(pagination.offset).limit(pagination.limit)
+    items = query.all()
+    return items, total
 
 
 def update_salary_calculation(

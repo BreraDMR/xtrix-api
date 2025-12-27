@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_
 
-from app.api.core.pagination import PaginationParams, paginate_query
+from app.api.core.pagination import PaginationParams
 from app.api.core.soft_delete import filter_active
 from app.db.models.employee import Employee
 from app.db.models.user import User
@@ -107,11 +107,11 @@ def list_employees(
         query = query.filter(Employee.is_active == True)
     
     # Применяем пагинацию
+    total = query.count()
     if pagination:
-        return paginate_query(query, pagination)
-    else:
-        total = query.count()
-        return query.all(), total
+        query = query.offset(pagination.offset).limit(pagination.limit)
+    items = query.all()
+    return items, total
 
 
 def update_employee(
