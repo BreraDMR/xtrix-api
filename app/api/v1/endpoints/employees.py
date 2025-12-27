@@ -297,6 +297,46 @@ def calculate_employee_salary(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.get("/{employee_id}/salary/current", response_model=SalaryCalculationOut, summary="Get current unpaid salary for employee")
+def get_employee_current_salary(
+    employee_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    locale: str = Depends(deps.get_locale),
+):
+    """Получить текущую невыплаченную зарплату сотрудника."""
+    from app.api.core.permissions import can_manage_employees
+    
+    # Проверяем доступ
+    if current_user.role == "employee":
+        # Сотрудник может видеть только свои зарплаты
+        employee = crud_employee.get_employee_by_user_id(db, current_user.id)
+        if not employee or employee.id != employee_id:
+            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    elif can_manage_employees(current_user):
+        # business_owner или admin
+        owner_id = get_business_owner_id(current_user)
+        if current_user.role == "admin":
+            owner_id = None
+        
+        # Проверяем доступ к сотруднику
+        employee = crud_employee.get_employee(
+            db=db,
+            employee_id=employee_id,
+            business_owner_id=owner_id
+        )
+        if not employee:
+            raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
+    else:
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    salary = crud_salary.get_current_unpaid_salary(db=db, employee_id=employee_id)
+    if not salary:
+        raise HTTPException(status_code=404, detail=_("no_unpaid_salary", locale))
+    
+    return salary
+
+
 @router.get("/{employee_id}/salary/history", response_model=List[SalaryCalculationOut], summary="Get salary history for employee")
 def get_employee_salary_history(
     employee_id: int,

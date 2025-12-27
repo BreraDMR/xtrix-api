@@ -172,21 +172,33 @@ def update_salary_calculation(
 
 def get_current_unpaid_salary(
     db: Session,
-    employee_user_id: int
+    employee_user_id: Optional[int] = None,
+    employee_id: Optional[int] = None
 ) -> Optional[SalaryCalculation]:
     """
     Получить текущую невыплаченную зарплату для сотрудника.
     Если невыплаченных зарплат несколько, возвращает самую новую.
+    
+    Args:
+        employee_user_id: ID пользователя-сотрудника (User.id)
+        employee_id: ID сотрудника (Employee.id) - приоритетнее, если указан
     """
-    # Находим Employee по user_id
-    employee = crud_employee.get_employee_by_user_id(db, employee_user_id)
-    if not employee:
+    # Если указан employee_id, используем его напрямую
+    if employee_id is not None:
+        target_employee_id = employee_id
+    elif employee_user_id is not None:
+        # Находим Employee по user_id
+        employee = crud_employee.get_employee_by_user_id(db, employee_user_id)
+        if not employee:
+            return None
+        target_employee_id = employee.id
+    else:
         return None
     
     # Ищем невыплаченную зарплату
     unpaid_salary = db.query(SalaryCalculation).filter(
         and_(
-            SalaryCalculation.employee_id == employee.id,
+            SalaryCalculation.employee_id == target_employee_id,
             SalaryCalculation.is_paid == False
         )
     ).order_by(SalaryCalculation.calculated_at.desc()).first()
