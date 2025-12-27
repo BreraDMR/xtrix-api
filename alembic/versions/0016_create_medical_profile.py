@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "0016_create_medical_profile"
-down_revision = "0015_add_business_id_to_visits_services"
+down_revision = "0015_add_business_to_visits_svc"
 branch_labels = None
 depends_on = None
 
@@ -93,4 +93,5 @@ def downgrade():
     op.drop_index("ix_medical_profiles_pregnancy", "medical_profiles")
     op.drop_index("ix_medical_profiles_client_id", "medical_profiles")
     op.drop_table("medical_profiles")
+
 
