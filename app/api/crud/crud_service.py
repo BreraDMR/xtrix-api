@@ -72,6 +72,9 @@ def list_services(
     include_archived: bool = False,
 ) -> Tuple[list[Service], int]:
     """List services with optional pagination. Returns (items, total_count)."""
+    from app.api.core.logger import get_logger
+    logger = get_logger("services")
+    
     # Проверяем наличие колонки business_id перед выполнением запроса
     from sqlalchemy import inspect
     inspector = inspect(db.bind)
@@ -81,6 +84,8 @@ def list_services(
         has_business_id_column = 'business_id' in columns
     except:
         pass
+    
+    logger.info(f"list_services: specialist_id={specialist_id}, business_id={business_id}, has_business_id_column={has_business_id_column}, is_active={is_active}")
     
     # Если колонки business_id нет, используем raw SQL сразу
     if not has_business_id_column:
@@ -216,7 +221,9 @@ def list_services(
     # Получаем элементы с обработкой ошибок
     try:
         items = q.all()
+        logger.info(f"list_services: found {len(items)} services, total={total}")
     except Exception as e:
+        logger.error(f"list_services: error getting items: {str(e)}")
         # Если запрос падает из-за отсутствующей колонки business_id, используем raw SQL
         if 'business_id' in str(e).lower() or 'does not exist' in str(e).lower():
             from sqlalchemy import text
