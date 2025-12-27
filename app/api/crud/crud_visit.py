@@ -22,24 +22,31 @@ def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] 
     logger = get_logger("visits")
     
     visit_data = visit_in.dict()
-    logger.info(f"create_visit: visit_data keys={list(visit_data.keys())}, service_id={visit_data.get('service_id')}")
+    logger.info(f"create_visit: visit_data keys={list(visit_data.keys())}, service_id={visit_data.get('service_id')}, price={visit_data.get('price')}, date_end={visit_data.get('date_end')}")
     
     # Автоматическое применение цены и длительности из услуги, если service_id указан
     if visit_data.get('service_id'):
         from app.db.models.service import Service
         service = db.query(Service).filter(Service.id == visit_data['service_id']).first()
         if service:
-            logger.info(f"create_visit: found service id={service.id}, price={service.price}, duration={service.duration_minutes}")
+            logger.info(f"create_visit: found service id={service.id}, name={service.name}, price={service.price}, duration={service.duration_minutes}")
             
-            # Применяем цену, если она не указана в визите
-            if not visit_data.get('price') and service.price is not None:
+            # Применяем цену, если она не указана в визите (None или отсутствует)
+            price_in_data = visit_data.get('price')
+            if (price_in_data is None or price_in_data == 0) and service.price is not None:
                 visit_data['price'] = service.price
-                logger.info(f"create_visit: auto-applied price={service.price} from service")
+                logger.info(f"create_visit: auto-applied price={service.price} from service (was: {price_in_data})")
+            else:
+                logger.info(f"create_visit: price not auto-applied (price_in_data={price_in_data}, service.price={service.price})")
             
             # Применяем длительность (date_end), если она не указана и есть duration_minutes
-            if not visit_data.get('date_end') and service.duration_minutes and visit_data.get('date_start'):
+            date_end_in_data = visit_data.get('date_end')
+            date_start = visit_data.get('date_start')
+            
+            if date_end_in_data is None and service.duration_minutes and date_start:
                 from datetime import timedelta, datetime, timezone
-                date_start = visit_data['date_start']
+                
+                logger.info(f"create_visit: will auto-apply date_end, date_start={date_start}, type={type(date_start)}, duration={service.duration_minutes}")
                 
                 # Обрабатываем разные форматы date_start
                 if isinstance(date_start, str):
@@ -52,10 +59,10 @@ def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] 
                     else:
                         # Нет timezone, парсим как naive datetime
                         date_start = datetime.fromisoformat(date_start)
+                    logger.info(f"create_visit: parsed date_start string to datetime: {date_start}, tzinfo={date_start.tzinfo}")
                 elif isinstance(date_start, datetime):
                     # date_start уже является datetime объектом
-                    # Сохраняем его как есть (timezone-aware или naive)
-                    pass
+                    logger.info(f"create_visit: date_start is already datetime: {date_start}, tzinfo={date_start.tzinfo}")
                 
                 # Вычисляем date_end
                 date_end = date_start + timedelta(minutes=service.duration_minutes)
@@ -72,11 +79,20 @@ def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] 
                     visit_data['date_end'] = date_end
                 
                 logger.info(f"create_visit: auto-applied date_end={visit_data['date_end']} (type={type(visit_data['date_end'])}, tzinfo={visit_data['date_end'].tzinfo}) from service duration={service.duration_minutes} minutes")
+            else:
+                logger.info(f"create_visit: date_end not auto-applied (date_end_in_data={date_end_in_data}, service.duration_minutes={service.duration_minutes}, date_start={date_start})")
             
             # Применяем название услуги, если оно не указано
-            if not visit_data.get('service_name') and service.name:
+            service_name_in_data = visit_data.get('service_name')
+            if not service_name_in_data and service.name:
                 visit_data['service_name'] = service.name
                 logger.info(f"create_visit: auto-applied service_name={service.name} from service")
+            else:
+                logger.info(f"create_visit: service_name not auto-applied (service_name_in_data={service_name_in_data}, service.name={service.name})")
+        else:
+            logger.warning(f"create_visit: service with id={visit_data.get('service_id')} not found")
+    
+    logger.info(f"create_visit: final visit_data before creating Visit: price={visit_data.get('price')}, date_end={visit_data.get('date_end')}, service_name={visit_data.get('service_name')}")
     
     # Проверяем наличие колонки business_id в таблице visits
     from sqlalchemy import inspect
@@ -111,7 +127,7 @@ def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] 
         db.add(visit)
         db.commit()
         db.refresh(visit)
-        logger.info(f"create_visit: created visit id={visit.id}, client_id={visit.client_id}, specialist_id={visit.specialist_id}, service_id={getattr(visit, 'service_id', None)}")
+        logger.info(f"create_visit: created visit id={visit.id}, client_id={visit.client_id}, specialist_id={visit.specialist_id}, service_id={getattr(visit, 'service_id', None)}, price={getattr(visit, 'price', None)}, date_end={getattr(visit, 'date_end', None)}, service_name={getattr(visit, 'service_name', None)}")
         return visit
     except Exception as e:
         logger.error(f"create_visit: error creating visit: {str(e)}", exc_info=True)
