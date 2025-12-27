@@ -158,10 +158,13 @@ def list_services(
     q = db.query(Service).options(joinedload(Service.specialist))
     
     # Filter out deleted and archived by default
+    logger.info(f"list_services: include_deleted={include_deleted}, include_archived={include_archived}")
     if not include_deleted:
         q = filter_active(q)
+        logger.info("list_services: applied filter_active (deleted_at IS NULL)")
     if not include_archived:
         q = q.filter(Service.archived_at.is_(None))
+        logger.info("list_services: applied archived_at IS NULL filter")
     
     # Apply filters
     # Фильтрация по business_id:
