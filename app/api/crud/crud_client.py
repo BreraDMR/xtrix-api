@@ -68,6 +68,74 @@ def find_client_by_identifiers(
     return None
 
 
+def validate_healthcare_required_fields(
+    db: Session,
+    client_id: int,
+    specialist_id: Optional[int] = None,
+) -> None:
+    """
+    Проверяет наличие обязательных медицинских полей для healthcare специалистов.
+    Вызывает ValueError, если поля отсутствуют.
+    """
+    if not specialist_id:
+        return  # Не можем проверить без специалиста
+    
+    # Получаем тип специалиста
+    from app.db.models.user import User
+    specialist = db.query(User).filter(User.id == specialist_id).first()
+    if not specialist or not specialist.specialist_type:
+        return  # Не healthcare специалист или тип не указан
+    
+    # Проверяем категорию специалиста
+    try:
+        from app.db.models.specialist_type import SpecialistType, get_category_for_type, SpecialistCategory, REQUIRED_FIELDS_BY_CATEGORY
+        
+        specialist_type_enum = SpecialistType(specialist.specialist_type)
+        category = get_category_for_type(specialist_type_enum)
+        
+        # Если не healthcare, валидация не требуется
+        if category != SpecialistCategory.HEALTHCARE:
+            return
+        
+        # Получаем обязательные поля для healthcare
+        required_fields = REQUIRED_FIELDS_BY_CATEGORY.get(SpecialistCategory.HEALTHCARE, [])
+        if not required_fields:
+            return
+        
+        # Проверяем наличие MedicalProfile
+        from app.db.models.medical_profile import MedicalProfile
+        medical_profile = db.query(MedicalProfile).filter(
+            MedicalProfile.client_id == client_id,
+            MedicalProfile.deleted_at.is_(None)
+        ).first()
+        
+        if not medical_profile:
+            raise ValueError(
+                f"For healthcare specialists, medical profile with required fields ({', '.join(required_fields)}) must be created. "
+                "Please create MedicalProfile with allergies and chronic_diseases fields."
+            )
+        
+        # Проверяем наличие обязательных полей
+        missing_fields = []
+        for field in required_fields:
+            value = getattr(medical_profile, field, None)
+            if value is None or (isinstance(value, str) and not value.strip()):
+                missing_fields.append(field)
+        
+        if missing_fields:
+            raise ValueError(
+                f"For healthcare specialists, the following medical fields are required but missing: {', '.join(missing_fields)}. "
+                "Please fill in these fields in MedicalProfile."
+            )
+    
+    except (ValueError, AttributeError) as e:
+        # Если это уже наша ошибка валидации, пробрасываем дальше
+        if "healthcare" in str(e).lower() or "required" in str(e).lower():
+            raise
+        # Иначе это ошибка парсинга enum, игнорируем
+        pass
+
+
 def find_or_create_client(
     db: Session,
     client_in: ClientCreate,
