@@ -39,7 +39,7 @@ class EmployeeBase(BaseModel):
 
 class EmployeeCreate(EmployeeBase):
     """Модель для создания сотрудника."""
-    pass
+    business_owner_id: Optional[int] = Field(None, description="ID владельца бизнеса (опционально, используется для admin)")
 
 
 class EmployeeUpdate(BaseModel):

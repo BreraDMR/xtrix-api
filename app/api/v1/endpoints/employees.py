@@ -42,7 +42,7 @@ def get_business_owner_id(current_user: User) -> int:
 @router.post("/", response_model=EmployeeOut, summary="Hire employee")
 def create_employee(
     employee: EmployeeCreate,
-    business_owner_id: Optional[int] = Query(None, description="Business owner ID (required for admin)"),
+    business_owner_id: Optional[int] = Query(None, description="Business owner ID (optional, for admin)"),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
@@ -53,15 +53,24 @@ def create_employee(
     
     # Определяем business_owner_id
     if current_user.role == "admin":
-        # Админ должен указать business_owner_id
-        if not business_owner_id:
-            raise HTTPException(
-                status_code=400, 
-                detail=_("business_owner_id parameter is required for admin", locale)
-            )
-        owner_id = business_owner_id
+        # Админ может указать business_owner_id в теле запроса или в query параметре
+        owner_id = employee.business_owner_id or business_owner_id
+        if not owner_id:
+            # Если не указано, используем business_id текущего пользователя (если есть)
+            # или требуем явно указать
+            if current_user.business_id:
+                # Получаем владельца бизнеса через business_id
+                from app.db.models.business import Business
+                business = db.query(Business).filter(Business.id == current_user.business_id).first()
+                if business:
+                    owner_id = business.owner_id
+            if not owner_id:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=_("business_owner_id is required for admin. Specify it in the request body or as a query parameter.", locale)
+                )
     else:
-        # business_owner использует свой ID
+        # business_owner использует свой ID (игнорируем переданный business_owner_id)
         owner_id = current_user.id
     
     try:
