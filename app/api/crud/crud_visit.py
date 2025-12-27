@@ -39,14 +39,15 @@ def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] 
             else:
                 logger.info(f"create_visit: price not auto-applied (price_in_data={price_in_data}, service.price={service.price})")
             
-            # Применяем длительность (date_end), если она не указана и есть duration_minutes
+            # Применяем длительность (date_end) автоматически на основе duration_minutes из услуги
+            # Всегда пересчитываем date_end на основе date_start + duration_minutes для точности
             date_end_in_data = visit_data.get('date_end')
             date_start = visit_data.get('date_start')
             
-            if date_end_in_data is None and service.duration_minutes and date_start:
+            if service.duration_minutes and date_start:
                 from datetime import timedelta, datetime, timezone
                 
-                logger.info(f"create_visit: will auto-apply date_end, date_start={date_start}, type={type(date_start)}, duration={service.duration_minutes}")
+                logger.info(f"create_visit: will auto-apply date_end, date_start={date_start}, type={type(date_start)}, duration={service.duration_minutes}, existing date_end={date_end_in_data}")
                 
                 # Обрабатываем разные форматы date_start
                 if isinstance(date_start, str):
@@ -64,7 +65,7 @@ def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] 
                     # date_start уже является datetime объектом
                     logger.info(f"create_visit: date_start is already datetime: {date_start}, tzinfo={date_start.tzinfo}")
                 
-                # Вычисляем date_end
+                # Вычисляем date_end на основе date_start + duration_minutes
                 date_end = date_start + timedelta(minutes=service.duration_minutes)
                 
                 # Убеждаемся, что date_end имеет тот же формат (timezone-aware или naive), что и date_start
@@ -78,9 +79,9 @@ def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] 
                     # date_start aware - оставляем date_end как есть (он уже aware)
                     visit_data['date_end'] = date_end
                 
-                logger.info(f"create_visit: auto-applied date_end={visit_data['date_end']} (type={type(visit_data['date_end'])}, tzinfo={visit_data['date_end'].tzinfo}) from service duration={service.duration_minutes} minutes")
+                logger.info(f"create_visit: auto-applied date_end={visit_data['date_end']} (type={type(visit_data['date_end'])}, tzinfo={visit_data['date_end'].tzinfo}) from service duration={service.duration_minutes} minutes (was: {date_end_in_data})")
             else:
-                logger.info(f"create_visit: date_end not auto-applied (date_end_in_data={date_end_in_data}, service.duration_minutes={service.duration_minutes}, date_start={date_start})")
+                logger.info(f"create_visit: date_end not auto-applied (service.duration_minutes={service.duration_minutes}, date_start={date_start})")
             
             # Применяем название услуги, если оно не указано
             service_name_in_data = visit_data.get('service_name')
