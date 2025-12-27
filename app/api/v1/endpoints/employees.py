@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.api import deps
 from app.api.core.i18n import _
-from app.api.core.pagination import PaginationParams, create_paginated_response, PaginatedResponse
+from app.api.core.pagination import PaginationParams, PaginatedResponse
 from app.api.crud import crud_employee, crud_salary
 from app.db.models.user import User
 from app.db.models.employee import Employee

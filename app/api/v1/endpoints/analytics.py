@@ -83,7 +83,7 @@ def get_financial_report_endpoint(
     specialist_id: Optional[int] = Query(None),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
-    group_by: str = Query("month", regex="^(day|week|month|year)$"),
+    group_by: str = Query("month", pattern="^(day|week|month|year)$"),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
