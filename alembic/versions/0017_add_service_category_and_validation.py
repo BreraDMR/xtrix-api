@@ -17,7 +17,7 @@ depends_on = None
 def upgrade():
     # Add category column to services table
     # Проверяем наличие колонки перед добавлением
-    from sqlalchemy import inspect, text
+    from sqlalchemy import inspect
     conn = op.get_bind()
     inspector = inspect(conn)
     
