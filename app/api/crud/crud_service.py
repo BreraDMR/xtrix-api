@@ -25,17 +25,14 @@ def create_service(db: Session, service_in: ServiceCreate, business_id: Optional
         pass
     
     if has_business_id_column:
-        # Если business_id не указан, получаем его из specialist
+        # Если business_id не указан, пытаемся получить его из specialist
         if business_id is None and service_data.get('specialist_id'):
             from app.db.models.user import User
             specialist = db.query(User).filter(User.id == service_data['specialist_id']).first()
             if specialist and hasattr(specialist, 'business_id') and specialist.business_id:
                 business_id = specialist.business_id
         
-        # Убеждаемся, что business_id указан (только если колонка существует)
-        if business_id is None:
-            raise ValueError("business_id is required for Service. Ensure specialist has business_id set.")
-        
+        # business_id может быть None для обратной совместимости (старые услуги без business_id)
         service_data['business_id'] = business_id
     else:
         # Если колонки нет, убираем business_id из данных
