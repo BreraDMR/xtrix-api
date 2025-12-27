@@ -11,14 +11,46 @@ from app.schemas.visit import VisitCreate, VisitUpdate
 
 def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] = None) -> Visit:
     """
-    Create a new visit.
+    Create a new visit. Автоматически применяет цену и длительность из услуги, если service_id указан.
     
     Args:
         db: Database session
         visit_in: Visit data
         business_id: Business ID to associate the visit with (if None, will try to get from specialist)
     """
+    from app.api.core.logger import get_logger
+    logger = get_logger("visits")
+    
     visit_data = visit_in.dict()
+    logger.info(f"create_visit: visit_data keys={list(visit_data.keys())}, service_id={visit_data.get('service_id')}")
+    
+    # Автоматическое применение цены и длительности из услуги, если service_id указан
+    if visit_data.get('service_id'):
+        from app.db.models.service import Service
+        service = db.query(Service).filter(Service.id == visit_data['service_id']).first()
+        if service:
+            logger.info(f"create_visit: found service id={service.id}, price={service.price}, duration={service.duration_minutes}")
+            
+            # Применяем цену, если она не указана в визите
+            if not visit_data.get('price') and service.price is not None:
+                visit_data['price'] = service.price
+                logger.info(f"create_visit: auto-applied price={service.price} from service")
+            
+            # Применяем длительность (date_end), если она не указана и есть duration_minutes
+            if not visit_data.get('date_end') and service.duration_minutes and visit_data.get('date_start'):
+                from datetime import timedelta
+                date_start = visit_data['date_start']
+                if isinstance(date_start, str):
+                    from datetime import datetime
+                    date_start = datetime.fromisoformat(date_start.replace('Z', '+00:00'))
+                date_end = date_start + timedelta(minutes=service.duration_minutes)
+                visit_data['date_end'] = date_end
+                logger.info(f"create_visit: auto-applied date_end={date_end} from service duration={service.duration_minutes} minutes")
+            
+            # Применяем название услуги, если оно не указано
+            if not visit_data.get('service_name') and service.name:
+                visit_data['service_name'] = service.name
+                logger.info(f"create_visit: auto-applied service_name={service.name} from service")
     
     # Проверяем наличие колонки business_id в таблице visits
     from sqlalchemy import inspect
@@ -27,8 +59,8 @@ def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] 
     try:
         columns = [col['name'] for col in inspector.get_columns('visits')]
         has_business_id_column = 'business_id' in columns
-    except:
-        pass
+    except Exception as e:
+        logger.warning(f"create_visit: error checking columns: {str(e)}")
     
     # Set business_id if provided and column exists, otherwise try to get it from specialist
     if has_business_id_column:
@@ -38,18 +70,27 @@ def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] 
             specialist = db.query(User).filter(User.id == visit_data.get('specialist_id')).first()
             if specialist and hasattr(specialist, 'business_id') and specialist.business_id:
                 business_id = specialist.business_id
+                logger.info(f"create_visit: got business_id={business_id} from specialist_id={visit_data.get('specialist_id')}")
         
         if business_id:
             visit_data['business_id'] = business_id
+            logger.info(f"create_visit: setting business_id={business_id}")
     else:
         # Если колонки нет, убираем business_id из данных
         visit_data.pop('business_id', None)
+        logger.info("create_visit: business_id column not found, removing from visit_data")
     
-    visit = Visit(**visit_data)
-    db.add(visit)
-    db.commit()
-    db.refresh(visit)
-    return visit
+    try:
+        visit = Visit(**visit_data)
+        db.add(visit)
+        db.commit()
+        db.refresh(visit)
+        logger.info(f"create_visit: created visit id={visit.id}, client_id={visit.client_id}, specialist_id={visit.specialist_id}, service_id={getattr(visit, 'service_id', None)}")
+        return visit
+    except Exception as e:
+        logger.error(f"create_visit: error creating visit: {str(e)}", exc_info=True)
+        db.rollback()
+        raise
 
 
 def update_visit(db: Session, visit: Visit, update: VisitUpdate) -> Visit:
