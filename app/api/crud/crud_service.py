@@ -203,7 +203,10 @@ def list_services(
     # Get total count before pagination
     # Используем try-except для обработки ошибок с отсутствующей колонкой
     try:
+        # Логируем SQL запрос для отладки
+        logger.info(f"list_services: SQL query: {str(q.statement)}")
         total = q.count()
+        logger.info(f"list_services: count result: {total}")
     except Exception as e:
         # Если count падает из-за отсутствующей колонки business_id, используем альтернативный способ
         if 'business_id' in str(e).lower() or 'does not exist' in str(e).lower():
