@@ -46,11 +46,13 @@ def list_services(
         specialist_id = current_user.id
     
     pagination = PaginationParams(page=page, per_page=per_page)
+    # active_only=True означает фильтровать только активные, False/None означает показать все
+    is_active_filter = True if active_only else None
     services, total = crud_service.list_services(
         db, 
         specialist_id=specialist_id, 
         business_id=business_id,  # Изоляция по бизнесу
-        is_active=active_only,
+        is_active=is_active_filter,
         pagination=pagination
     )
     
