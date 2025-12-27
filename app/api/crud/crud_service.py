@@ -154,7 +154,7 @@ def list_services(
     # Apply filters
     # Фильтрация по business_id:
     # - Если business_id указан (не None), показываем услуги с этим business_id И услуги с NULL business_id (старые)
-    # - Если business_id не указан (None), показываем только услуги с NULL business_id (для обратной совместимости)
+    # - Если business_id не указан (None), показываем все услуги с NULL business_id И услуги, созданные текущим специалистом (для обратной совместимости)
     if has_business_id_column:
         from sqlalchemy import or_
         if business_id is not None:
@@ -164,8 +164,16 @@ def list_services(
                 Service.business_id.is_(None)  # Показываем старые записи без business_id
             ))
         else:
-            # Если business_id не указан, показываем только старые услуги с NULL business_id
-            q = q.filter(Service.business_id.is_(None))
+            # Если business_id не указан, показываем услуги с NULL business_id И услуги текущего специалиста
+            # Это позволяет видеть новые услуги, созданные специалистом, даже если они имеют business_id из specialist
+            if specialist_id:
+                q = q.filter(or_(
+                    Service.business_id.is_(None),  # Старые услуги без business_id
+                    Service.specialist_id == specialist_id  # Услуги текущего специалиста
+                ))
+            else:
+                # Если specialist_id не указан, показываем только услуги с NULL business_id
+                q = q.filter(Service.business_id.is_(None))
     
     if specialist_id:
         q = q.filter(Service.specialist_id == specialist_id)
