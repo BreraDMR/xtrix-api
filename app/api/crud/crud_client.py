@@ -72,6 +72,7 @@ def find_or_create_client(
     db: Session,
     client_in: ClientCreate,
     business_id: Optional[int] = None,
+    specialist_id: Optional[int] = None,
 ) -> Tuple[Client, bool]:
     """
     Ищет существующего клиента или создает нового.
@@ -80,6 +81,7 @@ def find_or_create_client(
         db: Database session
         client_in: Данные клиента для поиска/создания
         business_id: ID бизнеса (опционально, для создания связей)
+        specialist_id: ID специалиста (опционально, для валидации обязательных полей healthcare)
     
     Returns:
         Tuple[Client, bool]: (клиент, был_ли_создан_новый)
@@ -94,7 +96,17 @@ def find_or_create_client(
     )
     
     if existing_client:
-        # Клиент найден - возвращаем существующего
+        # Клиент найден - проверяем валидацию для healthcare специалистов
+        if specialist_id:
+            try:
+                validate_healthcare_required_fields(db, existing_client.id, specialist_id)
+            except ValueError as e:
+                # Если валидация не прошла, всё равно возвращаем клиента, но логируем предупреждение
+                from app.api.core.logger import get_logger
+                logger = get_logger("clients")
+                logger.warning(f"Healthcare validation failed for existing client {existing_client.id}: {str(e)}")
+                # Не пробрасываем ошибку для существующих клиентов, так как они уже были созданы
+        
         return existing_client, False
     
     # Клиент не найден - создаем нового
@@ -105,6 +117,15 @@ def find_or_create_client(
     client = Client(**client_data)
     db.add(client)
     db.flush()  # Получаем ID клиента до commit
+    
+    # Валидация обязательных полей для healthcare специалистов
+    # Проверяем после создания клиента, но до commit
+    if specialist_id:
+        try:
+            validate_healthcare_required_fields(db, client.id, specialist_id)
+        except ValueError as e:
+            db.rollback()
+            raise
     
     # Создаем связь с бизнесом, если указан business_id (только если таблица существует)
     if business_id:
@@ -134,18 +155,35 @@ def find_or_create_client(
     return client, True
 
 
-def create_client(db: Session, client_in: ClientCreate) -> Client:
+def create_client(db: Session, client_in: ClientCreate, specialist_id: Optional[int] = None) -> Client:
     """
     Создает нового клиента без поиска существующих.
     Используйте find_or_create_client для автоматического поиска дубликатов.
+    
+    Args:
+        db: Database session
+        client_in: Данные клиента для создания
+        specialist_id: ID специалиста (опционально, для валидации обязательных полей healthcare)
     """
     client_data = client_in.dict()
     client_data.pop('owner_id', None)  # Убираем owner_id для глобального клиента
     
     client = Client(**client_data)
     db.add(client)
+    db.flush()  # Получаем ID клиента до commit
+    
+    # Валидация обязательных полей для healthcare специалистов
+    # Проверяем после создания клиента, но до commit
+    if specialist_id:
+        try:
+            validate_healthcare_required_fields(db, client.id, specialist_id)
+        except ValueError as e:
+            db.rollback()
+            raise
+    
     db.commit()
     db.refresh(client)
+    
     # Cache the new client
     try:
         cache_client(client.id, ClientOut.from_orm(client).dict())

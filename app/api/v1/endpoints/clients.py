@@ -61,7 +61,8 @@ def create_client(
     result, was_created = crud_client.find_or_create_client(
         db=db,
         client_in=client,
-        business_id=business_id
+        business_id=business_id,
+        specialist_id=current_user.id  # Передаем ID специалиста для валидации обязательных полей
     )
     
     # Если клиент был найден (не создан), создаем связи с текущим специалистом и бизнесом

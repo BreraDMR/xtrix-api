@@ -12,6 +12,7 @@ class Service(Base):
     specialist_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     business_id = Column(Integer, ForeignKey("businesses.id"), nullable=True, index=True)  # Для изоляции данных по бизнесам (nullable для обратной совместимости)
     name = Column(String, nullable=False, index=True)
+    category = Column(String, nullable=True, index=True)  # Категория услуги: beauty, wellness, healthcare (опционально, может определяться автоматически из типа специалиста)
     duration_minutes = Column(Integer, nullable=True)
     price = Column(Float, nullable=True, index=True)
     is_active = Column(Boolean, default=True, index=True)

@@ -11,6 +11,7 @@ from app.schemas.service import ServiceCreate, ServiceUpdate
 def create_service(db: Session, service_in: ServiceCreate, business_id: Optional[int] = None) -> Service:
     """
     Create a service. Если business_id не указан, берется из specialist_id → User → business_id.
+    Если category не указана, автоматически определяется из типа специалиста.
     """
     from app.api.core.logger import get_logger
     logger = get_logger("services")
@@ -22,11 +23,28 @@ def create_service(db: Session, service_in: ServiceCreate, business_id: Optional
     from sqlalchemy import inspect
     inspector = inspect(db.bind)
     has_business_id_column = False
+    has_category_column = False
     try:
         columns = [col['name'] for col in inspector.get_columns('services')]
         has_business_id_column = 'business_id' in columns
+        has_category_column = 'category' in columns
     except:
         pass
+    
+    # Если category не указана, определяем автоматически из типа специалиста
+    if has_category_column and not service_data.get('category') and service_data.get('specialist_id'):
+        from app.db.models.user import User
+        from app.db.models.specialist_type import SpecialistType, get_category_for_type
+        specialist = db.query(User).filter(User.id == service_data['specialist_id']).first()
+        if specialist and specialist.specialist_type:
+            try:
+                specialist_type_enum = SpecialistType(specialist.specialist_type)
+                category = get_category_for_type(specialist_type_enum)
+                service_data['category'] = category.value
+                logger.info(f"create_service: auto-determined category={category.value} from specialist_type={specialist.specialist_type}")
+            except (ValueError, AttributeError):
+                # Invalid specialist_type, skip auto-determination
+                pass
     
     if has_business_id_column:
         # Если business_id не указан, пытаемся получить его из specialist
@@ -44,11 +62,15 @@ def create_service(db: Session, service_in: ServiceCreate, business_id: Optional
         # Если колонки нет, убираем business_id из данных
         service_data.pop('business_id', None)
     
+    # Убираем category из данных, если колонки нет
+    if not has_category_column:
+        service_data.pop('category', None)
+    
     service = Service(**service_data)
     db.add(service)
     db.commit()
     db.refresh(service)
-    logger.info(f"create_service: created service id={service.id}, specialist_id={service.specialist_id}, business_id={getattr(service, 'business_id', None)}")
+    logger.info(f"create_service: created service id={service.id}, specialist_id={service.specialist_id}, business_id={getattr(service, 'business_id', None)}, category={getattr(service, 'category', None)}")
     return service
 
 
