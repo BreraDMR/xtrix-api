@@ -20,10 +20,24 @@ class VisitBase(BaseModel):
     @classmethod
     def validate_date_end(cls, v, info):
         if v is not None and 'date_start' in info.data:
+            from datetime import datetime
+            date_start = info.data['date_start']
+            date_end = v
+            
+            # Нормализуем timezone для сравнения
+            # Если один datetime aware, а другой naive, делаем оба naive для сравнения
+            if isinstance(date_start, datetime) and isinstance(date_end, datetime):
+                if (date_start.tzinfo is not None) != (date_end.tzinfo is not None):
+                    # Один aware, другой naive - делаем оба naive для сравнения
+                    if date_start.tzinfo is not None:
+                        date_start = date_start.replace(tzinfo=None)
+                    if date_end.tzinfo is not None:
+                        date_end = date_end.replace(tzinfo=None)
+            
             from app.api.core.date_validation import validate_datetime_range
             is_valid, error_msg = validate_datetime_range(
-                info.data['date_start'],
-                v,
+                date_start,
+                date_end,
                 min_duration_minutes=15,  # Minimum 15 minutes
                 max_duration_hours=24,    # Maximum 24 hours
             )
