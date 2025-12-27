@@ -233,7 +233,7 @@ def users_list(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
     pagination = PaginationParams(page=page, per_page=per_page)
