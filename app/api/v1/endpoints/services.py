@@ -41,7 +41,8 @@ def list_services(
     # Получаем business_id текущего пользователя для изоляции данных
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     
-    if current_user.role != "admin":
+    # Устанавливаем specialist_id только если он не указан в query параметрах И пользователь не админ
+    if current_user.role != "admin" and specialist_id is None:
         specialist_id = current_user.id
     
     pagination = PaginationParams(page=page, per_page=per_page)

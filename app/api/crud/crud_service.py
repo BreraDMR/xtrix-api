@@ -12,7 +12,11 @@ def create_service(db: Session, service_in: ServiceCreate, business_id: Optional
     """
     Create a service. Если business_id не указан, берется из specialist_id → User → business_id.
     """
+    from app.api.core.logger import get_logger
+    logger = get_logger("services")
+    
     service_data = service_in.dict()
+    logger.info(f"create_service: service_data={service_data}, business_id={business_id}")
     
     # Проверяем наличие колонки business_id в таблице services
     from sqlalchemy import inspect
@@ -31,9 +35,11 @@ def create_service(db: Session, service_in: ServiceCreate, business_id: Optional
             specialist = db.query(User).filter(User.id == service_data['specialist_id']).first()
             if specialist and hasattr(specialist, 'business_id') and specialist.business_id:
                 business_id = specialist.business_id
+                logger.info(f"create_service: got business_id={business_id} from specialist_id={service_data['specialist_id']}")
         
         # business_id может быть None для обратной совместимости (старые услуги без business_id)
         service_data['business_id'] = business_id
+        logger.info(f"create_service: setting business_id={business_id} in service_data")
     else:
         # Если колонки нет, убираем business_id из данных
         service_data.pop('business_id', None)
@@ -42,6 +48,7 @@ def create_service(db: Session, service_in: ServiceCreate, business_id: Optional
     db.add(service)
     db.commit()
     db.refresh(service)
+    logger.info(f"create_service: created service id={service.id}, specialist_id={service.specialist_id}, business_id={getattr(service, 'business_id', None)}")
     return service
 
 
