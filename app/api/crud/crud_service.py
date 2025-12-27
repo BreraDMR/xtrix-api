@@ -168,6 +168,7 @@ def list_services(
                 Service.business_id == business_id,
                 Service.business_id.is_(None)  # Показываем старые записи без business_id
             ))
+            logger.info(f"list_services: filtering by (business_id={business_id} OR business_id IS NULL)")
         else:
             # Если business_id не указан, показываем услуги с NULL business_id И услуги текущего специалиста
             # Это позволяет видеть новые услуги, созданные специалистом, даже если они имеют business_id из specialist
@@ -180,10 +181,12 @@ def list_services(
             else:
                 # Если specialist_id не указан, показываем только услуги с NULL business_id
                 q = q.filter(Service.business_id.is_(None))
+                logger.info(f"list_services: filtering by business_id IS NULL (no specialist_id)")
     
     # Дополнительный фильтр по specialist_id (если не был применен выше)
     if specialist_id and (business_id is not None or not has_business_id_column):
         q = q.filter(Service.specialist_id == specialist_id)
+        logger.info(f"list_services: additional filter by specialist_id={specialist_id}")
     if is_active is not None:
         q = q.filter(Service.is_active == is_active)
     
