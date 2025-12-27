@@ -8,7 +8,7 @@ class UserBase(BaseModel):
     full_name: str = Field(..., max_length=255, min_length=1)
     phone: Optional[str] = Field(None, max_length=50)
     email: Optional[EmailStr] = None
-    role: str = Field(..., description="admin|specialist|client")
+    role: str = Field(..., description="admin|business_owner|specialist|employee|client")
     specialist_type: Optional[str] = Field(None, description="Type of specialist (only for role='specialist')")
     
     @field_validator('phone')
@@ -34,7 +34,7 @@ class UserBase(BaseModel):
     @field_validator('role')
     @classmethod
     def validate_role(cls, v):
-        allowed_roles = ['admin', 'specialist', 'client']
+        allowed_roles = ['admin', 'business_owner', 'specialist', 'employee', 'client']
         if v not in allowed_roles:
             raise ValueError(f"Role must be one of: {', '.join(allowed_roles)}")
         return v

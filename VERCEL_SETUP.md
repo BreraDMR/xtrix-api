@@ -76,3 +76,6 @@ VITE_API_BASE_URL=https://xtrix-production.up.railway.app
 3. Или сделайте новый commit и push (автоматический redeploy)
 
 
+
+
+

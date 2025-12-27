@@ -39,3 +39,5 @@ class MedicalProfile(Base):
     # Relationships
     client = relationship("Client", back_populates="medical_profile", lazy="select")
 
+
+

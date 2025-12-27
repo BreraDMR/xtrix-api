@@ -22,11 +22,22 @@ router = APIRouter()
 def create_visit(
     visit: VisitCreate,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    if current_user.role != "admin" and visit.specialist_id != current_user.id:
+    from app.api.core.permissions import can_create_visits, check_client_access
+    
+    # Проверяем право на создание визитов
+    if not can_create_visits(current_user, db):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    # Проверяем доступ к клиенту
+    if not check_client_access(db, current_user, visit.client_id):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    # Устанавливаем specialist_id, если не указан (для employee)
+    if visit.specialist_id is None or visit.specialist_id == 0:
+        visit.specialist_id = current_user.id
     
     # Получаем business_id текущего пользователя
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
@@ -46,12 +57,30 @@ def visits_list(
     include_deleted: bool = Query(False, description="Include soft-deleted visits"),
     include_archived: bool = Query(False, description="Include archived visits"),
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
+    from app.api.core.permissions import get_filtered_specialist_id, get_accessible_client_ids
+    
+    # Фильтрация по ролям
+    if current_user.role == "admin":
+        # Админ может видеть все, но может фильтровать по specialist_id
+        pass
+    elif current_user.role == "business_owner":
+        # Владелец бизнеса видит все визиты бизнеса
+        specialist_id = None  # Не фильтруем по specialist_id
+    else:
+        # specialist и employee видят только свои визиты
+        specialist_id = get_filtered_specialist_id(current_user)
+    
+    # Проверяем доступ к клиенту, если указан
+    if client_id:
+        from app.api.core.permissions import check_client_access
+        if not check_client_access(db, current_user, client_id):
+            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    # Non-admin users cannot see deleted/archived
     if current_user.role != "admin":
-        specialist_id = current_user.id
-        # Non-admin users cannot see deleted/archived
         include_deleted = False
         include_archived = False
     
@@ -88,7 +117,7 @@ def get_visit(
     visit_id: int,
     include_deleted: bool = Query(False, description="Include soft-deleted visit"),
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     # Получаем business_id текущего пользователя для проверки доступа
@@ -101,8 +130,9 @@ def get_visit(
     if not visit:
         raise HTTPException(status_code=404, detail=_("visit_not_found", locale))
     
-    # Дополнительная проверка для не-админов
-    if current_user.role != "admin" and visit.specialist_id != current_user.id:
+    # Проверяем доступ используя новую систему прав
+    from app.api.core.permissions import check_visit_access
+    if not check_visit_access(db, current_user, visit):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     return localize_response(visit.dict() if hasattr(visit, 'dict') else visit, locale)
 
@@ -112,13 +142,15 @@ def update_visit(
     visit_id: int,
     payload: VisitUpdate,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     visit = crud_visit.get_visit(db, visit_id)
     if not visit:
         raise HTTPException(status_code=404, detail=_("visit_not_found", locale))
-    if current_user.role != "admin" and visit.specialist_id != current_user.id:
+    # Проверяем доступ используя новую систему прав
+    from app.api.core.permissions import check_visit_access
+    if not check_visit_access(db, current_user, visit):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     result = crud_visit.update_visit(db, visit, payload)
     from app.api.core.i18n import localize_response
@@ -130,14 +162,16 @@ def delete_visit(
     visit_id: int,
     hard_delete_flag: bool = Query(False, description="Permanently delete (admin only)", alias="hard_delete"),
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     """Delete visit (soft delete by default, hard delete if hard_delete=True and user is admin)."""
     visit = crud_visit.get_visit(db, visit_id)
     if not visit:
         raise HTTPException(status_code=404, detail=_("visit_not_found", locale))
-    if current_user.role != "admin" and visit.specialist_id != current_user.id:
+    # Проверяем доступ используя новую систему прав
+    from app.api.core.permissions import check_visit_access
+    if not check_visit_access(db, current_user, visit):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     
     if hard_delete_flag and current_user.role == "admin":
@@ -152,14 +186,16 @@ def delete_visit(
 def restore_visit(
     visit_id: int,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     """Restore a soft-deleted visit."""
     visit = crud_visit.get_visit(db, visit_id, include_deleted=True)
     if not visit:
         raise HTTPException(status_code=404, detail=_("visit_not_found", locale))
-    if current_user.role != "admin" and visit.specialist_id != current_user.id:
+    # Проверяем доступ используя новую систему прав
+    from app.api.core.permissions import check_visit_access
+    if not check_visit_access(db, current_user, visit):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     
     restore_soft_deleted(db, visit)
@@ -176,7 +212,7 @@ def next_available_slot(
     break_start: Optional[str] = None,
     break_end: Optional[str] = None,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     if current_user.role != "admin" and specialist_id != current_user.id:
@@ -221,7 +257,7 @@ def next_available_slot(
 @router.get("/reminders")
 def visits_for_reminders(
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
 ):
     now = datetime.utcnow()
     horizon = now + timedelta(hours=24)
@@ -243,7 +279,7 @@ def visits_for_reminders(
 def send_reminders(
     channel: str = "log",
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     due = visits_for_reminders(db=db, current_user=current_user)
@@ -277,7 +313,7 @@ def export_visits_csv(
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
 ):
     """Export visits to CSV."""
     from app.api.core.export import export_to_csv, prepare_visit_export_data
@@ -305,7 +341,7 @@ def export_visits_excel(
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
 ):
     """Export visits to Excel."""
     from app.api.core.export import export_to_excel, prepare_visit_export_data

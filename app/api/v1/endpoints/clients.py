@@ -49,9 +49,15 @@ logger = get_logger("clients")
 def create_client(
     client: ClientCreate,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
+    from app.api.core.permissions import can_edit_clients
+    
+    # Проверяем право на создание/редактирование клиентов
+    if not can_edit_clients(current_user, db):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
     logger.info(f"Creating/finding client: name={client.full_name}, phone={client.contact_phone}, email={client.contact_email}")
     
     # Получаем business_id текущего пользователя
@@ -118,15 +124,30 @@ def list_clients(
     include_deleted: bool = Query(False, description="Include soft-deleted clients"),
     include_archived: bool = Query(False, description="Include archived clients"),
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
+    from app.api.core.permissions import get_accessible_client_ids, get_filtered_specialist_id
+    
     # Получаем business_id текущего пользователя
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     
+    # Определяем доступные client_id
+    accessible_client_ids = get_accessible_client_ids(db, current_user)
+    
+    # Фильтрация по ролям
+    if current_user.role == "admin":
+        # Админ видит всех, но может фильтровать по owner_id
+        pass  # owner_id может быть указан в параметрах
+    elif current_user.role == "business_owner":
+        # Владелец бизнеса видит всех клиентов бизнеса
+        owner_id = None  # Не фильтруем по owner_id
+    else:
+        # specialist и employee видят только доступных им клиентов
+        owner_id = get_filtered_specialist_id(current_user)
+    
+    # Non-admin users cannot see deleted/archived
     if current_user.role != "admin":
-        owner_id = current_user.id
-        # Non-admin users cannot see deleted/archived
         include_deleted = False
         include_archived = False
     
@@ -140,6 +161,7 @@ def list_clients(
         pagination=pagination,
         include_deleted=include_deleted,
         include_archived=include_archived,
+        accessible_client_ids=accessible_client_ids,  # Фильтрация по доступным клиентам
     )
     
     localized_items = [
@@ -159,7 +181,7 @@ def get_client(
     client_id: int,
     include_deleted: bool = Query(False, description="Include soft-deleted client"),
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     if current_user.role != "admin":
@@ -169,35 +191,11 @@ def get_client(
     if not client:
         raise HTTPException(status_code=404, detail=_("client_not_found", locale))
     
-    # Check access: admin, or linked through ClientBusinessRelation/ClientSpecialistRelation
-    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    # Проверяем доступ используя новую систему прав
+    from app.api.core.permissions import check_client_access
     
-    if current_user.role != "admin":
-        has_access = False
-        
-        # Проверяем доступ через ClientBusinessRelation (приоритет)
-        if business_id:
-            from app.db.models.client_business_relation import ClientBusinessRelation
-            business_relation = db.query(ClientBusinessRelation).filter(
-                ClientBusinessRelation.client_id == client_id,
-                ClientBusinessRelation.business_id == business_id
-            ).first()
-            has_access = business_relation is not None
-        
-        # Для обратной совместимости: проверяем через owner_id или ClientSpecialistRelation
-        if not has_access:
-            if client.owner_id == current_user.id:
-                has_access = True
-            else:
-                from app.db.models.client_specialist_relation import ClientSpecialistRelation
-                relation = db.query(ClientSpecialistRelation).filter(
-                    ClientSpecialistRelation.client_id == client_id,
-                    ClientSpecialistRelation.specialist_id == current_user.id
-                ).first()
-                has_access = relation is not None
-        
-        if not has_access:
-            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    if not check_client_access(db, current_user, client_id):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     return localize_response(client.dict() if hasattr(client, 'dict') else client, locale)
 
 
@@ -206,7 +204,7 @@ def update_client(
     client_id: int,
     payload: ClientUpdate,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     logger.info(f"Updating client: id={client_id}, user_id={current_user.id}")
@@ -215,36 +213,15 @@ def update_client(
         logger.warning(f"Client not found: id={client_id}")
         raise HTTPException(status_code=404, detail=_("client_not_found", locale))
     
-    # Check access: admin, or linked through ClientBusinessRelation/ClientSpecialistRelation
-    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    # Проверяем доступ используя новую систему прав
+    from app.api.core.permissions import check_client_access, can_edit_clients
     
-    if current_user.role != "admin":
-        has_access = False
-        
-        # Проверяем доступ через ClientBusinessRelation (приоритет)
-        if business_id:
-            from app.db.models.client_business_relation import ClientBusinessRelation
-            business_relation = db.query(ClientBusinessRelation).filter(
-                ClientBusinessRelation.client_id == client_id,
-                ClientBusinessRelation.business_id == business_id
-            ).first()
-            has_access = business_relation is not None
-        
-        # Для обратной совместимости: проверяем через owner_id или ClientSpecialistRelation
-        if not has_access:
-            if client.owner_id == current_user.id:
-                has_access = True
-            else:
-                from app.db.models.client_specialist_relation import ClientSpecialistRelation
-                relation = db.query(ClientSpecialistRelation).filter(
-                    ClientSpecialistRelation.client_id == client_id,
-                    ClientSpecialistRelation.specialist_id == current_user.id
-                ).first()
-                has_access = relation is not None
-        
-        if not has_access:
-            logger.warning(f"Client update denied: user_id={current_user.id}, client_id={client_id}")
-            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    if not can_edit_clients(current_user, db):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    if not check_client_access(db, current_user, client_id):
+        logger.warning(f"Client update denied: user_id={current_user.id}, client_id={client_id}")
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     result = crud_client.update_client(db, client, payload)
     logger.info(f"Client updated successfully: id={result.id}")
     return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
@@ -256,7 +233,7 @@ def export_clients_csv(
     phone: Optional[str] = None,
     name: Optional[str] = None,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
 ):
     """Export clients to CSV."""
     from app.api.core.export import export_to_csv, prepare_client_export_data
@@ -275,7 +252,7 @@ def export_clients_excel(
     phone: Optional[str] = None,
     name: Optional[str] = None,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
 ):
     """Export clients to Excel."""
     from app.api.core.export import export_to_excel, prepare_client_export_data
@@ -292,7 +269,7 @@ def export_clients_excel(
 def generate_client_qr_code(
     client_id: int,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     """Generate QR code and access password for a client."""
@@ -304,7 +281,9 @@ def generate_client_qr_code(
         logger.warning(f"Client not found: id={client_id}")
         raise HTTPException(status_code=404, detail=_("client_not_found", locale))
     
-    if current_user.role != "admin" and client.owner_id != current_user.id:
+    # Проверяем доступ используя новую систему прав
+    from app.api.core.permissions import check_client_access
+    if not check_client_access(db, current_user, client_id):
         logger.warning(f"QR code generation denied: user_id={current_user.id}, client_id={client_id}")
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     

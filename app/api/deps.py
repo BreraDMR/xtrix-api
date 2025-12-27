@@ -52,13 +52,14 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
 
 def role_required(*roles: str):
+    """Зависимость для проверки роли пользователя. Поддерживает: admin, business_owner, specialist, employee, client."""
     def checker(
         current_user=Depends(get_current_user),
         accept_language: str | None = Header(default=None, alias="Accept-Language"),
     ):
         if current_user.role not in roles:
             raise HTTPException(
-                status_code=403, detail=_( "not_allowed", accept_language)
+                status_code=403, detail=_("not_allowed", accept_language)
             )
         return current_user
 

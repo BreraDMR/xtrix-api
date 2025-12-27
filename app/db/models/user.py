@@ -19,6 +19,8 @@ class User(Base):
     role = Column(String, nullable=False, default="specialist", index=True)
     specialist_type = Column(String, nullable=True, index=True)  # Type of specialist (e.g., "massage", "cosmetologist", "dentist")
     business_id = Column(Integer, ForeignKey("businesses.id"), nullable=True, index=True)  # Связь с бизнесом
+    employer_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # Для employee - связь с владельцем бизнеса
+    hire_date = Column(DateTime, nullable=True, index=True)  # Дата найма (для employee)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     failed_login_attempts = Column(Integer, default=0, nullable=False)
     locked_until = Column(DateTime, nullable=True, index=True)
@@ -35,6 +37,9 @@ class User(Base):
     refresh_tokens = relationship("RefreshToken", back_populates="user", lazy="dynamic", cascade="all,delete")
     client_relations = relationship("ClientSpecialistRelation", back_populates="specialist", lazy="dynamic", cascade="all,delete")
     business = relationship("Business", back_populates="users", lazy="select")
+    # Employee relationships
+    employer = relationship("User", remote_side=[id], foreign_keys=[employer_id], lazy="select")  # Связь с работодателем
+    employees = relationship("User", foreign_keys=[employer_id], lazy="dynamic")  # Список сотрудников
 
 # Pydantic schemas moved to app/schemas/user.py
 # This file contains only SQLAlchemy models

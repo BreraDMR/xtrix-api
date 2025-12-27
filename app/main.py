@@ -12,7 +12,7 @@ from app.api.core.logger import logger
 from app.api.middleware.security_headers import SecurityHeadersMiddleware
 from app.api.v1.endpoints import (
     clients, metrics, services, users, visits, files, subscriptions, schedules, 
-    analytics, audit, archiving, specialist_profiles, client_relations
+    analytics, audit, archiving, specialist_profiles, client_relations, employees
 )
 from app.api.core import error_handlers
 
@@ -276,3 +276,4 @@ app.include_router(audit.router, prefix="/audit", tags=["audit"])
 app.include_router(archiving.router, prefix="/archiving", tags=["archiving"])
 app.include_router(specialist_profiles.router, prefix="/specialist-profiles", tags=["specialist-profiles"])
 app.include_router(client_relations.router, prefix="/client-relations", tags=["client-relations"])
+app.include_router(employees.router, prefix="/employees", tags=["employees"])

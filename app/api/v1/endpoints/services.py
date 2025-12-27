@@ -17,11 +17,23 @@ router = APIRouter()
 def create_service(
     service: ServiceCreate,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    if current_user.role != "admin" and service.specialist_id != current_user.id:
+    from app.api.core.permissions import can_manage_services
+    
+    # Проверяем право на управление услугами
+    if not can_manage_services(current_user, db):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    # Устанавливаем specialist_id, если не указан (для employee)
+    if service.specialist_id is None or service.specialist_id == 0:
+        service.specialist_id = current_user.id
+    elif current_user.role not in ["admin", "business_owner"]:
+        # specialist и employee могут создавать услуги только для себя
+        if service.specialist_id != current_user.id:
+            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
     # Получаем business_id текущего пользователя
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     result = crud_service.create_service(db, service, business_id=business_id)
@@ -35,15 +47,29 @@ def list_services(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     # Получаем business_id текущего пользователя для изоляции данных
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     
-    # Устанавливаем specialist_id только если он не указан в query параметрах И пользователь не админ
-    if current_user.role != "admin" and specialist_id is None:
-        specialist_id = current_user.id
+    from app.api.core.permissions import get_filtered_specialist_id, can_manage_services
+    
+    # Проверяем право на просмотр услуг
+    if not can_manage_services(current_user, db):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    # Фильтрация по ролям
+    if current_user.role == "admin":
+        # Админ может видеть все, но может фильтровать по specialist_id
+        pass
+    elif current_user.role == "business_owner":
+        # Владелец бизнеса видит все услуги бизнеса
+        specialist_id = None  # Не фильтруем по specialist_id
+    else:
+        # specialist и employee видят только свои услуги
+        if specialist_id is None:
+            specialist_id = get_filtered_specialist_id(current_user)
     
     pagination = PaginationParams(page=page, per_page=per_page)
     # active_only=True означает фильтровать только активные, False/None означает показать все
@@ -73,13 +99,15 @@ def update_service(
     service_id: int,
     payload: ServiceUpdate,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     service = crud_service.get_service(db, service_id)
     if not service:
         raise HTTPException(status_code=404, detail=_("service_not_found", locale))
-    if current_user.role != "admin" and service.specialist_id != current_user.id:
+    # Проверяем доступ используя новую систему прав
+    from app.api.core.permissions import check_service_access
+    if not check_service_access(db, current_user, service):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     result = crud_service.update_service(db, service, payload)
     return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
@@ -90,14 +118,16 @@ def delete_service(
     service_id: int,
     hard_delete_flag: bool = Query(False, description="Permanently delete (admin only)", alias="hard_delete"),
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     """Delete service (soft delete by default, hard delete if hard_delete=True and user is admin)."""
     service = crud_service.get_service(db, service_id)
     if not service:
         raise HTTPException(status_code=404, detail=_("service_not_found", locale))
-    if current_user.role != "admin" and service.specialist_id != current_user.id:
+    # Проверяем доступ используя новую систему прав
+    from app.api.core.permissions import check_service_access
+    if not check_service_access(db, current_user, service):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     
     if hard_delete_flag and current_user.role == "admin":
@@ -112,14 +142,16 @@ def delete_service(
 def restore_service(
     service_id: int,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     """Restore a soft-deleted service."""
     service = crud_service.get_service(db, service_id, include_deleted=True)
     if not service:
         raise HTTPException(status_code=404, detail=_("service_not_found", locale))
-    if current_user.role != "admin" and service.specialist_id != current_user.id:
+    # Проверяем доступ используя новую систему прав
+    from app.api.core.permissions import check_service_access
+    if not check_service_access(db, current_user, service):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     
     restore_soft_deleted(db, service)
@@ -131,7 +163,7 @@ def export_services_csv(
     specialist_id: Optional[int] = None,
     active_only: bool = False,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
 ):
     """Export services to CSV."""
     from app.api.core.export import export_to_csv, prepare_service_export_data
@@ -159,7 +191,7 @@ def export_services_excel(
     specialist_id: Optional[int] = None,
     active_only: bool = False,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
 ):
     """Export services to Excel."""
     from app.api.core.export import export_to_excel, prepare_service_export_data

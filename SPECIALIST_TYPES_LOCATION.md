@@ -76,3 +76,6 @@
 - `GET /specialist-profiles/types` - получить список всех типов специалистов
 - `GET /specialist-profiles/users/{user_id}` - получить профиль специалиста по ID пользователя
 
+
+
+

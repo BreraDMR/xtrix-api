@@ -300,6 +300,7 @@ def list_clients(
     pagination: Optional[PaginationParams] = None,
     include_deleted: bool = False,
     include_archived: bool = False,
+    accessible_client_ids: Optional[set[int]] = None,  # Фильтрация по доступным client_id (None = все)
 ) -> Tuple[list[Client], int]:
     """List clients with optional pagination. Returns (items, total_count)."""
     # Check cache first (only for non-paginated or first page)
@@ -426,6 +427,14 @@ def list_clients(
         q = q.filter(Client.contact_phone == phone)
     if name:
         q = q.filter(Client.full_name.ilike(f"%{name}%"))
+    
+    # Фильтрация по доступным client_id (для employee и других ролей с ограниченным доступом)
+    if accessible_client_ids is not None:
+        # None означает "все клиенты" (для admin), set() означает "нет доступа"
+        if len(accessible_client_ids) == 0:
+            # Нет доступа - возвращаем пустой список
+            return [], 0
+        q = q.filter(Client.id.in_(accessible_client_ids))
     
     # Get total count before pagination
     total = q.count()

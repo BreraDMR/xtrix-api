@@ -52,3 +52,5 @@ def downgrade():
     op.alter_column("clients", "owner_id", nullable=False, existing_type=sa.Integer())
 
 
+
+

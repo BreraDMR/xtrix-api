@@ -36,12 +36,22 @@ def get_visits_statistics(
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     """Get visit statistics."""
-    if current_user.role != "admin":
-        specialist_id = current_user.id
+    from app.api.core.permissions import get_filtered_specialist_id
+    
+    # Фильтрация по ролям
+    if current_user.role == "admin":
+        # Админ может видеть все, но может фильтровать по specialist_id
+        pass
+    elif current_user.role == "business_owner":
+        # Владелец бизнеса видит статистику всего бизнеса
+        specialist_id = None
+    else:
+        # specialist и employee видят только свою статистику
+        specialist_id = get_filtered_specialist_id(current_user)
     
     # Check cache
     cache_key = {
@@ -75,12 +85,26 @@ def get_financial_report_endpoint(
     date_to: Optional[datetime] = Query(None),
     group_by: str = Query("month", regex="^(day|week|month|year)$"),
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     """Get financial report."""
-    if current_user.role != "admin":
-        specialist_id = current_user.id
+    from app.api.core.permissions import get_filtered_specialist_id, can_view_financials
+    
+    # Проверяем право на просмотр финансов
+    if not can_view_financials(current_user, db):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    # Фильтрация по ролям
+    if current_user.role == "admin":
+        # Админ может видеть все, но может фильтровать по specialist_id
+        pass
+    elif current_user.role == "business_owner":
+        # Владелец бизнеса видит финансовую отчетность всего бизнеса
+        specialist_id = None
+    else:
+        # specialist и employee видят только свою финансовую информацию
+        specialist_id = get_filtered_specialist_id(current_user)
     
     # Check cache
     cache_key = {
@@ -114,7 +138,7 @@ def get_popular_services_endpoint(
     date_to: Optional[datetime] = Query(None),
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     """Get most popular services."""
@@ -136,7 +160,7 @@ def get_popular_services_endpoint(
 def get_clients_statistics(
     owner_id: Optional[int] = Query(None),
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     """Get client statistics."""
@@ -152,7 +176,7 @@ def get_clients_statistics(
 def export_report(
     request: ReportExportRequest,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     """Export comprehensive report."""
