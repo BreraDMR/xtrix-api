@@ -62,16 +62,20 @@ def create_employee(
                 # Получаем владельца бизнеса через business_id
                 from app.db.models.business import Business
                 business = db.query(Business).filter(Business.id == current_user.business_id).first()
-                if business:
+                if business and business.owner_id:
                     owner_id = business.owner_id
+            # Если все еще не определено, пытаемся использовать ID самого админа как business_owner_id
+            # (это может быть случай, когда админ также является владельцем бизнеса)
             if not owner_id:
-                raise HTTPException(
-                    status_code=400, 
-                    detail=_("business_owner_id is required for admin. Specify it in the request body or as a query parameter.", locale)
-                )
-    else:
+                # Проверяем, есть ли у админа связанный бизнес через relationship
+                # Если админ сам является владельцем бизнеса, используем его ID
+                owner_id = current_user.id
+    elif current_user.role == "business_owner":
         # business_owner использует свой ID (игнорируем переданный business_owner_id)
         owner_id = current_user.id
+    else:
+        # Другие роли не могут создавать сотрудников
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     
     try:
         new_employee = crud_employee.create_employee(
