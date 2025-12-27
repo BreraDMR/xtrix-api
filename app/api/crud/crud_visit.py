@@ -38,7 +38,7 @@ def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] 
             
             # Применяем длительность (date_end), если она не указана и есть duration_minutes
             if not visit_data.get('date_end') and service.duration_minutes and visit_data.get('date_start'):
-                from datetime import timedelta, datetime
+                from datetime import timedelta, datetime, timezone
                 date_start = visit_data['date_start']
                 
                 # Обрабатываем разные форматы date_start
@@ -52,6 +52,10 @@ def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] 
                     else:
                         # Нет timezone, парсим как naive datetime
                         date_start = datetime.fromisoformat(date_start)
+                elif isinstance(date_start, datetime):
+                    # date_start уже является datetime объектом
+                    # Сохраняем его как есть (timezone-aware или naive)
+                    pass
                 
                 # Вычисляем date_end
                 date_end = date_start + timedelta(minutes=service.duration_minutes)
@@ -59,13 +63,15 @@ def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] 
                 # Убеждаемся, что date_end имеет тот же формат (timezone-aware или naive), что и date_start
                 # Если date_start был naive, делаем date_end тоже naive
                 if date_start.tzinfo is None:
-                    # date_start naive - делаем date_end тоже naive
-                    visit_data['date_end'] = date_end.replace(tzinfo=None) if date_end.tzinfo else date_end
+                    # date_start naive - делаем date_end тоже naive (если он стал aware)
+                    if date_end.tzinfo is not None:
+                        date_end = date_end.replace(tzinfo=None)
+                    visit_data['date_end'] = date_end
                 else:
                     # date_start aware - оставляем date_end как есть (он уже aware)
                     visit_data['date_end'] = date_end
                 
-                logger.info(f"create_visit: auto-applied date_end={visit_data['date_end']} from service duration={service.duration_minutes} minutes")
+                logger.info(f"create_visit: auto-applied date_end={visit_data['date_end']} (type={type(visit_data['date_end'])}, tzinfo={visit_data['date_end'].tzinfo}) from service duration={service.duration_minutes} minutes")
             
             # Применяем название услуги, если оно не указано
             if not visit_data.get('service_name') and service.name:
