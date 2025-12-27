@@ -167,6 +167,7 @@ def list_services(
             # Если business_id не указан, показываем услуги с NULL business_id И услуги текущего специалиста
             # Это позволяет видеть новые услуги, созданные специалистом, даже если они имеют business_id из specialist
             if specialist_id:
+                # Показываем услуги с NULL business_id ИЛИ услуги текущего специалиста (независимо от business_id)
                 q = q.filter(or_(
                     Service.business_id.is_(None),  # Старые услуги без business_id
                     Service.specialist_id == specialist_id  # Услуги текущего специалиста
@@ -175,7 +176,8 @@ def list_services(
                 # Если specialist_id не указан, показываем только услуги с NULL business_id
                 q = q.filter(Service.business_id.is_(None))
     
-    if specialist_id:
+    # Дополнительный фильтр по specialist_id (если не был применен выше)
+    if specialist_id and (business_id is not None or not has_business_id_column):
         q = q.filter(Service.specialist_id == specialist_id)
     if is_active is not None:
         q = q.filter(Service.is_active == is_active)
