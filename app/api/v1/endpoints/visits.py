@@ -31,16 +31,66 @@ def create_visit(
     if not can_create_visits(current_user, db):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     
-    # Проверяем доступ к клиенту
-    if not check_client_access(db, current_user, visit.client_id):
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    
     # Устанавливаем specialist_id, если не указан (для employee)
     if visit.specialist_id is None or visit.specialist_id == 0:
         visit.specialist_id = current_user.id
     
     # Получаем business_id текущего пользователя
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    
+    # Определяем реальный specialist_id для создания связей
+    # Для employee берем business_owner_id
+    specialist_id_for_links = current_user.id
+    if current_user.role == "employee":
+        from app.api.crud import crud_employee
+        employee = crud_employee.get_employee_by_user_id(db, current_user.id)
+        if employee:
+            specialist_id_for_links = employee.business_owner_id
+    
+    # Проверяем и создаем связи с бизнесом и специалистом, если их нет
+    if business_id:
+        from app.db.models.client_business_relation import ClientBusinessRelation
+        from app.db.models.client_specialist_relation import ClientSpecialistRelation
+        
+        # Проверяем связь с бизнесом
+        existing_business_relation = db.query(ClientBusinessRelation).filter(
+            ClientBusinessRelation.client_id == visit.client_id,
+            ClientBusinessRelation.business_id == business_id
+        ).first()
+        
+        if not existing_business_relation:
+            # Создаем связь с бизнесом
+            business_relation = ClientBusinessRelation(
+                client_id=visit.client_id,
+                business_id=business_id
+            )
+            db.add(business_relation)
+            db.flush()
+        
+        # Проверяем связь со специалистом (если не admin)
+        if current_user.role != "admin" and specialist_id_for_links:
+            existing_spec_relation = db.query(ClientSpecialistRelation).filter(
+                ClientSpecialistRelation.client_id == visit.client_id,
+                ClientSpecialistRelation.specialist_id == specialist_id_for_links,
+                ClientSpecialistRelation.business_id == business_id
+            ).first()
+            
+            if not existing_spec_relation:
+                # Создаем связь со специалистом
+                specialist_relation = ClientSpecialistRelation(
+                    client_id=visit.client_id,
+                    specialist_id=specialist_id_for_links,
+                    business_id=business_id
+                )
+                db.add(specialist_relation)
+                db.flush()
+        
+        db.commit()
+    
+    # Теперь проверяем доступ к клиенту (после создания связей)
+    if not check_client_access(db, current_user, visit.client_id):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
     result = crud_visit.create_visit(db, visit, business_id=business_id)
     from app.api.core.i18n import localize_response
     return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)

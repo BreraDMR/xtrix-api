@@ -124,4 +124,36 @@ class ClientOut(ClientBase):
         from_attributes = True
 
 
+class BasicMedicalInfo(BaseModel):
+    """Базовая медицинская информация - только для healthcare специалистов."""
+    allergies: Optional[str] = None
+    chronic_diseases: Optional[str] = None
+    pregnancy: Optional[bool] = None
+    
+    class Config:
+        from_attributes = True
+
+
+class ClientSearchOut(BaseModel):
+    """
+    Схема для глобального поиска клиента.
+    Содержит ограниченную информацию в зависимости от типа специалиста:
+    - Beauty/Wellness: только базовая информация
+    - Healthcare: базовая информация + базовые медданные (аллергии, хронические заболевания, беременность)
+    Визиты и процедуры из других бизнесов НЕ включаются.
+    """
+    id: int
+    full_name: str
+    birth_date: Optional[date] = None
+    gender: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
+    # Базовые медданные - только для healthcare специалистов
+    basic_medical_info: Optional[BasicMedicalInfo] = None
+    # Флаг - есть ли связь с текущим бизнесом
+    is_linked_to_my_business: bool = False
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
 

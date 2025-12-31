@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -10,7 +11,7 @@ from app.api.core.pagination import PaginationParams, PaginatedResponse
 from app.api.core.qr_code import generate_qr_code_base64, parse_qr_code_data, verify_qr_code_hash
 from app.api.crud import crud_client, crud_visit
 from app.db.models.user import User
-from app.schemas.client import ClientCreate, ClientOut, ClientUpdate
+from app.schemas.client import ClientCreate, ClientOut, ClientUpdate, ClientSearchOut, BasicMedicalInfo
 from app.schemas.qr_code import QRCodeGenerateResponse, QRCodeAccessRequest, ClientHistoryResponse
 
 router = APIRouter()
@@ -174,6 +175,171 @@ def list_clients(
         page=page,
         per_page=per_page,
     )
+
+
+@router.get("/search", response_model=ClientSearchOut, summary="Global client search with privacy restrictions")
+def search_client_global(
+    phone: Optional[str] = Query(None, description="Search by phone number"),
+    email: Optional[str] = Query(None, description="Search by email"),
+    name: Optional[str] = Query(None, description="Search by full name"),
+    birth_date: Optional[date] = Query(None, description="Search by birth date (must be combined with name)"),
+    create_link: bool = Query(False, description="Automatically create link to current business if client is found"),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
+):
+    """
+    Глобальный поиск клиента с ограниченным доступом к информации.
+    
+    Возвращает:
+    - Beauty/Wellness специалисты: только базовая информация (имя, телефон, email, дата рождения)
+    - Healthcare специалисты: базовая информация + базовые медданные (аллергии, хронические заболевания, беременность)
+    
+    Визиты и процедуры из других бизнесов НЕ включаются.
+    
+    Параметры поиска:
+    - phone: поиск по номеру телефона
+    - email: поиск по email
+    - name + birth_date: поиск по имени и дате рождения (оба параметра обязательны)
+    
+    Если указан create_link=True, автоматически создастся связь клиента с текущим бизнесом.
+    """
+    from app.api.core.permissions import can_edit_clients
+    
+    # Проверяем право на поиск клиентов
+    if not can_edit_clients(current_user, db):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    # Проверяем, что указан хотя бы один параметр поиска
+    if not phone and not email and not (name and birth_date):
+        raise HTTPException(
+            status_code=400,
+            detail=_("Must provide phone, email, or both name and birth_date", locale)
+        )
+    
+    # Ищем клиента глобально
+    client = crud_client.find_client_by_identifiers(
+        db=db,
+        contact_phone=phone,
+        contact_email=email,
+        full_name=name,
+        birth_date=birth_date,
+    )
+    
+    if not client:
+        raise HTTPException(status_code=404, detail=_("client_not_found", locale))
+    
+    # Определяем категорию специалиста для определения доступа к медданным
+    from app.db.models.specialist_type import get_category_for_type, SpecialistCategory, SpecialistType
+    from app.db.models.specialist_profile import SpecialistProfile
+    
+    is_healthcare = False
+    if current_user.role in ["specialist", "business_owner"]:
+        # Проверяем тип специалиста
+        specialist_type = None
+        if hasattr(current_user, 'specialist_type') and current_user.specialist_type:
+            try:
+                specialist_type = SpecialistType(current_user.specialist_type)
+            except (ValueError, TypeError):
+                pass
+        
+        # Если не найден в User, проверяем SpecialistProfile
+        if not specialist_type:
+            profile = db.query(SpecialistProfile).filter(
+                SpecialistProfile.user_id == current_user.id
+            ).first()
+            if profile and profile.specialist_type:
+                try:
+                    specialist_type = SpecialistType(profile.specialist_type)
+                except (ValueError, TypeError):
+                    pass
+        
+        if specialist_type:
+            category = get_category_for_type(specialist_type)
+            is_healthcare = (category == SpecialistCategory.HEALTHCARE)
+    
+    # Для админа - показываем базовые медданные (он может быть врачом)
+    if current_user.role == "admin":
+        is_healthcare = True
+    
+    # Получаем базовые медданные, если специалист healthcare
+    basic_medical_info = None
+    if is_healthcare:
+        from app.db.models.medical_profile import MedicalProfile
+        medical_profile = db.query(MedicalProfile).filter(
+            MedicalProfile.client_id == client.id
+        ).first()
+        
+        if medical_profile:
+            basic_medical_info = BasicMedicalInfo(
+                allergies=medical_profile.allergies,
+                chronic_diseases=medical_profile.chronic_diseases,
+                pregnancy=medical_profile.pregnancy if medical_profile.pregnancy else None,
+            )
+    
+    # Проверяем, есть ли связь с текущим бизнесом
+    is_linked = False
+    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    
+    if business_id:
+        from app.db.models.client_business_relation import ClientBusinessRelation
+        existing_relation = db.query(ClientBusinessRelation).filter(
+            ClientBusinessRelation.client_id == client.id,
+            ClientBusinessRelation.business_id == business_id
+        ).first()
+        is_linked = existing_relation is not None
+        
+        # Если нужно создать связь и она еще не существует
+        if create_link and not is_linked:
+            business_relation = ClientBusinessRelation(
+                client_id=client.id,
+                business_id=business_id
+            )
+            db.add(business_relation)
+            
+            # Также создаем связь со специалистом, если он не admin
+            if current_user.role in ["business_owner", "specialist", "employee"]:
+                from app.db.models.client_specialist_relation import ClientSpecialistRelation
+                specialist_id = current_user.id
+                if current_user.role == "employee":
+                    # Для employee берем business_owner_id
+                    from app.api.crud import crud_employee
+                    employee = crud_employee.get_employee_by_user_id(db, current_user.id)
+                    if employee:
+                        specialist_id = employee.business_owner_id
+                
+                if specialist_id:
+                    existing_spec_relation = db.query(ClientSpecialistRelation).filter(
+                        ClientSpecialistRelation.client_id == client.id,
+                        ClientSpecialistRelation.specialist_id == specialist_id,
+                        ClientSpecialistRelation.business_id == business_id
+                    ).first()
+                    
+                    if not existing_spec_relation:
+                        specialist_relation = ClientSpecialistRelation(
+                            client_id=client.id,
+                            specialist_id=specialist_id,
+                            business_id=business_id
+                        )
+                        db.add(specialist_relation)
+            
+            db.commit()
+            is_linked = True
+    
+    # Формируем ответ
+    result = ClientSearchOut(
+        id=client.id,
+        full_name=client.full_name,
+        birth_date=client.birth_date,
+        gender=client.gender,
+        contact_phone=client.contact_phone,
+        contact_email=client.contact_email,
+        basic_medical_info=basic_medical_info if is_healthcare else None,
+        is_linked_to_my_business=is_linked,
+        created_at=client.created_at,
+    )
+    
+    return localize_response(result.dict(), locale)
 
 
 @router.get("/{client_id}", response_model=ClientOut)
