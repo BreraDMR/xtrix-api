@@ -84,6 +84,71 @@ app.add_exception_handler(SQLAlchemyError, error_handlers.database_exception_han
 app.add_exception_handler(HTTPException, error_handlers.http_exception_handler)
 app.add_exception_handler(Exception, error_handlers.general_exception_handler)
 
+# Middleware для защиты документации API
+@app.middleware("http")
+async def protect_docs(request: Request, call_next):
+    """Protect /docs and /redoc endpoints with authentication."""
+    # Проверяем, является ли запрос к документации
+    if request.url.path in ["/docs", "/redoc", "/openapi.json"]:
+        # В production требуем аутентификацию
+        if settings.environment == "production":
+            from app.api.deps import get_current_user
+            from fastapi import Depends
+            from fastapi.security import HTTPBearer
+            from sqlalchemy.orm import Session
+            from app.db.session import SessionLocal
+            
+            # Проверяем наличие токена в заголовке Authorization
+            auth_header = request.headers.get("Authorization")
+            if not auth_header or not auth_header.startswith("Bearer "):
+                # Если нет токена, возвращаем 401
+                from fastapi.responses import JSONResponse
+                return JSONResponse(
+                    status_code=401,
+                    content={
+                        "detail": "Authentication required to access API documentation. Please provide a valid JWT token in the Authorization header: Authorization: Bearer <your_token>"
+                    }
+                )
+            
+            # Извлекаем токен
+            token = auth_header.replace("Bearer ", "")
+            
+            # Проверяем токен
+            try:
+                from jose import JWTError, jwt
+                
+                payload = jwt.decode(
+                    token, 
+                    settings.jwt_secret, 
+                    algorithms=[settings.jwt_algorithm]
+                )
+                user_id: int = payload.get("sub")
+                
+                if user_id is None:
+                    raise HTTPException(status_code=401, detail="Invalid token")
+                
+                # Проверяем, что пользователь существует и активен
+                db = SessionLocal()
+                try:
+                    from app.api.crud import crud_user
+                    user = crud_user.get_user(db, user_id)
+                    if not user or (hasattr(user, 'is_active') and not user.is_active):
+                        raise HTTPException(status_code=401, detail="User not found or inactive")
+                finally:
+                    db.close()
+                    
+            except (JWTError, HTTPException) as e:
+                from fastapi.responses import JSONResponse
+                return JSONResponse(
+                    status_code=401,
+                    content={
+                        "detail": f"Invalid or expired token: {str(e)}"
+                    }
+                )
+    
+    response = await call_next(request)
+    return response
+
 # Middleware для исправления URL при работе за прокси (Railway)
 # Это нужно чтобы редиректы использовали HTTPS вместо HTTP
 @app.middleware("http")
