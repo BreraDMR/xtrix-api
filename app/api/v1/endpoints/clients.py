@@ -110,44 +110,6 @@ def create_client(
             db.add(business_relation)
             db.commit()
     
-    # Если клиент был найден (не создан), дополнительные проверки (удалено - дублирование кода выше)
-    if False:  # Удалено - теперь связи создаются всегда
-        # Проверяем, есть ли уже связь с текущим специалистом в этом бизнесе
-        from app.db.models.client_specialist_relation import ClientSpecialistRelation
-        existing_relation = db.query(ClientSpecialistRelation).filter(
-            ClientSpecialistRelation.client_id == result.id,
-            ClientSpecialistRelation.specialist_id == current_user.id,
-            ClientSpecialistRelation.business_id == business_id
-        ).first()
-        
-        if not existing_relation and business_id:
-            # Создаем связь специалиста с клиентом
-            from app.api.crud import crud_client_specialist_relation
-            from app.schemas.client_specialist_relation import ClientSpecialistRelationCreate
-            crud_client_specialist_relation.create_relation(
-                db,
-                ClientSpecialistRelationCreate(
-                    client_id=result.id,
-                    specialist_id=current_user.id,
-                    business_id=business_id
-                )
-            )
-            
-            # Создаем связь бизнеса с клиентом, если еще нет
-            from app.db.models.client_business_relation import ClientBusinessRelation
-            existing_business_relation = db.query(ClientBusinessRelation).filter(
-                ClientBusinessRelation.client_id == result.id,
-                ClientBusinessRelation.business_id == business_id
-            ).first()
-            
-            if not existing_business_relation:
-                business_relation = ClientBusinessRelation(
-                    client_id=result.id,
-                    business_id=business_id
-                )
-                db.add(business_relation)
-                db.commit()
-    
     action = "created" if was_created else "found existing"
     logger.info(f"Client {action}: id={result.id}, name={result.full_name}")
     return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
