@@ -42,6 +42,31 @@ class EmployeeCreate(EmployeeBase):
     business_owner_id: Optional[int] = Field(None, description="ID владельца бизнеса (опционально, используется для admin)")
 
 
+class EmployeeCreateWithUser(BaseModel):
+    """Модель для создания сотрудника с автоматическим созданием пользователя."""
+    # Данные пользователя
+    full_name: str = Field(..., min_length=1, max_length=255, description="Полное имя сотрудника")
+    phone: Optional[str] = Field(None, description="Телефон сотрудника")
+    email: Optional[str] = Field(None, description="Email сотрудника")
+    role: str = Field(default="specialist", description="Роль: 'specialist' или 'employee'")
+    specialist_type: Optional[str] = Field(None, description="Тип специалиста (только для role='specialist')")
+    business_id: Optional[int] = Field(None, description="ID бизнеса для привязки (автоматически берется из админа)")
+    
+    # Данные сотрудника
+    position: Optional[str] = Field(None, max_length=100, description="Должность")
+    permissions: Optional[Dict[str, Any]] = Field(None, description="Права доступа")
+    commission_percentage: Optional[float] = Field(0.0, ge=0.0, le=100.0)
+    base_salary: Optional[float] = Field(0.0, ge=0.0)
+    notes: Optional[str] = Field(None, description="Заметки")
+    
+    @field_validator('role')
+    @classmethod
+    def validate_role(cls, v):
+        if v not in ['specialist', 'employee']:
+            raise ValueError("Role must be 'specialist' or 'employee'")
+        return v
+
+
 class EmployeeUpdate(BaseModel):
     """Модель для обновления сотрудника."""
     position: Optional[str] = Field(None, max_length=100)
@@ -56,16 +81,15 @@ class EmployeeOut(EmployeeBase):
     """Модель для вывода информации о сотруднике."""
     id: int
     business_owner_id: int
-    hired_at: datetime
+    hired_at: Optional[datetime] = None
     fired_at: Optional[datetime] = None
-    created_at: datetime
-    updated_at: datetime
+    employee_user: Optional[Dict[str, Any]] = None  # Для вложенной информации о пользователе
 
     class Config:
         from_attributes = True
 
 
-class EmployeeWithUser(EmployeeOut):
-    """Модель сотрудника с информацией о пользователе."""
-    employee_user: Optional[Dict[str, Any]] = Field(None, description="Информация о пользователе-сотруднике")
-
+class EmployeeCreateResponse(EmployeeOut):
+    """Ответ при создании сотрудника с автоматическим созданием пользователя."""
+    generated_password: str = Field(..., description="Сгенерированный пароль для сотрудника")
+    user_id: int = Field(..., description="ID созданного пользователя")

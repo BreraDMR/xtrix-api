@@ -151,6 +151,72 @@ def validate_password_strength(password: str) -> tuple[bool, str]:
     return True, ""
 
 
+def generate_secure_password(length: int = 12) -> str:
+    """
+    Generate a secure random password that meets validation requirements.
+    Password will contain: uppercase, lowercase, digits, and special characters.
+    """
+    import secrets
+    import string
+    
+    # Character sets
+    uppercase = string.ascii_uppercase
+    lowercase = string.ascii_lowercase
+    digits = string.digits
+    special = "!@#$%^&*()_+-=[]{}|;:,.<>?"
+    
+    # Ensure at least one character from each set
+    password = [
+        secrets.choice(uppercase),
+        secrets.choice(lowercase),
+        secrets.choice(digits),
+        secrets.choice(special),
+    ]
+    
+    # Fill the rest with random characters from all sets
+    all_chars = uppercase + lowercase + digits + special
+    for _ in range(length - 4):
+        password.append(secrets.choice(all_chars))
+    
+    # Shuffle to randomize positions
+    secrets.SystemRandom().shuffle(password)
+    
+    return ''.join(password)
+
+
+def generate_secure_password(length: int = 12) -> str:
+    """
+    Generate a secure random password that meets validation requirements.
+    Password will contain: uppercase, lowercase, digits, and special characters.
+    """
+    import secrets
+    import string
+    
+    # Character sets
+    uppercase = string.ascii_uppercase
+    lowercase = string.ascii_lowercase
+    digits = string.digits
+    special = "!@#$%^&*()_+-=[]{}|;:,.<>?"
+    
+    # Ensure at least one character from each set
+    password = [
+        secrets.choice(uppercase),
+        secrets.choice(lowercase),
+        secrets.choice(digits),
+        secrets.choice(special),
+    ]
+    
+    # Fill the rest with random characters from all sets
+    all_chars = uppercase + lowercase + digits + special
+    for _ in range(length - 4):
+        password.append(secrets.choice(all_chars))
+    
+    # Shuffle to randomize positions
+    secrets.SystemRandom().shuffle(password)
+    
+    return ''.join(password)
+
+
 def validate_email(email: str) -> tuple[bool, str]:
     """
     Enhanced email validation.

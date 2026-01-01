@@ -10,7 +10,7 @@ from app.api.core.pagination import PaginationParams, PaginatedResponse
 from app.api.crud import crud_employee, crud_salary
 from app.db.models.user import User
 from app.db.models.employee import Employee
-from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeOut
+from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeOut, EmployeeCreateWithUser, EmployeeCreateResponse
 from app.schemas.salary import (
     SalaryCalculationOut, 
     SalaryCalculationCreate, 
@@ -108,6 +108,129 @@ def create_employee(
         return new_employee
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/create-with-user", response_model=EmployeeCreateResponse, summary="Create employee with new user")
+def create_employee_with_user(
+    employee_data: EmployeeCreateWithUser,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    locale: str = Depends(deps.get_locale),
+):
+    """
+    Создать нового сотрудника с автоматическим созданием пользователя.
+    Генерируется пароль, который возвращается в ответе для передачи сотруднику.
+    """
+    if not can_manage_employees(current_user):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    # Проверяем наличие email или phone
+    if not employee_data.email and not employee_data.phone:
+        raise HTTPException(
+            status_code=400,
+            detail=_("email_or_phone_required", locale) or "Email or phone number is required"
+        )
+    
+    # Проверяем, что пользователь с таким email/phone не существует
+    from app.api.crud import crud_user
+    existing_user = crud_user.get_by_phone_or_email(db, phone=employee_data.phone, email=employee_data.email)
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail=_("user_already_exists", locale) or f"User with this email/phone already exists (ID: {existing_user.id})"
+        )
+    
+    # Определяем business_owner_id и business_id
+    business_owner_id = None
+    business_id = employee_data.business_id
+    
+    if current_user.role == "admin":
+        # Админ использует business_id текущего админа
+        if current_user.business_id:
+            business_id = current_user.business_id
+            # Находим business_owner с таким business_id
+            from app.db.models.user import User
+            business_owner = db.query(User).filter(
+                User.business_id == current_user.business_id,
+                User.role == "business_owner"
+            ).first()
+            if business_owner:
+                business_owner_id = business_owner.id
+            else:
+                # Если нет business_owner, используем админа
+                business_owner_id = current_user.id
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=_("business_id_required", locale) or "Admin must have a business_id to create employees"
+            )
+    elif current_user.role == "business_owner":
+        business_owner_id = current_user.id
+        business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    
+    if not business_owner_id:
+        raise HTTPException(
+            status_code=400,
+            detail=_("business_owner_id_required", locale) or "Business owner ID is required"
+        )
+    
+    # Генерируем безопасный пароль
+    from app.api.core.security import generate_secure_password
+    generated_password = generate_secure_password(12)
+    
+    # Создаем пользователя
+    from app.schemas.user import UserCreate
+    user_create = UserCreate(
+        full_name=employee_data.full_name,
+        phone=employee_data.phone,
+        email=employee_data.email,
+        password=generated_password,
+        role=employee_data.role,
+        specialist_type=employee_data.specialist_type if employee_data.role == "specialist" else None,
+        business_id=business_id,  # Привязываем к бизнесу админа
+    )
+    
+    new_user = crud_user.create_user(db, user_create)
+    
+    # Создаем запись Employee
+    from app.schemas.employee import EmployeeCreate
+    employee_create = EmployeeCreate(
+        employee_user_id=new_user.id,
+        position=employee_data.position,
+        permissions=employee_data.permissions,
+        commission_percentage=employee_data.commission_percentage,
+        base_salary=employee_data.base_salary,
+        notes=employee_data.notes,
+        business_owner_id=business_owner_id,
+    )
+    
+    new_employee = crud_employee.create_employee(db, employee_create, business_owner_id=business_owner_id)
+    
+    # Формируем ответ с паролем
+    response_data = {
+        "id": new_employee.id,
+        "business_owner_id": new_employee.business_owner_id,
+        "employee_user_id": new_employee.employee_user_id,
+        "position": new_employee.position,
+        "permissions": new_employee.permissions,
+        "commission_percentage": new_employee.commission_percentage or 0.0,
+        "base_salary": new_employee.base_salary or 0.0,
+        "is_active": new_employee.is_active,
+        "notes": new_employee.notes,
+        "hired_at": new_employee.hired_at,
+        "fired_at": new_employee.fired_at,
+        "generated_password": generated_password,
+        "user_id": new_user.id,
+        "employee_user": {
+            "id": new_user.id,
+            "full_name": new_user.full_name,
+            "email": new_user.email,
+            "phone": new_user.phone,
+            "role": new_user.role,
+        }
+    }
+    
+    return EmployeeCreateResponse(**response_data)
 
 
 @router.get("/", response_model=List[EmployeeOut], summary="List employees")
