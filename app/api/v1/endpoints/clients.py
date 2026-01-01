@@ -64,6 +64,13 @@ def create_client(
     # Получаем business_id текущего пользователя
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     
+    # Для админа и business_owner требуется business_id для создания клиента
+    if current_user.role in ["admin", "business_owner"] and not business_id:
+        raise HTTPException(
+            status_code=400,
+            detail=_("business_id_required_for_client_creation", locale) or "Business ID is required. Please create a business first."
+        )
+    
     # Используем find_or_create_client для автоматического поиска дубликатов
     result, was_created = crud_client.find_or_create_client(
         db=db,
@@ -73,6 +80,7 @@ def create_client(
     )
     
     # Создаем связи с текущим специалистом и бизнесом (для нового или найденного клиента)
+    # business_id теперь гарантированно существует для admin/business_owner
     if business_id:
         from app.db.models.client_specialist_relation import ClientSpecialistRelation
         from app.db.models.client_business_relation import ClientBusinessRelation
