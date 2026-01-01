@@ -51,6 +51,36 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 
+def get_current_user_optional(
+    authorization: str | None = Header(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Опциональная авторизация - возвращает пользователя, если токен валиден, иначе None.
+    Используется для endpoints, которые должны работать как с авторизацией, так и без неё.
+    """
+    if authorization is None or not authorization.startswith("Bearer "):
+        return None
+    
+    token = authorization.replace("Bearer ", "")
+    
+    try:
+        payload = jwt.decode(
+            token, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
+        )
+        token_type = payload.get("type")
+        if token_type != "access":
+            return None
+        user_id: str | None = payload.get("sub")
+        if user_id is None:
+            return None
+    except JWTError:
+        return None
+    
+    user = crud_user.get_user(db, int(user_id))
+    return user
+
+
 def role_required(*roles: str):
     """Зависимость для проверки роли пользователя. Поддерживает: admin, business_owner, specialist, employee, client."""
     def checker(

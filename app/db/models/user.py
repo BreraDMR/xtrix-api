@@ -39,7 +39,7 @@ class User(Base):
     business = relationship("Business", back_populates="users", lazy="select")
     # Employee relationships
     employer = relationship("User", remote_side=[id], foreign_keys=[employer_id], lazy="select")  # Связь с работодателем
-    employees = relationship("User", foreign_keys=[employer_id], lazy="dynamic")  # Список сотрудников
+    employees = relationship("User", foreign_keys=[employer_id], lazy="dynamic", overlaps="employer")  # Список сотрудников
 
 # Pydantic schemas moved to app/schemas/user.py
 # This file contains only SQLAlchemy models

@@ -114,8 +114,9 @@ def visits_list(
     
     # Фильтрация по ролям
     if current_user.role == "admin":
-        # Админ может видеть все, но может фильтровать по specialist_id
-        pass
+        # Админ видит только визиты своего бизнеса (изоляция данных)
+        # specialist_id игнорируется, используется business_id
+        specialist_id = None
     elif current_user.role == "business_owner":
         # Владелец бизнеса видит все визиты бизнеса
         specialist_id = None  # Не фильтруем по specialist_id

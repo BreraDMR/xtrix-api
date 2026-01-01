@@ -19,6 +19,23 @@ def create_user(db: Session, user_in: UserCreate) -> User:
         if not is_valid:
             raise ValueError(error_msg)
     
+    # Проверяем business_id, если указан
+    business_id = None
+    if hasattr(user_in, 'business_id') and user_in.business_id:
+        # Проверяем, что бизнес существует и не удален
+        from app.db.models.business import Business
+        business = db.query(Business).filter(
+            Business.id == user_in.business_id,
+            Business.deleted_at.is_(None)
+        ).first()
+        if not business:
+            raise ValueError(f"Business with id {user_in.business_id} not found")
+        business_id = user_in.business_id
+        
+        # Проверяем, что business_id указывается только для specialist/employee
+        if user_in.role not in ['specialist', 'employee']:
+            raise ValueError("business_id can only be specified for 'specialist' or 'employee' role")
+    
     user = User(
         full_name=user_in.full_name,
         phone=user_in.phone,
@@ -26,6 +43,7 @@ def create_user(db: Session, user_in: UserCreate) -> User:
         role=user_in.role,
         specialist_type=user_in.specialist_type if hasattr(user_in, 'specialist_type') else None,
         hashed_password=get_password_hash(user_in.password) if user_in.password else "",
+        business_id=business_id,  # Привязываем к бизнесу, если указан
     )
     db.add(user)
     db.commit()

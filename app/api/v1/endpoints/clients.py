@@ -138,8 +138,9 @@ def list_clients(
     
     # Фильтрация по ролям
     if current_user.role == "admin":
-        # Админ видит всех, но может фильтровать по owner_id
-        pass  # owner_id может быть указан в параметрах
+        # Админ видит только клиентов своего бизнеса (изоляция данных)
+        # owner_id игнорируется для админа, используется business_id
+        owner_id = None
     elif current_user.role == "business_owner":
         # Владелец бизнеса видит всех клиентов бизнеса
         owner_id = None  # Не фильтруем по owner_id

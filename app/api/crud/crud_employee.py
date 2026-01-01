@@ -86,6 +86,7 @@ def get_employee(
 def list_employees(
     db: Session,
     business_owner_id: Optional[int] = None,
+    business_owner_ids: Optional[List[int]] = None,  # Новый параметр для фильтрации по списку
     is_active: Optional[bool] = None,
     pagination: Optional[PaginationParams] = None
 ) -> Tuple[List[Employee], int]:
@@ -95,9 +96,12 @@ def list_employees(
         joinedload(Employee.business_owner)
     )
     
-    # Фильтр по владельцу бизнеса
+    # Фильтр по владельцу бизнеса (приоритет списку)
     if business_owner_id is not None:
         query = query.filter(Employee.business_owner_id == business_owner_id)
+    elif business_owner_ids is not None and len(business_owner_ids) > 0:
+        # Фильтр по списку business_owner_id
+        query = query.filter(Employee.business_owner_id.in_(business_owner_ids))
     
     # Фильтр по активности
     if is_active is not None:

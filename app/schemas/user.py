@@ -51,6 +51,10 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=8)
+    business_id: Optional[int] = Field(
+        None, 
+        description="ID бизнеса для привязки специалиста (опционально, только для role='specialist' или 'employee')"
+    )
     
     @field_validator('password')
     @classmethod
@@ -60,6 +64,7 @@ class UserCreate(UserBase):
         if not is_valid:
             raise ValueError(error_msg)
         return v
+    
 
 
 class UserLogin(BaseModel):

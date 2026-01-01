@@ -26,17 +26,36 @@ def can_manage_employees(current_user: User) -> bool:
     return current_user.role in ["admin", "business_owner"]
 
 
-def get_business_owner_id(current_user: User) -> int:
-    """Возвращает ID владельца бизнеса для проверки доступа."""
+def get_business_owner_ids_for_filter(current_user: User, db: Session) -> Optional[List[int]]:
+    """
+    Возвращает список business_owner_id для фильтрации данных.
+    Для админа возвращает список всех business_owner_id его бизнеса.
+    Для business_owner возвращает список с одним элементом - его ID.
+    """
     if current_user.role == "admin":
-        # Админ может управлять сотрудниками любого бизнеса
-        # В этом случае business_owner_id должен быть указан в параметрах
-        return None  # None означает "любой"
+        # Админ видит только данные своего бизнеса
+        admin_business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+        if admin_business_id:
+            # Находим всех business_owners с таким же business_id
+            from app.db.models.user import User
+            business_owners = db.query(User.id).filter(
+                User.role == "business_owner",
+                User.business_id == admin_business_id
+            ).all()
+            return [bo[0] for bo in business_owners]
+        return []  # У админа нет business_id - нет данных
     
     if current_user.role == "business_owner":
-        return current_user.id
+        return [current_user.id]
     
-    raise HTTPException(status_code=403, detail=_("not_allowed", "en"))
+    return None
+
+
+def get_business_owner_id(current_user: User) -> Optional[int]:
+    """Возвращает ID владельца бизнеса для проверки доступа (legacy функция)."""
+    if current_user.role == "business_owner":
+        return current_user.id
+    return None
 
 
 @router.post("/", response_model=EmployeeOut, summary="Hire employee")
@@ -59,11 +78,14 @@ def create_employee(
             # Если не указано, используем business_id текущего пользователя (если есть)
             # или требуем явно указать
             if current_user.business_id:
-                # Получаем владельца бизнеса через business_id
-                from app.db.models.business import Business
-                business = db.query(Business).filter(Business.id == current_user.business_id).first()
-                if business and business.owner_id:
-                    owner_id = business.owner_id
+                # Получаем владельца бизнеса через business_id (ищем User с role=business_owner и этим business_id)
+                from app.db.models.user import User
+                business_owner = db.query(User).filter(
+                    User.business_id == current_user.business_id,
+                    User.role == "business_owner"
+                ).first()
+                if business_owner:
+                    owner_id = business_owner.id
             # Если все еще не определено, пытаемся использовать ID самого админа как business_owner_id
             # (это может быть случай, когда админ также является владельцем бизнеса)
             if not owner_id:
@@ -103,18 +125,40 @@ def list_employees(
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     
     # Определяем business_owner_id для фильтрации
-    owner_id = get_business_owner_id(current_user)
+    business_owner_ids = None  # Для фильтрации по списку
+    
     if current_user.role == "admin":
-        # Админ может фильтровать по любому business_owner_id
-        owner_id = business_owner_id
+        # Админ видит только сотрудников своего бизнеса (изоляция данных)
+        admin_business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+        if admin_business_id:
+            # Находим всех business_owners с таким же business_id
+            from app.db.models.user import User
+            business_owners = db.query(User.id).filter(
+                User.role == "business_owner",
+                User.business_id == admin_business_id
+            ).all()
+            owner_ids = [bo[0] for bo in business_owners]
+            if owner_ids:
+                # Фильтруем по списку business_owner_id из этого бизнеса
+                business_owner_ids = owner_ids
+            else:
+                # Нет business_owners в этом бизнесе - пустой список
+                return []
+        else:
+            # У админа нет business_id - пустой список (новый аккаунт без данных)
+            return []
+        owner_id = None  # Не используем единичный business_owner_id для админа
     else:
+        owner_id = get_business_owner_id(current_user)
         # business_owner может видеть только своих сотрудников
-        owner_id = current_user.id
+        if current_user.role != "admin":
+            owner_id = current_user.id
     
     pagination = PaginationParams(page=page, per_page=per_page)
     employees, total = crud_employee.list_employees(
         db=db,
         business_owner_id=owner_id,
+        business_owner_ids=business_owner_ids,
         is_active=is_active,
         pagination=pagination
     )

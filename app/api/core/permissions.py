@@ -114,10 +114,15 @@ def get_specialist_client_ids(db: Session, specialist_id: int, business_id: Opti
 def get_accessible_client_ids(db: Session, user: User) -> Optional[Set[int]]:
     """
     Возвращает множество client_id, к которым у пользователя есть доступ.
-    None означает доступ ко всем клиентам (для admin).
+    None означает доступ ко всем клиентам (для платформенного админа без business_id).
     """
     if user.role == "admin":
-        return None  # Доступ ко всем
+        # Админ видит только клиентов своего бизнеса (изоляция данных)
+        business_id = getattr(user, 'business_id', None)
+        if business_id:
+            return get_business_client_ids(db, business_id)
+        # Если у админа нет business_id - возвращаем пустой набор (новый аккаунт без данных)
+        return set()
     
     if user.role == "business_owner":
         # Все клиенты бизнеса
@@ -158,12 +163,9 @@ def get_accessible_client_ids(db: Session, user: User) -> Optional[Set[int]]:
 
 def check_client_access(db: Session, user: User, client_id: int) -> bool:
     """Проверяет, есть ли у пользователя доступ к конкретному клиенту."""
-    if user.role == "admin":
-        return True
-    
     accessible_ids = get_accessible_client_ids(db, user)
-    if accessible_ids is None:  # admin
-        return True
+    if accessible_ids is None:  # Платформенный админ (без business_id) - нет доступа
+        return False
     
     return client_id in accessible_ids
 
@@ -171,7 +173,12 @@ def check_client_access(db: Session, user: User, client_id: int) -> bool:
 def check_visit_access(db: Session, user: User, visit: Visit) -> bool:
     """Проверяет, есть ли у пользователя доступ к визиту."""
     if user.role == "admin":
-        return True
+        # Админ видит только визиты своего бизнеса
+        admin_business_id = getattr(user, 'business_id', None)
+        if admin_business_id and hasattr(visit, 'business_id'):
+            return visit.business_id == admin_business_id
+        # Если у админа нет business_id или у визита нет business_id - нет доступа
+        return False
     
     if user.role == "business_owner":
         # Визиты бизнеса
