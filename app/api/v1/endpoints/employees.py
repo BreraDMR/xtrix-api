@@ -178,19 +178,70 @@ def create_employee_with_user(
     from app.api.core.security import generate_secure_password
     generated_password = generate_secure_password(12)
     
+    # Валидируем телефон заранее, чтобы обработать ошибки
+    phone_for_validation = employee_data.phone
+    if phone_for_validation:
+        from app.api.core.security import validate_phone
+        is_valid, error_msg = validate_phone(phone_for_validation)
+        if not is_valid:
+            if employee_data.email:
+                # Если телефон невалидный, но есть email - используем только email
+                phone_for_validation = None
+            else:
+                # Если телефон невалидный и нет email - ошибка
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid phone number: {error_msg}. Please provide a valid phone number (minimum 7 digits after country code) or an email address."
+                )
+    
+    # Проверяем, что хотя бы один из способов связи указан
+    if not phone_for_validation and not employee_data.email:
+        raise HTTPException(
+            status_code=400,
+            detail="Either a valid phone number or email address is required"
+        )
+    
     # Создаем пользователя
     from app.schemas.user import UserCreate
-    user_create = UserCreate(
-        full_name=employee_data.full_name,
-        phone=employee_data.phone,
-        email=employee_data.email,
-        password=generated_password,
-        role=employee_data.role,
-        specialist_type=employee_data.specialist_type if employee_data.role == "specialist" else None,
-        business_id=business_id,  # Привязываем к бизнесу админа
-    )
+    from pydantic import ValidationError
     
-    new_user = crud_user.create_user(db, user_create)
+    try:
+        user_create = UserCreate(
+            full_name=employee_data.full_name,
+            phone=phone_for_validation,
+            email=employee_data.email,
+            password=generated_password,
+            role=employee_data.role,
+            specialist_type=employee_data.specialist_type if employee_data.role == "specialist" else None,
+            business_id=business_id,  # Привязываем к бизнесу админа
+        )
+    except ValidationError as e:
+        # Обрабатываем ошибки валидации Pydantic
+        errors = []
+        for error in e.errors():
+            field = ".".join(str(loc) for loc in error["loc"])
+            msg = error["msg"]
+            errors.append(f"{field}: {msg}")
+        
+        raise HTTPException(
+            status_code=400,
+            detail=f"Validation error: {'; '.join(errors)}"
+        )
+    
+    try:
+        new_user = crud_user.create_user(db, user_create)
+    except Exception as e:
+        # Обрабатываем другие ошибки (например, дубликаты)
+        error_msg = str(e)
+        if "already exists" in error_msg.lower() or "unique" in error_msg.lower():
+            raise HTTPException(
+                status_code=400,
+                detail="User with this email or phone already exists"
+            )
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to create user: {error_msg}"
+        )
     
     # Создаем запись Employee
     from app.schemas.employee import EmployeeCreate
