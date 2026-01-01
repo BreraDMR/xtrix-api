@@ -312,15 +312,35 @@ def list_employees(
                 User.business_id == admin_business_id
             ).all()
             owner_ids = [bo[0] for bo in business_owners]
+            
+            # Также проверяем, есть ли сотрудники с business_owner_id = админ.id
+            # (это возможно, если админ создал сотрудников без business_owner)
+            admin_employees = db.query(Employee).filter(
+                Employee.business_owner_id == current_user.id
+            ).count()
+            
             if owner_ids:
+                # Добавляем ID админа, если есть сотрудники с business_owner_id = админ.id
+                if admin_employees > 0 and current_user.id not in owner_ids:
+                    owner_ids.append(current_user.id)
                 # Фильтруем по списку business_owner_id из этого бизнеса
                 business_owner_ids = owner_ids
+            elif admin_employees > 0:
+                # Нет business_owners, но есть сотрудники у админа - показываем их
+                business_owner_ids = [current_user.id]
             else:
-                # Нет business_owners в этом бизнесе - пустой список
+                # Нет business_owners и нет сотрудников у админа - пустой список
                 return []
         else:
-            # У админа нет business_id - пустой список (новый аккаунт без данных)
-            return []
+            # У админа нет business_id - проверяем, есть ли сотрудники с business_owner_id = админ.id
+            admin_employees_count = db.query(Employee).filter(
+                Employee.business_owner_id == current_user.id
+            ).count()
+            if admin_employees_count > 0:
+                business_owner_ids = [current_user.id]
+            else:
+                # У админа нет business_id и нет сотрудников - пустой список
+                return []
         owner_id = None  # Не используем единичный business_owner_id для админа
     else:
         owner_id = get_business_owner_id(current_user)
