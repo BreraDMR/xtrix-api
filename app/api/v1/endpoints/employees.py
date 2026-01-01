@@ -157,13 +157,14 @@ def create_employee_with_user(
             if business_owner:
                 business_owner_id = business_owner.id
             else:
-                # Если нет business_owner, используем админа
+                # Если нет business_owner, используем админа как business_owner_id
+                # Это означает, что админ сам управляет сотрудниками напрямую
                 business_owner_id = current_user.id
         else:
-            raise HTTPException(
-                status_code=400,
-                detail=_("business_id_required", locale) or "Admin must have a business_id to create employees"
-            )
+            # Если у админа нет business_id, все равно можно создать сотрудника
+            # Используем админа как business_owner_id
+            business_owner_id = current_user.id
+            business_id = None  # business_id будет установлен автоматически, если у админа он есть
     elif current_user.role == "business_owner":
         business_owner_id = current_user.id
         business_id = current_user.business_id if hasattr(current_user, 'business_id') else None

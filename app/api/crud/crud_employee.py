@@ -50,12 +50,15 @@ def create_employee(
     employee = Employee(**employee_data)
     
     # Обновляем User: устанавливаем employer_id и hire_date
+    # Также убеждаемся, что business_id установлен (если есть у business_owner)
     employee_user.employer_id = business_owner_id
     employee_user.hire_date = datetime.utcnow()
-    if employee_user.role == "specialist":
-        # Если это specialist, можно оставить role как есть или изменить на employee
-        # Пока оставляем как есть
-        pass
+    
+    # Если у пользователя еще нет business_id, получаем его от business_owner
+    if not employee_user.business_id:
+        business_owner = db.query(User).filter(User.id == business_owner_id).first()
+        if business_owner and hasattr(business_owner, 'business_id') and business_owner.business_id:
+            employee_user.business_id = business_owner.business_id
     
     db.add(employee)
     db.add(employee_user)
