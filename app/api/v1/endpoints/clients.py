@@ -72,8 +72,46 @@ def create_client(
         specialist_id=current_user.id  # Передаем ID специалиста для валидации обязательных полей
     )
     
-    # Если клиент был найден (не создан), создаем связи с текущим специалистом и бизнесом
-    if not was_created:
+    # Создаем связи с текущим специалистом и бизнесом (для нового или найденного клиента)
+    if business_id:
+        from app.db.models.client_specialist_relation import ClientSpecialistRelation
+        from app.db.models.client_business_relation import ClientBusinessRelation
+        
+        # Проверяем и создаем связь специалиста с клиентом
+        existing_specialist_relation = db.query(ClientSpecialistRelation).filter(
+            ClientSpecialistRelation.client_id == result.id,
+            ClientSpecialistRelation.specialist_id == current_user.id,
+            ClientSpecialistRelation.business_id == business_id
+        ).first()
+        
+        if not existing_specialist_relation:
+            from app.api.crud import crud_client_specialist_relation
+            from app.schemas.client_specialist_relation import ClientSpecialistRelationCreate
+            crud_client_specialist_relation.create_relation(
+                db,
+                ClientSpecialistRelationCreate(
+                    client_id=result.id,
+                    specialist_id=current_user.id,
+                    business_id=business_id
+                )
+            )
+        
+        # Проверяем и создаем связь бизнеса с клиентом (на случай если find_or_create_client не создал)
+        existing_business_relation = db.query(ClientBusinessRelation).filter(
+            ClientBusinessRelation.client_id == result.id,
+            ClientBusinessRelation.business_id == business_id
+        ).first()
+        
+        if not existing_business_relation:
+            business_relation = ClientBusinessRelation(
+                client_id=result.id,
+                business_id=business_id
+            )
+            db.add(business_relation)
+            db.commit()
+    
+    # Если клиент был найден (не создан), дополнительные проверки (удалено - дублирование кода выше)
+    if False:  # Удалено - теперь связи создаются всегда
         # Проверяем, есть ли уже связь с текущим специалистом в этом бизнесе
         from app.db.models.client_specialist_relation import ClientSpecialistRelation
         existing_relation = db.query(ClientSpecialistRelation).filter(
