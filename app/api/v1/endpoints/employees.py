@@ -211,8 +211,8 @@ def create_employee_with_user(
             phone=phone_for_validation,
             email=employee_data.email,
             password=generated_password,
-            role=employee_data.role,
-            specialist_type=employee_data.specialist_type if employee_data.role == "specialist" else None,
+            role="specialist",  # Всегда создаем как specialist
+            specialist_type=employee_data.specialist_type,
             business_id=business_id,  # Привязываем к бизнесу админа
         )
     except ValidationError as e:

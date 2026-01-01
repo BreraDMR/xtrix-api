@@ -43,13 +43,13 @@ class EmployeeCreate(EmployeeBase):
 
 
 class EmployeeCreateWithUser(BaseModel):
-    """Модель для создания сотрудника с автоматическим созданием пользователя."""
+    """Модель для создания сотрудника с автоматическим созданием пользователя.
+    Всегда создает пользователя с ролью 'specialist'."""
     # Данные пользователя
     full_name: str = Field(..., min_length=1, max_length=255, description="Полное имя сотрудника")
     phone: Optional[str] = Field(None, description="Телефон сотрудника")
     email: Optional[str] = Field(None, description="Email сотрудника")
-    role: str = Field(default="specialist", description="Роль: 'specialist' или 'employee'")
-    specialist_type: Optional[str] = Field(None, description="Тип специалиста (только для role='specialist')")
+    specialist_type: Optional[str] = Field(None, description="Тип специалиста (beauty, wellness, healthcare, other)")
     business_id: Optional[int] = Field(None, description="ID бизнеса для привязки (автоматически берется из админа)")
     
     # Данные сотрудника
@@ -58,13 +58,6 @@ class EmployeeCreateWithUser(BaseModel):
     commission_percentage: Optional[float] = Field(0.0, ge=0.0, le=100.0)
     base_salary: Optional[float] = Field(0.0, ge=0.0)
     notes: Optional[str] = Field(None, description="Заметки")
-    
-    @field_validator('role')
-    @classmethod
-    def validate_role(cls, v):
-        if v not in ['specialist', 'employee']:
-            raise ValueError("Role must be 'specialist' or 'employee'")
-        return v
 
 
 class EmployeeUpdate(BaseModel):
