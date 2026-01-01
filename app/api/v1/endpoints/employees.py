@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.api import deps
 from app.api.core.i18n import _
+from app.api.core.logger import get_logger
 from app.api.core.pagination import PaginationParams, PaginatedResponse
 from app.api.crud import crud_employee, crud_salary
 from app.db.models.user import User
@@ -19,6 +20,7 @@ from app.schemas.salary import (
 )
 
 router = APIRouter()
+logger = get_logger("employees")
 
 
 def can_manage_employees(current_user: User) -> bool:
@@ -258,6 +260,34 @@ def create_employee_with_user(
     
     new_employee = crud_employee.create_employee(db, employee_create, business_owner_id=business_owner_id)
     
+    # Автоматически создаем SpecialistProfile для нового специалиста, если его еще нет
+    from app.api.crud import crud_specialist_profile
+    from app.schemas.specialist_profile import SpecialistProfileCreate
+    try:
+        existing_profile = crud_specialist_profile.get_specialist_profile_by_user_id(db, new_user.id)
+        if not existing_profile:
+            # Определяем категорию на основе типа специалиста
+            specialist_category = None
+            if employee_data.specialist_type:
+                from app.db.models.specialist_type import SpecialistType, SpecialistCategory, get_category_for_type
+                try:
+                    specialist_type_enum = SpecialistType(employee_data.specialist_type)
+                    specialist_category = get_category_for_type(specialist_type_enum).value
+                except (ValueError, AttributeError):
+                    # Если не удалось определить категорию, оставляем None
+                    pass
+            
+            profile_create = SpecialistProfileCreate(
+                user_id=new_user.id,
+                specialist_type=employee_data.specialist_type,
+                specialist_category=specialist_category,
+            )
+            crud_specialist_profile.create_specialist_profile(db, profile_create)
+    except Exception as e:
+        # Если не удалось создать профиль, не останавливаем процесс создания сотрудника
+        # Просто логируем ошибку (профиль можно создать позже)
+        logger.warning(f"Failed to auto-create specialist profile for user {new_user.id}: {str(e)}")
+    
     # Формируем ответ с паролем
     response_data = {
         "id": new_employee.id,
@@ -357,6 +387,12 @@ def list_employees(
         is_active=is_active,
         pagination=pagination
     )
+    
+    # Логируем для отладки
+    logger.info(f"List employees: current_user_id={current_user.id}, role={current_user.role}, "
+                f"business_id={getattr(current_user, 'business_id', None)}, "
+                f"business_owner_ids={business_owner_ids}, owner_id={owner_id}, "
+                f"found {len(employees)} employees")
     
     return employees
 
