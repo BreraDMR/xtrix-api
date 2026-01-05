@@ -87,7 +87,7 @@ def list_products(
     
     total = db.query(Product).filter(Product.business_id == business_id).count()
     
-    return PaginatedResponse(
+    return PaginatedResponse.create(
         items=[localize_response(p, locale) for p in products],
         total=total,
         page=page,
