@@ -38,6 +38,16 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Услуга не найдена",
         "cz": "Služba nebyla nalezena",
     },
+    "product_not_found": {
+        "en": "Product not found",
+        "ru": "Товар не найден",
+        "cz": "Produkt nebyl nalezen",
+    },
+    "product_deleted": {
+        "en": "Product deleted successfully",
+        "ru": "Товар успешно удален",
+        "cz": "Produkt byl úspěšně smazán",
+    },
     "plan_not_found": {
         "en": "Plan not found",
         "ru": "План не найден",

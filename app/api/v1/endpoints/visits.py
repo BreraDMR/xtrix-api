@@ -92,6 +92,29 @@ def create_visit(
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     
     result = crud_visit.create_visit(db, visit, business_id=business_id)
+    
+    # Автоматическое списание товаров при создании визита
+    if business_id and visit.used_products:
+        from app.api.crud import crud_product_usage
+        from app.schemas.product_usage import ProductUsageCreate
+        
+        for used_product in visit.used_products:
+            try:
+                usage = ProductUsageCreate(
+                    product_id=used_product.product_id,
+                    quantity=used_product.quantity,
+                    visit_id=result.id,
+                    business_id=business_id,
+                    client_id=visit.client_id,
+                    used_by_id=current_user.id,
+                    notes=f"Автоматическое списание при визите #{result.id}",
+                )
+                crud_product_usage.create_product_usage(db, usage, auto_reduce_stock=True)
+                logger.info(f"Auto-usage: product {used_product.product_id}, quantity {used_product.quantity}, visit {result.id}")
+            except Exception as e:
+                logger.error(f"Failed to auto-usage product {used_product.product_id} for visit {result.id}: {e}")
+                # Не прерываем создание визита, только логируем ошибку
+    
     from app.api.core.i18n import localize_response
     return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
 

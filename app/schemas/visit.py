@@ -1,7 +1,13 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel, Field, field_validator
+
+
+class UsedProduct(BaseModel):
+    """Товар, использованный при визите."""
+    product_id: int
+    quantity: float = Field(..., gt=0)
 
 
 class VisitBase(BaseModel):
@@ -15,6 +21,7 @@ class VisitBase(BaseModel):
     photo_url: Optional[str] = None
     price: Optional[float] = Field(None, ge=0.0)
     status: Optional[str] = Field("planned", description="planned|completed|cancelled|in_progress")
+    used_products: Optional[List[UsedProduct]] = Field(None, description="Список использованных товаров")
     
     @field_validator('date_end')
     @classmethod
