@@ -91,14 +91,22 @@ def create_visit(
     if not check_client_access(db, current_user, visit.client_id):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     
-    result = crud_visit.create_visit(db, visit, business_id=business_id)
+    # Извлекаем used_products до создания визита, так как это поле не входит в модель Visit
+    used_products = visit.used_products if hasattr(visit, 'used_products') else None
+    
+    # Создаем копию visit без used_products для передачи в create_visit
+    visit_data = visit.dict(exclude={'used_products'})
+    from app.schemas.visit import VisitCreate
+    visit_for_create = VisitCreate(**visit_data)
+    
+    result = crud_visit.create_visit(db, visit_for_create, business_id=business_id)
     
     # Автоматическое списание товаров при создании визита
-    if business_id and visit.used_products:
+    if business_id and used_products:
         from app.api.crud import crud_product_usage
         from app.schemas.product_usage import ProductUsageCreate
         
-        for used_product in visit.used_products:
+        for used_product in used_products:
             try:
                 usage = ProductUsageCreate(
                     product_id=used_product.product_id,
