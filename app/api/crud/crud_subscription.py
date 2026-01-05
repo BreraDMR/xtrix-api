@@ -163,7 +163,7 @@ def check_subscription_access(db: Session, user_id: int, require_paid: bool = Fa
     if user.employer_id:
         # Проверяем подписку админа
         admin_sub = get_active_subscription(db, user.employer_id)
-        if admin_sub and admin_sub.status == "active":
+        if admin_sub and admin_sub.status in ["active", "pending_cancellation"]:
             # Если требуется платная подписка, проверяем что это не trial
             if require_paid:
                 if admin_sub.is_trial and not is_trial_active(db, user.employer_id):
@@ -178,7 +178,8 @@ def check_subscription_access(db: Session, user_id: int, require_paid: bool = Fa
     if not sub:
         return False, "No active subscription"
     
-    if sub.status != "active":
+    # pending_cancellation означает активна до конца периода, поэтому доступ есть
+    if sub.status not in ["active", "pending_cancellation"]:
         return False, f"Subscription status: {sub.status}"
     
     # Проверяем срок действия подписки
@@ -205,9 +206,16 @@ def update_subscription(db: Session, sub: Subscription, data: SubscriptionUpdate
 
 
 def get_active_subscription(db: Session, user_id: int) -> Optional[Subscription]:
+    """
+    Получить активную подписку пользователя.
+    Учитывает статусы "active" и "pending_cancellation" (активна до конца периода).
+    """
     return (
         db.query(Subscription)
-        .filter(Subscription.user_id == user_id, Subscription.status == "active")
+        .filter(
+            Subscription.user_id == user_id,
+            Subscription.status.in_(["active", "pending_cancellation"])
+        )
         .order_by(Subscription.current_period_end.desc().nullslast())
         .first()
     )
@@ -222,4 +230,168 @@ def get_by_external(db: Session, provider: str, external_id: str) -> Optional[Su
         )
         .first()
     )
+
+
+def get_subscription(db: Session, subscription_id: int) -> Optional[Subscription]:
+    """Получить подписку по ID."""
+    return db.query(Subscription).filter(Subscription.id == subscription_id).first()
+
+
+def cancel_subscription(db: Session, subscription_id: int, cancel_at_period_end: bool = True, user_id: Optional[int] = None) -> Optional[Subscription]:
+    """
+    Отменить подписку.
+    Если cancel_at_period_end=True, подписка остается активной до конца периода.
+    Если False, подписка отменяется немедленно.
+    """
+    sub = get_subscription(db, subscription_id)
+    if not sub:
+        return None
+    
+    # Проверяем, что пользователь имеет право отменить эту подписку
+    if user_id and sub.user_id != user_id:
+        return None
+    
+    if cancel_at_period_end:
+        # Отменяем в конце периода
+        sub.cancel_at_period_end = True
+        sub.cancelled_at = datetime.utcnow()
+        sub.status = "pending_cancellation"  # Новый статус для отмененных, но активных
+    else:
+        # Отменяем немедленно
+        sub.cancel_at_period_end = False
+        sub.cancelled_at = datetime.utcnow()
+        sub.status = "cancelled"
+        sub.current_period_end = datetime.utcnow()  # Завершаем период сразу
+    
+    db.commit()
+    db.refresh(sub)
+    
+    # Логируем отмену как транзакцию
+    try:
+        from app.schemas.transaction import TransactionCreate
+        from app.api.crud import crud_transaction
+        
+        transaction_data = TransactionCreate(
+            subscription_id=sub.id,
+            amount=0.0,
+            currency="eur",
+            payment_method="cancellation",
+            status="cancelled",
+            description=f"Subscription cancelled (at_period_end={cancel_at_period_end})",
+            provider=sub.provider,
+        )
+        crud_transaction.create_transaction(db, transaction_data)
+    except Exception as e:
+        # Не критично, если не удалось залогировать
+        import logging
+        logging.warning(f"Failed to log cancellation transaction: {e}")
+    
+    return sub
+
+
+def reactivate_subscription(db: Session, subscription_id: int, plan_id: Optional[int] = None, user_id: Optional[int] = None) -> Optional[Subscription]:
+    """
+    Возобновить отмененную подписку.
+    Если указан plan_id, можно сменить тариф при возобновлении.
+    """
+    sub = get_subscription(db, subscription_id)
+    if not sub:
+        return None
+    
+    # Проверяем, что пользователь имеет право возобновить эту подписку
+    if user_id and sub.user_id != user_id:
+        return None
+    
+    # Проверяем, что подписка отменена
+    if sub.status not in ["cancelled", "pending_cancellation", "expired"]:
+        return None
+    
+    # Если указан новый план, обновляем
+    if plan_id:
+        plan = get_plan(db, plan_id)
+        if plan:
+            sub.plan_id = plan_id
+            # Обновляем дату окончания периода на основе нового плана
+            sub.current_period_end = datetime.utcnow() + timedelta(days=plan.period_days)
+    
+    # Возобновляем подписку
+    sub.cancel_at_period_end = False
+    sub.cancelled_at = None
+    sub.reactivated_at = datetime.utcnow()
+    sub.status = "active"
+    
+    # Если current_period_end в прошлом, продлеваем
+    if sub.current_period_end and sub.current_period_end < datetime.utcnow():
+        plan = get_plan(db, sub.plan_id)
+        if plan:
+            sub.current_period_end = datetime.utcnow() + timedelta(days=plan.period_days)
+    
+    db.commit()
+    db.refresh(sub)
+    
+    # Логируем возобновление как транзакцию
+    try:
+        from app.schemas.transaction import TransactionCreate
+        from app.api.crud import crud_transaction
+        
+        transaction_data = TransactionCreate(
+            subscription_id=sub.id,
+            amount=0.0,
+            currency="eur",
+            payment_method="reactivation",
+            status="succeeded",
+            description=f"Subscription reactivated (plan_id={plan_id or sub.plan_id})",
+            provider=sub.provider,
+        )
+        crud_transaction.create_transaction(db, transaction_data)
+    except Exception as e:
+        import logging
+        logging.warning(f"Failed to log reactivation transaction: {e}")
+    
+    return sub
+
+
+def deactivate_expired_subscriptions(db: Session) -> int:
+    """
+    Деактивирует истекшие подписки.
+    Вызывается фоновой задачей.
+    Возвращает количество деактивированных подписок.
+    """
+    now = datetime.utcnow()
+    
+    # Находим подписки, которые должны быть деактивированы
+    expired_subscriptions = (
+        db.query(Subscription)
+        .filter(
+            Subscription.status == "pending_cancellation",
+            Subscription.current_period_end <= now,
+        )
+        .all()
+    )
+    
+    deactivated_count = 0
+    for sub in expired_subscriptions:
+        sub.status = "expired"
+        sub.cancel_at_period_end = False
+        db.commit()
+        deactivated_count += 1
+    
+    # Также деактивируем активные подписки с истекшим периодом (если нет cancel_at_period_end)
+    expired_active = (
+        db.query(Subscription)
+        .filter(
+            Subscription.status == "active",
+            Subscription.current_period_end <= now,
+            Subscription.cancel_at_period_end == False,
+        )
+        .all()
+    )
+    
+    for sub in expired_active:
+        if not sub.is_trial:  # Trial подписки обрабатываются отдельно
+            sub.status = "expired"
+            db.commit()
+            deactivated_count += 1
+    
+    return deactivated_count
 
