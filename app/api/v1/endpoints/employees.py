@@ -447,9 +447,32 @@ def get_employee(
     if not can_manage_employees(current_user):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     
-    owner_id = get_business_owner_id(current_user)
+    owner_id = None
     if current_user.role == "admin":
-        owner_id = None  # Админ может видеть любых сотрудников
+        # Админ может видеть сотрудников своего бизнеса
+        # Проверяем доступ через business_id
+        admin_business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+        if admin_business_id:
+            # Находим всех business_owners с таким же business_id
+            from app.db.models.user import User
+            business_owners = db.query(User.id).filter(
+                User.role == "business_owner",
+                User.business_id == admin_business_id
+            ).all()
+            owner_ids = [bo[0] for bo in business_owners]
+            # Добавляем админа
+            if current_user.id not in owner_ids:
+                owner_ids.append(current_user.id)
+            # Для админа используем None, чтобы не фильтровать по business_owner_id
+            # но проверим доступ после получения
+            owner_id = None
+        else:
+            # У админа нет business_id - может видеть только своих сотрудников
+            owner_id = current_user.id
+    else:
+        owner_id = get_business_owner_id(current_user)
+        if current_user.role != "admin":
+            owner_id = current_user.id
     
     employee = crud_employee.get_employee(
         db=db,
@@ -460,7 +483,44 @@ def get_employee(
     if not employee:
         raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
     
-    return employee
+    # Проверяем доступ для админа (если у админа есть business_id)
+    if current_user.role == "admin" and admin_business_id:
+        # Проверяем, что сотрудник принадлежит бизнесу админа
+        employee_user = employee.employee_user
+        if employee_user and hasattr(employee_user, 'business_id'):
+            if employee_user.business_id != admin_business_id:
+                # Также проверяем, что business_owner_id входит в список владельцев бизнеса
+                if employee.business_owner_id not in owner_ids:
+                    raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
+    
+    # Преобразуем в формат EmployeeOut
+    emp_dict = {
+        "id": employee.id,
+        "employee_user_id": employee.employee_user_id,
+        "business_owner_id": employee.business_owner_id,
+        "position": employee.position,
+        "permissions": employee.permissions,
+        "commission_percentage": employee.commission_percentage or 0.0,
+        "base_salary": employee.base_salary or 0.0,
+        "is_active": employee.is_active,
+        "notes": employee.notes,
+        "hired_at": employee.hired_at,
+        "fired_at": employee.fired_at,
+        "employee_user": None
+    }
+    
+    if employee.employee_user:
+        emp_dict["employee_user"] = {
+            "id": employee.employee_user.id,
+            "full_name": employee.employee_user.full_name,
+            "email": employee.employee_user.email,
+            "phone": employee.employee_user.phone,
+            "role": employee.employee_user.role,
+            "specialist_type": getattr(employee.employee_user, 'specialist_type', None),
+            "business_id": getattr(employee.employee_user, 'business_id', None),
+        }
+    
+    return EmployeeOut(**emp_dict)
 
 
 @router.put("/{employee_id}", response_model=EmployeeOut, summary="Update employee")
@@ -475,9 +535,15 @@ def update_employee(
     if not can_manage_employees(current_user):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     
-    owner_id = get_business_owner_id(current_user)
+    owner_id = None
     if current_user.role == "admin":
-        owner_id = None
+        admin_business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+        if not admin_business_id:
+            owner_id = current_user.id
+    else:
+        owner_id = get_business_owner_id(current_user)
+        if current_user.role != "admin":
+            owner_id = current_user.id
     
     employee = crud_employee.get_employee(
         db=db,
@@ -494,7 +560,34 @@ def update_employee(
         employee_update=employee_update
     )
     
-    return updated_employee
+    # Преобразуем в формат EmployeeOut
+    emp_dict = {
+        "id": updated_employee.id,
+        "employee_user_id": updated_employee.employee_user_id,
+        "business_owner_id": updated_employee.business_owner_id,
+        "position": updated_employee.position,
+        "permissions": updated_employee.permissions,
+        "commission_percentage": updated_employee.commission_percentage or 0.0,
+        "base_salary": updated_employee.base_salary or 0.0,
+        "is_active": updated_employee.is_active,
+        "notes": updated_employee.notes,
+        "hired_at": updated_employee.hired_at,
+        "fired_at": updated_employee.fired_at,
+        "employee_user": None
+    }
+    
+    if updated_employee.employee_user:
+        emp_dict["employee_user"] = {
+            "id": updated_employee.employee_user.id,
+            "full_name": updated_employee.employee_user.full_name,
+            "email": updated_employee.employee_user.email,
+            "phone": updated_employee.employee_user.phone,
+            "role": updated_employee.employee_user.role,
+            "specialist_type": getattr(updated_employee.employee_user, 'specialist_type', None),
+            "business_id": getattr(updated_employee.employee_user, 'business_id', None),
+        }
+    
+    return EmployeeOut(**emp_dict)
 
 
 @router.delete("/{employee_id}", response_model=EmployeeOut, summary="Fire employee")
@@ -508,9 +601,29 @@ def fire_employee(
     if not can_manage_employees(current_user):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     
-    owner_id = get_business_owner_id(current_user)
+    owner_id = None
     if current_user.role == "admin":
-        owner_id = None
+        # Админ может увольнять сотрудников своего бизнеса
+        admin_business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+        if admin_business_id:
+            # Находим всех business_owners с таким же business_id
+            from app.db.models.user import User
+            business_owners = db.query(User.id).filter(
+                User.role == "business_owner",
+                User.business_id == admin_business_id
+            ).all()
+            owner_ids = [bo[0] for bo in business_owners]
+            if current_user.id not in owner_ids:
+                owner_ids.append(current_user.id)
+            # Для админа используем None, чтобы не фильтровать по business_owner_id
+            owner_id = None
+        else:
+            # У админа нет business_id - может увольнять только своих сотрудников
+            owner_id = current_user.id
+    else:
+        owner_id = get_business_owner_id(current_user)
+        if current_user.role != "admin":
+            owner_id = current_user.id
     
     employee = crud_employee.get_employee(
         db=db,
@@ -521,12 +634,47 @@ def fire_employee(
     if not employee:
         raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
     
+    # Проверяем доступ для админа (если у админа есть business_id)
+    if current_user.role == "admin" and admin_business_id:
+        employee_user = employee.employee_user
+        if employee_user and hasattr(employee_user, 'business_id'):
+            if employee_user.business_id != admin_business_id:
+                if employee.business_owner_id not in owner_ids:
+                    raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
+    
     if not employee.is_active:
         raise HTTPException(status_code=400, detail=_("employee_already_fired", locale))
     
     fired_employee = crud_employee.fire_employee(db=db, employee=employee)
     
-    return fired_employee
+    # Преобразуем в формат EmployeeOut
+    emp_dict = {
+        "id": fired_employee.id,
+        "employee_user_id": fired_employee.employee_user_id,
+        "business_owner_id": fired_employee.business_owner_id,
+        "position": fired_employee.position,
+        "permissions": fired_employee.permissions,
+        "commission_percentage": fired_employee.commission_percentage or 0.0,
+        "base_salary": fired_employee.base_salary or 0.0,
+        "is_active": fired_employee.is_active,
+        "notes": fired_employee.notes,
+        "hired_at": fired_employee.hired_at,
+        "fired_at": fired_employee.fired_at,
+        "employee_user": None
+    }
+    
+    if fired_employee.employee_user:
+        emp_dict["employee_user"] = {
+            "id": fired_employee.employee_user.id,
+            "full_name": fired_employee.employee_user.full_name,
+            "email": fired_employee.employee_user.email,
+            "phone": fired_employee.employee_user.phone,
+            "role": fired_employee.employee_user.role,
+            "specialist_type": getattr(fired_employee.employee_user, 'specialist_type', None),
+            "business_id": getattr(fired_employee.employee_user, 'business_id', None),
+        }
+    
+    return EmployeeOut(**emp_dict)
 
 
 @router.get("/by-user/{user_id}", response_model=EmployeeOut, summary="Get employee by user ID")
@@ -546,7 +694,11 @@ def get_employee_by_user_id(
     if current_user.role == "business_owner":
         owner_id = current_user.id
     elif current_user.role == "admin":
-        owner_id = None
+        admin_business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+        if not admin_business_id:
+            owner_id = current_user.id
+        else:
+            owner_id = None  # Админ может видеть сотрудников своего бизнеса
     
     employee = crud_employee.get_employee_by_user_id(
         db=db,
@@ -557,7 +709,34 @@ def get_employee_by_user_id(
     if not employee:
         raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
     
-    return employee
+    # Преобразуем в формат EmployeeOut
+    emp_dict = {
+        "id": employee.id,
+        "employee_user_id": employee.employee_user_id,
+        "business_owner_id": employee.business_owner_id,
+        "position": employee.position,
+        "permissions": employee.permissions,
+        "commission_percentage": employee.commission_percentage or 0.0,
+        "base_salary": employee.base_salary or 0.0,
+        "is_active": employee.is_active,
+        "notes": employee.notes,
+        "hired_at": employee.hired_at,
+        "fired_at": employee.fired_at,
+        "employee_user": None
+    }
+    
+    if employee.employee_user:
+        emp_dict["employee_user"] = {
+            "id": employee.employee_user.id,
+            "full_name": employee.employee_user.full_name,
+            "email": employee.employee_user.email,
+            "phone": employee.employee_user.phone,
+            "role": employee.employee_user.role,
+            "specialist_type": getattr(employee.employee_user, 'specialist_type', None),
+            "business_id": getattr(employee.employee_user, 'business_id', None),
+        }
+    
+    return EmployeeOut(**emp_dict)
 
 
 # ==================== Salary Management Endpoints ====================
