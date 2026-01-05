@@ -1,6 +1,6 @@
 """create default subscription plans
 
-Revision ID: 0022_create_default_subscription_plans
+Revision ID: 0022_default_plans
 Revises: 0021_add_trial_fields
 Create Date: 2025-01-05 14:00:00
 """
