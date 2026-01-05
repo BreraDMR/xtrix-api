@@ -352,12 +352,8 @@ def list_employees(
         # Админ видит только сотрудников своего бизнеса (изоляция данных)
         admin_business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
         
-        # Сначала проверяем, есть ли сотрудники с business_owner_id = админ.id
-        # (админ может создавать сотрудников напрямую)
-        admin_employees_count = db.query(Employee).filter(
-            Employee.business_owner_id == current_user.id
-        ).count()
-        
+        # Упрощенная логика: если у админа есть business_id, показываем всех сотрудников бизнеса
+        # Включая сотрудников с business_owner_id = админ.id
         owner_ids = []
         
         if admin_business_id:
@@ -369,23 +365,18 @@ def list_employees(
             ).all()
             owner_ids = [bo[0] for bo in business_owners]
             
-            # ВСЕГДА добавляем ID админа, если у него есть сотрудники или если нет business_owners
-            if admin_employees_count > 0 or len(owner_ids) == 0:
-                if current_user.id not in owner_ids:
-                    owner_ids.append(current_user.id)
+            # ВСЕГДА добавляем ID админа (он может создавать сотрудников напрямую)
+            if current_user.id not in owner_ids:
+                owner_ids.append(current_user.id)
             
             if len(owner_ids) > 0:
                 business_owner_ids = owner_ids
             else:
-                # Нет ни business_owners, ни сотрудников у админа - пустой список
-                return []
+                # Не должно произойти, так как мы добавили админа, но на всякий случай
+                business_owner_ids = [current_user.id]
         else:
             # У админа нет business_id - показываем только его собственных сотрудников
-            if admin_employees_count > 0:
-                business_owner_ids = [current_user.id]
-            else:
-                # У админа нет business_id и нет сотрудников - пустой список
-                return []
+            business_owner_ids = [current_user.id]
         
         owner_id = None  # Не используем единичный business_owner_id для админа
     else:
