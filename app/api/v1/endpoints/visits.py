@@ -94,12 +94,7 @@ def create_visit(
     # Извлекаем used_products до создания визита, так как это поле не входит в модель Visit
     used_products = visit.used_products if hasattr(visit, 'used_products') else None
     
-    # Создаем копию visit без used_products для передачи в create_visit
-    visit_data = visit.dict(exclude={'used_products'})
-    from app.schemas.visit import VisitCreate
-    visit_for_create = VisitCreate(**visit_data)
-    
-    result = crud_visit.create_visit(db, visit_for_create, business_id=business_id)
+    result = crud_visit.create_visit(db, visit, business_id=business_id)
     
     # Автоматическое списание товаров при создании визита
     if business_id and used_products:

@@ -21,7 +21,7 @@ def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] 
     from app.api.core.logger import get_logger
     logger = get_logger("visits")
     
-    visit_data = visit_in.dict()
+    visit_data = visit_in.dict(exclude={'used_products'} if hasattr(visit_in, 'used_products') else None)
     logger.info(f"create_visit: visit_data keys={list(visit_data.keys())}, service_id={visit_data.get('service_id')}, price={visit_data.get('price')}, date_end={visit_data.get('date_end')}")
     
     # Автоматическое применение цены и длительности из услуги, если service_id указан
