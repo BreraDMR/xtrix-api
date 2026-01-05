@@ -297,7 +297,7 @@ def list_product_usages(
     from app.db.models.product_usage import ProductUsage
     total = db.query(ProductUsage).filter(ProductUsage.business_id == business_id).count()
     
-    return PaginatedResponse(
+    return PaginatedResponse.create(
         items=[localize_response(u, locale) for u in usages],
         total=total,
         page=page,
