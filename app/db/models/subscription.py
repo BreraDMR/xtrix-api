@@ -17,6 +17,10 @@ class Subscription(Base):
     external_id = Column(String, nullable=True)
     current_period_end = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Trial fields
+    is_trial = Column(Boolean, default=False, nullable=False)  # Активен ли trial
+    trial_start = Column(DateTime, nullable=True)  # Начало trial периода
+    trial_end = Column(DateTime, nullable=True)  # Конец trial периода
 
     user = relationship("User")
     plan = relationship("SubscriptionPlan")

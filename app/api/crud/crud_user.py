@@ -49,6 +49,20 @@ def create_user(db: Session, user_in: UserCreate, moderation_status: Optional[st
     db.add(user)
     db.commit()
     db.refresh(user)
+    
+    # Автоматически создаем trial подписку для Solo Specialist или Admin
+    # Только если пользователь не является сотрудником (не имеет employer_id)
+    if not business_id and user_in.role in ["admin", "specialist"]:
+        try:
+            from app.api.crud import crud_subscription
+            crud_subscription.create_trial_subscription(db, user.id, user_in.role)
+            db.commit()
+        except Exception as e:
+            # Если не удалось создать trial, не останавливаем процесс создания пользователя
+            # Просто логируем ошибку
+            import logging
+            logging.warning(f"Failed to create trial subscription for user {user.id}: {str(e)}")
+    
     return user
 
 

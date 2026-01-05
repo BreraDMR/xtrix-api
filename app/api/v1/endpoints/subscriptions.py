@@ -82,10 +82,35 @@ def my_subscription(
     current_user: User = Depends(deps.role_required("admin", "specialist")),
     locale: str = Depends(deps.get_locale),
 ):
+    """Получить текущую активную подписку пользователя."""
     sub = crud_subscription.get_active_subscription(db, current_user.id)
     if sub:
         return localize_response(sub.dict() if hasattr(sub, 'dict') else sub, locale)
     return None
+
+
+@router.get("/trial/status")
+def get_trial_status(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    locale: str = Depends(deps.get_locale),
+):
+    """Получить статус trial периода для текущего пользователя."""
+    from app.api.crud import crud_subscription
+    
+    # Сотрудники используют подписку админа
+    user_id = current_user.employer_id if current_user.employer_id else current_user.id
+    
+    is_active = crud_subscription.is_trial_active(db, user_id)
+    sub = crud_subscription.get_active_subscription(db, user_id)
+    
+    return {
+        "is_trial_active": is_active,
+        "is_trial": sub.is_trial if sub else False,
+        "trial_start": sub.trial_start if sub else None,
+        "trial_end": sub.trial_end if sub else None,
+        "has_access": True if sub and sub.status == "active" else False,
+    }
 
 
 @router.post("/webhooks/stripe")

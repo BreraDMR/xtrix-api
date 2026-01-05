@@ -14,6 +14,9 @@ class SubscriptionPlan(Base):
     currency = Column(String, default="usd")
     features = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
+    # Trial fields
+    is_trial = Column(Boolean, default=False, nullable=False)  # Является ли план trial
+    trial_days = Column(Integer, nullable=True)  # Количество дней trial (7-14 для solo, 3-5 для admin)
 
 
 
