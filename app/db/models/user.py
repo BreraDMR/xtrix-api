@@ -30,6 +30,11 @@ class User(Base):
     # 2FA fields
     totp_secret = Column(String, nullable=True)  # TOTP secret for 2FA
     is_2fa_enabled = Column(Boolean, default=False, nullable=False)  # 2FA enabled flag
+    # Moderation fields
+    moderation_status = Column(String, default="pending", nullable=False, index=True)  # "pending", "approved", "rejected"
+    moderation_notes = Column(String, nullable=True)  # Комментарий модератора
+    moderated_at = Column(DateTime, nullable=True, index=True)  # Дата модерации
+    moderated_by_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # ID модератора (админа)
 
     clients = relationship("Client", foreign_keys="[Client.owner_id]", back_populates="owner", lazy="dynamic", cascade="all,delete")
     services = relationship("Service", back_populates="specialist", lazy="dynamic", cascade="all,delete")

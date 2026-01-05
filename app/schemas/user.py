@@ -1,4 +1,5 @@
 from typing import Optional
+from datetime import datetime
 import re
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -77,6 +78,10 @@ class UserLogin(BaseModel):
 class UserOut(UserBase):
     id: int
     is_2fa_enabled: bool = False
+    moderation_status: Optional[str] = Field(default="pending", description="Статус модерации: pending, approved, rejected")
+    moderation_notes: Optional[str] = None
+    moderated_at: Optional[datetime] = None
+    moderated_by_id: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -101,6 +106,32 @@ class LoginResponse(BaseModel):
     access_token: str | None = None
     refresh_token: str | None = None
     token_type: str = "bearer"
+
+
+class ModerationRequest(BaseModel):
+    """Запрос на модерацию пользователя."""
+    status: str = Field(..., description="Статус модерации: approved или rejected")
+    notes: Optional[str] = Field(None, max_length=1000, description="Комментарий модератора")
+    
+    @field_validator('status')
+    @classmethod
+    def validate_status(cls, v):
+        allowed_statuses = ['approved', 'rejected']
+        if v not in allowed_statuses:
+            raise ValueError(f"Status must be one of: {', '.join(allowed_statuses)}")
+        return v
+
+
+class ModerationResponse(BaseModel):
+    """Ответ на модерацию пользователя."""
+    id: int
+    moderation_status: str
+    moderation_notes: Optional[str] = None
+    moderated_at: Optional[datetime] = None
+    moderated_by_id: Optional[int] = None
+    
+    class Config:
+        from_attributes = True
 
 
 

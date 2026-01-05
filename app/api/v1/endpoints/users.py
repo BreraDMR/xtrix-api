@@ -23,7 +23,8 @@ from app.api.crud import crud_user, crud_refresh_token
 from app.db.models.user import User
 from app.schemas.user import (
     UserCreate, UserLogin, UserOut, TwoFactorSetup, 
-    TwoFactorVerify, TwoFactorEnable, LoginResponse
+    TwoFactorVerify, TwoFactorEnable, LoginResponse,
+    ModerationRequest, ModerationResponse
 )
 from app.schemas.refresh_token import TokenRefresh, TokenResponse, RefreshTokenCreate
 
@@ -225,6 +226,67 @@ def unlock_user_account(
         raise HTTPException(status_code=404, detail=_("user_not_found", locale))
     logger.info(f"Account unlocked successfully: user_id={user_id}")
     return {"message": _("account_unlocked", locale)}
+
+
+@router.get("/pending", response_model=PaginatedResponse[UserOut], summary="List users pending moderation")
+def list_pending_users(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Получить список пользователей, ожидающих модерации (только для админа)."""
+    pagination = PaginationParams(page=page, per_page=per_page)
+    users, total = crud_user.list_users_pending_moderation(db, pagination)
+    
+    localized_items = [
+        localize_response(
+            u.model_dump() if hasattr(u, 'model_dump') else (u.dict() if hasattr(u, 'dict') else u),
+            locale
+        )
+        for u in users
+    ]
+    
+    return PaginatedResponse.create(
+        items=localized_items,
+        total=total,
+        page=page,
+        per_page=per_page,
+    )
+
+
+@router.post("/{user_id}/moderate", response_model=ModerationResponse, summary="Moderate user account")
+def moderate_user(
+    user_id: int,
+    moderation: ModerationRequest,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Модерировать пользователя: одобрить или отклонить (только для админа)."""
+    logger.info(f"Moderation request: user_id={user_id}, status={moderation.status}, admin_id={current_user.id}")
+    
+    user = crud_user.moderate_user(
+        db=db,
+        user_id=user_id,
+        status=moderation.status,
+        notes=moderation.notes,
+        moderated_by_id=current_user.id,
+    )
+    
+    if not user:
+        raise HTTPException(status_code=404, detail=_("user_not_found", locale))
+    
+    logger.info(f"User moderated successfully: user_id={user_id}, status={moderation.status}")
+    
+    return ModerationResponse(
+        id=user.id,
+        moderation_status=user.moderation_status,
+        moderation_notes=user.moderation_notes,
+        moderated_at=user.moderated_at,
+        moderated_by_id=user.moderated_by_id,
+    )
 
 
 @router.get("/", response_model=PaginatedResponse[UserOut])

@@ -44,6 +44,7 @@ def create_user(db: Session, user_in: UserCreate) -> User:
         specialist_type=user_in.specialist_type if hasattr(user_in, 'specialist_type') else None,
         hashed_password=get_password_hash(user_in.password) if user_in.password else "",
         business_id=business_id,  # Привязываем к бизнесу, если указан
+        moderation_status="pending",  # По умолчанию требуется модерация
     )
     db.add(user)
     db.commit()
@@ -114,6 +115,13 @@ def authenticate(db: Session, credentials: UserLogin, totp_token: str | None = N
     if is_locked:
         raise ValueError(lockout_message)
     
+    # Check moderation status - only approved users can login
+    if hasattr(user, 'moderation_status') and user.moderation_status != "approved":
+        if user.moderation_status == "pending":
+            raise ValueError("Your account is pending moderation. Please wait for administrator approval.")
+        elif user.moderation_status == "rejected":
+            raise ValueError("Your account has been rejected. Please contact administrator for more information.")
+    
     # Verify password
     if not verify_password(credentials.password, user.hashed_password):
         increment_failed_login_attempts(db, user)
@@ -176,6 +184,46 @@ def get_by_phone_or_email(db: Session, phone: str | None, email: str | None) -> 
     if email:
         return q.filter(User.email == email).first()
     return None
+
+
+def list_users_pending_moderation(
+    db: Session,
+    pagination: Optional["PaginationParams"] = None,
+) -> Tuple[list[User], int]:
+    """Получить список пользователей, ожидающих модерации."""
+    query = db.query(User).filter(
+        User.moderation_status == "pending",
+        User.deleted_at.is_(None)
+    )
+    
+    total = query.count()
+    if pagination:
+        query = query.offset(pagination.offset).limit(pagination.limit)
+    
+    items = query.all()
+    return items, total
+
+
+def moderate_user(
+    db: Session,
+    user_id: int,
+    status: str,
+    notes: Optional[str],
+    moderated_by_id: int,
+) -> Optional[User]:
+    """Модерировать пользователя (одобрить или отклонить)."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return None
+    
+    user.moderation_status = status
+    user.moderation_notes = notes
+    user.moderated_at = datetime.utcnow()
+    user.moderated_by_id = moderated_by_id
+    
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 def list_users(
