@@ -166,6 +166,59 @@ def list_specialist_profiles(
     ]
 
 
+@router.post("/users/{user_id}/verify", response_model=SpecialistProfileOut)
+def verify_specialist_profile(
+    user_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Verify a specialist profile (admin only)."""
+    profile = crud_specialist_profile.get_specialist_profile_by_user_id(db, user_id)
+    if not profile:
+        raise HTTPException(
+            status_code=404,
+            detail=_("specialist_profile_not_found", locale)
+        )
+    
+    from datetime import datetime
+    profile.is_verified = "verified"
+    profile.verified_at = datetime.utcnow()
+    db.commit()
+    db.refresh(profile)
+    
+    logger.info(f"Specialist profile verified by admin: user_id={user_id}, admin_id={current_user.id}")
+    return localize_response(
+        profile.dict() if hasattr(profile, 'dict') else profile, locale
+    )
+
+
+@router.post("/users/{user_id}/reject", response_model=SpecialistProfileOut)
+def reject_specialist_profile(
+    user_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Reject a specialist profile (admin only)."""
+    profile = crud_specialist_profile.get_specialist_profile_by_user_id(db, user_id)
+    if not profile:
+        raise HTTPException(
+            status_code=404,
+            detail=_("specialist_profile_not_found", locale)
+        )
+    
+    profile.is_verified = "rejected"
+    profile.verified_at = None
+    db.commit()
+    db.refresh(profile)
+    
+    logger.info(f"Specialist profile rejected by admin: user_id={user_id}, admin_id={current_user.id}")
+    return localize_response(
+        profile.dict() if hasattr(profile, 'dict') else profile, locale
+    )
+
+
 @router.get("/types", response_model=dict)
 def get_available_specialist_types(
     locale: str = Depends(deps.get_locale),
