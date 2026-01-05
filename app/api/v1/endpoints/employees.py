@@ -400,7 +400,40 @@ def list_employees(
                 f"business_owner_ids={business_owner_ids}, owner_id={owner_id}, "
                 f"is_active={is_active}, found {len(employees)} employees (total: {total})")
     
-    return employees
+    # Преобразуем объекты Employee в формат EmployeeOut
+    # Нужно преобразовать employee_user из объекта User в словарь
+    result = []
+    for emp in employees:
+        emp_dict = {
+            "id": emp.id,
+            "employee_user_id": emp.employee_user_id,
+            "business_owner_id": emp.business_owner_id,
+            "position": emp.position,
+            "permissions": emp.permissions,
+            "commission_percentage": emp.commission_percentage or 0.0,
+            "base_salary": emp.base_salary or 0.0,
+            "is_active": emp.is_active,
+            "notes": emp.notes,
+            "hired_at": emp.hired_at,
+            "fired_at": emp.fired_at,
+            "employee_user": None
+        }
+        
+        # Преобразуем employee_user в словарь, если он загружен
+        if emp.employee_user:
+            emp_dict["employee_user"] = {
+                "id": emp.employee_user.id,
+                "full_name": emp.employee_user.full_name,
+                "email": emp.employee_user.email,
+                "phone": emp.employee_user.phone,
+                "role": emp.employee_user.role,
+                "specialist_type": getattr(emp.employee_user, 'specialist_type', None),
+                "business_id": getattr(emp.employee_user, 'business_id', None),
+            }
+        
+        result.append(EmployeeOut(**emp_dict))
+    
+    return result
 
 
 @router.get("/{employee_id}", response_model=EmployeeOut, summary="Get employee")
