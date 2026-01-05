@@ -29,8 +29,8 @@ class Subscription(Base):
 
     user = relationship("User")
     plan = relationship("SubscriptionPlan")
-    transactions = relationship("Transaction", back_populates="subscription", lazy="dynamic")
-    last_transaction = relationship("Transaction", foreign_keys=[last_transaction_id], lazy="select")
+    transactions = relationship("Transaction", back_populates="subscription", foreign_keys="Transaction.subscription_id", lazy="dynamic")
+    last_transaction = relationship("Transaction", foreign_keys=[last_transaction_id], lazy="select", post_update=True)
 
 
 
