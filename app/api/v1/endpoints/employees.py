@@ -448,6 +448,9 @@ def get_employee(
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     
     owner_id = None
+    admin_business_id = None
+    owner_ids = []
+    
     if current_user.role == "admin":
         # Админ может видеть сотрудников своего бизнеса
         # Проверяем доступ через business_id
@@ -484,7 +487,7 @@ def get_employee(
         raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
     
     # Проверяем доступ для админа (если у админа есть business_id)
-    if current_user.role == "admin" and admin_business_id:
+    if current_user.role == "admin" and admin_business_id and len(owner_ids) > 0:
         # Проверяем, что сотрудник принадлежит бизнесу админа
         employee_user = employee.employee_user
         if employee_user and hasattr(employee_user, 'business_id'):
