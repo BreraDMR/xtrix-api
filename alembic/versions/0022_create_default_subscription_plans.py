@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import text
 
-revision = "0022_create_default_subscription_plans"
+revision = "0022_default_plans"
 down_revision = "0021_add_trial_fields"
 branch_labels = None
 depends_on = None
