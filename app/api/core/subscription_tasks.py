@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.api.crud import crud_subscription
 from app.api.core.logger import logger
+from app.api.core.subscription_notifications import check_and_notify_expiring_subscriptions
 
 
 def deactivate_expired_subscriptions():
@@ -25,4 +26,35 @@ def deactivate_expired_subscriptions():
         raise
     finally:
         db.close()
+
+
+def process_subscription_notifications():
+    """
+    Отправляет уведомления об истечении подписок.
+    Должна вызываться периодически (например, раз в день).
+    """
+    db: Session = SessionLocal()
+    try:
+        count = check_and_notify_expiring_subscriptions(db)
+        if count > 0:
+            logger.info(f"Sent {count} subscription expiry notifications")
+        return count
+    except Exception as e:
+        logger.error(f"Error sending subscription notifications: {e}")
+        raise
+    finally:
+        db.close()
+
+
+def run_all_subscription_tasks():
+    """
+    Запускает все задачи по подпискам.
+    Удобно для cron, чтобы запускать одну функцию.
+    """
+    try:
+        deactivate_expired_subscriptions()
+        process_subscription_notifications()
+    except Exception as e:
+        logger.error(f"Error running subscription tasks: {e}")
+        raise
 
