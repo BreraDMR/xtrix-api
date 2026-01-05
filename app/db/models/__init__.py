@@ -18,3 +18,5 @@ from app.db.models.employee import Employee
 from app.db.models.salary_calculation import SalaryCalculation
 from app.db.models.product import Product
 from app.db.models.product_usage import ProductUsage
+from app.db.models.expense import Expense
+from app.db.models.expense_category import ExpenseCategory

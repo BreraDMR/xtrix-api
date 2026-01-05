@@ -48,6 +48,26 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Товар успешно удален",
         "cz": "Produkt byl úspěšně smazán",
     },
+    "expense_not_found": {
+        "en": "Expense not found",
+        "ru": "Расход не найден",
+        "cz": "Výdaj nebyl nalezen",
+    },
+    "expense_deleted": {
+        "en": "Expense deleted successfully",
+        "ru": "Расход успешно удален",
+        "cz": "Výdaj byl úspěšně smazán",
+    },
+    "category_not_found": {
+        "en": "Category not found",
+        "ru": "Категория не найдена",
+        "cz": "Kategorie nebyla nalezena",
+    },
+    "category_deleted": {
+        "en": "Category deleted successfully",
+        "ru": "Категория успешно удалена",
+        "cz": "Kategorie byla úspěšně smazána",
+    },
     "plan_not_found": {
         "en": "Plan not found",
         "ru": "План не найден",
