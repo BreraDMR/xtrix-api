@@ -12,7 +12,7 @@ from app.schemas.user import UserCreate, UserLogin
 from app.schemas.refresh_token import RefreshTokenCreate
 
 
-def create_user(db: Session, user_in: UserCreate) -> User:
+def create_user(db: Session, user_in: UserCreate, moderation_status: Optional[str] = None) -> User:
     # Validate password if provided
     if user_in.password:
         is_valid, error_msg = validate_password_strength(user_in.password)
@@ -44,7 +44,7 @@ def create_user(db: Session, user_in: UserCreate) -> User:
         specialist_type=user_in.specialist_type if hasattr(user_in, 'specialist_type') else None,
         hashed_password=get_password_hash(user_in.password) if user_in.password else "",
         business_id=business_id,  # Привязываем к бизнесу, если указан
-        moderation_status="pending",  # По умолчанию требуется модерация
+        moderation_status=moderation_status or "pending",  # По умолчанию требуется модерация, но можно переопределить
     )
     db.add(user)
     db.commit()

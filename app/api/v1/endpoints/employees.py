@@ -232,7 +232,8 @@ def create_employee_with_user(
         )
     
     try:
-        new_user = crud_user.create_user(db, user_create)
+        # Когда админ создает сотрудника, сразу одобряем (approved)
+        new_user = crud_user.create_user(db, user_create, moderation_status="approved")
     except Exception as e:
         # Обрабатываем другие ошибки (например, дубликаты)
         error_msg = str(e)
