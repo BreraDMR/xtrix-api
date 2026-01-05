@@ -22,5 +22,5 @@ class Transaction(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    subscription = relationship("Subscription", back_populates="transactions")
+    subscription = relationship("Subscription", back_populates="transactions", foreign_keys=[subscription_id])
 
