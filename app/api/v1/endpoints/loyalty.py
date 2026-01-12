@@ -444,3 +444,52 @@ def list_client_transactions(
         page=page,
         per_page=per_page,
     )
+
+
+# ============ USE POINTS ============
+
+@router.post("/use-points", response_model=dict)
+def use_points(
+    request: UsePointsRequest,
+    client_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Use loyalty points/cashback for payment."""
+    business_id = get_user_business_id(current_user, db)
+    if not business_id:
+        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    
+    # Get visit amount if visit_id provided
+    visit_amount = None
+    if request.visit_id:
+        from app.api.crud import crud_visit
+        visit = crud_visit.get_visit(db, request.visit_id)
+        if visit:
+            visit_amount = visit.price
+    
+    try:
+        from app.api.core.loyalty_logic import use_points_for_visit
+        success, discount_amount, error_message = use_points_for_visit(
+            db,
+            client_id=client_id,
+            business_id=business_id,
+            points_to_use=request.points_to_use or 0.0,
+            cashback_to_use=request.cashback_to_use or 0.0,
+            visit_id=request.visit_id,
+            visit_amount=visit_amount,
+        )
+        
+        if not success:
+            raise HTTPException(status_code=400, detail=error_message)
+        
+        return {
+            "message": _("points_used_successfully", locale),
+            "discount_amount": discount_amount,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error using loyalty points: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
