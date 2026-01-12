@@ -176,6 +176,73 @@ class UsePointsRequest(BaseModel):
 
 # ============ Loyalty Analytics ============
 
+class LoyaltyStatisticsResponse(BaseModel):
+    total_participants: int
+    total_points_earned: float
+    total_points_spent: float
+    total_cashback_earned: float
+    total_cashback_spent: float
+    active_points_balance: float
+    active_cashback_balance: float
+    points_redemption_rate: float
+    cashback_redemption_rate: float
+
+
+class LevelDistributionItem(BaseModel):
+    level_id: Optional[int]
+    level_name: str
+    level_number: int
+    client_count: int
+    min_spending: float
+    color: Optional[str] = None
+
+
+class LevelDistributionResponse(BaseModel):
+    distribution: List[LevelDistributionItem]
+
+
+class TopClientItem(BaseModel):
+    client_id: int
+    client_name: str
+    points: float
+    cashback: float
+    level_id: Optional[int] = None
+
+
+class TopClientsResponse(BaseModel):
+    clients: List[TopClientItem]
+
+
+class PromotionEffectivenessItem(BaseModel):
+    promotion_id: int
+    promotion_name: str
+    promotion_type: str
+    start_date: str
+    end_date: str
+    is_active: bool
+    usage_count: int
+    unique_clients: int
+    total_points_awarded: float
+    total_cashback_awarded: float
+
+
+class PromotionEffectivenessResponse(BaseModel):
+    promotions: List[PromotionEffectivenessItem]
+
+
+class PointsUsageTrendItem(BaseModel):
+    period: str
+    points_earned: float
+    points_spent: float
+    cashback_earned: float
+    cashback_spent: float
+    transaction_count: int
+
+
+class PointsUsageTrendsResponse(BaseModel):
+    trends: List[PointsUsageTrendItem]
+
+
 class LoyaltyAnalytics(BaseModel):
     total_points_issued: float
     total_points_spent: float
