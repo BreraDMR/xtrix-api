@@ -12,7 +12,7 @@ from app.api.core.logger import logger
 from app.api.middleware.security_headers import SecurityHeadersMiddleware
 from app.api.v1.endpoints import (
     clients, metrics, services, users, visits, files, subscriptions, schedules, 
-    analytics, audit, archiving, specialist_profiles, client_relations, employees, businesses, products, expenses
+    analytics, audit, archiving, specialist_profiles, client_relations, employees, businesses, products, expenses, loyalty
 )
 from app.api.core import error_handlers
 

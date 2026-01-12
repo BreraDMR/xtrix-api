@@ -24,6 +24,11 @@ class ClientBusinessRelation(Base):
     personal_notes = Column(Text, nullable=True)  # Заметки специалиста о клиенте (изолированные)
     inventory = Column(JSON, nullable=True)  # Список купленных продуктов (изолированные)
     
+    # Программа лояльности
+    loyalty_points = Column(Float, default=0.0, nullable=False, index=True)  # Баланс баллов
+    loyalty_cashback = Column(Float, default=0.0, nullable=False, index=True)  # Баланс кэшбэка
+    loyalty_level_id = Column(Integer, ForeignKey("loyalty_levels.id", ondelete="SET NULL"), nullable=True, index=True)  # Текущий уровень лояльности
+    
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     
     # Уникальное ограничение: один клиент может быть связан с одним бизнесом только один раз
