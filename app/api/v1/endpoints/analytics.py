@@ -13,6 +13,15 @@ from app.api.core.analytics import (
     get_popular_services,
     get_client_statistics,
 )
+from app.api.core.advanced_analytics import (
+    get_retention_metrics,
+    get_client_cohorts,
+    get_trends_analysis,
+    get_forecast,
+    get_service_and_specialist_analytics,
+    get_smart_insights,
+    get_anonymous_benchmarks,
+)
 from app.api.core.redis_client import (
     cache_analytics, get_cached_analytics, invalidate_analytics,
 )
@@ -24,6 +33,13 @@ from app.schemas.analytics import (
     PopularServicesResponse,
     ClientStatisticsResponse,
     ReportExportRequest,
+    RetentionMetricsResponse,
+    CohortTableResponse,
+    TrendsAnalysisResponse,
+    ForecastResponse,
+    ServiceAndSpecialistAnalyticsResponse,
+    SmartInsightsResponse,
+    AnonymousBenchmarksResponse,
 )
 
 router = APIRouter()
@@ -284,4 +300,127 @@ def export_report(
         return export_to_csv(export_data, filename=f"{filename}.csv")
     else:
         return export_to_excel(export_data, filename=f"{filename}.xlsx", sheet_name=sheet_name)
+
+
+def get_user_business_id(current_user: User, db: Session) -> Optional[int]:
+    """Получить business_id текущего пользователя."""
+    if hasattr(current_user, 'business_id') and current_user.business_id:
+        return current_user.business_id
+    
+    if current_user.role == "employee":
+        from app.api.crud import crud_employee
+        employee = crud_employee.get_employee_by_user_id(db, current_user.id)
+        if employee and employee.business_id:
+            return employee.business_id
+    
+    return None
+
+
+# ============ ADVANCED ANALYTICS ENDPOINTS ============
+
+@router.get("/retention/metrics", response_model=RetentionMetricsResponse)
+def get_retention_metrics_endpoint(
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Get client retention metrics."""
+    business_id = get_user_business_id(current_user, db)
+    if current_user.role not in ("admin", "business_owner"):
+        business_id = None  # specialists/employees see only their data
+    
+    metrics = get_retention_metrics(db, business_id=business_id, date_from=date_from, date_to=date_to)
+    return RetentionMetricsResponse(**metrics)
+
+
+@router.get("/retention/cohorts", response_model=CohortTableResponse)
+def get_cohorts_endpoint(
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Get client cohort retention table."""
+    business_id = get_user_business_id(current_user, db)
+    
+    cohorts = get_client_cohorts(db, business_id=business_id, date_from=date_from, date_to=date_to)
+    return CohortTableResponse(**cohorts)
+
+
+@router.get("/trends", response_model=TrendsAnalysisResponse)
+def get_trends_endpoint(
+    metric: str = Query("revenue", pattern="^(revenue|clients|visits|average_check|load)$"),
+    comparison_type: str = Query("MoM", pattern="^(MoM|WoW|YoY)$"),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Get trends analysis with period-over-period comparison."""
+    business_id = get_user_business_id(current_user, db)
+    if current_user.role not in ("admin", "business_owner"):
+        business_id = None
+    
+    trends = get_trends_analysis(db, business_id=business_id, metric=metric, comparison_type=comparison_type)
+    return TrendsAnalysisResponse(**trends)
+
+
+@router.get("/forecast", response_model=ForecastResponse)
+def get_forecast_endpoint(
+    forecast_type: str = Query("revenue", pattern="^(revenue|visits)$"),
+    periods: int = Query(1, ge=1, le=12),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Get forecasts for revenue or visits."""
+    business_id = get_user_business_id(current_user, db)
+    
+    forecast = get_forecast(db, business_id=business_id, forecast_type=forecast_type, periods=periods)
+    return ForecastResponse(**forecast)
+
+
+@router.get("/services-specialists", response_model=ServiceAndSpecialistAnalyticsResponse)
+def get_service_and_specialist_analytics_endpoint(
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Get analytics for services and specialists."""
+    business_id = get_user_business_id(current_user, db)
+    
+    analytics = get_service_and_specialist_analytics(
+        db, business_id=business_id, date_from=date_from, date_to=date_to
+    )
+    return ServiceAndSpecialistAnalyticsResponse(**analytics)
+
+
+@router.get("/insights", response_model=SmartInsightsResponse)
+def get_insights_endpoint(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Get smart insights and recommendations."""
+    business_id = get_user_business_id(current_user, db)
+    
+    insights = get_smart_insights(db, business_id=business_id)
+    return SmartInsightsResponse(insights=insights)
+
+
+@router.get("/benchmarks", response_model=AnonymousBenchmarksResponse)
+def get_benchmarks_endpoint(
+    business_type: Optional[str] = Query(None, description="Filter by business type"),
+    min_businesses: int = Query(10, ge=5, le=50),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Get anonymous platform benchmarks."""
+    benchmarks = get_anonymous_benchmarks(db, business_type=business_type, min_businesses=min_businesses)
+    return AnonymousBenchmarksResponse(**benchmarks)
 
