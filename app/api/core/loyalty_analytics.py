@@ -31,6 +31,8 @@ def get_loyalty_statistics(
             "total_cashback_spent": 0.0,
             "active_points_balance": 0.0,
             "active_cashback_balance": 0.0,
+            "points_redemption_rate": 0.0,
+            "cashback_redemption_rate": 0.0,
         }
     
     # Base query for transactions
