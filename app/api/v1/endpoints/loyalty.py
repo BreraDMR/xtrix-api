@@ -22,6 +22,15 @@ from app.schemas.loyalty import (
     LoyaltyTransactionOut,
     ClientLoyaltyBalance,
     UsePointsRequest,
+    LoyaltyStatisticsResponse,
+    LevelDistributionResponse,
+    LevelDistributionItem,
+    TopClientsResponse,
+    TopClientItem,
+    PromotionEffectivenessResponse,
+    PromotionEffectivenessItem,
+    PointsUsageTrendsResponse,
+    PointsUsageTrendItem,
 )
 from app.api.crud import crud_loyalty
 from app.api.core.logger import logger
@@ -493,3 +502,93 @@ def use_points(
     except Exception as e:
         logger.error(f"Error using loyalty points: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ============ ANALYTICS ============
+
+@router.get("/analytics/statistics", response_model=LoyaltyStatisticsResponse)
+def get_loyalty_statistics(
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Get loyalty program statistics."""
+    business_id = get_user_business_id(current_user, db)
+    if not business_id:
+        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    
+    from app.api.core.loyalty_analytics import get_loyalty_statistics
+    stats = get_loyalty_statistics(db, business_id, date_from, date_to)
+    return LoyaltyStatisticsResponse(**stats)
+
+
+@router.get("/analytics/level-distribution", response_model=LevelDistributionResponse)
+def get_level_distribution(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Get distribution of clients by loyalty levels."""
+    business_id = get_user_business_id(current_user, db)
+    if not business_id:
+        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    
+    from app.api.core.loyalty_analytics import get_level_distribution
+    distribution = get_level_distribution(db, business_id)
+    return LevelDistributionResponse(distribution=distribution)
+
+
+@router.get("/analytics/top-clients", response_model=TopClientsResponse)
+def get_top_clients(
+    limit: int = Query(10, ge=1, le=100),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Get top clients by loyalty points."""
+    business_id = get_user_business_id(current_user, db)
+    if not business_id:
+        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    
+    from app.api.core.loyalty_analytics import get_top_clients_by_points
+    clients = get_top_clients_by_points(db, business_id, limit)
+    return TopClientsResponse(clients=clients)
+
+
+@router.get("/analytics/promotion-effectiveness", response_model=PromotionEffectivenessResponse)
+def get_promotion_effectiveness(
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Get effectiveness of promotions."""
+    business_id = get_user_business_id(current_user, db)
+    if not business_id:
+        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    
+    from app.api.core.loyalty_analytics import get_promotion_effectiveness
+    promotions = get_promotion_effectiveness(db, business_id, date_from, date_to)
+    return PromotionEffectivenessResponse(promotions=promotions)
+
+
+@router.get("/analytics/trends", response_model=PointsUsageTrendsResponse)
+def get_points_usage_trends(
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
+    group_by: str = Query("day", pattern="^(day|week|month)$"),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Get trends of points usage over time."""
+    business_id = get_user_business_id(current_user, db)
+    if not business_id:
+        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    
+    from app.api.core.loyalty_analytics import get_points_usage_trends
+    trends = get_points_usage_trends(db, business_id, date_from, date_to, group_by)
+    return PointsUsageTrendsResponse(trends=trends)
