@@ -229,7 +229,22 @@ def update_visit(
     from app.api.core.permissions import check_visit_access
     if not check_visit_access(db, current_user, visit):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    # Save old status for loyalty bonus check
+    old_status = visit.status
+    
     result = crud_visit.update_visit(db, visit, payload)
+    
+    # Award loyalty bonus if status changed to 'completed'
+    if old_status != 'completed' and result.status == 'completed':
+        try:
+            from app.api.core.loyalty_logic import award_bonus_for_visit
+            award_bonus_for_visit(db, result)
+        except Exception as e:
+            from app.api.core.logger import logger
+            logger.error(f"Error awarding loyalty bonus for visit {result.id}: {e}")
+            # Don't fail the request if loyalty bonus fails
+    
     from app.api.core.i18n import localize_response
     return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
 
