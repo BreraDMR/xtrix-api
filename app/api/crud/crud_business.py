@@ -16,6 +16,7 @@ def create_business(db: Session, business_in: BusinessCreate) -> Business:
         phone=business_in.phone,
         email=business_in.email,
         description=business_in.description,
+        currency=business_in.currency,
     )
     db.add(business)
     db.commit()

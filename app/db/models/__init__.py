@@ -26,3 +26,4 @@ from app.db.models.loyalty_program import (
     LoyaltyPromotion,
     LoyaltyTransaction,
 )
+from app.db.models.user_preferences import UserPreferences

@@ -15,6 +15,7 @@ class BusinessBase(BaseModel):
     phone: Optional[str] = Field(None, description="Телефон бизнеса")
     email: Optional[str] = Field(None, description="Email бизнеса")
     description: Optional[str] = Field(None, description="Описание бизнеса")
+    currency: str = Field(default="EUR", description="Валюта: EUR, USD, CZK, RUB, UAH")
 
 
 class BusinessCreate(BusinessBase):
@@ -30,6 +31,7 @@ class BusinessUpdate(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     description: Optional[str] = None
+    currency: Optional[str] = None
 
 
 class BusinessOut(BusinessBase):

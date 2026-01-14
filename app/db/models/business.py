@@ -25,6 +25,7 @@ class Business(Base):
     phone = Column(String, nullable=True, index=True)
     email = Column(String, nullable=True, index=True)
     description = Column(Text, nullable=True)
+    currency = Column(String, nullable=False, default="EUR", index=True)  # EUR, USD, CZK, RUB, UAH
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     deleted_at = Column(DateTime, nullable=True, index=True)  # Soft delete
 
