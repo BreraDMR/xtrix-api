@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.sql import text
 
 revision = "0028_user_preferences"
-down_revision = "0027_add_currency_to_business"
+down_revision = "0027_currency"
 branch_labels = None
 depends_on = None
 
