@@ -14,11 +14,10 @@ router = APIRouter()
 def get_my_preferences(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
-    locale: str = Depends(deps.get_locale),
 ):
     """Получить настройки текущего пользователя."""
     preferences = crud_user_preferences.get_or_create_user_preferences(db, current_user.id)
-    return localize_response(preferences, locale)
+    return UserPreferencesOut.model_validate(preferences)
 
 
 @router.put("/me", response_model=UserPreferencesOut, summary="Update my preferences")
