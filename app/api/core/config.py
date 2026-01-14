@@ -48,6 +48,15 @@ class Settings(BaseSettings):
     twilio_sid: str = Field("", env="TWILIO_SID")
     twilio_token: str = Field("", env="TWILIO_TOKEN")
     twilio_from: str = Field("", env="TWILIO_FROM")
+    twilio_whatsapp_from: str = Field("", env="TWILIO_WHATSAPP_FROM", description="Twilio WhatsApp sender (format: whatsapp:+1234567890)")
+    
+    # SendPulse settings
+    sendpulse_client_id: str = Field("", env="SENDPULSE_CLIENT_ID", description="SendPulse API Client ID")
+    sendpulse_client_secret: str = Field("", env="SENDPULSE_CLIENT_SECRET", description="SendPulse API Client Secret")
+    sendpulse_address_book_id: int = Field(0, env="SENDPULSE_ADDRESS_BOOK_ID", description="SendPulse Address Book ID for contacts")
+    sendpulse_from_email: str = Field("", env="SENDPULSE_FROM_EMAIL", description="SendPulse sender email address")
+    sendpulse_from_name: str = Field("", env="SENDPULSE_FROM_NAME", description="SendPulse sender name")
+    sendpulse_sms_sender: str = Field("", env="SENDPULSE_SMS_SENDER", description="SendPulse SMS sender name")
     
     # CORS settings
     cors_origins: str = Field(

@@ -74,6 +74,15 @@ def create_subscription(
     _: User = Depends(deps.role_required("admin", "specialist")),
     locale: str = Depends(deps.get_locale),
 ):
+    # БЕЗОПАСНОСТЬ: Запрещаем ручное создание подписок Stripe
+    # Подписки Stripe создаются ТОЛЬКО через webhook после успешной оплаты
+    if payload.provider == "stripe":
+        raise HTTPException(
+            status_code=403,
+            detail=_("stripe_subscriptions_must_be_created_via_payment", locale) or 
+                   "Stripe subscriptions can only be created through payment checkout"
+        )
+    
     plan = crud_subscription.get_plan(db, payload.plan_id)
     if not plan or not plan.is_active:
         raise HTTPException(status_code=400, detail=_("plan_not_active", locale))
@@ -186,41 +195,9 @@ def get_checkout_session(
         if session.metadata.get("user_id") != str(current_user.id):
             raise HTTPException(status_code=403, detail="Not allowed")
         
-        if session.payment_status == "paid":
-            # Создаем подписку на основе успешной оплаты
-            subscription_id = session.subscription
-            if subscription_id:
-                # Получаем plan_id из metadata
-                plan_id = int(session.metadata.get("plan_id", 0))
-                if plan_id:
-                    plan = crud_subscription.get_plan(db, plan_id)
-                    if plan:
-                        # Создаем или обновляем подписку
-                        existing_sub = crud_subscription.get_by_external(db, "stripe", subscription_id)
-                        if not existing_sub:
-                            from app.schemas.subscription import SubscriptionCreate
-                            sub_data = SubscriptionCreate(
-                                user_id=current_user.id,
-                                plan_id=plan_id,
-                                provider="stripe",
-                                external_id=subscription_id,
-                                status="active",
-                            )
-                            crud_subscription.create_subscription(db, sub_data)
-                            # Логируем транзакцию
-                            from app.api.crud import crud_transaction
-                            from app.schemas.transaction import TransactionCreate
-                            transaction_data = TransactionCreate(
-                                subscription_id=existing_sub.id if existing_sub else 0,
-                                amount=plan.price,
-                                currency=plan.currency,
-                                payment_method="card",
-                                status="succeeded",
-                                description=f"Subscription payment via Stripe Checkout",
-                                provider="stripe",
-                                external_transaction_id=session.payment_intent,
-                            )
-                            crud_transaction.create_transaction(db, transaction_data)
+        # БЕЗОПАСНОСТЬ: Не создаем подписку здесь!
+        # Подписка создается ТОЛЬКО через webhook (checkout.session.completed)
+        # Этот endpoint используется только для проверки статуса сессии
         
         return {
             "id": session.id,
@@ -277,7 +254,66 @@ async def stripe_webhook(request: Request, db: Session = Depends(deps.get_db)):
     obj = event.get("data", {}).get("object", {})
     
     # Обрабатываем различные события Stripe
-    if event_type == "customer.subscription.created":
+    if event_type == "checkout.session.completed":
+        # КРИТИЧЕСКОЕ СОБЫТИЕ: Подписка создается ТОЛЬКО после успешной оплаты
+        payment_status = obj.get("payment_status", "")
+        if payment_status == "paid":
+            subscription_id = obj.get("subscription")
+            if subscription_id:
+                # Получаем user_id и plan_id из metadata
+                metadata = obj.get("metadata", {})
+                user_id = int(metadata.get("user_id", 0))
+                plan_id = int(metadata.get("plan_id", 0))
+                
+                if user_id and plan_id:
+                    # Проверяем, что подписка еще не создана
+                    existing_sub = crud_subscription.get_by_external(db, "stripe", str(subscription_id))
+                    if not existing_sub:
+                        plan = crud_subscription.get_plan(db, plan_id)
+                        if plan:
+                            # Получаем информацию о подписке из Stripe
+                            if not settings.stripe_api_key:
+                                logger.error("Stripe API key not configured, skipping subscription creation")
+                            else:
+                                stripe.api_key = settings.stripe_api_key
+                                try:
+                                    stripe_sub = stripe.Subscription.retrieve(subscription_id)
+                                    period_end = datetime.fromtimestamp(stripe_sub.current_period_end) if stripe_sub.current_period_end else None
+                                    
+                                    # Создаем подписку
+                                    sub_data = SubscriptionCreate(
+                                        user_id=user_id,
+                                        plan_id=plan_id,
+                                        provider="stripe",
+                                        external_id=str(subscription_id),
+                                        status="active",
+                                        current_period_end=period_end,
+                                    )
+                                    created_sub = crud_subscription.create_subscription(db, sub_data)
+                                    
+                                    # Логируем транзакцию
+                                    amount_total = obj.get("amount_total", 0) / 100.0  # Stripe использует центы
+                                    currency = obj.get("currency", "eur").upper()
+                                    try:
+                                        transaction_data = TransactionCreate(
+                                            subscription_id=created_sub.id,
+                                            amount=amount_total,
+                                            currency=currency,
+                                            payment_method="card",
+                                            status="succeeded",
+                                            description=f"Subscription payment via Stripe Checkout",
+                                            provider="stripe",
+                                            external_transaction_id=str(obj.get("payment_intent", "")),
+                                        )
+                                        crud_transaction.create_transaction(db, transaction_data)
+                                    except Exception as e:
+                                        logger.warning(f"Failed to log checkout transaction: {e}")
+                                    
+                                    logger.info(f"Subscription created via checkout.session.completed: user_id={user_id}, plan_id={plan_id}, subscription_id={subscription_id}")
+                                except stripe.error.StripeError as e:
+                                    logger.error(f"Failed to retrieve Stripe subscription {subscription_id}: {e}")
+    
+    elif event_type == "customer.subscription.created":
         external_id = str(obj.get("id", ""))
         status = obj.get("status", "active")
         sub = crud_subscription.get_by_external(db, "stripe", external_id)

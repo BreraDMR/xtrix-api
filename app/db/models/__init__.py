@@ -20,3 +20,9 @@ from app.db.models.product import Product
 from app.db.models.product_usage import ProductUsage
 from app.db.models.expense import Expense
 from app.db.models.expense_category import ExpenseCategory
+from app.db.models.loyalty_program import (
+    LoyaltyProgram,
+    LoyaltyLevel,
+    LoyaltyPromotion,
+    LoyaltyTransaction,
+)
