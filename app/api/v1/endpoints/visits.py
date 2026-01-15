@@ -222,13 +222,28 @@ def update_visit(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    visit = crud_visit.get_visit(db, visit_id)
+    # Получаем business_id для проверки доступа
+    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    visit = crud_visit.get_visit(db, visit_id, business_id=business_id)
     if not visit:
         raise HTTPException(status_code=404, detail=_("visit_not_found", locale))
     # Проверяем доступ используя новую систему прав
     from app.api.core.permissions import check_visit_access
     if not check_visit_access(db, current_user, visit):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    # Проверяем payment_method для завершенных визитов с ценой
+    # Если статус меняется на completed или уже completed, и есть цена, нужен payment_method
+    final_status = payload.status if payload.status is not None else visit.status
+    final_price = payload.price if payload.price is not None else visit.price
+    final_payment_method = payload.payment_method if payload.payment_method is not None else visit.payment_method
+    
+    if final_status == 'completed' and final_price and final_price > 0:
+        if not final_payment_method or final_payment_method not in ['card', 'cash', 'other']:
+            raise HTTPException(
+                status_code=400,
+                detail=_("payment_method_required_for_completed_visits", locale) or "Payment method is required for completed visits with price"
+            )
     
     # Save old status for loyalty bonus check
     old_status = visit.status

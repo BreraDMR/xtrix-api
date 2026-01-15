@@ -383,7 +383,6 @@ def get_client_loyalty_balance(
     relation = crud_loyalty.get_client_loyalty_balance(db, client_id, business_id)
     if not relation:
         # Return zero balance
-        from app.schemas.loyalty import ClientLoyaltyBalance
         return ClientLoyaltyBalance(
             client_id=client_id,
             business_id=business_id,

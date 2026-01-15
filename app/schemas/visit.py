@@ -136,14 +136,21 @@ class VisitUpdate(BaseModel):
     @field_validator('payment_method')
     @classmethod
     def validate_payment_method(cls, v, info):
-        # При создании нового визита: если статус completed и указана цена, требуется payment_method
-        if 'status' in info.data and info.data.get('status') == 'completed':
-            if 'price' in info.data and info.data.get('price') and info.data.get('price') > 0:
-                if not v or v not in ['card', 'cash', 'other']:
-                    raise ValueError("Payment method is required for completed visits with price")
         # Проверяем валидность значения, если оно указано
         if v is not None and v not in ['card', 'cash', 'other']:
             raise ValueError("Payment method must be one of: card, cash, other")
+        
+        # При обновлении: если статус изменяется на completed и указана цена, требуется payment_method
+        # Но только если status передается в обновлении
+        status = info.data.get('status') if 'status' in info.data else None
+        price = info.data.get('price') if 'price' in info.data else None
+        
+        # Если это обновление, нужно проверить текущий статус визита
+        # Но это сложно без доступа к существующему визиту, поэтому проверяем только переданные данные
+        if status == 'completed' and price and price > 0:
+            if not v or v not in ['card', 'cash', 'other']:
+                raise ValueError("Payment method is required for completed visits with price")
+        
         return v
 
 
