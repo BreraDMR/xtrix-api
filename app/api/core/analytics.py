@@ -47,6 +47,17 @@ def get_visit_statistics(
     
     visits_by_status = {status: count for status, count in status_counts}
     
+    # Base filters for monthly visits and duration calculations
+    base_filters = []
+    if specialist_id:
+        base_filters.append(Visit.specialist_id == specialist_id)
+    if client_id:
+        base_filters.append(Visit.client_id == client_id)
+    if date_from:
+        base_filters.append(Visit.date_start >= date_from)
+    if date_to:
+        base_filters.append(Visit.date_start <= date_to)
+    
     # Visits by month
     monthly_visits = (
         db.query(
@@ -54,7 +65,7 @@ def get_visit_statistics(
             extract('month', Visit.date_start).label('month'),
             func.count(Visit.id).label('count')
         )
-        .filter(*status_filters)
+        .filter(*base_filters)
         .group_by('year', 'month')
         .order_by('year', 'month')
         .all()
@@ -71,7 +82,7 @@ def get_visit_statistics(
     ]
     
     # Average visit duration
-    duration_filters = status_filters + [Visit.date_end.isnot(None)]
+    duration_filters = base_filters + [Visit.date_end.isnot(None)]
     avg_duration = (
         db.query(
             func.avg(
