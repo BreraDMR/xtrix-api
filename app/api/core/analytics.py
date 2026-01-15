@@ -293,43 +293,16 @@ def get_payment_statistics(
             'percentage': round((float(total) / total_payments * 100) if total_payments > 0 else 0.0, 2),
         }
     
-    # Gateway vs Terminal (card breakdown)
-    # Card payments = Gateway payments
-    gateway_payments_data = payments_by_method_dict.get('card', {'total': 0.0, 'count': 0, 'percentage': 0.0})
-    gateway_payments = {
-        'total': gateway_payments_data['total'],
-        'count': gateway_payments_data['count'],
-        'percentage': gateway_payments_data['percentage'],
-    }
-    
-    # Terminal payments = Cash payments
-    terminal_payments_data = payments_by_method_dict.get('cash', {'total': 0.0, 'count': 0, 'percentage': 0.0})
-    terminal_payments = {
-        'total': terminal_payments_data['total'],
-        'count': terminal_payments_data['count'],
-        'percentage': terminal_payments_data['percentage'],
-    }
-    
-    # Physical vs Virtual card (for now, all cards are physical)
-    physical_card = gateway_payments.copy()
-    virtual_card = {'total': 0.0, 'count': 0, 'percentage': 0.0}
-    
-    cash_payments = terminal_payments.copy()
-    other_payments_data = payments_by_method_dict.get('other', {'total': 0.0, 'count': 0, 'percentage': 0.0})
-    other_payments = {
-        'total': other_payments_data['total'],
-        'count': other_payments_data['count'],
-        'percentage': other_payments_data['percentage'],
-    }
+    # Получаем данные по каждому способу оплаты
+    card_payments = payments_by_method_dict.get('card', {'total': 0.0, 'count': 0, 'percentage': 0.0})
+    cash_payments = payments_by_method_dict.get('cash', {'total': 0.0, 'count': 0, 'percentage': 0.0})
+    other_payments = payments_by_method_dict.get('other', {'total': 0.0, 'count': 0, 'percentage': 0.0})
     
     return {
         'total_payments': float(total_payments),
         'total_count': int(total_count),
         'payments_by_method': payments_by_method_dict,
-        'gateway_payments': gateway_payments,
-        'terminal_payments': terminal_payments,
-        'physical_card': physical_card,
-        'virtual_card': virtual_card,
+        'card_payments': card_payments,
         'cash_payments': cash_payments,
         'other_payments': other_payments,
     }

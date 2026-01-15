@@ -46,10 +46,7 @@ class PaymentStatisticsResponse(BaseModel):
     total_payments: float
     total_count: int
     payments_by_method: Dict[str, PaymentMethodStats]
-    gateway_payments: PaymentMethodStats
-    terminal_payments: PaymentMethodStats
-    physical_card: PaymentMethodStats
-    virtual_card: PaymentMethodStats
+    card_payments: PaymentMethodStats
     cash_payments: PaymentMethodStats
     other_payments: PaymentMethodStats
 
