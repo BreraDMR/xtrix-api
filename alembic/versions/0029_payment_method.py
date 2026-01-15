@@ -1,7 +1,7 @@
 """add_payment_method_to_visits
 
-Revision ID: 0029_add_payment_method_to_visits
-Revises: 0028_create_user_preferences
+Revision ID: 0029_payment_method
+Revises: 0028_user_preferences
 Create Date: 2025-01-13 15:00:00
 """
 from alembic import op
@@ -9,7 +9,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = "0029_add_payment_method_to_visits"
+revision = "0029_payment_method"
 down_revision = "0028_user_preferences"
 branch_labels = None
 depends_on = None
