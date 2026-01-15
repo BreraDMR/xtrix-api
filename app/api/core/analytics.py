@@ -238,6 +238,103 @@ def get_financial_report(
     }
 
 
+def get_payment_statistics(
+    db: Session,
+    specialist_id: Optional[int] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """Get payment statistics grouped by payment method."""
+    base_filters = []
+    if specialist_id:
+        base_filters.append(Visit.specialist_id == specialist_id)
+    if date_from:
+        base_filters.append(Visit.date_start >= date_from)
+    if date_to:
+        base_filters.append(Visit.date_start <= date_to)
+    
+    # Only completed visits with price
+    payment_filters = base_filters + [
+        Visit.status == 'completed',
+        Visit.price.isnot(None),
+        Visit.price > 0,
+    ]
+    
+    # Total payments
+    total_payments = (
+        db.query(func.sum(Visit.price))
+        .filter(*payment_filters)
+        .scalar() or 0.0
+    )
+    total_count = (
+        db.query(func.count(Visit.id))
+        .filter(*payment_filters)
+        .scalar() or 0
+    )
+    
+    # Payments by method (card, cash, other)
+    payments_by_method = (
+        db.query(
+            Visit.payment_method,
+            func.sum(Visit.price).label('total'),
+            func.count(Visit.id).label('count')
+        )
+        .filter(*payment_filters)
+        .group_by(Visit.payment_method)
+        .all()
+    )
+    
+    payments_by_method_dict = {}
+    for method, total, count in payments_by_method:
+        method_key = method or 'unknown'
+        payments_by_method_dict[method_key] = {
+            'total': float(total),
+            'count': int(count),
+            'percentage': round((float(total) / total_payments * 100) if total_payments > 0 else 0.0, 2),
+        }
+    
+    # Gateway vs Terminal (card breakdown)
+    # Card payments = Gateway payments
+    gateway_payments_data = payments_by_method_dict.get('card', {'total': 0.0, 'count': 0, 'percentage': 0.0})
+    gateway_payments = {
+        'total': gateway_payments_data['total'],
+        'count': gateway_payments_data['count'],
+        'percentage': gateway_payments_data['percentage'],
+    }
+    
+    # Terminal payments = Cash payments
+    terminal_payments_data = payments_by_method_dict.get('cash', {'total': 0.0, 'count': 0, 'percentage': 0.0})
+    terminal_payments = {
+        'total': terminal_payments_data['total'],
+        'count': terminal_payments_data['count'],
+        'percentage': terminal_payments_data['percentage'],
+    }
+    
+    # Physical vs Virtual card (for now, all cards are physical)
+    physical_card = gateway_payments.copy()
+    virtual_card = {'total': 0.0, 'count': 0, 'percentage': 0.0}
+    
+    cash_payments = terminal_payments.copy()
+    other_payments_data = payments_by_method_dict.get('other', {'total': 0.0, 'count': 0, 'percentage': 0.0})
+    other_payments = {
+        'total': other_payments_data['total'],
+        'count': other_payments_data['count'],
+        'percentage': other_payments_data['percentage'],
+    }
+    
+    return {
+        'total_payments': float(total_payments),
+        'total_count': int(total_count),
+        'payments_by_method': payments_by_method_dict,
+        'gateway_payments': gateway_payments,
+        'terminal_payments': terminal_payments,
+        'physical_card': physical_card,
+        'virtual_card': virtual_card,
+        'cash_payments': cash_payments,
+        'other_payments': other_payments,
+    }
+
+
 def get_popular_services(
     db: Session,
     specialist_id: Optional[int] = None,

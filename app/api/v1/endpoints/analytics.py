@@ -12,6 +12,7 @@ from app.api.core.analytics import (
     get_financial_report,
     get_popular_services,
     get_client_statistics,
+    get_payment_statistics,
 )
 from app.api.core.advanced_analytics import (
     get_retention_metrics,
@@ -32,6 +33,7 @@ from app.schemas.analytics import (
     FinancialReportResponse,
     PopularServicesResponse,
     ClientStatisticsResponse,
+    PaymentStatisticsResponse,
     ReportExportRequest,
     RetentionMetricsResponse,
     CohortTableResponse,
@@ -186,6 +188,36 @@ def get_clients_statistics(
     stats = get_client_statistics(db, owner_id=owner_id)
     
     return ClientStatisticsResponse(**stats)
+
+
+@router.get("/payments/statistics", response_model=PaymentStatisticsResponse)
+def get_payments_statistics(
+    specialist_id: Optional[int] = Query(None),
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Get payment statistics grouped by payment method."""
+    from app.api.core.permissions import get_filtered_specialist_id
+    
+    # Фильтрация по ролям
+    if current_user.role == "admin":
+        pass
+    elif current_user.role == "business_owner":
+        specialist_id = None
+    else:
+        specialist_id = get_filtered_specialist_id(current_user)
+    
+    stats = get_payment_statistics(
+        db,
+        specialist_id=specialist_id,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    
+    return PaymentStatisticsResponse(**stats)
 
 
 @router.post("/reports/export")

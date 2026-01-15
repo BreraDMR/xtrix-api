@@ -34,6 +34,26 @@ class ClientStatisticsResponse(BaseModel):
     top_spenders: List[Dict[str, Any]]
 
 
+class PaymentMethodStats(BaseModel):
+    """Statistics for a payment method."""
+    total: float
+    count: int
+    percentage: float
+
+
+class PaymentStatisticsResponse(BaseModel):
+    """Response for payment statistics."""
+    total_payments: float
+    total_count: int
+    payments_by_method: Dict[str, PaymentMethodStats]
+    gateway_payments: PaymentMethodStats
+    terminal_payments: PaymentMethodStats
+    physical_card: PaymentMethodStats
+    virtual_card: PaymentMethodStats
+    cash_payments: PaymentMethodStats
+    other_payments: PaymentMethodStats
+
+
 class AuditLogOut(BaseModel):
     """Audit log output schema."""
     id: int
