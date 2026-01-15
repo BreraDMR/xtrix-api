@@ -21,6 +21,7 @@ class VisitBase(BaseModel):
     photo_url: Optional[str] = None
     price: Optional[float] = Field(None, ge=0.0)
     status: Optional[str] = Field("planned", description="planned|completed|cancelled|in_progress")
+    payment_method: Optional[str] = Field(None, description="card|cash|other - способ оплаты")
     used_products: Optional[List[UsedProduct]] = Field(None, description="Список использованных товаров")
     
     @field_validator('date_end')
@@ -57,6 +58,19 @@ class VisitBase(BaseModel):
     def validate_status(cls, v):
         if v is not None and v not in ['planned', 'completed', 'cancelled', 'in_progress']:
             raise ValueError("Status must be one of: planned, completed, cancelled, in_progress")
+        return v
+    
+    @field_validator('payment_method')
+    @classmethod
+    def validate_payment_method(cls, v, info):
+        # Проверяем, что если статус completed и указана цена, то должен быть выбран способ оплаты
+        if 'status' in info.data and info.data.get('status') == 'completed':
+            if 'price' in info.data and info.data.get('price') and info.data.get('price') > 0:
+                if not v or v not in ['card', 'cash', 'other']:
+                    raise ValueError("Payment method is required for completed visits with price")
+        # Проверяем валидность значения, если оно указано
+        if v is not None and v not in ['card', 'cash', 'other']:
+            raise ValueError("Payment method must be one of: card, cash, other")
         return v
 
 
@@ -99,6 +113,7 @@ class VisitUpdate(BaseModel):
     photo_url: Optional[str] = None
     price: Optional[float] = Field(None, ge=0.0)
     status: Optional[str] = None
+    payment_method: Optional[str] = Field(None, description="card|cash|other - способ оплаты")
     
     @field_validator('date_end')
     @classmethod

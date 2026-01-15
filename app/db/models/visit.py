@@ -21,6 +21,7 @@ class Visit(Base):
     photo_url = Column(String, nullable=True)
     price = Column(Float, nullable=True, index=True)
     status = Column(String, default="planned", index=True)
+    payment_method = Column(String, nullable=True, index=True)  # 'card', 'cash', 'other'
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     deleted_at = Column(DateTime, nullable=True, index=True)  # Soft delete
     archived_at = Column(DateTime, nullable=True, index=True)  # Archiving
