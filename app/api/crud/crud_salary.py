@@ -319,7 +319,8 @@ def create_salary_payment(
     db: Session,
     salary_calculation_id: int,
     payment_in: SalaryPaymentCreate,
-    created_by_id: int
+    created_by_id: int,
+    business_id: Optional[int] = None
 ) -> SalaryPayment:
     """Создать выплату."""
     payment = SalaryPayment(
@@ -338,6 +339,68 @@ def create_salary_payment(
     salary_calculation = get_salary_calculation(db, salary_calculation_id)
     if salary_calculation:
         _update_salary_payment_status(db, salary_calculation)
+    
+    # Если выплата завершена (status='completed'), создаем расход за месяц выплаты
+    if payment_in.status == 'completed' and business_id:
+        from app.api.crud import crud_expense, crud_expense_category
+        from app.schemas.expense import ExpenseCreate
+        from datetime import datetime
+        
+        # Ищем или создаем категорию "Зарплаты" (Salary/Зарплата)
+        salary_category = crud_expense_category.list_expense_categories(
+            db, 
+            business_id=business_id,
+            skip=0,
+            limit=100
+        )
+        salary_category = next(
+            (cat for cat in salary_category if 'зарплат' in cat.name.lower() or 'salary' in cat.name.lower() or 'plat' in cat.name.lower()),
+            None
+        )
+        
+        # Если категории нет, создаем системную категорию (если возможно) или пользовательскую
+        category_id = None
+        if not salary_category:
+            try:
+                # Пробуем создать категорию
+                from app.schemas.expense_category import ExpenseCategoryCreate
+                new_category = ExpenseCategoryCreate(
+                    name="Зарплата",
+                    color="#FF6B6B",
+                    business_id=business_id,
+                    is_system=False
+                )
+                salary_category = crud_expense_category.create_expense_category(db, new_category)
+                category_id = salary_category.id
+            except Exception as e:
+                # Если не удалось создать, работаем без категории
+                pass
+        else:
+            category_id = salary_category.id
+        
+        # Создаем расход на дату выплаты
+        expense_date = payment_in.payment_date
+        expense_description = f"Выплата зарплаты сотруднику (ID: {salary_calculation.employee_id})"
+        if payment_in.notes:
+            expense_description += f" - {payment_in.notes}"
+        
+        expense = ExpenseCreate(
+            business_id=business_id,
+            category_id=category_id,
+            amount=payment_in.amount,
+            currency="EUR",  # TODO: получить из бизнеса
+            description=expense_description,
+            expense_date=expense_date,
+            payment_method=payment_in.payment_method or "other"
+        )
+        
+        try:
+            crud_expense.create_expense(db, expense, created_by_id=created_by_id)
+        except Exception as e:
+            # Логируем ошибку, но не прерываем создание выплаты
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to create expense for salary payment: {e}")
     
     db.commit()
     db.refresh(payment)

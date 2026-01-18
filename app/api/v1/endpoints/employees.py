@@ -1189,11 +1189,23 @@ def create_salary_payment(
             detail=_("payment_amount_exceeds_remaining", locale) or f"Payment amount exceeds remaining amount: {remaining_amount}"
         )
     
+    # Получаем business_id для создания расхода
+    # Employee связан с business_owner (User), нужно получить business_id из бизнеса владельца
+    from app.api.v1.endpoints.expenses import get_user_business_id
+    business_id = get_user_business_id(current_user, db)
+    
+    # Если не удалось получить, пытаемся через business_owner employee
+    if not business_id and employee.business_owner_id:
+        owner_user = db.query(User).filter(User.id == employee.business_owner_id).first()
+        if owner_user:
+            business_id = owner_user.business_id if hasattr(owner_user, 'business_id') else None
+    
     result = crud_salary.create_salary_payment(
         db=db,
         salary_calculation_id=salary_id,
         payment_in=payment,
-        created_by_id=current_user.id
+        created_by_id=current_user.id,
+        business_id=business_id
     )
     
     return result
