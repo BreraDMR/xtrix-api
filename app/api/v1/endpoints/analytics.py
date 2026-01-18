@@ -177,15 +177,23 @@ def get_popular_services_endpoint(
 @router.get("/clients/statistics", response_model=ClientStatisticsResponse)
 def get_clients_statistics(
     owner_id: Optional[int] = Query(None),
+    business_id: Optional[int] = Query(None),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
     """Get client statistics."""
-    if current_user.role != "admin":
+    # Get business_id for current user (function defined below)
+    user_business_id = get_user_business_id(current_user, db)
+    
+    # Use business_id if available, otherwise fall back to owner_id
+    if user_business_id:
+        business_id = user_business_id
+        owner_id = None  # Don't use owner_id when business_id is available
+    elif current_user.role != "admin":
         owner_id = current_user.id
     
-    stats = get_client_statistics(db, owner_id=owner_id)
+    stats = get_client_statistics(db, owner_id=owner_id, business_id=business_id)
     
     return ClientStatisticsResponse(**stats)
 

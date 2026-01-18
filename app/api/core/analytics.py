@@ -7,6 +7,7 @@ from sqlalchemy import func, and_, extract, case
 from app.db.models.visit import Visit
 from app.db.models.service import Service
 from app.db.models.client import Client
+from app.db.models.client_business_relation import ClientBusinessRelation
 
 
 def get_visit_statistics(
@@ -356,19 +357,52 @@ def get_popular_services(
 def get_client_statistics(
     db: Session,
     owner_id: Optional[int] = None,
+    business_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Get client statistics."""
-    q = db.query(Client)
-    if owner_id:
-        q = q.filter(Client.owner_id == owner_id)
     
-    total_clients = q.count()
-    
-    # Clients by gender
+    # Build base query with filters
+    base_query = db.query(Client)
     client_filters = []
-    if owner_id:
+    
+    # Filter by business_id using ClientBusinessRelation
+    if business_id:
+        # Join with ClientBusinessRelation to filter by business_id
+        base_query = base_query.join(
+            ClientBusinessRelation, 
+            Client.id == ClientBusinessRelation.client_id
+        ).filter(ClientBusinessRelation.business_id == business_id)
+        client_filters.append(
+            Client.id.in_(
+                db.query(ClientBusinessRelation.client_id)
+                .filter(ClientBusinessRelation.business_id == business_id)
+            )
+        )
+    elif owner_id:
+        # Legacy filter by owner_id
+        base_query = base_query.filter(Client.owner_id == owner_id)
         client_filters.append(Client.owner_id == owner_id)
     
+    # Filter out deleted and archived clients
+    base_query = base_query.filter(Client.deleted_at.is_(None))
+    base_query = base_query.filter(Client.archived_at.is_(None))
+    client_filters.append(Client.deleted_at.is_(None))
+    client_filters.append(Client.archived_at.is_(None))
+    
+    total_clients = base_query.count()
+    
+    # New clients (created today)
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = today_start + timedelta(days=1)
+    
+    new_clients_query = db.query(Client).filter(*client_filters)
+    new_clients_query = new_clients_query.filter(
+        Client.created_at >= today_start,
+        Client.created_at < today_end
+    )
+    new_clients = new_clients_query.count()
+    
+    # Clients by gender
     gender_counts = (
         db.query(Client.gender, func.count(Client.id).label('count'))
         .filter(*client_filters)
@@ -378,37 +412,63 @@ def get_client_statistics(
     
     clients_by_gender = {gender or 'unknown': count for gender, count in gender_counts}
     
-    # Average spending
-    avg_spending = (
-        db.query(func.avg(Client.spending))
-        .filter(*client_filters)
-        .scalar()
-    )
-    
-    # Top spenders
-    top_spenders = (
-        db.query(
-            Client.id,
-            Client.full_name,
-            Client.spending,
+    # Average spending - need to check if using business_id, get from ClientBusinessRelation
+    if business_id:
+        avg_spending = (
+            db.query(func.avg(ClientBusinessRelation.spending))
+            .filter(ClientBusinessRelation.business_id == business_id)
+            .scalar()
         )
-        .filter(*client_filters)
-        .order_by(Client.spending.desc())
-        .limit(10)
-        .all()
-    )
+        
+        # Top spenders from ClientBusinessRelation
+        top_spenders = (
+            db.query(
+                Client.id,
+                Client.full_name,
+                ClientBusinessRelation.spending,
+            )
+            .join(ClientBusinessRelation, Client.id == ClientBusinessRelation.client_id)
+            .filter(
+                ClientBusinessRelation.business_id == business_id,
+                Client.deleted_at.is_(None),
+                Client.archived_at.is_(None),
+            )
+            .order_by(ClientBusinessRelation.spending.desc())
+            .limit(10)
+            .all()
+        )
+    else:
+        # Legacy: use Client.spending directly
+        avg_spending = (
+            db.query(func.avg(Client.spending))
+            .filter(*client_filters)
+            .scalar()
+        )
+        
+        top_spenders = (
+            db.query(
+                Client.id,
+                Client.full_name,
+                Client.spending,
+            )
+            .filter(*client_filters)
+            .order_by(Client.spending.desc())
+            .limit(10)
+            .all()
+        )
     
     top_spenders_list = [
         {
             'client_id': client_id,
             'client_name': name,
-            'spending': float(spending),
+            'spending': float(spending) if spending else 0.0,
         }
         for client_id, name, spending in top_spenders
     ]
     
     return {
         'total_clients': total_clients,
+        'new_clients': new_clients,
         'clients_by_gender': clients_by_gender,
         'average_spending': round(float(avg_spending), 2) if avg_spending else None,
         'top_spenders': top_spenders_list,

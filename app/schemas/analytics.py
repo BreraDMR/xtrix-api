@@ -29,6 +29,7 @@ class PopularServicesResponse(BaseModel):
 class ClientStatisticsResponse(BaseModel):
     """Response for client statistics."""
     total_clients: int
+    new_clients: int
     clients_by_gender: Dict[str, int]
     average_spending: Optional[float] = None
     top_spenders: List[Dict[str, Any]]
