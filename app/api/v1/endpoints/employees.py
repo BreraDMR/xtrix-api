@@ -16,7 +16,13 @@ from app.schemas.salary import (
     SalaryCalculationOut, 
     SalaryCalculationCreate, 
     SalaryCalculationUpdate,
-    CalculateSalaryRequest
+    CalculateSalaryRequest,
+    SalaryCalculationDetail,
+    SalaryAdjustmentCreate,
+    SalaryAdjustmentOut,
+    SalaryPaymentCreate,
+    SalaryPaymentUpdate,
+    SalaryPaymentOut
 )
 
 router = APIRouter()
@@ -794,14 +800,14 @@ def calculate_employee_salary(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/{employee_id}/salary/current", response_model=SalaryCalculationOut, summary="Get current unpaid salary for employee")
+@router.get("/{employee_id}/salary/current", response_model=SalaryCalculationDetail, summary="Get current unpaid salary for employee")
 def get_employee_current_salary(
     employee_id: int,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    """Получить текущую невыплаченную зарплату сотрудника."""
+    """Получить текущую невыплаченную зарплату сотрудника с деталями."""
     from app.api.core.permissions import can_manage_employees
     
     # Проверяем доступ
@@ -831,7 +837,17 @@ def get_employee_current_salary(
     if not salary:
         raise HTTPException(status_code=404, detail=_("no_unpaid_salary", locale))
     
-    return salary
+    # Загружаем adjustments и payments
+    adjustments = crud_salary.list_salary_adjustments(db, salary.id)
+    payments = crud_salary.list_salary_payments(db, salary.id)
+    
+    # Формируем детализированный ответ
+    salary_dict = {
+        **salary.__dict__,
+        'adjustments': adjustments,
+        'payments': payments
+    }
+    return SalaryCalculationDetail(**salary_dict)
 
 
 @router.get("/{employee_id}/salary/history", response_model=List[SalaryCalculationOut], summary="Get salary history for employee")
@@ -882,7 +898,7 @@ def get_employee_salary_history(
     return salaries
 
 
-@router.get("/{employee_id}/salary/{salary_id}", response_model=SalaryCalculationOut, summary="Get salary calculation details")
+@router.get("/{employee_id}/salary/{salary_id}", response_model=SalaryCalculationDetail, summary="Get salary calculation details")
 def get_salary_calculation(
     employee_id: int,
     salary_id: int,
@@ -890,7 +906,7 @@ def get_salary_calculation(
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    """Получить детали расчета зарплаты."""
+    """Получить детали расчета зарплаты с adjustments и payments."""
     from app.api.core.permissions import can_manage_employees
     
     # Проверяем доступ
@@ -912,7 +928,19 @@ def get_salary_calculation(
     if not salary:
         raise HTTPException(status_code=404, detail=_("salary_calculation_not_found", locale))
     
-    return salary
+    # Загружаем adjustments и payments
+    adjustments = crud_salary.list_salary_adjustments(db, salary_id)
+    payments = crud_salary.list_salary_payments(db, salary_id)
+    
+    # Формируем детализированный ответ
+    from app.schemas.salary import SalaryCalculationDetail
+    salary_dict = {
+        **salary.__dict__,
+        'adjustments': adjustments,
+        'payments': payments,
+        'commission_percentage': employee.commission_percentage or 0.0 if employee else 0.0  # Добавляем процент комиссии из Employee
+    }
+    return SalaryCalculationDetail(**salary_dict)
 
 
 @router.put("/{employee_id}/salary/{salary_id}", response_model=SalaryCalculationOut, summary="Update salary calculation (mark as paid)")
@@ -955,13 +983,13 @@ def update_salary_calculation(
 
 # Endpoints для сотрудника (просмотр своих зарплат)
 
-@router.get("/me/salary/current", response_model=SalaryCalculationOut, summary="Get current unpaid salary")
+@router.get("/me/salary/current", response_model=SalaryCalculationDetail, summary="Get current unpaid salary")
 def get_my_current_salary(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    """Получить текущую невыплаченную зарплату. Только для employee."""
+    """Получить текущую невыплаченную зарплату с деталями. Только для employee."""
     if current_user.role != "employee":
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     
@@ -969,11 +997,26 @@ def get_my_current_salary(
     if not salary:
         raise HTTPException(status_code=404, detail=_("no_unpaid_salary", locale))
     
-    return salary
+    # Получаем информацию о сотруднике для commission_percentage
+    employee = crud_employee.get_employee_by_user_id(db, current_user.id)
+    
+    # Загружаем adjustments и payments
+    adjustments = crud_salary.list_salary_adjustments(db, salary.id)
+    payments = crud_salary.list_salary_payments(db, salary.id)
+    
+    # Формируем детализированный ответ
+    salary_dict = {
+        **salary.__dict__,
+        'adjustments': adjustments,
+        'payments': payments,
+        'commission_percentage': employee.commission_percentage or 0.0 if employee else 0.0  # Добавляем процент комиссии из Employee
+    }
+    return SalaryCalculationDetail(**salary_dict)
 
 
 @router.get("/me/salary/history", response_model=List[SalaryCalculationOut], summary="Get my salary history")
 def get_my_salary_history(
+    payment_status: Optional[str] = Query(None, description="Filter by payment status: unpaid, partial, paid"),
     limit: int = Query(10, ge=1, le=100, description="Maximum number of records to return"),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
@@ -983,6 +1026,274 @@ def get_my_salary_history(
     if current_user.role != "employee":
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     
-    salaries = crud_salary.get_salary_history(db=db, employee_user_id=current_user.id, limit=limit)
+    employee = crud_employee.get_employee_by_user_id(db, current_user.id)
+    if not employee:
+        raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
+    
+    pagination = PaginationParams(page=1, per_page=limit)
+    salaries, _ = crud_salary.list_salary_calculations(
+        db=db,
+        employee_id=employee.id,
+        payment_status=payment_status,
+        pagination=pagination
+    )
     return salaries
+
+
+# ==================== Salary Adjustments Endpoints ====================
+
+@router.post("/{employee_id}/salary/{salary_id}/adjustments", response_model=SalaryAdjustmentOut, summary="Add salary adjustment (bonus/penalty)")
+def create_salary_adjustment(
+    employee_id: int,
+    salary_id: int,
+    adjustment: SalaryAdjustmentCreate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    locale: str = Depends(deps.get_locale),
+):
+    """Добавить начисление/удержание к зарплате. Только business_owner или admin."""
+    from app.api.core.permissions import can_manage_employees
+    
+    if not can_manage_employees(current_user):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    # Проверяем доступ к сотруднику и расчету
+    owner_id = get_business_owner_id(current_user)
+    if current_user.role == "admin":
+        owner_id = None
+    
+    employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
+    if not employee:
+        raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
+    
+    salary = crud_salary.get_salary_calculation(db=db, salary_id=salary_id, employee_id=employee_id)
+    if not salary:
+        raise HTTPException(status_code=404, detail=_("salary_calculation_not_found", locale))
+    
+    # Валидация типа
+    valid_types = ['bonus', 'penalty', 'overtime', 'allowance', 'deduction']
+    if adjustment.type not in valid_types:
+        raise HTTPException(status_code=400, detail=_("Invalid adjustment type", locale))
+    
+    result = crud_salary.create_salary_adjustment(
+        db=db,
+        salary_calculation_id=salary_id,
+        adjustment_in=adjustment,
+        created_by_id=current_user.id
+    )
+    
+    return result
+
+
+@router.get("/{employee_id}/salary/{salary_id}/adjustments", response_model=List[SalaryAdjustmentOut], summary="Get salary adjustments")
+def get_salary_adjustments(
+    employee_id: int,
+    salary_id: int,
+    adjustment_type: Optional[str] = Query(None, description="Filter by type"),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    locale: str = Depends(deps.get_locale),
+):
+    """Получить список начислений/удержаний для расчета зарплаты."""
+    from app.api.core.permissions import can_manage_employees
+    
+    # Проверяем доступ
+    if current_user.role == "employee":
+        employee = crud_employee.get_employee_by_user_id(db, current_user.id)
+        if not employee or employee.id != employee_id:
+            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    elif can_manage_employees(current_user):
+        owner_id = get_business_owner_id(current_user)
+        if current_user.role == "admin":
+            owner_id = None
+        employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
+        if not employee:
+            raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
+    else:
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    salary = crud_salary.get_salary_calculation(db=db, salary_id=salary_id, employee_id=employee_id)
+    if not salary:
+        raise HTTPException(status_code=404, detail=_("salary_calculation_not_found", locale))
+    
+    adjustments = crud_salary.list_salary_adjustments(db, salary_id, adjustment_type)
+    return adjustments
+
+
+@router.delete("/{employee_id}/salary/{salary_id}/adjustments/{adjustment_id}", summary="Delete salary adjustment")
+def delete_salary_adjustment(
+    employee_id: int,
+    salary_id: int,
+    adjustment_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    locale: str = Depends(deps.get_locale),
+):
+    """Удалить начисление/удержание. Только business_owner или admin."""
+    from app.api.core.permissions import can_manage_employees
+    
+    if not can_manage_employees(current_user):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    # Проверяем доступ
+    owner_id = get_business_owner_id(current_user)
+    if current_user.role == "admin":
+        owner_id = None
+    
+    employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
+    if not employee:
+        raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
+    
+    success = crud_salary.delete_salary_adjustment(db=db, adjustment_id=adjustment_id, salary_calculation_id=salary_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=_("adjustment_not_found", locale))
+    
+    return {"message": _("adjustment_deleted", locale)}
+
+
+# ==================== Salary Payments Endpoints ====================
+
+@router.post("/{employee_id}/salary/{salary_id}/payments", response_model=SalaryPaymentOut, summary="Create salary payment")
+def create_salary_payment(
+    employee_id: int,
+    salary_id: int,
+    payment: SalaryPaymentCreate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    locale: str = Depends(deps.get_locale),
+):
+    """Зарегистрировать выплату. Только business_owner или admin."""
+    from app.api.core.permissions import can_manage_employees
+    
+    if not can_manage_employees(current_user):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    # Проверяем доступ
+    owner_id = get_business_owner_id(current_user)
+    if current_user.role == "admin":
+        owner_id = None
+    
+    employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
+    if not employee:
+        raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
+    
+    salary = crud_salary.get_salary_calculation(db=db, salary_id=salary_id, employee_id=employee_id)
+    if not salary:
+        raise HTTPException(status_code=404, detail=_("salary_calculation_not_found", locale))
+    
+    # Валидация суммы
+    remaining_amount = salary.total_with_adjustments - salary.paid_amount
+    if payment.amount > remaining_amount:
+        raise HTTPException(
+            status_code=400,
+            detail=_("payment_amount_exceeds_remaining", locale) or f"Payment amount exceeds remaining amount: {remaining_amount}"
+        )
+    
+    result = crud_salary.create_salary_payment(
+        db=db,
+        salary_calculation_id=salary_id,
+        payment_in=payment,
+        created_by_id=current_user.id
+    )
+    
+    return result
+
+
+@router.get("/{employee_id}/salary/{salary_id}/payments", response_model=List[SalaryPaymentOut], summary="Get salary payments")
+def get_salary_payments(
+    employee_id: int,
+    salary_id: int,
+    status: Optional[str] = Query(None, description="Filter by payment status"),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    locale: str = Depends(deps.get_locale),
+):
+    """Получить список выплат для расчета зарплаты."""
+    from app.api.core.permissions import can_manage_employees
+    
+    # Проверяем доступ
+    if current_user.role == "employee":
+        employee = crud_employee.get_employee_by_user_id(db, current_user.id)
+        if not employee or employee.id != employee_id:
+            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    elif can_manage_employees(current_user):
+        owner_id = get_business_owner_id(current_user)
+        if current_user.role == "admin":
+            owner_id = None
+        employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
+        if not employee:
+            raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
+    else:
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    salary = crud_salary.get_salary_calculation(db=db, salary_id=salary_id, employee_id=employee_id)
+    if not salary:
+        raise HTTPException(status_code=404, detail=_("salary_calculation_not_found", locale))
+    
+    payments = crud_salary.list_salary_payments(db, salary_id, status)
+    return payments
+
+
+@router.put("/{employee_id}/salary/{salary_id}/payments/{payment_id}", response_model=SalaryPaymentOut, summary="Update salary payment")
+def update_salary_payment(
+    employee_id: int,
+    salary_id: int,
+    payment_id: int,
+    update: SalaryPaymentUpdate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    locale: str = Depends(deps.get_locale),
+):
+    """Обновить выплату. Только business_owner или admin."""
+    from app.api.core.permissions import can_manage_employees
+    
+    if not can_manage_employees(current_user):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    # Проверяем доступ
+    owner_id = get_business_owner_id(current_user)
+    if current_user.role == "admin":
+        owner_id = None
+    
+    employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
+    if not employee:
+        raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
+    
+    payment = crud_salary.get_salary_payment(db=db, payment_id=payment_id, salary_calculation_id=salary_id)
+    if not payment:
+        raise HTTPException(status_code=404, detail=_("payment_not_found", locale))
+    
+    result = crud_salary.update_salary_payment(db=db, payment=payment, update=update)
+    return result
+
+
+@router.delete("/{employee_id}/salary/{salary_id}/payments/{payment_id}", summary="Delete salary payment")
+def delete_salary_payment(
+    employee_id: int,
+    salary_id: int,
+    payment_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    locale: str = Depends(deps.get_locale),
+):
+    """Удалить выплату. Только business_owner или admin."""
+    from app.api.core.permissions import can_manage_employees
+    
+    if not can_manage_employees(current_user):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    # Проверяем доступ
+    owner_id = get_business_owner_id(current_user)
+    if current_user.role == "admin":
+        owner_id = None
+    
+    employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
+    if not employee:
+        raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
+    
+    success = crud_salary.delete_salary_payment(db=db, payment_id=payment_id, salary_calculation_id=salary_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=_("payment_not_found", locale))
+    
+    return {"message": _("payment_deleted", locale)}
 

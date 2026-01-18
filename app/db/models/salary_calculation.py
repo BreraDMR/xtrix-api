@@ -29,9 +29,15 @@ class SalaryCalculation(Base):
     base_salary = Column(Float, default=0.0, nullable=False)  # Фиксированная часть зарплаты
     total_salary = Column(Float, default=0.0, nullable=False)  # Итоговая зарплата (base + commission)
     
-    # Статус выплаты
-    is_paid = Column(Boolean, default=False, nullable=False, index=True)  # Выплачена ли зарплата
-    paid_at = Column(DateTime, nullable=True, index=True)  # Дата выплаты
+    # Дополнительные начисления/удержания
+    adjustments_total = Column(Float, default=0.0, nullable=False)  # Сумма всех бонусов/штрафов
+    total_with_adjustments = Column(Float, default=0.0, nullable=False)  # total_salary + adjustments_total
+    paid_amount = Column(Float, default=0.0, nullable=False)  # Сколько уже выплачено
+    
+    # Статус выплаты (улучшенный)
+    payment_status = Column(String, default="unpaid", nullable=False, index=True)  # 'unpaid', 'partial', 'paid'
+    is_paid = Column(Boolean, default=False, nullable=False, index=True)  # Выплачена ли зарплата (deprecated, использовать payment_status)
+    paid_at = Column(DateTime, nullable=True, index=True)  # Дата последней выплаты
     
     # Дополнительная информация
     notes = Column(Text, nullable=True)  # Заметки к расчету

@@ -16,6 +16,8 @@ from app.db.models.audit_log import AuditLog
 from app.db.models.specialist_profile import SpecialistProfile
 from app.db.models.employee import Employee
 from app.db.models.salary_calculation import SalaryCalculation
+from app.db.models.salary_adjustment import SalaryAdjustment
+from app.db.models.salary_payment import SalaryPayment
 from app.db.models.product import Product
 from app.db.models.product_usage import ProductUsage
 from app.db.models.expense import Expense
