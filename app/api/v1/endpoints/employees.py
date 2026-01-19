@@ -113,7 +113,45 @@ def create_employee(
             employee_in=employee,
             business_owner_id=owner_id
         )
-        return new_employee
+        
+        # Перезагружаем employee с связанными данными
+        from sqlalchemy.orm import joinedload
+        employee_with_user = db.query(Employee).options(
+            joinedload(Employee.employee_user)
+        ).filter(Employee.id == new_employee.id).first()
+        
+        if not employee_with_user:
+            raise HTTPException(status_code=500, detail="Failed to load created employee")
+        
+        # Преобразуем в формат EmployeeOut
+        emp_dict = {
+            "id": employee_with_user.id,
+            "employee_user_id": employee_with_user.employee_user_id,
+            "business_owner_id": employee_with_user.business_owner_id,
+            "position": employee_with_user.position,
+            "permissions": employee_with_user.permissions,
+            "commission_percentage": employee_with_user.commission_percentage or 0.0,
+            "base_salary": employee_with_user.base_salary or 0.0,
+            "is_active": employee_with_user.is_active,
+            "notes": employee_with_user.notes,
+            "hired_at": employee_with_user.hired_at,
+            "fired_at": employee_with_user.fired_at,
+            "employee_user": None
+        }
+        
+        # Преобразуем employee_user в словарь, если он загружен
+        if employee_with_user.employee_user:
+            emp_dict["employee_user"] = {
+                "id": employee_with_user.employee_user.id,
+                "full_name": employee_with_user.employee_user.full_name,
+                "email": employee_with_user.employee_user.email,
+                "phone": employee_with_user.employee_user.phone,
+                "role": employee_with_user.employee_user.role,
+                "specialist_type": getattr(employee_with_user.employee_user, 'specialist_type', None),
+                "business_id": getattr(employee_with_user.employee_user, 'business_id', None),
+            }
+        
+        return EmployeeOut(**emp_dict)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
