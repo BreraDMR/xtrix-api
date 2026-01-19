@@ -44,7 +44,7 @@ def create_user(db: Session, user_in: UserCreate, moderation_status: Optional[st
         specialist_type=user_in.specialist_type if hasattr(user_in, 'specialist_type') else None,
         hashed_password=get_password_hash(user_in.password) if user_in.password else "",
         business_id=business_id,  # Привязываем к бизнесу, если указан
-        moderation_status=moderation_status or "pending",  # По умолчанию требуется модерация, но можно переопределить
+        moderation_status=moderation_status or "approved",  # По умолчанию одобрено - модерация не требуется
     )
     db.add(user)
     db.commit()
@@ -129,12 +129,7 @@ def authenticate(db: Session, credentials: UserLogin, totp_token: str | None = N
     if is_locked:
         raise ValueError(lockout_message)
     
-    # Check moderation status - only approved users can login
-    if hasattr(user, 'moderation_status') and user.moderation_status != "approved":
-        if user.moderation_status == "pending":
-            raise ValueError("Your account is pending moderation. Please wait for administrator approval.")
-        elif user.moderation_status == "rejected":
-            raise ValueError("Your account has been rejected. Please contact administrator for more information.")
+    # Moderation check removed - users can login immediately after registration
     
     # Verify password
     if not verify_password(credentials.password, user.hashed_password):
