@@ -39,12 +39,26 @@ def create_user(
     locale: str = Depends(deps.get_locale),
 ):
     logger.info(f"Creating user: phone={user.phone}, email={user.email}")
-    if crud_user.get_by_phone_or_email(db, phone=user.phone, email=None):
-        logger.warning(f"User creation failed: phone {user.phone} already exists")
-        raise HTTPException(status_code=400, detail=_("phone_exists", locale))
-    if user.email and crud_user.get_by_phone_or_email(db, phone=None, email=user.email):
-        logger.warning(f"User creation failed: email {user.email} already exists")
-        raise HTTPException(status_code=400, detail=_("email_exists", locale))
+    
+    # Проверяем, что указан хотя бы один способ связи
+    if not user.phone and not user.email:
+        raise HTTPException(
+            status_code=422,
+            detail=_("phone_or_email_required", locale) or "Either phone or email is required"
+        )
+    
+    # Проверяем дубликаты телефона (только если указан)
+    if user.phone:
+        if crud_user.get_by_phone_or_email(db, phone=user.phone, email=None):
+            logger.warning(f"User creation failed: phone {user.phone} already exists")
+            raise HTTPException(status_code=400, detail=_("phone_exists", locale))
+    
+    # Проверяем дубликаты email (только если указан)
+    if user.email:
+        if crud_user.get_by_phone_or_email(db, phone=None, email=user.email):
+            logger.warning(f"User creation failed: email {user.email} already exists")
+            raise HTTPException(status_code=400, detail=_("email_exists", locale))
+    
     result = crud_user.create_user(db, user)
     logger.info(f"User created successfully: id={result.id}, phone={result.phone}")
     return localize_response(result.dict(), locale) if hasattr(result, 'dict') else result
