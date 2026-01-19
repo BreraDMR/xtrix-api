@@ -7,6 +7,7 @@ from app.api import deps
 from app.api.core.i18n import _, localize_response
 from app.api.core.pagination import PaginationParams, PaginatedResponse
 from app.api.crud import crud_service
+from app.db.models.service import Service
 from app.db.models.user import User
 from app.schemas.service import ServiceCreate, ServiceOut, ServiceUpdate
 
@@ -88,11 +89,36 @@ def list_services(
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     
     # Фильтрация по ролям
+    employee_specialist_ids = None  # ID специалистов-сотрудников админа/владельца
     if current_user.role == "admin":
-        # Админ может видеть все, но может фильтровать по specialist_id
-        pass
+        # Админ видит услуги своего бизнеса + услуги всех своих сотрудников (специалистов)
+        if business_id:
+            # Получаем список всех специалистов, которые являются сотрудниками админа
+            from app.db.models.employee import Employee
+            from app.api.core.permissions import get_business_owner_ids_for_filter
+            owner_ids = get_business_owner_ids_for_filter(current_user, db) or [current_user.id]
+            employees = db.query(Employee.employee_user_id).filter(
+                Employee.business_owner_id.in_(owner_ids),
+                Employee.is_active == True
+            ).all()
+            employee_specialist_ids = [emp[0] for emp in employees] if employees else []
+            # Если есть сотрудники, не фильтруем по specialist_id в основном запросе
+            # но передадим их ID для дополнительной фильтрации
+        # Админ может также фильтровать по specialist_id, если указан
+        if specialist_id:
+            # Если указан конкретный specialist_id, используем его
+            pass
+        else:
+            # Если не указан, показываем все услуги бизнеса + услуги сотрудников
+            specialist_id = None
     elif current_user.role == "business_owner":
-        # Владелец бизнеса видит все услуги бизнеса
+        # Владелец бизнеса видит все услуги бизнеса + услуги своих сотрудников
+        from app.db.models.employee import Employee
+        employees = db.query(Employee.employee_user_id).filter(
+            Employee.business_owner_id == current_user.id,
+            Employee.is_active == True
+        ).all()
+        employee_specialist_ids = [emp[0] for emp in employees] if employees else []
         specialist_id = None  # Не фильтруем по specialist_id
     else:
         # specialist и employee видят только свои услуги
@@ -106,6 +132,7 @@ def list_services(
         db, 
         specialist_id=specialist_id, 
         business_id=business_id,  # Изоляция по бизнесу
+        employee_specialist_ids=employee_specialist_ids,  # Дополнительная фильтрация по сотрудникам
         is_active=is_active_filter,
         pagination=pagination
     )
@@ -113,28 +140,22 @@ def list_services(
     # Преобразуем в ServiceOut с информацией о специалистах
     def service_to_dict(service: Service):
         result = service.dict() if hasattr(service, 'dict') else service.__dict__.copy()
-        # Получаем список ID специалистов
-        specialist_ids = [ss.specialist_id for ss in service.service_specialists] if hasattr(service, 'service_specialists') and service.service_specialists else [service.specialist_id]
-        result['specialist_ids'] = specialist_ids
-        
-        # Получаем информацию о специалистах
+        # Получаем список ID специалистов из service_specialists
+        specialist_ids = []
         specialists = []
+        
         if hasattr(service, 'service_specialists') and service.service_specialists:
             for ss in service.service_specialists:
                 if ss.specialist:
+                    specialist_ids.append(ss.specialist_id)
                     specialists.append({
                         'id': ss.specialist.id,
                         'full_name': ss.specialist.full_name,
                         'email': ss.specialist.email,
                         'phone': ss.specialist.phone,
                     })
-        elif hasattr(service, 'specialist') and service.specialist:
-            specialists.append({
-                'id': service.specialist.id,
-                'full_name': service.specialist.full_name,
-                'email': service.specialist.email,
-                'phone': service.specialist.phone,
-            })
+        
+        result['specialist_ids'] = specialist_ids
         result['specialists'] = specialists
         return result
     
@@ -169,26 +190,21 @@ def get_service(
     
     # Преобразуем в ServiceOut
     service_dict = service.dict() if hasattr(service, 'dict') else service.__dict__.copy()
-    specialist_ids = [ss.specialist_id for ss in service.service_specialists] if hasattr(service, 'service_specialists') and service.service_specialists else [service.specialist_id]
-    service_dict['specialist_ids'] = specialist_ids
-    
+    specialist_ids = []
     specialists = []
+    
     if hasattr(service, 'service_specialists') and service.service_specialists:
         for ss in service.service_specialists:
             if ss.specialist:
+                specialist_ids.append(ss.specialist_id)
                 specialists.append({
                     'id': ss.specialist.id,
                     'full_name': ss.specialist.full_name,
                     'email': ss.specialist.email,
                     'phone': ss.specialist.phone,
                 })
-    elif hasattr(service, 'specialist') and service.specialist:
-        specialists.append({
-            'id': service.specialist.id,
-            'full_name': service.specialist.full_name,
-            'email': service.specialist.email,
-            'phone': service.specialist.phone,
-        })
+    
+    service_dict['specialist_ids'] = specialist_ids
     service_dict['specialists'] = specialists
     
     return localize_response(service_dict, locale)

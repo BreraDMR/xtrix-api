@@ -1027,8 +1027,8 @@ def get_my_current_salary(
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    """Получить текущую невыплаченную зарплату с деталями. Только для employee."""
-    if current_user.role != "employee":
+    """Получить текущую невыплаченную зарплату с деталями. Для employee и specialist (если привязан как сотрудник)."""
+    if current_user.role not in ("employee", "specialist"):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     
     salary = crud_salary.get_current_unpaid_salary(db=db, employee_user_id=current_user.id)
@@ -1060,8 +1060,8 @@ def get_my_salary_history(
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    """Получить историю моих зарплат. Только для employee."""
-    if current_user.role != "employee":
+    """Получить историю моих зарплат. Для employee и specialist (если привязан как сотрудник)."""
+    if current_user.role not in ("employee", "specialist"):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     
     employee = crud_employee.get_employee_by_user_id(db, current_user.id)

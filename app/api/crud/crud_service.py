@@ -144,6 +144,7 @@ def list_services(
     db: Session,
     specialist_id: Optional[int] = None,
     business_id: Optional[int] = None,  # Новый параметр для изоляции по бизнесу
+    employee_specialist_ids: Optional[List[int]] = None,  # ID специалистов-сотрудников (для админа/владельца)
     is_active: Optional[bool] = None,  # Переименовано для консистентности
     pagination: Optional[PaginationParams] = None,
     include_deleted: bool = False,
@@ -243,16 +244,38 @@ def list_services(
     # - Если business_id не указан (None), показываем все услуги с NULL business_id И услуги, созданные текущим специалистом (для обратной совместимости)
     if has_business_id_column:
         from sqlalchemy import or_
+        
+        # Формируем список условий для фильтрации
+        business_conditions = []
+        
         if business_id is not None:
-            # Показываем услуги с указанным business_id И старые услуги с NULL business_id
-            q = q.filter(or_(
-                Service.business_id == business_id,
-                Service.business_id.is_(None)  # Показываем старые записи без business_id
-            ))
+            # Добавляем условие для business_id админа/владельца
+            business_conditions.append(Service.business_id == business_id)
+            business_conditions.append(Service.business_id.is_(None))  # Старые услуги без business_id
             logger.info(f"list_services: filtering by (business_id={business_id} OR business_id IS NULL)")
-        else:
-            # Если business_id не указан, показываем услуги с NULL business_id И услуги текущего специалиста
-            # Это позволяет видеть новые услуги, созданные специалистом, даже если они имеют business_id из specialist
+        
+        # Если указаны employee_specialist_ids, добавляем услуги этих специалистов
+        # (даже если их business_id не совпадает с business_id админа)
+        if employee_specialist_ids:
+            # Проверяем услуги через service_specialists таблицу (many-to-many)
+            from app.db.models.service_specialist import ServiceSpecialist
+            service_ids_from_specialists = db.query(ServiceSpecialist.service_id).filter(
+                ServiceSpecialist.specialist_id.in_(employee_specialist_ids)
+            ).distinct().subquery()
+            
+            # Добавляем условия: услуги с ID из service_specialists ИЛИ услуги с specialist_id из списка
+            business_conditions.append(Service.id.in_(
+                db.query(service_ids_from_specialists.c.service_id)
+            ))
+            # Также услуги, где основной specialist_id входит в список сотрудников
+            business_conditions.append(Service.specialist_id.in_(employee_specialist_ids))
+            
+            logger.info(f"list_services: including services from employee specialists: {employee_specialist_ids}")
+        
+        if business_conditions:
+            q = q.filter(or_(*business_conditions))
+        elif business_id is None:
+            # Если business_id не указан и нет employee_specialist_ids
             if specialist_id:
                 # Показываем услуги с NULL business_id ИЛИ услуги текущего специалиста (независимо от business_id)
                 q = q.filter(or_(
@@ -263,9 +286,22 @@ def list_services(
                 # Если specialist_id не указан, показываем только услуги с NULL business_id
                 q = q.filter(Service.business_id.is_(None))
                 logger.info(f"list_services: filtering by business_id IS NULL (no specialist_id)")
+    else:
+        # Если колонки business_id нет, но есть employee_specialist_ids, фильтруем по ним
+        if employee_specialist_ids:
+            from app.db.models.service_specialist import ServiceSpecialist
+            from sqlalchemy import or_
+            services_with_employee_specialists = db.query(ServiceSpecialist.service_id).filter(
+                ServiceSpecialist.specialist_id.in_(employee_specialist_ids)
+            ).subquery()
+            q = q.filter(or_(
+                Service.id.in_(db.query(services_with_employee_specialists.c.service_id)),
+                Service.specialist_id.in_(employee_specialist_ids)
+            ))
+            logger.info(f"list_services: filtering by employee_specialist_ids: {employee_specialist_ids}")
     
-    # Дополнительный фильтр по specialist_id (если не был применен выше)
-    if specialist_id and (business_id is not None or not has_business_id_column):
+    # Дополнительный фильтр по specialist_id (если не был применен выше и нет employee_specialist_ids)
+    if specialist_id and (business_id is not None or not has_business_id_column) and not employee_specialist_ids:
         q = q.filter(Service.specialist_id == specialist_id)
         logger.info(f"list_services: additional filter by specialist_id={specialist_id}")
     if is_active is not None:
