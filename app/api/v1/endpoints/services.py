@@ -37,7 +37,35 @@ def create_service(
     # Получаем business_id текущего пользователя
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     result = crud_service.create_service(db, service, business_id=business_id)
-    return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
+    
+    # Перезагружаем с информацией о специалистах
+    result = crud_service.get_service(db, result.id)
+    
+    # Преобразуем в ServiceOut
+    service_dict = result.dict() if hasattr(result, 'dict') else result.__dict__.copy()
+    specialist_ids = [ss.specialist_id for ss in result.service_specialists] if hasattr(result, 'service_specialists') and result.service_specialists else [result.specialist_id]
+    service_dict['specialist_ids'] = specialist_ids
+    
+    specialists = []
+    if hasattr(result, 'service_specialists') and result.service_specialists:
+        for ss in result.service_specialists:
+            if ss.specialist:
+                specialists.append({
+                    'id': ss.specialist.id,
+                    'full_name': ss.specialist.full_name,
+                    'email': ss.specialist.email,
+                    'phone': ss.specialist.phone,
+                })
+    elif hasattr(result, 'specialist') and result.specialist:
+        specialists.append({
+            'id': result.specialist.id,
+            'full_name': result.specialist.full_name,
+            'email': result.specialist.email,
+            'phone': result.specialist.phone,
+        })
+    service_dict['specialists'] = specialists
+    
+    return localize_response(service_dict, locale)
 
 
 @router.get("/", response_model=PaginatedResponse[ServiceOut])
@@ -82,8 +110,36 @@ def list_services(
         pagination=pagination
     )
     
+    # Преобразуем в ServiceOut с информацией о специалистах
+    def service_to_dict(service: Service):
+        result = service.dict() if hasattr(service, 'dict') else service.__dict__.copy()
+        # Получаем список ID специалистов
+        specialist_ids = [ss.specialist_id for ss in service.service_specialists] if hasattr(service, 'service_specialists') and service.service_specialists else [service.specialist_id]
+        result['specialist_ids'] = specialist_ids
+        
+        # Получаем информацию о специалистах
+        specialists = []
+        if hasattr(service, 'service_specialists') and service.service_specialists:
+            for ss in service.service_specialists:
+                if ss.specialist:
+                    specialists.append({
+                        'id': ss.specialist.id,
+                        'full_name': ss.specialist.full_name,
+                        'email': ss.specialist.email,
+                        'phone': ss.specialist.phone,
+                    })
+        elif hasattr(service, 'specialist') and service.specialist:
+            specialists.append({
+                'id': service.specialist.id,
+                'full_name': service.specialist.full_name,
+                'email': service.specialist.email,
+                'phone': service.specialist.phone,
+            })
+        result['specialists'] = specialists
+        return result
+    
     localized_items = [
-        localize_response(s.dict() if hasattr(s, 'dict') else s, locale) for s in services
+        localize_response(service_to_dict(s), locale) for s in services
     ]
     
     return PaginatedResponse.create(
@@ -92,6 +148,50 @@ def list_services(
         page=page,
         per_page=per_page,
     )
+
+
+@router.get("/{service_id}", response_model=ServiceOut)
+def get_service(
+    service_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
+):
+    """Get service by ID."""
+    service = crud_service.get_service(db, service_id)
+    if not service:
+        raise HTTPException(status_code=404, detail=_("service_not_found", locale))
+    
+    # Проверяем доступ используя новую систему прав
+    from app.api.core.permissions import check_service_access
+    if not check_service_access(db, current_user, service):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    
+    # Преобразуем в ServiceOut
+    service_dict = service.dict() if hasattr(service, 'dict') else service.__dict__.copy()
+    specialist_ids = [ss.specialist_id for ss in service.service_specialists] if hasattr(service, 'service_specialists') and service.service_specialists else [service.specialist_id]
+    service_dict['specialist_ids'] = specialist_ids
+    
+    specialists = []
+    if hasattr(service, 'service_specialists') and service.service_specialists:
+        for ss in service.service_specialists:
+            if ss.specialist:
+                specialists.append({
+                    'id': ss.specialist.id,
+                    'full_name': ss.specialist.full_name,
+                    'email': ss.specialist.email,
+                    'phone': ss.specialist.phone,
+                })
+    elif hasattr(service, 'specialist') and service.specialist:
+        specialists.append({
+            'id': service.specialist.id,
+            'full_name': service.specialist.full_name,
+            'email': service.specialist.email,
+            'phone': service.specialist.phone,
+        })
+    service_dict['specialists'] = specialists
+    
+    return localize_response(service_dict, locale)
 
 
 @router.put("/{service_id}", response_model=ServiceOut)
@@ -110,7 +210,35 @@ def update_service(
     if not check_service_access(db, current_user, service):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     result = crud_service.update_service(db, service, payload)
-    return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
+    
+    # Перезагружаем с информацией о специалистах
+    result = crud_service.get_service(db, result.id)
+    
+    # Преобразуем в ServiceOut
+    service_dict = result.dict() if hasattr(result, 'dict') else result.__dict__.copy()
+    specialist_ids = [ss.specialist_id for ss in result.service_specialists] if hasattr(result, 'service_specialists') and result.service_specialists else [result.specialist_id]
+    service_dict['specialist_ids'] = specialist_ids
+    
+    specialists = []
+    if hasattr(result, 'service_specialists') and result.service_specialists:
+        for ss in result.service_specialists:
+            if ss.specialist:
+                specialists.append({
+                    'id': ss.specialist.id,
+                    'full_name': ss.specialist.full_name,
+                    'email': ss.specialist.email,
+                    'phone': ss.specialist.phone,
+                })
+    elif hasattr(result, 'specialist') and result.specialist:
+        specialists.append({
+            'id': result.specialist.id,
+            'full_name': result.specialist.full_name,
+            'email': result.specialist.email,
+            'phone': result.specialist.phone,
+        })
+    service_dict['specialists'] = specialists
+    
+    return localize_response(service_dict, locale)
 
 
 @router.delete("/{service_id}")

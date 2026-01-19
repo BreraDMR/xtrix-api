@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel, Field
 
@@ -12,7 +12,8 @@ class ServiceBase(BaseModel):
 
 
 class ServiceCreate(ServiceBase):
-    specialist_id: int
+    specialist_id: int  # Основной специалист (для обратной совместимости)
+    specialist_ids: Optional[List[int]] = Field(None, description="Список ID специалистов, которые могут предоставлять эту услугу")
 
 
 class ServiceUpdate(BaseModel):
@@ -21,11 +22,15 @@ class ServiceUpdate(BaseModel):
     duration_minutes: Optional[int] = None
     price: Optional[float] = None
     is_active: Optional[bool] = None
+    specialist_id: Optional[int] = None
+    specialist_ids: Optional[List[int]] = Field(None, description="Список ID специалистов, которые могут предоставлять эту услугу")
 
 
 class ServiceOut(ServiceBase):
     id: int
     specialist_id: int
+    specialist_ids: Optional[List[int]] = Field(None, description="Список ID всех специалистов, которые могут предоставлять эту услугу")
+    specialists: Optional[List[dict]] = Field(None, description="Информация о специалистах")
 
     class Config:
         from_attributes = True

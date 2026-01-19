@@ -5,6 +5,7 @@ from app.db.models.client_business_relation import ClientBusinessRelation
 from app.db.models.medical_profile import MedicalProfile
 from app.db.models.business import Business
 from app.db.models.service import Service
+from app.db.models.service_specialist import ServiceSpecialist
 from app.db.models.visit import Visit
 from app.db.models.subscription_plan import SubscriptionPlan
 from app.db.models.subscription import Subscription

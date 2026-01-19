@@ -1,10 +1,11 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.core.pagination import PaginationParams
 from app.api.core.soft_delete import filter_active, soft_delete
 from app.db.models.service import Service
+from app.db.models.service_specialist import ServiceSpecialist
 from app.schemas.service import ServiceCreate, ServiceUpdate
 
 
@@ -66,26 +67,74 @@ def create_service(db: Session, service_in: ServiceCreate, business_id: Optional
     if not has_category_column:
         service_data.pop('category', None)
     
+    # Извлекаем specialist_ids перед созданием услуги
+    specialist_ids = service_data.pop('specialist_ids', None)
+    
     service = Service(**service_data)
     db.add(service)
     db.commit()
     db.refresh(service)
+    
+    # Создаем связи с специалистами
+    if specialist_ids:
+        # Добавляем основной specialist_id в список, если его там нет
+        all_specialist_ids = set(specialist_ids)
+        if service.specialist_id not in all_specialist_ids:
+            all_specialist_ids.add(service.specialist_id)
+        
+        for spec_id in all_specialist_ids:
+            service_spec = ServiceSpecialist(service_id=service.id, specialist_id=spec_id)
+            db.add(service_spec)
+        db.commit()
+    else:
+        # Если specialist_ids не указаны, создаем связь только с основным специалистом
+        service_spec = ServiceSpecialist(service_id=service.id, specialist_id=service.specialist_id)
+        db.add(service_spec)
+        db.commit()
+    
     logger.info(f"create_service: created service id={service.id}, specialist_id={service.specialist_id}, business_id={getattr(service, 'business_id', None)}, category={getattr(service, 'category', None)}")
     return service
 
 
 def update_service(db: Session, service: Service, update: ServiceUpdate) -> Service:
-    for field, value in update.dict(exclude_unset=True).items():
+    update_data = update.dict(exclude_unset=True)
+    
+    # Обрабатываем specialist_ids отдельно
+    specialist_ids = update_data.pop('specialist_ids', None)
+    
+    # Обновляем остальные поля
+    for field, value in update_data.items():
         setattr(service, field, value)
+    
     db.add(service)
     db.commit()
     db.refresh(service)
+    
+    # Обновляем связи с специалистами, если указано
+    if specialist_ids is not None:
+        # Удаляем старые связи
+        db.query(ServiceSpecialist).filter(ServiceSpecialist.service_id == service.id).delete()
+        
+        # Создаем новые связи
+        # Добавляем основной specialist_id в список, если его там нет
+        all_specialist_ids = set(specialist_ids)
+        if service.specialist_id not in all_specialist_ids:
+            all_specialist_ids.add(service.specialist_id)
+        
+        for spec_id in all_specialist_ids:
+            service_spec = ServiceSpecialist(service_id=service.id, specialist_id=spec_id)
+            db.add(service_spec)
+        db.commit()
+    
     return service
 
 
 def get_service(db: Session, service_id: int, include_deleted: bool = False) -> Optional[Service]:
     """Get service with optimized query and optional soft-deleted inclusion."""
-    query = db.query(Service).options(joinedload(Service.specialist))
+    query = db.query(Service).options(
+        joinedload(Service.specialist),
+        joinedload(Service.service_specialists).joinedload(ServiceSpecialist.specialist)
+    )
     if not include_deleted:
         query = filter_active(query)
     return query.filter(Service.id == service_id).first()
