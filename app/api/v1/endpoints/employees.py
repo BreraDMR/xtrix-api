@@ -1221,10 +1221,26 @@ def create_salary_payment(
     
     # Валидация суммы
     remaining_amount = salary.total_with_adjustments - salary.paid_amount
+    
+    # Проверяем, что осталось что-то для выплаты
+    if remaining_amount <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail=_("salary_already_paid", locale) or f"Salary is already fully paid. Remaining amount: {remaining_amount}"
+        )
+    
+    # Проверяем, что сумма не превышает остаток
     if payment.amount > remaining_amount:
         raise HTTPException(
             status_code=400,
-            detail=_("payment_amount_exceeds_remaining", locale) or f"Payment amount exceeds remaining amount: {remaining_amount}"
+            detail=_("payment_amount_exceeds_remaining", locale) or f"Payment amount ({payment.amount}) exceeds remaining amount ({remaining_amount})"
+        )
+    
+    # Проверяем, что сумма положительная
+    if payment.amount <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail=_("payment_amount_invalid", locale) or "Payment amount must be greater than 0"
         )
     
     # Получаем business_id для создания расхода
