@@ -256,17 +256,18 @@ def list_services(
         
         # Если указаны employee_specialist_ids, добавляем услуги этих специалистов
         # (даже если их business_id не совпадает с business_id админа)
-        if employee_specialist_ids:
+        if employee_specialist_ids and len(employee_specialist_ids) > 0:
             # Проверяем услуги через service_specialists таблицу (many-to-many)
             from app.db.models.service_specialist import ServiceSpecialist
-            service_ids_from_specialists = db.query(ServiceSpecialist.service_id).filter(
+            from sqlalchemy import select
+            
+            # Получаем service_id из service_specialists для этих специалистов
+            service_ids_subquery = select(ServiceSpecialist.service_id).where(
                 ServiceSpecialist.specialist_id.in_(employee_specialist_ids)
-            ).distinct().subquery()
+            ).distinct()
             
             # Добавляем условия: услуги с ID из service_specialists ИЛИ услуги с specialist_id из списка
-            business_conditions.append(Service.id.in_(
-                db.query(service_ids_from_specialists.c.service_id)
-            ))
+            business_conditions.append(Service.id.in_(service_ids_subquery))
             # Также услуги, где основной specialist_id входит в список сотрудников
             business_conditions.append(Service.specialist_id.in_(employee_specialist_ids))
             
@@ -288,14 +289,17 @@ def list_services(
                 logger.info(f"list_services: filtering by business_id IS NULL (no specialist_id)")
     else:
         # Если колонки business_id нет, но есть employee_specialist_ids, фильтруем по ним
-        if employee_specialist_ids:
+        if employee_specialist_ids and len(employee_specialist_ids) > 0:
             from app.db.models.service_specialist import ServiceSpecialist
-            from sqlalchemy import or_
-            services_with_employee_specialists = db.query(ServiceSpecialist.service_id).filter(
+            from sqlalchemy import or_, select
+            
+            # Получаем service_id из service_specialists для этих специалистов
+            service_ids_subquery = select(ServiceSpecialist.service_id).where(
                 ServiceSpecialist.specialist_id.in_(employee_specialist_ids)
-            ).subquery()
+            ).distinct()
+            
             q = q.filter(or_(
-                Service.id.in_(db.query(services_with_employee_specialists.c.service_id)),
+                Service.id.in_(service_ids_subquery),
                 Service.specialist_id.in_(employee_specialist_ids)
             ))
             logger.info(f"list_services: filtering by employee_specialist_ids: {employee_specialist_ids}")
