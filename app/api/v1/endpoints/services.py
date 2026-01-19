@@ -96,7 +96,9 @@ def list_services(
             # Получаем список всех специалистов, которые являются сотрудниками админа
             from app.db.models.employee import Employee
             from app.api.core.permissions import get_business_owner_ids_for_filter
-            owner_ids = get_business_owner_ids_for_filter(current_user, db) or [current_user.id]
+            owner_ids = get_business_owner_ids_for_filter(current_user, db)
+            if not owner_ids:
+                owner_ids = [current_user.id]
             employees = db.query(Employee.employee_user_id).filter(
                 Employee.business_owner_id.in_(owner_ids),
                 Employee.is_active == True

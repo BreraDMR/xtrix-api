@@ -248,3 +248,27 @@ def get_filtered_specialist_id(user: User) -> Optional[int]:
     # specialist и employee видят только свои данные
     return user.id
 
+
+def get_business_owner_ids_for_filter(current_user: User, db: Session) -> Optional[List[int]]:
+    """
+    Возвращает список business_owner_id для фильтрации данных.
+    Для админа возвращает список всех business_owner_id его бизнеса.
+    Для business_owner возвращает список с одним элементом - его ID.
+    """
+    if current_user.role == "admin":
+        # Админ видит только данные своего бизнеса
+        admin_business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+        if admin_business_id:
+            # Находим всех business_owners с таким же business_id
+            business_owners = db.query(User.id).filter(
+                User.role == "business_owner",
+                User.business_id == admin_business_id
+            ).all()
+            return [bo[0] for bo in business_owners]
+        return []  # У админа нет business_id - нет данных
+    
+    if current_user.role == "business_owner":
+        return [current_user.id]
+    
+    return None
+
