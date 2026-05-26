@@ -1,12 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
-
 from app.api import deps
 from app.api.core import s3
 from app.db.models.user import User
-
 router = APIRouter()
-
-
 @router.get("/presign")
 def presign_upload(
     filename: str,
@@ -19,14 +15,3 @@ def presign_upload(
     key = s3.build_object_key(prefix, filename)
     url = s3.generate_presigned_url(key, method=method)
     return {"url": url, "key": key}
-
-
-
-
-
-
-
-
-
-
-

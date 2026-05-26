@@ -1,28 +1,19 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
-
 from app.db.models.product import Product
 from app.schemas.product import ProductCreate, ProductUpdate
-
-
 def create_product(db: Session, product_in: ProductCreate) -> Product:
-    """Создать новый товар."""
     product = Product(**product_in.dict())
     db.add(product)
     db.commit()
     db.refresh(product)
     return product
-
-
 def get_product(db: Session, product_id: int, business_id: Optional[int] = None) -> Optional[Product]:
-    """Получить товар по ID."""
     query = db.query(Product).filter(Product.id == product_id)
     if business_id:
         query = query.filter(Product.business_id == business_id)
     return query.first()
-
-
 def list_products(
     db: Session,
     business_id: Optional[int] = None,
@@ -33,18 +24,13 @@ def list_products(
     skip: int = 0,
     limit: int = 100,
 ) -> List[Product]:
-    """Получить список товаров с фильтрацией."""
     query = db.query(Product)
-    
     if business_id:
         query = query.filter(Product.business_id == business_id)
-    
     if is_active is not None:
         query = query.filter(Product.is_active == is_active)
-    
     if category:
         query = query.filter(Product.category == category)
-    
     if search:
         search_term = f"%{search}%"
         query = query.filter(
@@ -54,35 +40,24 @@ def list_products(
                 Product.barcode.ilike(search_term),
             )
         )
-    
     if low_stock_only:
         query = query.filter(Product.quantity <= Product.min_quantity)
-    
     return query.order_by(Product.name).offset(skip).limit(limit).all()
-
-
 def update_product(db: Session, product: Product, product_in: ProductUpdate) -> Product:
-    """Обновить товар."""
     update_data = product_in.dict(exclude_unset=True)
     for field, value in update_data.items():
         setattr(product, field, value)
     db.commit()
     db.refresh(product)
     return product
-
-
 def delete_product(db: Session, product_id: int, business_id: Optional[int] = None) -> bool:
-    """Удалить товар (soft delete через is_active=False)."""
     product = get_product(db, product_id, business_id)
     if not product:
         return False
     product.is_active = False
     db.commit()
     return True
-
-
 def add_product_quantity(db: Session, product_id: int, quantity: float, business_id: Optional[int] = None) -> Optional[Product]:
-    """Добавить количество товара (поступление на склад)."""
     product = get_product(db, product_id, business_id)
     if not product:
         return None
@@ -90,10 +65,7 @@ def add_product_quantity(db: Session, product_id: int, quantity: float, business
     db.commit()
     db.refresh(product)
     return product
-
-
 def reduce_product_quantity(db: Session, product_id: int, quantity: float, business_id: Optional[int] = None) -> Optional[Product]:
-    """Уменьшить количество товара (списание со склада)."""
     product = get_product(db, product_id, business_id)
     if not product:
         return None
@@ -103,10 +75,7 @@ def reduce_product_quantity(db: Session, product_id: int, quantity: float, busin
     db.commit()
     db.refresh(product)
     return product
-
-
 def get_low_stock_products(db: Session, business_id: Optional[int] = None) -> List[Product]:
-    """Получить список товаров с низким остатком."""
     query = db.query(Product).filter(
         and_(
             Product.quantity <= Product.min_quantity,
@@ -116,4 +85,3 @@ def get_low_stock_products(db: Session, business_id: Optional[int] = None) -> Li
     if business_id:
         query = query.filter(Product.business_id == business_id)
     return query.order_by(Product.quantity.asc()).all()
-

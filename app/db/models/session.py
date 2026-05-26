@@ -1,9 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-
-SQLALCHEMY_DATABASE_URL = "postgresql://username:password@host:port/dbname" # поменяй postgre или sqlite
-
-
+SQLALCHEMY_DATABASE_URL = "postgresql://username:password@host:port/dbname" 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
 )

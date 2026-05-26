@@ -1,8 +1,6 @@
 from typing import List
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-
 from app.api import deps
 from app.api.core.i18n import _, localize_response
 from app.api.core.logger import get_logger
@@ -12,11 +10,8 @@ from app.schemas.client_specialist_relation import (
     ClientSpecialistRelationCreate,
     ClientSpecialistRelationOut
 )
-
 router = APIRouter()
 logger = get_logger("client_relations")
-
-
 @router.post(
     "/",
     response_model=ClientSpecialistRelationOut,
@@ -29,18 +24,12 @@ def create_client_specialist_relation(
     current_user: User = Depends(deps.role_required("admin", "specialist")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Link a client to a specialist."""
-    # Non-admin users can only link clients to themselves
     if current_user.role != "admin" and relation.specialist_id != current_user.id:
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    
-    # Check if client exists and user has access
     from app.api.crud import crud_client
     client = crud_client.get_client(db, relation.client_id)
     if not client:
         raise HTTPException(status_code=404, detail=_("client_not_found", locale))
-    
-    # Non-admin users can only link clients they own or are already linked to
     if current_user.role != "admin":
         has_access = False
         if client.owner_id == current_user.id:
@@ -50,15 +39,11 @@ def create_client_specialist_relation(
                 db, relation.client_id, current_user.id
             )
             has_access = existing_relation is not None
-        
         if not has_access:
             raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    
     result = crud_client_specialist_relation.create_relation(db, relation)
     logger.info(f"Client-specialist relation created: client_id={relation.client_id}, specialist_id={relation.specialist_id}")
     return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
-
-
 @router.get(
     "/clients/{client_id}/specialists",
     response_model=List[ClientSpecialistRelationOut],
@@ -70,14 +55,10 @@ def get_client_specialists(
     current_user: User = Depends(deps.role_required("admin", "specialist")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Get all specialists linked to a client."""
-    # Check if client exists and user has access
     from app.api.crud import crud_client
     client = crud_client.get_client(db, client_id)
     if not client:
         raise HTTPException(status_code=404, detail=_("client_not_found", locale))
-    
-    # Non-admin users can only see relations for clients they own or are linked to
     if current_user.role != "admin":
         has_access = (
             client.owner_id == current_user.id or
@@ -85,11 +66,8 @@ def get_client_specialists(
         )
         if not has_access:
             raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    
     relations = crud_client_specialist_relation.get_client_specialists(db, client_id)
     return [localize_response(r.dict() if hasattr(r, 'dict') else r, locale) for r in relations]
-
-
 @router.get(
     "/specialists/{specialist_id}/clients",
     response_model=List[ClientSpecialistRelationOut],
@@ -101,15 +79,10 @@ def get_specialist_clients(
     current_user: User = Depends(deps.role_required("admin", "specialist")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Get all clients linked to a specialist."""
-    # Non-admin users can only see their own relations
     if current_user.role != "admin" and specialist_id != current_user.id:
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    
     relations = crud_client_specialist_relation.get_specialist_clients(db, specialist_id)
     return [localize_response(r.dict() if hasattr(r, 'dict') else r, locale) for r in relations]
-
-
 @router.delete(
     "/clients/{client_id}/specialists/{specialist_id}",
     summary="Unlink client from specialist",
@@ -121,15 +94,10 @@ def delete_client_specialist_relation(
     current_user: User = Depends(deps.role_required("admin", "specialist")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Remove a link between a client and a specialist."""
-    # Non-admin users can only unlink their own relations
     if current_user.role != "admin" and specialist_id != current_user.id:
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    
     success = crud_client_specialist_relation.delete_relation(db, client_id, specialist_id)
     if not success:
         raise HTTPException(status_code=404, detail=_("relation_not_found", locale))
-    
     logger.info(f"Client-specialist relation deleted: client_id={client_id}, specialist_id={specialist_id}")
     return {"message": _("relation_deleted", locale)}
-

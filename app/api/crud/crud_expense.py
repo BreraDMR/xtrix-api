@@ -2,13 +2,9 @@ from typing import List, Optional, Dict, Tuple
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, extract
-
 from app.db.models.expense import Expense
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate
-
-
 def create_expense(db: Session, expense_in: ExpenseCreate, created_by_id: Optional[int] = None) -> Expense:
-    """Создать новый расход."""
     expense_data = expense_in.dict()
     expense_data["created_by_id"] = created_by_id
     expense = Expense(**expense_data)
@@ -16,16 +12,11 @@ def create_expense(db: Session, expense_in: ExpenseCreate, created_by_id: Option
     db.commit()
     db.refresh(expense)
     return expense
-
-
 def get_expense(db: Session, expense_id: int, business_id: Optional[int] = None) -> Optional[Expense]:
-    """Получить расход по ID."""
     query = db.query(Expense).filter(Expense.id == expense_id)
     if business_id:
         query = query.filter(Expense.business_id == business_id)
     return query.first()
-
-
 def list_expenses(
     db: Session,
     business_id: Optional[int] = None,
@@ -38,53 +29,36 @@ def list_expenses(
     skip: int = 0,
     limit: int = 100,
 ) -> List[Expense]:
-    """Получить список расходов с фильтрацией."""
     query = db.query(Expense)
-    
     if business_id:
         query = query.filter(Expense.business_id == business_id)
-    
     if category_id:
         query = query.filter(Expense.category_id == category_id)
-    
     if date_from:
         query = query.filter(Expense.expense_date >= date_from)
-    
     if date_to:
         query = query.filter(Expense.expense_date <= date_to)
-    
     if payment_method:
         query = query.filter(Expense.payment_method == payment_method)
-    
     if min_amount is not None:
         query = query.filter(Expense.amount >= min_amount)
-    
     if max_amount is not None:
         query = query.filter(Expense.amount <= max_amount)
-    
     return query.order_by(Expense.expense_date.desc()).offset(skip).limit(limit).all()
-
-
 def update_expense(db: Session, expense: Expense, expense_in: ExpenseUpdate) -> Expense:
-    """Обновить расход."""
     update_data = expense_in.dict(exclude_unset=True)
     for field, value in update_data.items():
         setattr(expense, field, value)
     db.commit()
     db.refresh(expense)
     return expense
-
-
 def delete_expense(db: Session, expense_id: int, business_id: Optional[int] = None) -> bool:
-    """Удалить расход."""
     expense = get_expense(db, expense_id, business_id)
     if not expense:
         return False
     db.delete(expense)
     db.commit()
     return True
-
-
 def get_expenses_total(
     db: Session,
     business_id: Optional[int] = None,
@@ -92,34 +66,24 @@ def get_expenses_total(
     date_to: Optional[datetime] = None,
     category_id: Optional[int] = None,
 ) -> float:
-    """Получить общую сумму расходов за период."""
     query = db.query(func.sum(Expense.amount))
-    
     if business_id:
         query = query.filter(Expense.business_id == business_id)
-    
     if category_id:
         query = query.filter(Expense.category_id == category_id)
-    
     if date_from:
         query = query.filter(Expense.expense_date >= date_from)
-    
     if date_to:
         query = query.filter(Expense.expense_date <= date_to)
-    
     result = query.scalar()
     return float(result) if result else 0.0
-
-
 def get_expenses_by_category(
     db: Session,
     business_id: Optional[int] = None,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
 ) -> List[Dict]:
-    """Получить расходы сгруппированные по категориям."""
     from app.db.models.expense_category import ExpenseCategory
-    
     query = db.query(
         ExpenseCategory.id,
         ExpenseCategory.name,
@@ -128,7 +92,6 @@ def get_expenses_by_category(
     ).join(
         Expense, Expense.category_id == ExpenseCategory.id, isouter=True
     )
-    
     if business_id:
         query = query.filter(
             and_(
@@ -136,16 +99,12 @@ def get_expenses_by_category(
                 (ExpenseCategory.business_id == business_id) | (ExpenseCategory.business_id.is_(None)) | (ExpenseCategory.is_system == True)
             )
         )
-    
     if date_from:
         query = query.filter((Expense.expense_date >= date_from) | (Expense.expense_date.is_(None)))
-    
     if date_to:
         query = query.filter((Expense.expense_date <= date_to) | (Expense.expense_date.is_(None)))
-    
     query = query.group_by(ExpenseCategory.id, ExpenseCategory.name, ExpenseCategory.color)
     query = query.having(func.sum(Expense.amount) > 0)
-    
     results = query.all()
     return [
         {
@@ -156,32 +115,24 @@ def get_expenses_by_category(
         }
         for r in results
     ]
-
-
 def get_expenses_daily(
     db: Session,
     business_id: Optional[int] = None,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
 ) -> List[Dict]:
-    """Получить расходы по дням."""
     query = db.query(
         func.date(Expense.expense_date).label('date'),
         func.sum(Expense.amount).label('total')
     )
-    
     if business_id:
         query = query.filter(Expense.business_id == business_id)
-    
     if date_from:
         query = query.filter(Expense.expense_date >= date_from)
-    
     if date_to:
         query = query.filter(Expense.expense_date <= date_to)
-    
     query = query.group_by(func.date(Expense.expense_date))
     query = query.order_by(func.date(Expense.expense_date))
-    
     results = query.all()
     return [
         {
@@ -190,4 +141,3 @@ def get_expenses_daily(
         }
         for r in results
     ]
-

@@ -1,15 +1,11 @@
-"""Analytics and reporting utilities."""
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, extract, case
-
 from app.db.models.visit import Visit
 from app.db.models.service import Service
 from app.db.models.client import Client
 from app.db.models.client_business_relation import ClientBusinessRelation
-
-
 def get_visit_statistics(
     db: Session,
     specialist_id: Optional[int] = None,
@@ -17,10 +13,7 @@ def get_visit_statistics(
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
 ) -> Dict[str, Any]:
-    """Get comprehensive visit statistics."""
     q = db.query(Visit)
-    
-    # Apply filters
     if specialist_id:
         q = q.filter(Visit.specialist_id == specialist_id)
     if client_id:
@@ -29,11 +22,7 @@ def get_visit_statistics(
         q = q.filter(Visit.date_start >= date_from)
     if date_to:
         q = q.filter(Visit.date_start <= date_to)
-    
-    # Total visits
     total_visits = q.count()
-    
-    # Visits by status
     status_counts = (
         db.query(Visit.status, func.count(Visit.id).label('count'))
         .filter(*[
@@ -45,10 +34,7 @@ def get_visit_statistics(
         .group_by(Visit.status)
         .all()
     )
-    
     visits_by_status = {status: count for status, count in status_counts}
-    
-    # Base filters for monthly visits and duration calculations
     base_filters = []
     if specialist_id:
         base_filters.append(Visit.specialist_id == specialist_id)
@@ -58,8 +44,6 @@ def get_visit_statistics(
         base_filters.append(Visit.date_start >= date_from)
     if date_to:
         base_filters.append(Visit.date_start <= date_to)
-    
-    # Visits by month
     monthly_visits = (
         db.query(
             extract('year', Visit.date_start).label('year'),
@@ -71,7 +55,6 @@ def get_visit_statistics(
         .order_by('year', 'month')
         .all()
     )
-    
     monthly_data = [
         {
             'year': int(year),
@@ -81,8 +64,6 @@ def get_visit_statistics(
         }
         for year, month, count in monthly_visits
     ]
-    
-    # Average visit duration
     duration_filters = base_filters + [Visit.date_end.isnot(None)]
     avg_duration = (
         db.query(
@@ -93,37 +74,27 @@ def get_visit_statistics(
         .filter(*duration_filters)
         .scalar()
     )
-    
     return {
         'total_visits': total_visits,
         'visits_by_status': visits_by_status,
         'monthly_visits': monthly_data,
         'average_duration_minutes': round(avg_duration, 2) if avg_duration else None,
     }
-
-
 def get_financial_report(
     db: Session,
     specialist_id: Optional[int] = None,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
-    group_by: str = 'month',  # 'day', 'week', 'month', 'year'
+    group_by: str = 'month',  
 ) -> Dict[str, Any]:
-    """Get financial report with revenue statistics."""
     q = db.query(Visit).filter(Visit.price.isnot(None))
-    
-    # Apply filters
     if specialist_id:
         q = q.filter(Visit.specialist_id == specialist_id)
     if date_from:
         q = q.filter(Visit.date_start >= date_from)
     if date_to:
         q = q.filter(Visit.date_start <= date_to)
-    
-    # Total revenue
     total_revenue = q.with_entities(func.sum(Visit.price)).scalar() or 0.0
-    
-    # Revenue by status
     revenue_by_status = (
         db.query(
             Visit.status,
@@ -139,7 +110,6 @@ def get_financial_report(
         .group_by(Visit.status)
         .all()
     )
-    
     revenue_by_status_dict = {
         status: {
             'revenue': float(revenue),
@@ -147,8 +117,6 @@ def get_financial_report(
         }
         for status, revenue, count in revenue_by_status
     }
-    
-    # Revenue by period
     if group_by == 'month':
         period_query = (
             db.query(
@@ -162,7 +130,6 @@ def get_financial_report(
             .order_by('year', 'month')
             .all()
         )
-        
         revenue_by_period = [
             {
                 'period': f"{int(year)}-{int(month):02d}",
@@ -185,7 +152,6 @@ def get_financial_report(
             .order_by('date')
             .all()
         )
-        
         revenue_by_period = [
             {
                 'period': date.isoformat(),
@@ -196,15 +162,11 @@ def get_financial_report(
         ]
     else:
         revenue_by_period = []
-    
-    # Average revenue per visit
     avg_revenue_per_visit = (
         db.query(func.avg(Visit.price))
         .filter(*revenue_filters)
         .scalar()
     )
-    
-    # Top clients by revenue
     top_clients = (
         db.query(
             Visit.client_id,
@@ -219,7 +181,6 @@ def get_financial_report(
         .limit(10)
         .all()
     )
-    
     top_clients_list = [
         {
             'client_id': client_id,
@@ -229,7 +190,6 @@ def get_financial_report(
         }
         for client_id, name, revenue, count in top_clients
     ]
-    
     return {
         'total_revenue': float(total_revenue),
         'average_revenue_per_visit': round(float(avg_revenue_per_visit), 2) if avg_revenue_per_visit else None,
@@ -237,15 +197,12 @@ def get_financial_report(
         'revenue_by_period': revenue_by_period,
         'top_clients': top_clients_list,
     }
-
-
 def get_payment_statistics(
     db: Session,
     specialist_id: Optional[int] = None,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
 ) -> Dict[str, Any]:
-    """Get payment statistics grouped by payment method."""
     base_filters = []
     if specialist_id:
         base_filters.append(Visit.specialist_id == specialist_id)
@@ -253,15 +210,11 @@ def get_payment_statistics(
         base_filters.append(Visit.date_start >= date_from)
     if date_to:
         base_filters.append(Visit.date_start <= date_to)
-    
-    # Only completed visits with price
     payment_filters = base_filters + [
         Visit.status == 'completed',
         Visit.price.isnot(None),
         Visit.price > 0,
     ]
-    
-    # Total payments
     total_payments = (
         db.query(func.sum(Visit.price))
         .filter(*payment_filters)
@@ -272,8 +225,6 @@ def get_payment_statistics(
         .filter(*payment_filters)
         .scalar() or 0
     )
-    
-    # Payments by method (card, cash, other)
     payments_by_method = (
         db.query(
             Visit.payment_method,
@@ -284,7 +235,6 @@ def get_payment_statistics(
         .group_by(Visit.payment_method)
         .all()
     )
-    
     payments_by_method_dict = {}
     for method, total, count in payments_by_method:
         method_key = method or 'unknown'
@@ -293,12 +243,9 @@ def get_payment_statistics(
             'count': int(count),
             'percentage': round((float(total) / total_payments * 100) if total_payments > 0 else 0.0, 2),
         }
-    
-    # Получаем данные по каждому способу оплаты
     card_payments = payments_by_method_dict.get('card', {'total': 0.0, 'count': 0, 'percentage': 0.0})
     cash_payments = payments_by_method_dict.get('cash', {'total': 0.0, 'count': 0, 'percentage': 0.0})
     other_payments = payments_by_method_dict.get('other', {'total': 0.0, 'count': 0, 'percentage': 0.0})
-    
     return {
         'total_payments': float(total_payments),
         'total_count': int(total_count),
@@ -307,8 +254,6 @@ def get_payment_statistics(
         'cash_payments': cash_payments,
         'other_payments': other_payments,
     }
-
-
 def get_popular_services(
     db: Session,
     specialist_id: Optional[int] = None,
@@ -316,7 +261,6 @@ def get_popular_services(
     date_to: Optional[datetime] = None,
     limit: int = 10,
 ) -> List[Dict[str, Any]]:
-    """Get most popular services by visit count and revenue."""
     service_filters = []
     if specialist_id:
         service_filters.append(Visit.specialist_id == specialist_id)
@@ -324,7 +268,6 @@ def get_popular_services(
         service_filters.append(Visit.date_start >= date_from)
     if date_to:
         service_filters.append(Visit.date_start <= date_to)
-    
     q = (
         db.query(
             Visit.service_id,
@@ -339,9 +282,7 @@ def get_popular_services(
         .order_by(func.count(Visit.id).desc())
         .limit(limit)
     )
-    
     results = q.all()
-    
     return [
         {
             'service_id': service_id,
@@ -352,22 +293,14 @@ def get_popular_services(
         }
         for service_id, name, count, revenue, avg_price in results
     ]
-
-
 def get_client_statistics(
     db: Session,
     owner_id: Optional[int] = None,
     business_id: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Get client statistics."""
-    
-    # Build base query with filters
     base_query = db.query(Client)
     client_filters = []
-    
-    # Filter by business_id using ClientBusinessRelation
     if business_id:
-        # Join with ClientBusinessRelation to filter by business_id
         base_query = base_query.join(
             ClientBusinessRelation, 
             Client.id == ClientBusinessRelation.client_id
@@ -379,48 +312,34 @@ def get_client_statistics(
             )
         )
     elif owner_id:
-        # Legacy filter by owner_id
         base_query = base_query.filter(Client.owner_id == owner_id)
         client_filters.append(Client.owner_id == owner_id)
-    
-    # Filter out deleted and archived clients
     base_query = base_query.filter(Client.deleted_at.is_(None))
     base_query = base_query.filter(Client.archived_at.is_(None))
     client_filters.append(Client.deleted_at.is_(None))
     client_filters.append(Client.archived_at.is_(None))
-    
     total_clients = base_query.count()
-    
-    # New clients (created today)
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     today_end = today_start + timedelta(days=1)
-    
     new_clients_query = db.query(Client).filter(*client_filters)
     new_clients_query = new_clients_query.filter(
         Client.created_at >= today_start,
         Client.created_at < today_end
     )
     new_clients = new_clients_query.count()
-    
-    # Clients by gender
     gender_counts = (
         db.query(Client.gender, func.count(Client.id).label('count'))
         .filter(*client_filters)
         .group_by(Client.gender)
         .all()
     )
-    
     clients_by_gender = {gender or 'unknown': count for gender, count in gender_counts}
-    
-    # Average spending - need to check if using business_id, get from ClientBusinessRelation
     if business_id:
         avg_spending = (
             db.query(func.avg(ClientBusinessRelation.spending))
             .filter(ClientBusinessRelation.business_id == business_id)
             .scalar()
         )
-        
-        # Top spenders from ClientBusinessRelation
         top_spenders = (
             db.query(
                 Client.id,
@@ -438,13 +357,11 @@ def get_client_statistics(
             .all()
         )
     else:
-        # Legacy: use Client.spending directly
         avg_spending = (
             db.query(func.avg(Client.spending))
             .filter(*client_filters)
             .scalar()
         )
-        
         top_spenders = (
             db.query(
                 Client.id,
@@ -456,7 +373,6 @@ def get_client_statistics(
             .limit(10)
             .all()
         )
-    
     top_spenders_list = [
         {
             'client_id': client_id,
@@ -465,7 +381,6 @@ def get_client_statistics(
         }
         for client_id, name, spending in top_spenders
     ]
-    
     return {
         'total_clients': total_clients,
         'new_clients': new_clients,
@@ -473,4 +388,3 @@ def get_client_statistics(
         'average_spending': round(float(avg_spending), 2) if avg_spending else None,
         'top_spenders': top_spenders_list,
     }
-

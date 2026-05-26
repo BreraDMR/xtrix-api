@@ -1,8 +1,6 @@
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field
-
-
 class ProductBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
@@ -15,12 +13,8 @@ class ProductBase(BaseModel):
     supplier: Optional[str] = Field(None, max_length=255)
     location: Optional[str] = Field(None, max_length=255)
     is_active: bool = Field(default=True)
-
-
 class ProductCreate(ProductBase):
     business_id: int
-
-
 class ProductUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
@@ -33,27 +27,19 @@ class ProductUpdate(BaseModel):
     supplier: Optional[str] = Field(None, max_length=255)
     location: Optional[str] = Field(None, max_length=255)
     is_active: Optional[bool] = None
-
-
 class ProductOut(ProductBase):
     id: int
     business_id: int
     created_at: datetime
     updated_at: datetime
-
     class Config:
         from_attributes = True
-
-
 class ProductStockOut(BaseModel):
-    """Информация о текущем остатке товара"""
     id: int
     name: str
     quantity: float
     min_quantity: float
     unit: str
-    is_low_stock: bool  # True если quantity <= min_quantity
-
+    is_low_stock: bool  
     class Config:
         from_attributes = True
-

@@ -1,9 +1,7 @@
 from typing import Optional, List
 from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-
 from app.api import deps
 from app.api.core.i18n import _, localize_response
 from app.api.core.pagination import PaginationParams, PaginatedResponse
@@ -13,24 +11,16 @@ from app.schemas.product import ProductCreate, ProductUpdate, ProductOut, Produc
 from app.schemas.product_usage import ProductUsageCreate, ProductUsageOut
 from app.api.crud import crud_product, crud_product_usage
 from app.api.core.logger import logger
-
 router = APIRouter()
-
-
 def get_user_business_id(current_user: User, db: Session) -> Optional[int]:
-    """Получить business_id текущего пользователя."""
     if current_user.business_id:
         return current_user.business_id
-    
     if current_user.role == "employee":
         from app.api.crud import crud_employee
         employee = crud_employee.get_employee_by_user_id(db, current_user.id)
         if employee and employee.business_id:
             return employee.business_id
-    
     return None
-
-
 @router.post("/", response_model=ProductOut)
 def create_product(
     product: ProductCreate,
@@ -38,14 +28,11 @@ def create_product(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Создать новый товар."""
     business_id = get_user_business_id(current_user, db)
     if not business_id:
         raise HTTPException(status_code=403, detail=_("business_required", locale))
-    
     if product.business_id != business_id:
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    
     try:
         result = crud_product.create_product(db, product)
         logger.info(f"Created product {result.id} by user {current_user.id}")
@@ -53,8 +40,6 @@ def create_product(
     except Exception as e:
         logger.error(f"Error creating product: {e}")
         raise HTTPException(status_code=400, detail=str(e))
-
-
 @router.get("/", response_model=PaginatedResponse[ProductOut])
 def list_products(
     category: Optional[str] = Query(None, description="Фильтр по категории"),
@@ -67,13 +52,10 @@ def list_products(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Получить список товаров."""
     business_id = get_user_business_id(current_user, db)
     if not business_id:
         raise HTTPException(status_code=403, detail=_("business_required", locale))
-    
     skip = (page - 1) * per_page
-    
     products = crud_product.list_products(
         db,
         business_id=business_id,
@@ -84,30 +66,23 @@ def list_products(
         skip=skip,
         limit=per_page,
     )
-    
     total = db.query(Product).filter(Product.business_id == business_id).count()
-    
     return PaginatedResponse.create(
         items=[localize_response(p, locale) for p in products],
         total=total,
         page=page,
         per_page=per_page,
     )
-
-
 @router.get("/low-stock", response_model=List[ProductStockOut])
 def get_low_stock_products(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Получить список товаров с низким остатком."""
     business_id = get_user_business_id(current_user, db)
     if not business_id:
         raise HTTPException(status_code=403, detail=_("business_required", locale))
-    
     products = crud_product.get_low_stock_products(db, business_id=business_id)
-    
     result = []
     for p in products:
         result.append(ProductStockOut(
@@ -118,10 +93,7 @@ def get_low_stock_products(
             unit=p.unit,
             is_low_stock=True,
         ))
-    
     return [localize_response(r, locale) for r in result]
-
-
 @router.get("/{product_id}", response_model=ProductOut)
 def get_product(
     product_id: int,
@@ -129,18 +101,13 @@ def get_product(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Получить товар по ID."""
     business_id = get_user_business_id(current_user, db)
     if not business_id:
         raise HTTPException(status_code=403, detail=_("business_required", locale))
-    
     product = crud_product.get_product(db, product_id, business_id)
     if not product:
         raise HTTPException(status_code=404, detail=_("product_not_found", locale))
-    
     return localize_response(product, locale)
-
-
 @router.put("/{product_id}", response_model=ProductOut)
 def update_product(
     product_id: int,
@@ -149,15 +116,12 @@ def update_product(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Обновить товар."""
     business_id = get_user_business_id(current_user, db)
     if not business_id:
         raise HTTPException(status_code=403, detail=_("business_required", locale))
-    
     db_product = crud_product.get_product(db, product_id, business_id)
     if not db_product:
         raise HTTPException(status_code=404, detail=_("product_not_found", locale))
-    
     try:
         result = crud_product.update_product(db, db_product, product)
         logger.info(f"Updated product {product_id} by user {current_user.id}")
@@ -165,8 +129,6 @@ def update_product(
     except Exception as e:
         logger.error(f"Error updating product: {e}")
         raise HTTPException(status_code=400, detail=str(e))
-
-
 @router.delete("/{product_id}")
 def delete_product(
     product_id: int,
@@ -174,19 +136,14 @@ def delete_product(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Удалить товар (soft delete)."""
     business_id = get_user_business_id(current_user, db)
     if not business_id:
         raise HTTPException(status_code=403, detail=_("business_required", locale))
-    
     success = crud_product.delete_product(db, product_id, business_id)
     if not success:
         raise HTTPException(status_code=404, detail=_("product_not_found", locale))
-    
     logger.info(f"Deleted product {product_id} by user {current_user.id}")
     return {"message": _("product_deleted", locale)}
-
-
 @router.post("/{product_id}/add-quantity")
 def add_product_quantity(
     product_id: int,
@@ -195,19 +152,14 @@ def add_product_quantity(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Добавить количество товара (поступление на склад)."""
     business_id = get_user_business_id(current_user, db)
     if not business_id:
         raise HTTPException(status_code=403, detail=_("business_required", locale))
-    
     product = crud_product.add_product_quantity(db, product_id, quantity, business_id)
     if not product:
         raise HTTPException(status_code=404, detail=_("product_not_found", locale))
-    
     logger.info(f"Added {quantity} to product {product_id} by user {current_user.id}")
     return localize_response(product, locale)
-
-
 @router.post("/{product_id}/reduce-quantity")
 def reduce_product_quantity_endpoint(
     product_id: int,
@@ -216,22 +168,17 @@ def reduce_product_quantity_endpoint(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Списать количество товара со склада."""
     business_id = get_user_business_id(current_user, db)
     if not business_id:
         raise HTTPException(status_code=403, detail=_("business_required", locale))
-    
     try:
         product = crud_product.reduce_product_quantity(db, product_id, quantity, business_id)
         if not product:
             raise HTTPException(status_code=404, detail=_("product_not_found", locale))
-        
         logger.info(f"Reduced {quantity} from product {product_id} by user {current_user.id}")
         return localize_response(product, locale)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-
 @router.post("/usage", response_model=ProductUsageOut)
 def create_product_usage(
     usage: ProductUsageCreate,
@@ -240,17 +187,13 @@ def create_product_usage(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Создать запись об использовании товара."""
     business_id = get_user_business_id(current_user, db)
     if not business_id:
         raise HTTPException(status_code=403, detail=_("business_required", locale))
-    
     if usage.business_id != business_id:
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    
     if not usage.used_by_id:
         usage.used_by_id = current_user.id
-    
     try:
         result = crud_product_usage.create_product_usage(db, usage, auto_reduce_stock=auto_reduce_stock)
         logger.info(f"Created product usage {result.id} by user {current_user.id}")
@@ -260,8 +203,6 @@ def create_product_usage(
     except Exception as e:
         logger.error(f"Error creating product usage: {e}")
         raise HTTPException(status_code=400, detail=str(e))
-
-
 @router.get("/usage", response_model=PaginatedResponse[ProductUsageOut])
 def list_product_usages(
     product_id: Optional[int] = Query(None),
@@ -275,13 +216,10 @@ def list_product_usages(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Получить список использований товаров."""
     business_id = get_user_business_id(current_user, db)
     if not business_id:
         raise HTTPException(status_code=403, detail=_("business_required", locale))
-    
     skip = (page - 1) * per_page
-    
     usages = crud_product_usage.list_product_usages(
         db,
         business_id=business_id,
@@ -293,14 +231,11 @@ def list_product_usages(
         skip=skip,
         limit=per_page,
     )
-    
     from app.db.models.product_usage import ProductUsage
     total = db.query(ProductUsage).filter(ProductUsage.business_id == business_id).count()
-    
     return PaginatedResponse.create(
         items=[localize_response(u, locale) for u in usages],
         total=total,
         page=page,
         per_page=per_page,
     )
-

@@ -1,10 +1,8 @@
-"""Data export utilities."""
 import csv
 import io
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from fastapi import Response
-
 try:
     import openpyxl
     from openpyxl import Workbook
@@ -12,28 +10,21 @@ try:
     EXCEL_AVAILABLE = True
 except ImportError:
     EXCEL_AVAILABLE = False
-
-
 def export_to_csv(
     data: List[Dict[str, Any]],
     filename: str = "export.csv",
     fieldnames: Optional[List[str]] = None,
 ) -> Response:
-    """Export data to CSV format."""
     output = io.StringIO()
-    
     if not data:
         writer = csv.DictWriter(output, fieldnames=fieldnames or [])
         writer.writeheader()
     else:
         if fieldnames is None:
             fieldnames = list(data[0].keys())
-        
         writer = csv.DictWriter(output, fieldnames=fieldnames)
         writer.writeheader()
-        
         for row in data:
-            # Flatten nested dicts and handle None values
             flat_row = {}
             for key in fieldnames:
                 value = row.get(key)
@@ -46,7 +37,6 @@ def export_to_csv(
                 else:
                     flat_row[key] = value
             writer.writerow(flat_row)
-    
     return Response(
         content=output.getvalue(),
         media_type="text/csv",
@@ -54,38 +44,29 @@ def export_to_csv(
             "Content-Disposition": f'attachment; filename="{filename}"',
         },
     )
-
-
 def export_to_excel(
     data: List[Dict[str, Any]],
     filename: str = "export.xlsx",
     sheet_name: str = "Data",
     fieldnames: Optional[List[str]] = None,
 ) -> Response:
-    """Export data to Excel format."""
     if not EXCEL_AVAILABLE:
         raise ImportError(
             "openpyxl is required for Excel export. Install it with: pip install openpyxl"
         )
-    
     wb = Workbook()
     ws = wb.active
     ws.title = sheet_name
-    
     if not data:
         if fieldnames:
             ws.append(fieldnames)
     else:
         if fieldnames is None:
             fieldnames = list(data[0].keys())
-        
-        # Write header
         header_row = ws.append(fieldnames)
         for cell in header_row:
             cell.font = Font(bold=True)
             cell.alignment = Alignment(horizontal="center")
-        
-        # Write data
         for row in data:
             row_data = []
             for key in fieldnames:
@@ -99,8 +80,6 @@ def export_to_excel(
                 else:
                     row_data.append(value)
             ws.append(row_data)
-        
-        # Auto-adjust column widths
         for column in ws.columns:
             max_length = 0
             column_letter = column[0].column_letter
@@ -112,11 +91,9 @@ def export_to_excel(
                     pass
             adjusted_width = min(max_length + 2, 50)
             ws.column_dimensions[column_letter].width = adjusted_width
-    
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
-    
     return Response(
         content=output.read(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -124,10 +101,7 @@ def export_to_excel(
             "Content-Disposition": f'attachment; filename="{filename}"',
         },
     )
-
-
 def prepare_client_export_data(clients: List[Any]) -> List[Dict[str, Any]]:
-    """Prepare client data for export."""
     export_data = []
     for client in clients:
         if hasattr(client, 'dict'):
@@ -136,8 +110,6 @@ def prepare_client_export_data(clients: List[Any]) -> List[Dict[str, Any]]:
             data = client.model_dump()
         else:
             data = dict(client)
-        
-        # Flatten and format
         export_data.append({
             'ID': data.get('id'),
             'Full Name': data.get('full_name'),
@@ -154,10 +126,7 @@ def prepare_client_export_data(clients: List[Any]) -> List[Dict[str, Any]]:
             'Created At': data.get('created_at'),
         })
     return export_data
-
-
 def prepare_visit_export_data(visits: List[Any]) -> List[Dict[str, Any]]:
-    """Prepare visit data for export."""
     export_data = []
     for visit in visits:
         if hasattr(visit, 'dict'):
@@ -166,7 +135,6 @@ def prepare_visit_export_data(visits: List[Any]) -> List[Dict[str, Any]]:
             data = visit.model_dump()
         else:
             data = dict(visit)
-        
         export_data.append({
             'ID': data.get('id'),
             'Client ID': data.get('client_id'),
@@ -180,10 +148,7 @@ def prepare_visit_export_data(visits: List[Any]) -> List[Dict[str, Any]]:
             'Created At': data.get('created_at'),
         })
     return export_data
-
-
 def prepare_service_export_data(services: List[Any]) -> List[Dict[str, Any]]:
-    """Prepare service data for export."""
     export_data = []
     for service in services:
         if hasattr(service, 'dict'):
@@ -192,7 +157,6 @@ def prepare_service_export_data(services: List[Any]) -> List[Dict[str, Any]]:
             data = service.model_dump()
         else:
             data = dict(service)
-        
         export_data.append({
             'ID': data.get('id'),
             'Specialist ID': data.get('specialist_id'),
@@ -204,12 +168,3 @@ def prepare_service_export_data(services: List[Any]) -> List[Dict[str, Any]]:
             'Created At': data.get('created_at'),
         })
     return export_data
-
-
-
-
-
-
-
-
-

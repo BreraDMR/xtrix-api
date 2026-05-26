@@ -1,12 +1,8 @@
-"""Audit logging utilities."""
 from typing import Optional, Dict, Any
 from datetime import datetime
 from sqlalchemy.orm import Session
 from fastapi import Request
-
 from app.db.models.audit_log import AuditLog
-
-
 def log_change(
     db: Session,
     entity_type: str,
@@ -18,14 +14,11 @@ def log_change(
     description: Optional[str] = None,
     request: Optional[Request] = None,
 ) -> AuditLog:
-    """Log a change to an entity."""
     ip_address = None
     user_agent = None
-    
     if request:
         ip_address = request.client.host if request.client else None
         user_agent = request.headers.get("User-Agent")
-    
     audit_log = AuditLog(
         entity_type=entity_type,
         entity_id=entity_id,
@@ -37,14 +30,10 @@ def log_change(
         ip_address=ip_address,
         user_agent=user_agent,
     )
-    
     db.add(audit_log)
     db.commit()
     db.refresh(audit_log)
-    
     return audit_log
-
-
 def get_audit_logs(
     db: Session,
     entity_type: Optional[str] = None,
@@ -54,9 +43,7 @@ def get_audit_logs(
     limit: int = 100,
     offset: int = 0,
 ) -> list[AuditLog]:
-    """Get audit logs with filters."""
     q = db.query(AuditLog)
-    
     if entity_type:
         q = q.filter(AuditLog.entity_type == entity_type)
     if entity_id:
@@ -65,17 +52,6 @@ def get_audit_logs(
         q = q.filter(AuditLog.user_id == user_id)
     if action:
         q = q.filter(AuditLog.action == action)
-    
     q = q.order_by(AuditLog.created_at.desc())
     q = q.offset(offset).limit(limit)
-    
     return q.all()
-
-
-
-
-
-
-
-
-

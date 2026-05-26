@@ -1,8 +1,5 @@
 from typing import Optional
-
 from pydantic import BaseModel, Field
-
-
 class SubscriptionPlanBase(BaseModel):
     code: str = Field(..., max_length=50)
     name: str = Field(..., max_length=255)
@@ -13,12 +10,8 @@ class SubscriptionPlanBase(BaseModel):
     is_active: bool = True
     is_trial: bool = Field(default=False, description="Является ли план trial")
     trial_days: Optional[int] = Field(None, ge=1, le=30, description="Количество дней trial (7-14 для solo, 3-5 для admin)")
-
-
 class SubscriptionPlanCreate(SubscriptionPlanBase):
     pass
-
-
 class SubscriptionPlanUpdate(BaseModel):
     name: Optional[str] = None
     period_days: Optional[int] = None
@@ -28,14 +21,7 @@ class SubscriptionPlanUpdate(BaseModel):
     is_active: Optional[bool] = None
     is_trial: Optional[bool] = None
     trial_days: Optional[int] = None
-
-
 class SubscriptionPlanOut(SubscriptionPlanBase):
     id: int
-
     class Config:
         from_attributes = True
-
-
-
-

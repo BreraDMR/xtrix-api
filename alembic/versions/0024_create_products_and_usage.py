@@ -1,26 +1,19 @@
 """create products and product usage tables
-
 Revision ID: 0024_products
 Revises: 0023_transactions
 Create Date: 2025-01-05 16:00:00
 """
-
 from alembic import op
 import sqlalchemy as sa
-
 revision = "0024_products"
 down_revision = "0023_transactions"
 branch_labels = None
 depends_on = None
-
-
 def upgrade():
     from sqlalchemy import inspect
     conn = op.get_bind()
     inspector = inspect(conn)
     table_names = inspector.get_table_names()
-    
-    # Создаем таблицу products
     if 'products' not in table_names:
         op.create_table(
             'products',
@@ -52,8 +45,6 @@ def upgrade():
         op.create_index('ix_products_is_active', 'products', ['is_active'], unique=False)
         op.create_index('ix_products_created_at', 'products', ['created_at'], unique=False)
         op.create_index('ix_products_updated_at', 'products', ['updated_at'], unique=False)
-    
-    # Создаем таблицу product_usages
     if 'product_usages' not in table_names:
         op.create_table(
             'product_usages',
@@ -83,15 +74,11 @@ def upgrade():
         op.create_index('ix_product_usages_client_id', 'product_usages', ['client_id'], unique=False)
         op.create_index('ix_product_usages_usage_date', 'product_usages', ['usage_date'], unique=False)
         op.create_index('ix_product_usages_created_at', 'product_usages', ['created_at'], unique=False)
-
-
 def downgrade():
     from sqlalchemy import inspect
     conn = op.get_bind()
     inspector = inspect(conn)
     table_names = inspector.get_table_names()
-    
-    # Удаляем таблицу product_usages
     if 'product_usages' in table_names:
         op.drop_index('ix_product_usages_created_at', table_name='product_usages')
         op.drop_index('ix_product_usages_usage_date', table_name='product_usages')
@@ -103,8 +90,6 @@ def downgrade():
         op.drop_index('ix_product_usages_product_id', table_name='product_usages')
         op.drop_index('ix_product_usages_id', table_name='product_usages')
         op.drop_table('product_usages')
-    
-    # Удаляем таблицу products
     if 'products' in table_names:
         op.drop_index('ix_products_updated_at', table_name='products')
         op.drop_index('ix_products_created_at', table_name='products')
@@ -117,4 +102,3 @@ def downgrade():
         op.drop_index('ix_products_business_id', table_name='products')
         op.drop_index('ix_products_id', table_name='products')
         op.drop_table('products')
-

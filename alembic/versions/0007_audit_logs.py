@@ -1,19 +1,14 @@
 """add audit logs table
-
 Revision ID: 0007_audit_logs
 Revises: 0006_qr_codes
 Create Date: 2024-01-07 00:00:00
 """
-
 from alembic import op
 import sqlalchemy as sa
-
 revision = "0007_audit_logs"
 down_revision = "0006_qr_codes"
 branch_labels = None
 depends_on = None
-
-
 def upgrade():
     op.create_table(
         "audit_logs",
@@ -34,8 +29,6 @@ def upgrade():
     op.create_index("ix_audit_logs_action", "audit_logs", ["action"])
     op.create_index("ix_audit_logs_user_id", "audit_logs", ["user_id"])
     op.create_index("ix_audit_logs_created_at", "audit_logs", ["created_at"])
-
-
 def downgrade():
     op.drop_index("ix_audit_logs_created_at", "audit_logs")
     op.drop_index("ix_audit_logs_user_id", "audit_logs")
@@ -43,12 +36,3 @@ def downgrade():
     op.drop_index("ix_audit_logs_entity_id", "audit_logs")
     op.drop_index("ix_audit_logs_entity_type", "audit_logs")
     op.drop_table("audit_logs")
-
-
-
-
-
-
-
-
-

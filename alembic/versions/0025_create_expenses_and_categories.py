@@ -1,26 +1,19 @@
 """create expenses and expense categories tables
-
 Revision ID: 0025_expenses
 Revises: 0024_products
 Create Date: 2025-01-05 17:00:00
 """
-
 from alembic import op
 import sqlalchemy as sa
-
 revision = "0025_expenses"
 down_revision = "0024_products"
 branch_labels = None
 depends_on = None
-
-
 def upgrade():
     from sqlalchemy import inspect
     conn = op.get_bind()
     inspector = inspect(conn)
     table_names = inspector.get_table_names()
-    
-    # Создаем таблицу expense_categories
     if 'expense_categories' not in table_names:
         op.create_table(
             'expense_categories',
@@ -42,8 +35,6 @@ def upgrade():
         op.create_index('ix_expense_categories_is_system', 'expense_categories', ['is_system'], unique=False)
         op.create_index('ix_expense_categories_is_active', 'expense_categories', ['is_active'], unique=False)
         op.create_index('ix_expense_categories_created_at', 'expense_categories', ['created_at'], unique=False)
-        
-        # Создаем системные категории по умолчанию
         op.execute("""
             INSERT INTO expense_categories (name, type, color, is_system, is_active, created_at)
             VALUES
@@ -55,8 +46,6 @@ def upgrade():
                 ('Сервисы / Подписки', 'fixed', '#EC4899', true, true, NOW()),
                 ('Прочее', 'variable', '#6B7280', true, true, NOW())
         """)
-    
-    # Создаем таблицу expenses
     if 'expenses' not in table_names:
         op.create_table(
             'expenses',
@@ -86,15 +75,11 @@ def upgrade():
         op.create_index('ix_expenses_created_by_id', 'expenses', ['created_by_id'], unique=False)
         op.create_index('ix_expenses_created_at', 'expenses', ['created_at'], unique=False)
         op.create_index('ix_expenses_updated_at', 'expenses', ['updated_at'], unique=False)
-
-
 def downgrade():
     from sqlalchemy import inspect
     conn = op.get_bind()
     inspector = inspect(conn)
     table_names = inspector.get_table_names()
-    
-    # Удаляем таблицу expenses
     if 'expenses' in table_names:
         op.drop_index('ix_expenses_updated_at', table_name='expenses')
         op.drop_index('ix_expenses_created_at', table_name='expenses')
@@ -107,8 +92,6 @@ def downgrade():
         op.drop_index('ix_expenses_business_id', table_name='expenses')
         op.drop_index('ix_expenses_id', table_name='expenses')
         op.drop_table('expenses')
-    
-    # Удаляем таблицу expense_categories
     if 'expense_categories' in table_names:
         op.drop_index('ix_expense_categories_created_at', table_name='expense_categories')
         op.drop_index('ix_expense_categories_is_active', table_name='expense_categories')
@@ -118,4 +101,3 @@ def downgrade():
         op.drop_index('ix_expense_categories_business_id', table_name='expense_categories')
         op.drop_index('ix_expense_categories_id', table_name='expense_categories')
         op.drop_table('expense_categories')
-

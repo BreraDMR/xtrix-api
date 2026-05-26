@@ -1,9 +1,7 @@
 from typing import Optional, Tuple
 from datetime import date
-
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
-
 from app.api.core.redis_client import (
     cache_client, get_cached_client, invalidate_client,
     cache_client_list, get_cached_client_list, invalidate_client_list,
@@ -17,8 +15,6 @@ from sqlalchemy import or_
 from app.db.models.client import Client
 from app.db.models.client_specialist_relation import ClientSpecialistRelation
 from app.schemas.client import ClientCreate, ClientUpdate, ClientOut
-
-
 def find_client_by_identifiers(
     db: Session,
     contact_phone: Optional[str] = None,
@@ -26,34 +22,18 @@ def find_client_by_identifiers(
     full_name: Optional[str] = None,
     birth_date: Optional[date] = None,
 ) -> Optional[Client]:
-    """
-    Ищет существующего клиента по идентификаторам.
-    Приоритет поиска:
-    1. По контактному телефону (если указан)
-    2. По email (если указан)
-    3. По ФИО + дата рождения (если указаны оба)
-    
-    Returns:
-        Client если найден, None если не найден
-    """
     query = db.query(Client)
-    query = filter_active(query)  # Исключаем удаленных клиентов
-    
-    # Приоритет 1: Поиск по телефону
+    query = filter_active(query)  
     if contact_phone:
         phone_cleaned = contact_phone.strip()
         client = query.filter(Client.contact_phone == phone_cleaned).first()
         if client:
             return client
-    
-    # Приоритет 2: Поиск по email
     if contact_email:
         email_cleaned = contact_email.strip().lower()
         client = query.filter(func.lower(Client.contact_email) == email_cleaned).first()
         if client:
             return client
-    
-    # Приоритет 3: Поиск по ФИО + дата рождения
     if full_name and birth_date:
         name_cleaned = full_name.strip()
         client = query.filter(
@@ -64,97 +44,57 @@ def find_client_by_identifiers(
         ).first()
         if client:
             return client
-    
     return None
-
-
 def validate_healthcare_required_fields(
     db: Session,
     client_id: int,
     specialist_id: Optional[int] = None,
 ) -> None:
-    """
-    Проверяет наличие обязательных медицинских полей для healthcare специалистов.
-    Вызывает ValueError, если поля отсутствуют.
-    """
     if not specialist_id:
-        return  # Не можем проверить без специалиста
-    
-    # Получаем тип специалиста
+        return  
     from app.db.models.user import User
     specialist = db.query(User).filter(User.id == specialist_id).first()
     if not specialist or not specialist.specialist_type:
-        return  # Не healthcare специалист или тип не указан
-    
-    # Проверяем категорию специалиста
+        return  
     try:
         from app.db.models.specialist_type import SpecialistType, get_category_for_type, SpecialistCategory, REQUIRED_FIELDS_BY_CATEGORY
-        
         specialist_type_enum = SpecialistType(specialist.specialist_type)
         category = get_category_for_type(specialist_type_enum)
-        
-        # Если не healthcare, валидация не требуется
         if category != SpecialistCategory.HEALTHCARE:
             return
-        
-        # Получаем обязательные поля для healthcare
         required_fields = REQUIRED_FIELDS_BY_CATEGORY.get(SpecialistCategory.HEALTHCARE, [])
         if not required_fields:
             return
-        
-        # Проверяем наличие MedicalProfile
         from app.db.models.medical_profile import MedicalProfile
         medical_profile = db.query(MedicalProfile).filter(
             MedicalProfile.client_id == client_id,
             MedicalProfile.deleted_at.is_(None)
         ).first()
-        
         if not medical_profile:
             raise ValueError(
                 f"For healthcare specialists, medical profile with required fields ({', '.join(required_fields)}) must be created. "
                 "Please create MedicalProfile with allergies and chronic_diseases fields."
             )
-        
-        # Проверяем наличие обязательных полей
         missing_fields = []
         for field in required_fields:
             value = getattr(medical_profile, field, None)
             if value is None or (isinstance(value, str) and not value.strip()):
                 missing_fields.append(field)
-        
         if missing_fields:
             raise ValueError(
                 f"For healthcare specialists, the following medical fields are required but missing: {', '.join(missing_fields)}. "
                 "Please fill in these fields in MedicalProfile."
             )
-    
     except (ValueError, AttributeError) as e:
-        # Если это уже наша ошибка валидации, пробрасываем дальше
         if "healthcare" in str(e).lower() or "required" in str(e).lower():
             raise
-        # Иначе это ошибка парсинга enum, игнорируем
         pass
-
-
 def find_or_create_client(
     db: Session,
     client_in: ClientCreate,
     business_id: Optional[int] = None,
     specialist_id: Optional[int] = None,
 ) -> Tuple[Client, bool]:
-    """
-    Ищет существующего клиента или создает нового.
-    
-    Args:
-        db: Database session
-        client_in: Данные клиента для поиска/создания
-        business_id: ID бизнеса (опционально, для создания связей)
-        specialist_id: ID специалиста (опционально, для валидации обязательных полей healthcare)
-    
-    Returns:
-        Tuple[Client, bool]: (клиент, был_ли_создан_новый)
-    """
-    # Поиск существующего клиента
     existing_client = find_client_by_identifiers(
         db=db,
         contact_phone=client_in.contact_phone,
@@ -162,45 +102,30 @@ def find_or_create_client(
         full_name=client_in.full_name,
         birth_date=client_in.birth_date,
     )
-    
     if existing_client:
-        # Клиент найден - проверяем валидацию для healthcare специалистов
         if specialist_id:
             try:
                 validate_healthcare_required_fields(db, existing_client.id, specialist_id)
             except ValueError as e:
-                # Если валидация не прошла, всё равно возвращаем клиента, но логируем предупреждение
                 from app.api.core.logger import get_logger
                 logger = get_logger("clients")
                 logger.warning(f"Healthcare validation failed for existing client {existing_client.id}: {str(e)}")
-                # Не пробрасываем ошибку для существующих клиентов, так как они уже были созданы
-        
         return existing_client, False
-    
-    # Клиент не найден - создаем нового
-    # Создаем клиента без owner_id (глобальный клиент)
     client_data = client_in.dict()
-    client_data.pop('owner_id', None)  # Убираем owner_id для глобального клиента
-    
+    client_data.pop('owner_id', None)  
     client = Client(**client_data)
     db.add(client)
-    db.flush()  # Получаем ID клиента до commit
-    
-    # Валидация обязательных полей для healthcare специалистов
-    # Проверяем после создания клиента, но до commit
+    db.flush()  
     if specialist_id:
         try:
             validate_healthcare_required_fields(db, client.id, specialist_id)
         except ValueError as e:
             db.rollback()
             raise
-    
-    # Создаем связь с бизнесом, если указан business_id (только если таблица существует)
     if business_id:
         from sqlalchemy import inspect
         inspector = inspect(db.bind)
         has_business_relations = 'client_business_relations' in inspector.get_table_names()
-        
         if has_business_relations:
             from app.db.models.client_business_relation import ClientBusinessRelation
             business_relation = ClientBusinessRelation(
@@ -208,139 +133,87 @@ def find_or_create_client(
                 business_id=business_id
             )
             db.add(business_relation)
-    
     db.commit()
     db.refresh(client)
-    
-    # Cache the new client
     try:
         cache_client(client.id, ClientOut.from_orm(client).dict())
-        # Invalidate list cache
         invalidate_client_list()
     except Exception:
         pass
-    
     return client, True
-
-
 def create_client(db: Session, client_in: ClientCreate, specialist_id: Optional[int] = None) -> Client:
-    """
-    Создает нового клиента без поиска существующих.
-    Используйте find_or_create_client для автоматического поиска дубликатов.
-    
-    Args:
-        db: Database session
-        client_in: Данные клиента для создания
-        specialist_id: ID специалиста (опционально, для валидации обязательных полей healthcare)
-    """
     client_data = client_in.dict()
-    client_data.pop('owner_id', None)  # Убираем owner_id для глобального клиента
-    
+    client_data.pop('owner_id', None)  
     client = Client(**client_data)
     db.add(client)
-    db.flush()  # Получаем ID клиента до commit
-    
-    # Валидация обязательных полей для healthcare специалистов
-    # Проверяем после создания клиента, но до commit
+    db.flush()  
     if specialist_id:
         try:
             validate_healthcare_required_fields(db, client.id, specialist_id)
         except ValueError as e:
             db.rollback()
             raise
-    
     db.commit()
     db.refresh(client)
-    
-    # Cache the new client
     try:
         cache_client(client.id, ClientOut.from_orm(client).dict())
-        # Invalidate list cache
         invalidate_client_list()
     except Exception:
         pass
     return client
-
-
 def update_client(db: Session, client: Client, update: ClientUpdate) -> Client:
     for field, value in update.dict(exclude_unset=True).items():
         setattr(client, field, value)
     db.add(client)
     db.commit()
     db.refresh(client)
-    # Invalidate caches
     invalidate_client(client.id)
     invalidate_client_list()
-    # Re-cache the updated client
     try:
         cache_client(client.id, ClientOut.from_orm(client).dict())
     except Exception:
         pass
     return client
-
-
 def get_client(db: Session, client_id: int, include_deleted: bool = False) -> Optional[Client]:
-    """Get client with optimized query and optional soft-deleted inclusion."""
     cached = get_cached_client(client_id)
     if cached and not include_deleted:
         return ClientOut(**cached)  # type: ignore
-    
     query = db.query(Client).options(joinedload(Client.owner))
     if not include_deleted:
         query = filter_active(query)
     return query.filter(Client.id == client_id).first()
-
-
 def list_clients(
     db: Session,
     owner_id: Optional[int] = None,
-    business_id: Optional[int] = None,  # Новый параметр для изоляции по бизнесу
+    business_id: Optional[int] = None,  
     phone: Optional[str] = None,
     name: Optional[str] = None,
     pagination: Optional[PaginationParams] = None,
     include_deleted: bool = False,
     include_archived: bool = False,
-    accessible_client_ids: Optional[set[int]] = None,  # Фильтрация по доступным client_id (None = все)
+    accessible_client_ids: Optional[set[int]] = None,  
 ) -> Tuple[list[Client], int]:
-    """List clients with optional pagination. Returns (items, total_count)."""
-    # Check cache first (only for non-paginated or first page)
     cache_filters = {
         'owner_id': owner_id,
         'phone': phone,
         'name': name,
     }
-    
-    # Only use cache if no pagination or first page and not including deleted/archived
     use_cache = (pagination is None or pagination.page == 1) and not include_deleted and not include_archived
-    
     if use_cache:
         cached = get_cached_client_list(cache_filters)
         if cached:
-            # Convert to Client objects (simplified - in production might need full ORM)
-            # For now, return from DB but cache the result
             pass
-    
-    # Optimized query with joinedload for owner
     q = db.query(Client).options(joinedload(Client.owner))
-    
-    # Filter out deleted and archived by default
     if not include_deleted:
         q = filter_active(q)
     if not include_archived:
         q = q.filter(Client.archived_at.is_(None))
-    
-    # Apply filters
-    # Приоритет: если указан business_id, используем его для изоляции данных
-    # Но также показываем старых клиентов (с owner_id) для обратной совместимости
     if business_id:
-        # Проверяем существование таблиц и колонок
         from sqlalchemy import inspect
         inspector = inspect(db.bind)
         table_names = inspector.get_table_names()
         has_business_relations = 'client_business_relations' in table_names
         has_specialist_relations = 'client_specialist_relations' in table_names
-        
-        # Проверяем наличие колонки business_id в client_specialist_relations
         has_specialist_business_id = False
         if has_specialist_relations:
             try:
@@ -348,14 +221,9 @@ def list_clients(
                 has_specialist_business_id = 'business_id' in columns
             except:
                 pass
-        
         filters = []
-        
-        # Показываем старых клиентов с owner_id (обратная совместимость)
         if owner_id:
             filters.append(Client.owner_id == owner_id)
-        
-        # Если таблицы существуют и имеют нужные колонки, добавляем связанных клиентов
         if has_business_relations or (has_specialist_relations and has_specialist_business_id):
             try:
                 if has_business_relations:
@@ -364,7 +232,6 @@ def list_clients(
                         ClientBusinessRelation.business_id == business_id
                     )
                     filters.append(Client.id.in_(business_client_ids))
-                
                 if has_specialist_relations and has_specialist_business_id:
                     specialist_filter = ClientSpecialistRelation.business_id == business_id
                     if owner_id:
@@ -377,24 +244,16 @@ def list_clients(
                     )
                     filters.append(Client.id.in_(specialist_client_ids))
             except Exception as e:
-                # Если запрос не может быть выполнен, используем только owner_id
                 pass
-        
-        # Применяем фильтры
         if filters:
             q = q.filter(or_(*filters))
         elif owner_id:
-            # Если нет других фильтров, показываем только по owner_id
             q = q.filter(Client.owner_id == owner_id)
     elif owner_id:
-        # Для обратной совместимости: фильтр по owner_id через ClientSpecialistRelation
-        # Clients owned by the specialist OR linked through relations
         from sqlalchemy import inspect
         inspector = inspect(db.bind)
         table_names = inspector.get_table_names()
         has_specialist_relations = 'client_specialist_relations' in table_names
-        
-        # Проверяем наличие колонки business_id (может не быть, если миграция 0014 не применена)
         has_specialist_business_id = False
         if has_specialist_relations:
             try:
@@ -402,11 +261,8 @@ def list_clients(
                 has_specialist_business_id = 'business_id' in columns
             except:
                 pass
-        
         if has_specialist_relations:
             try:
-                # Показываем клиентов с owner_id или связанных через ClientSpecialistRelation
-                # Не используем business_id, так как его может не быть
                 q = q.filter(
                     or_(
                         Client.owner_id == owner_id,
@@ -418,80 +274,45 @@ def list_clients(
                     )
                 )
             except Exception:
-                # Если запрос не может быть выполнен, показываем только по owner_id
                 q = q.filter(Client.owner_id == owner_id)
         else:
-            # Если таблицы нет, показываем только по owner_id
             q = q.filter(Client.owner_id == owner_id)
     if phone:
         q = q.filter(Client.contact_phone == phone)
     if name:
         q = q.filter(Client.full_name.ilike(f"%{name}%"))
-    
-    # Фильтрация по доступным client_id (для employee и других ролей с ограниченным доступом)
     if accessible_client_ids is not None:
-        # None означает "все клиенты" (для admin), set() означает "нет доступа"
         if len(accessible_client_ids) == 0:
-            # Нет доступа - возвращаем пустой список
             return [], 0
         q = q.filter(Client.id.in_(accessible_client_ids))
-    
-    # Get total count before pagination
     total = q.count()
-    
-    # Apply pagination if provided
     if pagination:
         q = q.offset(pagination.offset).limit(pagination.limit)
-    
     items = q.all()
-    
-    # Cache result if first page
     if use_cache and items:
         try:
             items_dict = [ClientOut.from_orm(item).dict() for item in items]
             cache_client_list(items_dict, cache_filters, ttl_seconds=300)
         except Exception:
-            pass  # Fail silently
-    
+            pass  
     return items, total
-
-
 def get_client_by_qr_code(db: Session, qr_code: str) -> Optional[Client]:
-    """Get client by QR code."""
     return db.query(Client).filter(Client.qr_code == qr_code).first()
-
-
 def generate_client_qr_code(db: Session, client_id: int) -> tuple[str, str]:
-    """
-    Generate QR code and access password for a client.
-    Returns (qr_code_data, access_password).
-    """
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         raise ValueError("Client not found")
-    
-    # Generate QR code data
     qr_data = generate_qr_code_data(client_id)
-    
-    # Generate access password
     access_password = generate_access_password()
     hashed_password = get_password_hash(access_password)
-    
-    # Update client
     client.qr_code = qr_data
     client.access_password = hashed_password
     db.commit()
     db.refresh(client)
-    
     invalidate_client(client_id)
-    
     return qr_data, access_password
-
-
 def verify_client_access_password(db: Session, client_id: int, password: str) -> bool:
-    """Verify client access password."""
     client = get_client(db, client_id)
     if not client or not client.access_password:
         return False
     return verify_password(password, client.access_password)
-

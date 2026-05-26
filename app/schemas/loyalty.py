@@ -1,11 +1,6 @@
-"""Schemas for loyalty program."""
 from datetime import date, datetime
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
-
-
-# ============ LoyaltyProgram ============
-
 class LoyaltyProgramBase(BaseModel):
     program_type: str = Field(..., description="Type: 'points', 'cashback', 'hybrid'")
     points_per_currency: float = Field(1.0, ge=0, description="Points per currency unit")
@@ -19,12 +14,8 @@ class LoyaltyProgramBase(BaseModel):
     birthday_bonus_percent: Optional[float] = Field(None, ge=0, description="Birthday bonus cashback percent")
     is_active: bool = Field(True, description="Is program active")
     max_bonus_payment_percent: Optional[float] = Field(100.0, ge=0, le=100, description="Max % of check that can be paid with bonuses")
-
-
 class LoyaltyProgramCreate(LoyaltyProgramBase):
     business_id: int
-
-
 class LoyaltyProgramUpdate(BaseModel):
     program_type: Optional[str] = None
     points_per_currency: Optional[float] = Field(None, ge=0)
@@ -38,20 +29,13 @@ class LoyaltyProgramUpdate(BaseModel):
     birthday_bonus_percent: Optional[float] = Field(None, ge=0)
     is_active: Optional[bool] = None
     max_bonus_payment_percent: Optional[float] = Field(None, ge=0, le=100)
-
-
 class LoyaltyProgramOut(LoyaltyProgramBase):
     id: int
     business_id: int
     created_at: datetime
     updated_at: datetime
-
     class Config:
         from_attributes = True
-
-
-# ============ LoyaltyLevel ============
-
 class LoyaltyLevelBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     level_number: int = Field(..., ge=1, description="Level number (1, 2, 3...)")
@@ -60,12 +44,8 @@ class LoyaltyLevelBase(BaseModel):
     cashback_multiplier: Optional[float] = Field(1.0, ge=0, description="Cashback multiplier")
     benefits: Optional[str] = Field(None, description="Benefits description (JSON)")
     color: Optional[str] = Field(None, description="Color for UI")
-
-
 class LoyaltyLevelCreate(LoyaltyLevelBase):
     program_id: int
-
-
 class LoyaltyLevelUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     level_number: Optional[int] = Field(None, ge=1)
@@ -74,19 +54,12 @@ class LoyaltyLevelUpdate(BaseModel):
     cashback_multiplier: Optional[float] = Field(None, ge=0)
     benefits: Optional[str] = None
     color: Optional[str] = None
-
-
 class LoyaltyLevelOut(LoyaltyLevelBase):
     id: int
     program_id: int
     created_at: datetime
-
     class Config:
         from_attributes = True
-
-
-# ============ LoyaltyPromotion ============
-
 class LoyaltyPromotionBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
@@ -101,12 +74,8 @@ class LoyaltyPromotionBase(BaseModel):
     end_date: date = Field(..., description="Promotion end date")
     client_id: Optional[int] = Field(None, description="Client ID (null = for all clients)")
     is_active: bool = Field(True, description="Is promotion active")
-
-
 class LoyaltyPromotionCreate(LoyaltyPromotionBase):
     program_id: int
-
-
 class LoyaltyPromotionUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
@@ -121,19 +90,12 @@ class LoyaltyPromotionUpdate(BaseModel):
     end_date: Optional[date] = None
     client_id: Optional[int] = None
     is_active: Optional[bool] = None
-
-
 class LoyaltyPromotionOut(LoyaltyPromotionBase):
     id: int
     program_id: int
     created_at: datetime
-
     class Config:
         from_attributes = True
-
-
-# ============ LoyaltyTransaction ============
-
 class LoyaltyTransactionOut(BaseModel):
     id: int
     client_id: int
@@ -150,13 +112,8 @@ class LoyaltyTransactionOut(BaseModel):
     description: Optional[str]
     expiry_date: Optional[date]
     created_at: datetime
-
     class Config:
         from_attributes = True
-
-
-# ============ Client Loyalty Balance ============
-
 class ClientLoyaltyBalance(BaseModel):
     client_id: int
     business_id: int
@@ -164,18 +121,10 @@ class ClientLoyaltyBalance(BaseModel):
     cashback: float
     level: Optional[LoyaltyLevelOut] = None
     level_id: Optional[int] = None
-
-
-# ============ Use Points Request ============
-
 class UsePointsRequest(BaseModel):
     points_to_use: Optional[float] = Field(None, ge=0, description="Points to use")
     cashback_to_use: Optional[float] = Field(None, ge=0, description="Cashback to use")
     visit_id: Optional[int] = Field(None, description="Visit ID if applicable")
-
-
-# ============ Loyalty Analytics ============
-
 class LoyaltyStatisticsResponse(BaseModel):
     total_participants: int
     total_points_earned: float
@@ -186,8 +135,6 @@ class LoyaltyStatisticsResponse(BaseModel):
     active_cashback_balance: float
     points_redemption_rate: float
     cashback_redemption_rate: float
-
-
 class LevelDistributionItem(BaseModel):
     level_id: Optional[int]
     level_name: str
@@ -195,24 +142,16 @@ class LevelDistributionItem(BaseModel):
     client_count: int
     min_spending: float
     color: Optional[str] = None
-
-
 class LevelDistributionResponse(BaseModel):
     distribution: List[LevelDistributionItem]
-
-
 class TopClientItem(BaseModel):
     client_id: int
     client_name: str
     points: float
     cashback: float
     level_id: Optional[int] = None
-
-
 class TopClientsResponse(BaseModel):
     clients: List[TopClientItem]
-
-
 class PromotionEffectivenessItem(BaseModel):
     promotion_id: int
     promotion_name: str
@@ -224,12 +163,8 @@ class PromotionEffectivenessItem(BaseModel):
     unique_clients: int
     total_points_awarded: float
     total_cashback_awarded: float
-
-
 class PromotionEffectivenessResponse(BaseModel):
     promotions: List[PromotionEffectivenessItem]
-
-
 class PointsUsageTrendItem(BaseModel):
     period: str
     points_earned: float
@@ -237,12 +172,8 @@ class PointsUsageTrendItem(BaseModel):
     cashback_earned: float
     cashback_spent: float
     transaction_count: int
-
-
 class PointsUsageTrendsResponse(BaseModel):
     trends: List[PointsUsageTrendItem]
-
-
 class LoyaltyAnalytics(BaseModel):
     total_points_issued: float
     total_points_spent: float
@@ -251,4 +182,4 @@ class LoyaltyAnalytics(BaseModel):
     active_members: int
     total_transactions: int
     average_points_per_client: float
-    redemption_rate: float  # % of issued points that were spent
+    redemption_rate: float  

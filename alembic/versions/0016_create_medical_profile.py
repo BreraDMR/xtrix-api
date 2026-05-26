@@ -1,21 +1,15 @@
 """create medical profile
-
 Revision ID: 0016_create_medical_profile
 Revises: 0015_add_business_id_to_visits_services
 Create Date: 2024-12-22 17:00:00
 """
-
 from alembic import op
 import sqlalchemy as sa
-
 revision = "0016_create_medical_profile"
 down_revision = "0015_add_business_to_visits_svc"
 branch_labels = None
 depends_on = None
-
-
 def upgrade():
-    # Create medical_profiles table
     op.create_table(
         "medical_profiles",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -40,8 +34,6 @@ def upgrade():
     op.create_index("ix_medical_profiles_created_at", "medical_profiles", ["created_at"])
     op.create_index("ix_medical_profiles_updated_at", "medical_profiles", ["updated_at"])
     op.create_index("ix_medical_profiles_deleted_at", "medical_profiles", ["deleted_at"])
-    
-    # Migrate existing medical data from clients to medical_profiles
     op.execute("""
         INSERT INTO medical_profiles (
             client_id, allergies, chronic_diseases, pregnancy, viral_diseases, ontology, created_at, updated_at
@@ -67,31 +59,20 @@ def upgrade():
             SELECT 1 FROM medical_profiles mp WHERE mp.client_id = clients.id
         )
     """)
-    
-    # Remove medical columns from clients table
-    # Но оставляем их пока nullable для обратной совместимости
-    # Полное удаление будет в следующей миграции после проверки
     op.alter_column("clients", "allergies", nullable=True)
     op.alter_column("clients", "chronic_diseases", nullable=True)
     op.alter_column("clients", "pregnancy", nullable=True)
     op.alter_column("clients", "ontology", nullable=True)
     op.alter_column("clients", "viral_diseases", nullable=True)
-
-
 def downgrade():
-    # Restore medical columns in clients (but data will be lost from medical_profiles)
     op.alter_column("clients", "allergies", nullable=True)
     op.alter_column("clients", "chronic_diseases", nullable=True)
     op.alter_column("clients", "pregnancy", nullable=True)
     op.alter_column("clients", "ontology", nullable=True)
     op.alter_column("clients", "viral_diseases", nullable=True)
-    
-    # Drop medical_profiles table
     op.drop_index("ix_medical_profiles_deleted_at", "medical_profiles")
     op.drop_index("ix_medical_profiles_updated_at", "medical_profiles")
     op.drop_index("ix_medical_profiles_created_at", "medical_profiles")
     op.drop_index("ix_medical_profiles_pregnancy", "medical_profiles")
     op.drop_index("ix_medical_profiles_client_id", "medical_profiles")
     op.drop_table("medical_profiles")
-
-

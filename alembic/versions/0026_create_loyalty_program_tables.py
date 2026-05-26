@@ -1,26 +1,19 @@
 """create loyalty program tables
-
 Revision ID: 0026_loyalty
 Revises: 0025_expenses
 Create Date: 2025-01-06 10:00:00
 """
-
 from alembic import op
 import sqlalchemy as sa
-
 revision = "0026_loyalty"
 down_revision = "0025_expenses"
 branch_labels = None
 depends_on = None
-
-
 def upgrade():
     from sqlalchemy import inspect
     conn = op.get_bind()
     inspector = inspect(conn)
     table_names = inspector.get_table_names()
-    
-    # Создаем таблицу loyalty_programs
     if 'loyalty_programs' not in table_names:
         op.create_table(
             'loyalty_programs',
@@ -49,8 +42,6 @@ def upgrade():
         op.create_index('ix_loyalty_programs_program_type', 'loyalty_programs', ['program_type'], unique=False)
         op.create_index('ix_loyalty_programs_is_active', 'loyalty_programs', ['is_active'], unique=False)
         op.create_index('ix_loyalty_programs_created_at', 'loyalty_programs', ['created_at'], unique=False)
-    
-    # Создаем таблицу loyalty_levels
     if 'loyalty_levels' not in table_names:
         op.create_table(
             'loyalty_levels',
@@ -73,8 +64,6 @@ def upgrade():
         op.create_index('ix_loyalty_levels_level_number', 'loyalty_levels', ['level_number'], unique=False)
         op.create_index('ix_loyalty_levels_min_spending', 'loyalty_levels', ['min_spending'], unique=False)
         op.create_index('ix_loyalty_levels_created_at', 'loyalty_levels', ['created_at'], unique=False)
-    
-    # Создаем таблицу loyalty_promotions
     if 'loyalty_promotions' not in table_names:
         op.create_table(
             'loyalty_promotions',
@@ -107,8 +96,6 @@ def upgrade():
         op.create_index('ix_loyalty_promotions_client_id', 'loyalty_promotions', ['client_id'], unique=False)
         op.create_index('ix_loyalty_promotions_is_active', 'loyalty_promotions', ['is_active'], unique=False)
         op.create_index('ix_loyalty_promotions_created_at', 'loyalty_promotions', ['created_at'], unique=False)
-    
-    # Создаем таблицу loyalty_transactions
     if 'loyalty_transactions' not in table_names:
         op.create_table(
             'loyalty_transactions',
@@ -144,8 +131,6 @@ def upgrade():
         op.create_index('ix_loyalty_transactions_promotion_id', 'loyalty_transactions', ['promotion_id'], unique=False)
         op.create_index('ix_loyalty_transactions_expiry_date', 'loyalty_transactions', ['expiry_date'], unique=False)
         op.create_index('ix_loyalty_transactions_created_at', 'loyalty_transactions', ['created_at'], unique=False)
-    
-    # Добавляем поля в client_business_relations для программы лояльности
     if 'client_business_relations' in table_names:
         columns = [col['name'] for col in inspector.get_columns('client_business_relations')]
         if 'loyalty_points' not in columns:
@@ -158,15 +143,11 @@ def upgrade():
             op.add_column('client_business_relations', sa.Column('loyalty_level_id', sa.Integer(), nullable=True))
             op.create_foreign_key('fk_client_business_relations_loyalty_level_id', 'client_business_relations', 'loyalty_levels', ['loyalty_level_id'], ['id'], ondelete='SET NULL')
             op.create_index('ix_client_business_relations_loyalty_level_id', 'client_business_relations', ['loyalty_level_id'], unique=False)
-
-
 def downgrade():
     from sqlalchemy import inspect
     conn = op.get_bind()
     inspector = inspect(conn)
     table_names = inspector.get_table_names()
-    
-    # Удаляем поля из client_business_relations
     if 'client_business_relations' in table_names:
         columns = [col['name'] for col in inspector.get_columns('client_business_relations')]
         if 'loyalty_level_id' in columns:
@@ -179,8 +160,6 @@ def downgrade():
         if 'loyalty_points' in columns:
             op.drop_index('ix_client_business_relations_loyalty_points', table_name='client_business_relations')
             op.drop_column('client_business_relations', 'loyalty_points')
-    
-    # Удаляем таблицу loyalty_transactions
     if 'loyalty_transactions' in table_names:
         op.drop_index('ix_loyalty_transactions_created_at', table_name='loyalty_transactions')
         op.drop_index('ix_loyalty_transactions_expiry_date', table_name='loyalty_transactions')
@@ -192,8 +171,6 @@ def downgrade():
         op.drop_index('ix_loyalty_transactions_client_id', table_name='loyalty_transactions')
         op.drop_index('ix_loyalty_transactions_id', table_name='loyalty_transactions')
         op.drop_table('loyalty_transactions')
-    
-    # Удаляем таблицу loyalty_promotions
     if 'loyalty_promotions' in table_names:
         op.drop_index('ix_loyalty_promotions_created_at', table_name='loyalty_promotions')
         op.drop_index('ix_loyalty_promotions_is_active', table_name='loyalty_promotions')
@@ -205,8 +182,6 @@ def downgrade():
         op.drop_index('ix_loyalty_promotions_program_id', table_name='loyalty_promotions')
         op.drop_index('ix_loyalty_promotions_id', table_name='loyalty_promotions')
         op.drop_table('loyalty_promotions')
-    
-    # Удаляем таблицу loyalty_levels
     if 'loyalty_levels' in table_names:
         op.drop_index('ix_loyalty_levels_created_at', table_name='loyalty_levels')
         op.drop_index('ix_loyalty_levels_min_spending', table_name='loyalty_levels')
@@ -215,8 +190,6 @@ def downgrade():
         op.drop_index('ix_loyalty_levels_program_id', table_name='loyalty_levels')
         op.drop_index('ix_loyalty_levels_id', table_name='loyalty_levels')
         op.drop_table('loyalty_levels')
-    
-    # Удаляем таблицу loyalty_programs
     if 'loyalty_programs' in table_names:
         op.drop_index('ix_loyalty_programs_created_at', table_name='loyalty_programs')
         op.drop_index('ix_loyalty_programs_is_active', table_name='loyalty_programs')

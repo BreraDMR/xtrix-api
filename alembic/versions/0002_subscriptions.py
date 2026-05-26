@@ -1,19 +1,14 @@
 """subscriptions
-
 Revision ID: 0002_subscriptions
 Revises: 0001_init
 Create Date: 2024-01-02 00:00:00
 """
-
 from alembic import op
 import sqlalchemy as sa
-
 revision = "0002_subscriptions"
 down_revision = "0001_init"
 branch_labels = None
 depends_on = None
-
-
 def upgrade():
     op.create_table(
         "subscription_plans",
@@ -38,19 +33,6 @@ def upgrade():
         sa.Column("created_at", sa.DateTime, server_default=sa.func.now()),
     )
     op.create_index("ix_subscriptions_user", "subscriptions", ["user_id"])
-
-
 def downgrade():
     op.drop_table("subscriptions")
     op.drop_table("subscription_plans")
-
-
-
-
-
-
-
-
-
-
-

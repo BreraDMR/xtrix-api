@@ -1,4 +1,3 @@
-"""Enhanced error handlers with detailed messages for development."""
 import traceback
 from typing import Dict, Any, Optional
 from fastapi import Request, status
@@ -6,11 +5,8 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
-
 from app.api.core.config import settings
 from app.api.core.logger import logger
-
-
 def create_error_response(
     status_code: int,
     message: str,
@@ -19,23 +15,16 @@ def create_error_response(
     traceback_str: Optional[str] = None,
     request: Optional[Request] = None,
 ) -> JSONResponse:
-    """Create standardized error response with detailed context for development."""
     response_data: Dict[str, Any] = {
         "error": {
             "message": message,
             "status_code": status_code,
         }
     }
-    
-    # Add detail if provided
     if detail:
         response_data["error"]["detail"] = detail
-    
-    # Add error type
     if error_type:
         response_data["error"]["type"] = error_type
-    
-    # Add detailed request context in development mode or if detailed_errors is enabled
     detailed_mode = settings.environment == "development" or getattr(settings, 'detailed_errors', True)
     if detailed_mode and request:
         try:
@@ -50,8 +39,6 @@ def create_error_response(
                     "port": request.client.port if request.client else None,
                 },
             }
-            
-            # Try to get request body (if available)
             try:
                 if hasattr(request, '_body'):
                     body = request._body
@@ -60,30 +47,23 @@ def create_error_response(
                         try:
                             request_info["body"] = json.loads(body.decode())
                         except:
-                            request_info["body"] = body.decode()[:500]  # Limit size
+                            request_info["body"] = body.decode()[:500]  
             except:
                 pass
-            
             response_data["error"]["request"] = request_info
         except Exception as e:
             response_data["error"]["request_error"] = str(e)
-    
-    # Add traceback in development mode or if detailed_errors is enabled
     detailed_mode = settings.environment == "development" or getattr(settings, 'detailed_errors', True)
     if detailed_mode and traceback_str:
         response_data["error"]["traceback"] = traceback_str.split("\n")
-    
     return JSONResponse(
         status_code=status_code,
         content=response_data,
     )
-
-
 async def validation_exception_handler(
     request: Request,
     exc: RequestValidationError,
 ) -> JSONResponse:
-    """Handle validation errors with detailed messages."""
     errors = []
     for error in exc.errors():
         field_path = " -> ".join(str(loc) for loc in error.get("loc", []))
@@ -93,28 +73,22 @@ async def validation_exception_handler(
             "type": error.get("type"),
             "input": error.get("input"),
         }
-        
-        # Add context for specific error types
         if error.get("type") == "value_error.missing":
             error_detail["hint"] = f"Field '{field_path}' is required"
         elif error.get("type") == "type_error":
             error_detail["hint"] = f"Field '{field_path}' has wrong type. Expected: {error.get('ctx', {}).get('expected_type', 'unknown')}"
         elif error.get("type") == "value_error":
             error_detail["hint"] = f"Field '{field_path}' has invalid value"
-        
         errors.append(error_detail)
-    
     logger.warning(
         f"Validation error: {request.method} {request.url.path} - "
         f"Errors: {len(errors)} - "
         f"Client: {request.client.host if request.client else 'unknown'}"
     )
-    
     traceback_str = None
     detailed_mode = settings.environment == "development" or getattr(settings, 'detailed_errors', True)
     if detailed_mode:
         traceback_str = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
-    
     return create_error_response(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         message=f"Validation error: {len(errors)} field(s) failed validation",
@@ -127,34 +101,27 @@ async def validation_exception_handler(
         traceback_str=traceback_str,
         request=request,
     )
-
-
 async def database_exception_handler(
     request: Request,
     exc: SQLAlchemyError,
 ) -> JSONResponse:
-    """Handle database errors with detailed messages."""
     error_msg = str(exc)
     error_class = exc.__class__.__name__
-    
     logger.error(
         f"Database error: {request.method} {request.url.path} - "
         f"Error: {error_msg} - "
         f"Type: {error_class}",
         exc_info=True,
     )
-    
     traceback_str = None
     detailed_mode = settings.environment == "development" or getattr(settings, 'detailed_errors', True)
     if detailed_mode:
         traceback_str = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
-    
-    # Don't expose internal database errors in production
     detailed_mode = settings.environment == "development" or getattr(settings, 'detailed_errors', True)
     if not detailed_mode:
         message = "Database error occurred. Please contact support if this persists."
         detail = {
-            "error_id": f"DB-{hash(error_msg) % 10000}",  # Simple error ID for tracking
+            "error_id": f"DB-{hash(error_msg) % 10000}",  
         }
     else:
         message = f"Database error: {error_msg}"
@@ -163,7 +130,6 @@ async def database_exception_handler(
             "sqlalchemy_error": error_msg,
             "hint": _get_database_error_hint(error_class, error_msg),
         }
-    
     return create_error_response(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         message=message,
@@ -172,12 +138,8 @@ async def database_exception_handler(
         traceback_str=traceback_str,
         request=request,
     )
-
-
 def _get_database_error_hint(error_class: str, error_msg: str) -> str:
-    """Get helpful hint for database errors."""
     error_lower = error_msg.lower()
-    
     if "connection" in error_lower or "timeout" in error_lower:
         return "Database connection issue. Check if database is running and accessible."
     elif "duplicate" in error_lower or "unique" in error_lower:
@@ -190,16 +152,12 @@ def _get_database_error_hint(error_class: str, error_msg: str) -> str:
         return "SQL syntax error. This may indicate a bug in the query generation."
     else:
         return "Check database logs for more details."
-
-
 async def general_exception_handler(
     request: Request,
     exc: Exception,
 ) -> JSONResponse:
-    """Handle general exceptions with detailed messages."""
     error_msg = str(exc)
     error_type = exc.__class__.__name__
-    
     logger.error(
         f"Unhandled exception: {request.method} {request.url.path} - "
         f"Type: {error_type} - "
@@ -207,18 +165,15 @@ async def general_exception_handler(
         f"Client: {request.client.host if request.client else 'unknown'}",
         exc_info=True,
     )
-    
     traceback_str = None
     detailed_mode = settings.environment == "development" or getattr(settings, 'detailed_errors', True)
     if detailed_mode:
         traceback_str = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
-    
-    # Don't expose internal errors in production
     detailed_mode = settings.environment == "development" or getattr(settings, 'detailed_errors', True)
     if not detailed_mode:
         message = "An internal error occurred. Please contact support if this persists."
         detail = {
-            "error_id": f"ERR-{hash(error_msg) % 10000}",  # Simple error ID for tracking
+            "error_id": f"ERR-{hash(error_msg) % 10000}",  
         }
     else:
         message = f"{error_type}: {error_msg}"
@@ -228,7 +183,6 @@ async def general_exception_handler(
             "module": getattr(exc, "__module__", "unknown"),
             "hint": _get_general_error_hint(error_type, error_msg),
         }
-    
     return create_error_response(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         message=message,
@@ -237,12 +191,8 @@ async def general_exception_handler(
         traceback_str=traceback_str,
         request=request,
     )
-
-
 def _get_general_error_hint(error_type: str, error_msg: str) -> str:
-    """Get helpful hint for general errors."""
     error_lower = error_msg.lower()
-    
     if "import" in error_lower or "module" in error_lower:
         return "Import error. Check that all required modules are installed."
     elif "attribute" in error_lower:
@@ -255,24 +205,18 @@ def _get_general_error_hint(error_type: str, error_msg: str) -> str:
         return "Permission error. Check file or resource permissions."
     else:
         return "Check the traceback for more details about the error location."
-
-
 async def http_exception_handler(
     request: Request,
     exc: Exception,
 ) -> JSONResponse:
-    """Handle HTTP exceptions with detailed messages."""
     status_code = getattr(exc, "status_code", status.HTTP_500_INTERNAL_SERVER_ERROR)
     detail = getattr(exc, "detail", str(exc))
-    
     logger.warning(
         f"HTTP exception: {request.method} {request.url.path} - "
         f"Status: {status_code} - "
         f"Detail: {detail} - "
         f"Client: {request.client.host if request.client else 'unknown'}"
     )
-    
-    # Add helpful hints based on status code
     hint = None
     if status_code == 404:
         hint = "The requested resource was not found. Check the URL and resource ID."
@@ -284,7 +228,6 @@ async def http_exception_handler(
         hint = "Bad request. Check that all required parameters are provided correctly."
     elif status_code == 429:
         hint = "Rate limit exceeded. Please wait before making more requests."
-    
     response_detail = detail if not isinstance(detail, str) else None
     detailed_mode = settings.environment == "development" or getattr(settings, 'detailed_errors', True)
     if detailed_mode and hint:
@@ -292,7 +235,6 @@ async def http_exception_handler(
             response_detail = {}
         if isinstance(response_detail, dict):
             response_detail["hint"] = hint
-    
     return create_error_response(
         status_code=status_code,
         message=detail if isinstance(detail, str) else "HTTP error occurred",
@@ -300,4 +242,3 @@ async def http_exception_handler(
         error_type=exc.__class__.__name__,
         request=request,
     )
-

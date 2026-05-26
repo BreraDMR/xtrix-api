@@ -1,11 +1,7 @@
 from datetime import datetime, timedelta, time, date
 from typing import List, Tuple, Optional
-
-
 def _overlaps(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime) -> bool:
     return max(a_start, b_start) < min(a_end, b_end)
-
-
 def find_next_available_slot(
     existing: List[Tuple[datetime, datetime]],
     duration_minutes: int,
@@ -15,10 +11,9 @@ def find_next_available_slot(
     workday_end: time = time(18, 0),
     step_minutes: int = 15,
     breaks: Optional[List[Tuple[time, time]]] = None,
-    schedule: Optional[List[Tuple[int, time, time]]] = None,  # weekday, start, end
+    schedule: Optional[List[Tuple[int, time, time]]] = None,  
     blocks: Optional[List[Tuple[datetime, datetime]]] = None,
 ) -> datetime | None:
-    """Находит первый доступный слот без пересечений."""
     start_search = start_from or datetime.utcnow()
     delta = timedelta(minutes=step_minutes)
     duration = timedelta(minutes=duration_minutes)
@@ -59,4 +54,3 @@ def find_next_available_slot(
                     return slot
                 slot += delta
     return None
-

@@ -1,7 +1,5 @@
 from typing import Dict, Any, Optional
-
 SUPPORTED_LOCALES = ("en", "ru", "cz")
-
 messages: Dict[str, Dict[str, str]] = {
     "phone_exists": {
         "en": "Phone already registered",
@@ -93,7 +91,6 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Нельзя создавать для другого владельца",
         "cz": "Nelze vytvořit pro jiného vlastníka",
     },
-    # Content translations
     "role_admin": {
         "en": "Administrator",
         "ru": "Администратор",
@@ -229,7 +226,6 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Неверный тип отчета",
         "cz": "Neplatný typ zprávy",
     },
-    # Specialist profile translations
     "specialist_profile_not_found": {
         "en": "Specialist profile not found",
         "ru": "Профиль специалиста не найден",
@@ -245,7 +241,6 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Пользователь не является специалистом",
         "cz": "Uživatel není specialista",
     },
-    # Specialist types and categories
     "category_beauty": {
         "en": "Beauty",
         "ru": "Красота",
@@ -261,7 +256,6 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Здравоохранение",
         "cz": "Zdravotní péče",
     },
-    # Specialist type translations (beauty)
     "specialist_type_massage": {
         "en": "Massage Therapist",
         "ru": "Массажист",
@@ -302,7 +296,6 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Визажист",
         "cz": "Vizážistka",
     },
-    # Specialist type translations (wellness)
     "specialist_type_physiotherapist": {
         "en": "Physiotherapist",
         "ru": "Физиотерапевт",
@@ -338,7 +331,6 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Психотерапевт",
         "cz": "Psychoterapeut",
     },
-    # Specialist type translations (healthcare)
     "specialist_type_therapist": {
         "en": "Therapist",
         "ru": "Терапевт",
@@ -409,7 +401,6 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Онколог",
         "cz": "Onkolog",
     },
-    # Business types
     "business_type_individual": {
         "en": "Individual Specialist",
         "ru": "Индивидуальный специалист",
@@ -440,7 +431,6 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Реабилитационный центр",
         "cz": "Rehabilitační centrum",
     },
-    # Verification status
     "verification_status_pending": {
         "en": "Pending",
         "ru": "На проверке",
@@ -457,31 +447,21 @@ messages: Dict[str, Dict[str, str]] = {
         "cz": "Zamítnuto",
     },
 }
-
-
 def normalize_locale(locale: str | None) -> str:
     if not locale:
         return "en"
     locale = locale.split(",")[0].split("-")[0].lower()
     return locale if locale in SUPPORTED_LOCALES else "en"
-
-
 def _(key: str, locale: str | None = None) -> str:
     loc = normalize_locale(locale)
     return messages.get(key, {}).get(loc, messages.get(key, {}).get("en", key))
-
-
 def localize_field(value: str, field_type: str, locale: str | None = None) -> str:
-    """Localize field values like status, role, etc."""
     if not value:
         return value
     key = f"{field_type}_{value.lower()}"
     translated = _(key, locale)
     return translated if translated != key else value
-
-
 def localize_response(data: Any, locale: str | None = None) -> Any:
-    """Recursively localize response data."""
     if isinstance(data, dict):
         result = {}
         for key, value in data.items():
@@ -507,4 +487,3 @@ def localize_response(data: Any, locale: str | None = None) -> Any:
     elif isinstance(data, list):
         return [localize_response(item, locale) for item in data]
     return data
-

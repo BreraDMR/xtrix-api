@@ -1,10 +1,7 @@
 from typing import Optional, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
-
-
 class UserPreferencesBase(BaseModel):
-    """Базовая модель настроек пользователя."""
     timezone: Optional[str] = Field(None, description="Часовой пояс (например: Europe/Prague)")
     date_format: Optional[str] = Field("DD/MM/YYYY", description="Формат даты: DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD")
     time_format: Optional[str] = Field("24h", description="Формат времени: 24h, 12h")
@@ -15,10 +12,7 @@ class UserPreferencesBase(BaseModel):
     auto_save_enabled: bool = Field(True, description="Автосохранение форм")
     auto_save_interval: int = Field(30, ge=5, le=300, description="Интервал автосохранения в секундах")
     export_format: Optional[str] = Field("csv", description="Формат экспорта: csv, excel, json")
-
-
 class UserPreferencesUpdate(BaseModel):
-    """Модель для обновления настроек пользователя."""
     timezone: Optional[str] = None
     date_format: Optional[str] = None
     time_format: Optional[str] = None
@@ -30,14 +24,10 @@ class UserPreferencesUpdate(BaseModel):
     auto_save_interval: Optional[int] = None
     export_format: Optional[str] = None
     additional_settings: Optional[Dict[str, Any]] = None
-
-
 class UserPreferencesOut(UserPreferencesBase):
-    """Модель для вывода настроек пользователя."""
     id: int
     user_id: int
     created_at: datetime
     updated_at: datetime
-    
     class Config:
         from_attributes = True

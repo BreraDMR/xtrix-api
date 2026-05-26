@@ -1,28 +1,20 @@
 """add salary calculation
-
 Revision ID: 0019_add_salary_calc
 Revises: 0018_add_employee_mgmt
 Create Date: 2024-12-27 15:00:00
 """
-
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
-
 revision = "0019_add_salary_calc"
 down_revision = "0018_add_employee_mgmt"
 branch_labels = None
 depends_on = None
-
-
 def upgrade():
-    # Проверяем наличие таблиц
     from sqlalchemy import inspect
     conn = op.get_bind()
     inspector = inspect(conn)
     table_names = inspector.get_table_names()
-    
-    # Создаем таблицу salary_calculations
     if 'salary_calculations' not in table_names:
         op.create_table(
             'salary_calculations',
@@ -52,8 +44,6 @@ def upgrade():
         op.create_index('ix_salary_calculations_is_paid', 'salary_calculations', ['is_paid'])
         op.create_index('ix_salary_calculations_paid_at', 'salary_calculations', ['paid_at'])
         op.create_index('ix_salary_calculations_calculated_at', 'salary_calculations', ['calculated_at'])
-        
-        # Foreign keys
         op.create_foreign_key(
             'fk_salary_calculations_employee_id',
             'salary_calculations', 'employees',
@@ -66,15 +56,10 @@ def upgrade():
             ['calculated_by_id'], ['id'],
             ondelete='SET NULL'
         )
-
-
 def downgrade():
-    # Удаляем таблицу salary_calculations
     from sqlalchemy import inspect
     conn = op.get_bind()
     inspector = inspect(conn)
     table_names = inspector.get_table_names()
-    
     if 'salary_calculations' in table_names:
         op.drop_table('salary_calculations')
-

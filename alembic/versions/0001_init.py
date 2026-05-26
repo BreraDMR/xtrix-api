@@ -1,19 +1,14 @@
 """init schema
-
 Revision ID: 0001_init
 Revises:
 Create Date: 2024-01-01 00:00:00
 """
-
 from alembic import op
 import sqlalchemy as sa
-
 revision = "0001_init"
 down_revision = None
 branch_labels = None
 depends_on = None
-
-
 def upgrade():
     op.create_table(
         "users",
@@ -27,7 +22,6 @@ def upgrade():
     )
     op.create_index("ix_users_phone", "users", ["phone"])
     op.create_index("ix_users_email", "users", ["email"])
-
     op.create_table(
         "clients",
         sa.Column("id", sa.Integer, primary_key=True),
@@ -52,7 +46,6 @@ def upgrade():
     )
     op.create_index("ix_clients_full_name", "clients", ["full_name"])
     op.create_index("ix_clients_phone", "clients", ["contact_phone"])
-
     op.create_table(
         "services",
         sa.Column("id", sa.Integer, primary_key=True),
@@ -63,7 +56,6 @@ def upgrade():
         sa.Column("is_active", sa.Boolean, server_default=sa.text("true")),
     )
     op.create_index("ix_services_specialist", "services", ["specialist_id"])
-
     op.create_table(
         "visits",
         sa.Column("id", sa.Integer, primary_key=True),
@@ -82,21 +74,8 @@ def upgrade():
     op.create_index("ix_visits_client", "visits", ["client_id"])
     op.create_index("ix_visits_specialist", "visits", ["specialist_id"])
     op.create_index("ix_visits_date", "visits", ["date_start"])
-
-
 def downgrade():
     op.drop_table("visits")
     op.drop_table("services")
     op.drop_table("clients")
     op.drop_table("users")
-
-
-
-
-
-
-
-
-
-
-

@@ -1,9 +1,6 @@
 from datetime import datetime
 from typing import Optional
-
 from pydantic import BaseModel, Field
-
-
 class TransactionBase(BaseModel):
     subscription_id: int
     amount: float = Field(..., gt=0, description="Transaction amount")
@@ -14,22 +11,14 @@ class TransactionBase(BaseModel):
     external_transaction_id: Optional[str] = None
     description: Optional[str] = None
     provider: Optional[str] = None
-
-
 class TransactionCreate(TransactionBase):
     pass
-
-
 class TransactionUpdate(BaseModel):
     status: Optional[str] = None
     description: Optional[str] = None
-
-
 class TransactionOut(TransactionBase):
     id: int
     created_at: datetime
     updated_at: datetime
-
     class Config:
         from_attributes = True
-

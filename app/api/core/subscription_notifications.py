@@ -1,29 +1,12 @@
-"""
-Уведомления об истечении подписок.
-"""
 from datetime import datetime, timedelta
 from typing import List
 from sqlalchemy.orm import Session
 from app.db.models.subscription import Subscription
 from app.db.models.user import User
 from app.api.core.logger import logger
-
-
 def send_subscription_expiry_notifications(db: Session, days_before: int = 3) -> int:
-    """
-    Отправляет уведомления пользователям об истечении подписки.
-    
-    Args:
-        db: Сессия базы данных
-        days_before: За сколько дней до истечения отправлять уведомление (по умолчанию 3)
-    
-    Returns:
-        Количество отправленных уведомлений
-    """
     notification_date = datetime.utcnow() + timedelta(days=days_before)
     notification_date_end = notification_date + timedelta(days=1)
-    
-    # Находим подписки, которые истекают через указанное количество дней
     expiring_subscriptions = (
         db.query(Subscription)
         .join(User, Subscription.user_id == User.id)
@@ -31,77 +14,55 @@ def send_subscription_expiry_notifications(db: Session, days_before: int = 3) ->
             Subscription.status.in_(["active", "pending_cancellation"]),
             Subscription.current_period_end >= notification_date,
             Subscription.current_period_end < notification_date_end,
-            Subscription.is_trial == False,  # Не отправляем для trial
+            Subscription.is_trial == False,  
         )
         .all()
     )
-    
     sent_count = 0
-    
     for sub in expiring_subscriptions:
         try:
             user = sub.user
-            
-            # Отправляем email уведомление
             if user.email:
                 send_expiry_email(user.email, user.full_name, sub.current_period_end, days_before)
                 logger.info(f"Sent expiry email to {user.email} for subscription {sub.id}")
-            
-            # Отправляем SMS уведомление (если настроено)
             if user.phone:
                 try:
                     send_expiry_sms(user.phone, user.full_name, sub.current_period_end, days_before)
                     logger.info(f"Sent expiry SMS to {user.phone} for subscription {sub.id}")
                 except Exception as e:
                     logger.warning(f"Failed to send SMS to {user.phone}: {e}")
-            
             sent_count += 1
-            
         except Exception as e:
             logger.error(f"Failed to send notification for subscription {sub.id}: {e}")
-    
     return sent_count
-
-
 def send_expiry_email(email: str, user_name: str, expiry_date: datetime, days_before: int) -> None:
-    """Отправляет email уведомление об истечении подписки."""
     import smtplib
     from email.message import EmailMessage
     from app.api.core.config import settings
-    
     if not settings.smtp_host or not settings.smtp_from:
         logger.warning(f"SMTP not configured, skip email to {email}")
         return
-    
     subject = f"Ваша подписка истекает через {days_before} дн."
     if days_before == 1:
         subject = "Ваша подписка истекает завтра"
     elif days_before == 0:
         subject = "Ваша подписка истекает сегодня"
-    
     expiry_str = expiry_date.strftime("%d.%m.%Y")
-    
     body = f"""Здравствуйте, {user_name}!
-
 Это автоматическое уведомление о том, что ваша подписка на Xtrix истекает {expiry_str}.
-
 Для продолжения использования сервиса, пожалуйста, обновите подписку:
 - Перейдите в раздел "Подписка" в вашем личном кабинете
 - Выберите план и продолжите подписку
-
 Если у вас возникли вопросы, пожалуйста, свяжитесь с нашей службой поддержки.
-
 С уважением,
 Команда Xtrix
 """
-    
     try:
         msg = EmailMessage()
         msg["Subject"] = subject
         msg["From"] = settings.smtp_from
         msg["To"] = email
         msg.set_content(body)
-        
         with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
             server.starttls()
             if settings.smtp_user and settings.smtp_password:
@@ -110,26 +71,19 @@ def send_expiry_email(email: str, user_name: str, expiry_date: datetime, days_be
     except Exception as e:
         logger.error(f"Failed to send email to {email}: {e}")
         raise
-
-
 def send_expiry_sms(phone: str, user_name: str, expiry_date: datetime, days_before: int) -> None:
-    """Отправляет SMS уведомление об истечении подписки."""
     import requests
     from app.api.core.config import settings
-    
     if not settings.twilio_sid or not settings.twilio_token or not settings.twilio_from:
         logger.warning(f"Twilio not configured, skip SMS to {phone}")
         return
-    
     expiry_str = expiry_date.strftime("%d.%m.%Y")
-    
     if days_before == 0:
         message = f"Xtrix: Ваша подписка истекает сегодня ({expiry_str}). Обновите подписку в личном кабинете."
     elif days_before == 1:
         message = f"Xtrix: Ваша подписка истекает завтра ({expiry_str}). Обновите подписку в личном кабинете."
     else:
         message = f"Xtrix: Ваша подписка истекает через {days_before} дн. ({expiry_str}). Обновите подписку в личном кабинете."
-    
     try:
         url = f"https://api.twilio.com/2010-04-01/Accounts/{settings.twilio_sid}/Messages.json"
         data = {
@@ -144,29 +98,10 @@ def send_expiry_sms(phone: str, user_name: str, expiry_date: datetime, days_befo
     except Exception as e:
         logger.error(f"Failed to send SMS to {phone}: {e}")
         raise
-
-
 def check_and_notify_expiring_subscriptions(db: Session) -> int:
-    """
-    Проверяет и отправляет уведомления для подписок, которые скоро истекают.
-    Отправляет уведомления за 7, 3 и 1 день до истечения.
-    
-    Returns:
-        Количество отправленных уведомлений
-    """
     total_sent = 0
-    
-    # Уведомления за 7 дней
     total_sent += send_subscription_expiry_notifications(db, days_before=7)
-    
-    # Уведомления за 3 дня
     total_sent += send_subscription_expiry_notifications(db, days_before=3)
-    
-    # Уведомления за 1 день
     total_sent += send_subscription_expiry_notifications(db, days_before=1)
-    
-    # Уведомления в день истечения
     total_sent += send_subscription_expiry_notifications(db, days_before=0)
-    
     return total_sent
-

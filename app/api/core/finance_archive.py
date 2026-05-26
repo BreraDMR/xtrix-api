@@ -1,53 +1,23 @@
-"""
-Функции для архивации финансовых данных прошлого месяца.
-Автоматически вызывается в начале каждого месяца для переноса данных в отчетность.
-"""
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
-
 from app.db.models.visit import Visit
 from app.db.models.expense import Expense
 from app.api.crud import crud_expense
 from app.api.core.logger import logger
-
-
 def archive_monthly_financial_data(
     db: Session,
     year: int,
     month: int,
     business_id: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """
-    Архивирует финансовые данные за указанный месяц.
-    
-    Создает сводный отчет с:
-    - Доходами (завершенные визиты)
-    - Расходами
-    - Прибылью
-    - Расходами по категориям
-    - Статистикой по дням
-    
-    Args:
-        db: Сессия базы данных
-        year: Год для архивации
-        month: Месяц для архивации (1-12)
-        business_id: ID бизнеса (если None, архивирует для всех)
-    
-    Returns:
-        Словарь с архивными данными
-    """
-    # Определяем период
     date_from = datetime(year, month, 1)
     if month == 12:
         date_to = datetime(year + 1, 1, 1) - timedelta(seconds=1)
     else:
         date_to = datetime(year, month + 1, 1) - timedelta(seconds=1)
-    
     logger.info(f"Archiving financial data for {year}-{month:02d}, business_id={business_id}")
-    
-    # Доходы (завершенные визиты)
     revenue_query = db.query(func.sum(Visit.price)).filter(
         Visit.status == 'completed',
         Visit.date_start >= date_from,
@@ -56,29 +26,20 @@ def archive_monthly_financial_data(
     )
     if business_id:
         revenue_query = revenue_query.filter(Visit.business_id == business_id)
-    
     revenue = float(revenue_query.scalar() or 0.0)
-    
-    # Расходы
     expenses = crud_expense.get_expenses_total(
         db,
         business_id=business_id,
         date_from=date_from,
         date_to=date_to,
     )
-    
-    # Прибыль
     profit = revenue - expenses
-    
-    # Расходы по категориям
     expenses_by_category = crud_expense.get_expenses_by_category(
         db,
         business_id=business_id,
         date_from=date_from,
         date_to=date_to,
     )
-    
-    # Доходы по дням
     revenue_daily_query = db.query(
         func.date(Visit.date_start).label('date'),
         func.sum(Visit.price).label('total'),
@@ -91,7 +52,6 @@ def archive_monthly_financial_data(
     )
     if business_id:
         revenue_daily_query = revenue_daily_query.filter(Visit.business_id == business_id)
-    
     revenue_daily_query = revenue_daily_query.group_by(func.date(Visit.date_start)).order_by(func.date(Visit.date_start))
     revenue_daily = [
         {
@@ -101,20 +61,15 @@ def archive_monthly_financial_data(
         }
         for r in revenue_daily_query.all()
     ]
-    
-    # Расходы по дням
     expenses_daily = crud_expense.get_expenses_daily(
         db,
         business_id=business_id,
         date_from=date_from,
         date_to=date_to,
     )
-    
-    # Объединяем доходы и расходы по дням
     profit_daily = []
     expense_dict = {e["date"]: e["total"] for e in expenses_daily}
     revenue_dict = {r["date"]: r["revenue"] for r in revenue_daily}
-    
     all_dates = set(list(expense_dict.keys()) + list(revenue_dict.keys()))
     for date in sorted(all_dates):
         profit_daily.append({
@@ -123,15 +78,12 @@ def archive_monthly_financial_data(
             "expenses": expense_dict.get(date, 0.0),
             "profit": revenue_dict.get(date, 0.0) - expense_dict.get(date, 0.0),
         })
-    
-    # Количество визитов
     visits_query = db.query(func.count(Visit.id)).filter(
         Visit.date_start >= date_from,
         Visit.date_start <= date_to,
     )
     if business_id:
         visits_query = visits_query.filter(Visit.business_id == business_id)
-    
     total_visits = visits_query.scalar() or 0
     completed_visits = db.query(func.count(Visit.id)).filter(
         Visit.status == 'completed',
@@ -141,7 +93,6 @@ def archive_monthly_financial_data(
     if business_id:
         completed_visits = completed_visits.filter(Visit.business_id == business_id)
     completed_visits = completed_visits.scalar() or 0
-    
     archive_data = {
         "period": {
             "year": year,
@@ -162,24 +113,13 @@ def archive_monthly_financial_data(
         "daily": profit_daily,
         "archived_at": datetime.utcnow().isoformat(),
     }
-    
     logger.info(
         f"Archived financial data for {year}-{month:02d}: "
         f"revenue={revenue:.2f}, expenses={expenses:.2f}, profit={profit:.2f}"
     )
-    
     return archive_data
-
-
 def archive_all_businesses_last_month(db: Session) -> List[Dict[str, Any]]:
-    """
-    Архивирует финансовые данные за прошлый месяц для всех бизнесов.
-    
-    Вызывается автоматически в начале каждого месяца.
-    """
     from app.db.models.business import Business
-    
-    # Определяем прошлый месяц
     now = datetime.utcnow()
     if now.month == 1:
         last_month = 12
@@ -187,12 +127,8 @@ def archive_all_businesses_last_month(db: Session) -> List[Dict[str, Any]]:
     else:
         last_month = now.month - 1
         last_year = now.year
-    
     logger.info(f"Starting monthly archive for {last_year}-{last_month:02d}")
-    
-    # Получаем все активные бизнесы
     businesses = db.query(Business).filter(Business.deleted_at.is_(None)).all()
-    
     archives = []
     for business in businesses:
         try:
@@ -206,31 +142,16 @@ def archive_all_businesses_last_month(db: Session) -> List[Dict[str, Any]]:
         except Exception as e:
             logger.error(f"Error archiving data for business {business.id}: {e}")
             continue
-    
     logger.info(f"Completed monthly archive: {len(archives)} businesses archived")
     return archives
-
-
 def should_run_monthly_archive(db: Session) -> bool:
-    """
-    Проверяет, нужно ли запускать архивацию.
-    
-    Архивация запускается в первый день месяца, если еще не была выполнена.
-    """
     from app.db.models.audit_log import AuditLog
-    
     now = datetime.utcnow()
-    
-    # Проверяем, первый ли это день месяца
     if now.day != 1:
         return False
-    
-    # Проверяем, была ли уже выполнена архивация сегодня
     today_start = datetime(now.year, now.month, 1)
     existing_log = db.query(AuditLog).filter(
         AuditLog.action == 'monthly_finance_archive',
         AuditLog.created_at >= today_start,
     ).first()
-    
     return existing_log is None
-

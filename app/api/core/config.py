@@ -1,16 +1,14 @@
 from pydantic import Field
 from pydantic_settings import BaseSettings
-
-
 class Settings(BaseSettings):
     database_url: str = Field(
-        ...,  # Обязательное поле - должно быть в .env
+        ...,  
         env="DATABASE_URL",
         description="SQLAlchemy DSN (postgresql://user:password@host:port/dbname)",
     )
     redis_url: str = Field("redis://localhost:6379/0", env="REDIS_URL")
     jwt_secret: str = Field(
-        ...,  # Обязательное поле - должно быть в .env, минимум 32 символа
+        ...,  
         env="JWT_SECRET",
         min_length=32,
         description="JWT secret key for token signing (минимум 32 символа)",
@@ -18,8 +16,6 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
     refresh_token_expire_days: int = 30
-    
-    # Account lockout settings
     max_login_attempts: int = Field(
         default=5,
         env="MAX_LOGIN_ATTEMPTS",
@@ -49,24 +45,18 @@ class Settings(BaseSettings):
     twilio_token: str = Field("", env="TWILIO_TOKEN")
     twilio_from: str = Field("", env="TWILIO_FROM")
     twilio_whatsapp_from: str = Field("", env="TWILIO_WHATSAPP_FROM", description="Twilio WhatsApp sender (format: whatsapp:+1234567890)")
-    
-    # SendPulse settings
     sendpulse_client_id: str = Field("", env="SENDPULSE_CLIENT_ID", description="SendPulse API Client ID")
     sendpulse_client_secret: str = Field("", env="SENDPULSE_CLIENT_SECRET", description="SendPulse API Client Secret")
     sendpulse_address_book_id: int = Field(0, env="SENDPULSE_ADDRESS_BOOK_ID", description="SendPulse Address Book ID for contacts")
     sendpulse_from_email: str = Field("", env="SENDPULSE_FROM_EMAIL", description="SendPulse sender email address")
     sendpulse_from_name: str = Field("", env="SENDPULSE_FROM_NAME", description="SendPulse sender name")
     sendpulse_sms_sender: str = Field("", env="SENDPULSE_SMS_SENDER", description="SendPulse SMS sender name")
-    
-    # CORS settings
     cors_origins: str = Field(
         default="",
         env="CORS_ORIGINS",
         description="Allowed CORS origins (comma-separated)",
     )
-    
     def get_cors_origins_list(self) -> list[str]:
-        """Parse CORS origins from comma-separated string."""
         if not self.cors_origins:
             return []
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
@@ -75,10 +65,8 @@ class Settings(BaseSettings):
         env="ENVIRONMENT",
         description="Environment: development, staging, production",
     )
-    
-    # Rate Limiting settings
     rate_limit_enabled: bool = Field(
-        default=False,  # По умолчанию отключено для разработки
+        default=False,  
         env="RATE_LIMIT_ENABLED",
         description="Enable rate limiting",
     )
@@ -92,8 +80,6 @@ class Settings(BaseSettings):
         env="RATE_LIMIT_LOGIN",
         description="Rate limit for login endpoint",
     )
-    
-    # Logging settings
     log_level: str = Field(
         default="INFO",
         env="LOG_LEVEL",
@@ -109,8 +95,6 @@ class Settings(BaseSettings):
         env="LOG_ERRORS_FILE",
         description="Path to errors log file",
     )
-    
-    # Security Headers settings
     csp_policy: str = Field(
         default="",
         env="CSP_POLICY",
@@ -121,24 +105,17 @@ class Settings(BaseSettings):
         env="ENABLE_HSTS",
         description="Enable HSTS header (only for HTTPS)",
     )
-    
-    # Development settings
     detailed_errors: bool = Field(
         default=True,
         env="DETAILED_ERRORS",
         description="Enable detailed error messages (recommended for development only)",
     )
-    
-    # Frontend URL for QR code links
     frontend_url: str = Field(
         default="http://localhost:3000",
         env="FRONTEND_URL",
         description="Frontend URL for generating QR code access links",
     )
-
     class Config:
         env_file = ".env"
         case_sensitive = False
-
-
 settings = Settings()

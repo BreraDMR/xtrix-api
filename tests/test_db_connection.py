@@ -1,12 +1,5 @@
-"""
-Простой проверочный скрипт для ручного запуска:
-python -m tests.test_db_connection
-"""
 from sqlalchemy import text
-
 from app.db.session import engine
-
-
 def main():
     with engine.connect() as conn:
         res = conn.execute(text("SELECT 1")).scalar()
@@ -18,18 +11,5 @@ def main():
             )
         ).fetchall()
         print("Tables:", [r[0] for r in tables])
-
-
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-

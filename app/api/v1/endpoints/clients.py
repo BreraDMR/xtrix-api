@@ -1,9 +1,7 @@
 from datetime import date
 from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-
 from app.api import deps
 from app.api.core.i18n import _, localize_response
 from app.api.core.logger import get_logger
@@ -13,11 +11,8 @@ from app.api.crud import crud_client, crud_visit
 from app.db.models.user import User
 from app.schemas.client import ClientCreate, ClientOut, ClientUpdate, ClientSearchOut, BasicMedicalInfo
 from app.schemas.qr_code import QRCodeGenerateResponse, QRCodeAccessRequest, ClientHistoryResponse
-
 router = APIRouter()
 logger = get_logger("clients")
-
-
 @router.post(
     "/",
     response_model=ClientOut,
@@ -54,44 +49,29 @@ def create_client(
     locale: str = Depends(deps.get_locale),
 ):
     from app.api.core.permissions import can_edit_clients
-    
-    # Проверяем право на создание/редактирование клиентов
     if not can_edit_clients(current_user, db):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    
     logger.info(f"Creating/finding client: name={client.full_name}, phone={client.contact_phone}, email={client.contact_email}")
-    
-    # Получаем business_id текущего пользователя
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
-    
-    # Для админа и business_owner требуется business_id для создания клиента
     if current_user.role in ["admin", "business_owner"] and not business_id:
         raise HTTPException(
             status_code=400,
             detail=_("business_id_required_for_client_creation", locale) or "Business ID is required. Please create a business first."
         )
-    
-    # Используем find_or_create_client для автоматического поиска дубликатов
     result, was_created = crud_client.find_or_create_client(
         db=db,
         client_in=client,
         business_id=business_id,
-        specialist_id=current_user.id  # Передаем ID специалиста для валидации обязательных полей
+        specialist_id=current_user.id  
     )
-    
-    # Создаем связи с текущим специалистом и бизнесом (для нового или найденного клиента)
-    # business_id теперь гарантированно существует для admin/business_owner
     if business_id:
         from app.db.models.client_specialist_relation import ClientSpecialistRelation
         from app.db.models.client_business_relation import ClientBusinessRelation
-        
-        # Проверяем и создаем связь специалиста с клиентом
         existing_specialist_relation = db.query(ClientSpecialistRelation).filter(
             ClientSpecialistRelation.client_id == result.id,
             ClientSpecialistRelation.specialist_id == current_user.id,
             ClientSpecialistRelation.business_id == business_id
         ).first()
-        
         if not existing_specialist_relation:
             from app.api.crud import crud_client_specialist_relation
             from app.schemas.client_specialist_relation import ClientSpecialistRelationCreate
@@ -103,13 +83,10 @@ def create_client(
                     business_id=business_id
                 )
             )
-        
-        # Проверяем и создаем связь бизнеса с клиентом (на случай если find_or_create_client не создал)
         existing_business_relation = db.query(ClientBusinessRelation).filter(
             ClientBusinessRelation.client_id == result.id,
             ClientBusinessRelation.business_id == business_id
         ).first()
-        
         if not existing_business_relation:
             business_relation = ClientBusinessRelation(
                 client_id=result.id,
@@ -117,12 +94,9 @@ def create_client(
             )
             db.add(business_relation)
             db.commit()
-    
     action = "created" if was_created else "found existing"
     logger.info(f"Client {action}: id={result.id}, name={result.full_name}")
     return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
-
-
 @router.get("/", response_model=PaginatedResponse[ClientOut])
 def list_clients(
     owner_id: Optional[int] = None,
@@ -137,55 +111,38 @@ def list_clients(
     locale: str = Depends(deps.get_locale),
 ):
     from app.api.core.permissions import get_accessible_client_ids, get_filtered_specialist_id
-    
-    # Получаем business_id текущего пользователя
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
-    
-    # Определяем доступные client_id
     accessible_client_ids = get_accessible_client_ids(db, current_user)
-    
-    # Фильтрация по ролям
     if current_user.role == "admin":
-        # Админ видит только клиентов своего бизнеса (изоляция данных)
-        # owner_id игнорируется для админа, используется business_id
         owner_id = None
     elif current_user.role == "business_owner":
-        # Владелец бизнеса видит всех клиентов бизнеса
-        owner_id = None  # Не фильтруем по owner_id
+        owner_id = None  
     else:
-        # specialist и employee видят только доступных им клиентов
         owner_id = get_filtered_specialist_id(current_user)
-    
-    # Non-admin users cannot see deleted/archived
     if current_user.role != "admin":
         include_deleted = False
         include_archived = False
-    
     pagination = PaginationParams(page=page, per_page=per_page)
     clients, total = crud_client.list_clients(
         db,
         owner_id=owner_id,
-        business_id=business_id,  # Изоляция по бизнесу
+        business_id=business_id,  
         phone=phone,
         name=name,
         pagination=pagination,
         include_deleted=include_deleted,
         include_archived=include_archived,
-        accessible_client_ids=accessible_client_ids,  # Фильтрация по доступным клиентам
+        accessible_client_ids=accessible_client_ids,  
     )
-    
     localized_items = [
         localize_response(c.dict() if hasattr(c, 'dict') else c, locale) for c in clients
     ]
-    
     return PaginatedResponse.create(
         items=localized_items,
         total=total,
         page=page,
         per_page=per_page,
     )
-
-
 @router.get("/search", response_model=ClientSearchOut, summary="Global client search with privacy restrictions")
 def search_client_global(
     phone: Optional[str] = Query(None, description="Search by phone number"),
@@ -197,36 +154,14 @@ def search_client_global(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    """
-    Глобальный поиск клиента с ограниченным доступом к информации.
-    
-    Возвращает:
-    - Beauty/Wellness специалисты: только базовая информация (имя, телефон, email, дата рождения)
-    - Healthcare специалисты: базовая информация + базовые медданные (аллергии, хронические заболевания, беременность)
-    
-    Визиты и процедуры из других бизнесов НЕ включаются.
-    
-    Параметры поиска:
-    - phone: поиск по номеру телефона
-    - email: поиск по email
-    - name + birth_date: поиск по имени и дате рождения (оба параметра обязательны)
-    
-    Если указан create_link=True, автоматически создастся связь клиента с текущим бизнесом.
-    """
     from app.api.core.permissions import can_edit_clients
-    
-    # Проверяем право на поиск клиентов
     if not can_edit_clients(current_user, db):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    
-    # Проверяем, что указан хотя бы один параметр поиска
     if not phone and not email and not (name and birth_date):
         raise HTTPException(
             status_code=400,
             detail=_("Must provide phone, email, or both name and birth_date", locale)
         )
-    
-    # Ищем клиента глобально
     client = crud_client.find_client_by_identifiers(
         db=db,
         contact_phone=phone,
@@ -234,25 +169,18 @@ def search_client_global(
         full_name=name,
         birth_date=birth_date,
     )
-    
     if not client:
         raise HTTPException(status_code=404, detail=_("client_not_found", locale))
-    
-    # Определяем категорию специалиста для определения доступа к медданным
     from app.db.models.specialist_type import get_category_for_type, SpecialistCategory, SpecialistType
     from app.db.models.specialist_profile import SpecialistProfile
-    
     is_healthcare = False
     if current_user.role in ["specialist", "business_owner"]:
-        # Проверяем тип специалиста
         specialist_type = None
         if hasattr(current_user, 'specialist_type') and current_user.specialist_type:
             try:
                 specialist_type = SpecialistType(current_user.specialist_type)
             except (ValueError, TypeError):
                 pass
-        
-        # Если не найден в User, проверяем SpecialistProfile
         if not specialist_type:
             profile = db.query(SpecialistProfile).filter(
                 SpecialistProfile.user_id == current_user.id
@@ -262,34 +190,25 @@ def search_client_global(
                     specialist_type = SpecialistType(profile.specialist_type)
                 except (ValueError, TypeError):
                     pass
-        
         if specialist_type:
             category = get_category_for_type(specialist_type)
             is_healthcare = (category == SpecialistCategory.HEALTHCARE)
-    
-    # Для админа - показываем базовые медданные (он может быть врачом)
     if current_user.role == "admin":
         is_healthcare = True
-    
-    # Получаем базовые медданные, если специалист healthcare
     basic_medical_info = None
     if is_healthcare:
         from app.db.models.medical_profile import MedicalProfile
         medical_profile = db.query(MedicalProfile).filter(
             MedicalProfile.client_id == client.id
         ).first()
-        
         if medical_profile:
             basic_medical_info = BasicMedicalInfo(
                 allergies=medical_profile.allergies,
                 chronic_diseases=medical_profile.chronic_diseases,
                 pregnancy=medical_profile.pregnancy if medical_profile.pregnancy else None,
             )
-    
-    # Проверяем, есть ли связь с текущим бизнесом
     is_linked = False
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
-    
     if business_id:
         from app.db.models.client_business_relation import ClientBusinessRelation
         existing_relation = db.query(ClientBusinessRelation).filter(
@@ -297,33 +216,26 @@ def search_client_global(
             ClientBusinessRelation.business_id == business_id
         ).first()
         is_linked = existing_relation is not None
-        
-        # Если нужно создать связь и она еще не существует
         if create_link and not is_linked:
             business_relation = ClientBusinessRelation(
                 client_id=client.id,
                 business_id=business_id
             )
             db.add(business_relation)
-            
-            # Также создаем связь со специалистом, если он не admin
             if current_user.role in ["business_owner", "specialist", "employee"]:
                 from app.db.models.client_specialist_relation import ClientSpecialistRelation
                 specialist_id = current_user.id
                 if current_user.role == "employee":
-                    # Для employee берем business_owner_id
                     from app.api.crud import crud_employee
                     employee = crud_employee.get_employee_by_user_id(db, current_user.id)
                     if employee:
                         specialist_id = employee.business_owner_id
-                
                 if specialist_id:
                     existing_spec_relation = db.query(ClientSpecialistRelation).filter(
                         ClientSpecialistRelation.client_id == client.id,
                         ClientSpecialistRelation.specialist_id == specialist_id,
                         ClientSpecialistRelation.business_id == business_id
                     ).first()
-                    
                     if not existing_spec_relation:
                         specialist_relation = ClientSpecialistRelation(
                             client_id=client.id,
@@ -331,11 +243,8 @@ def search_client_global(
                             business_id=business_id
                         )
                         db.add(specialist_relation)
-            
             db.commit()
             is_linked = True
-    
-    # Формируем ответ
     result = ClientSearchOut(
         id=client.id,
         full_name=client.full_name,
@@ -347,10 +256,7 @@ def search_client_global(
         is_linked_to_my_business=is_linked,
         created_at=client.created_at,
     )
-    
     return localize_response(result.dict(), locale)
-
-
 @router.get("/{client_id}", response_model=ClientOut)
 def get_client(
     client_id: int,
@@ -361,19 +267,13 @@ def get_client(
 ):
     if current_user.role != "admin":
         include_deleted = False
-    
     client = crud_client.get_client(db, client_id, include_deleted=include_deleted)
     if not client:
         raise HTTPException(status_code=404, detail=_("client_not_found", locale))
-    
-    # Проверяем доступ используя новую систему прав
     from app.api.core.permissions import check_client_access
-    
     if not check_client_access(db, current_user, client_id):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     return localize_response(client.dict() if hasattr(client, 'dict') else client, locale)
-
-
 @router.put("/{client_id}", response_model=ClientOut)
 def update_client(
     client_id: int,
@@ -387,21 +287,15 @@ def update_client(
     if not client:
         logger.warning(f"Client not found: id={client_id}")
         raise HTTPException(status_code=404, detail=_("client_not_found", locale))
-    
-    # Проверяем доступ используя новую систему прав
     from app.api.core.permissions import check_client_access, can_edit_clients
-    
     if not can_edit_clients(current_user, db):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    
     if not check_client_access(db, current_user, client_id):
         logger.warning(f"Client update denied: user_id={current_user.id}, client_id={client_id}")
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     result = crud_client.update_client(db, client, payload)
     logger.info(f"Client updated successfully: id={result.id}")
     return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
-
-
 @router.get("/export/csv")
 def export_clients_csv(
     owner_id: Optional[int] = None,
@@ -410,17 +304,12 @@ def export_clients_csv(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
 ):
-    """Export clients to CSV."""
     from app.api.core.export import export_to_csv, prepare_client_export_data
-    
     if current_user.role != "admin":
         owner_id = current_user.id
-    
     clients, _ = crud_client.list_clients(db, owner_id=owner_id, phone=phone, name=name)
     export_data = prepare_client_export_data(clients)
     return export_to_csv(export_data, filename="clients_export.csv")
-
-
 @router.get("/export/excel")
 def export_clients_excel(
     owner_id: Optional[int] = None,
@@ -429,17 +318,12 @@ def export_clients_excel(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
 ):
-    """Export clients to Excel."""
     from app.api.core.export import export_to_excel, prepare_client_export_data
-    
     if current_user.role != "admin":
         owner_id = current_user.id
-    
     clients, _ = crud_client.list_clients(db, owner_id=owner_id, phone=phone, name=name)
     export_data = prepare_client_export_data(clients)
     return export_to_excel(export_data, filename="clients_export.xlsx", sheet_name="Clients")
-
-
 @router.post("/{client_id}/qr-code/generate", response_model=QRCodeGenerateResponse)
 def generate_client_qr_code(
     client_id: int,
@@ -447,92 +331,59 @@ def generate_client_qr_code(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Generate QR code and access password for a client."""
     logger.info(f"Generating QR code for client: id={client_id}, user_id={current_user.id}")
-    
-    # Check client exists and user has access
     client = crud_client.get_client(db, client_id)
     if not client:
         logger.warning(f"Client not found: id={client_id}")
         raise HTTPException(status_code=404, detail=_("client_not_found", locale))
-    
-    # Проверяем доступ используя новую систему прав
     from app.api.core.permissions import check_client_access
     if not check_client_access(db, current_user, client_id):
         logger.warning(f"QR code generation denied: user_id={current_user.id}, client_id={client_id}")
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    
-    # Generate QR code and password
     try:
         qr_data, access_password = crud_client.generate_client_qr_code(db, client_id)
     except ValueError as e:
         logger.error(f"Error generating QR code: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
-    
-    # Generate QR code image
     qr_image_base64 = generate_qr_code_base64(qr_data)
-    
-    # Build access URL (assuming frontend URL from settings or config)
     from app.api.core.config import settings
     base_url = getattr(settings, 'frontend_url', 'http://localhost:3000')
     qr_code_url = f"{base_url}/client/history?qr={qr_data}"
-    
     logger.info(f"QR code generated successfully: client_id={client_id}")
-    
     return QRCodeGenerateResponse(
         qr_code_data=qr_data,
         qr_code_image_base64=qr_image_base64,
         access_password=access_password,
         qr_code_url=qr_code_url,
     )
-
-
 @router.post("/qr-code/access", response_model=ClientHistoryResponse)
 def access_client_history_by_qr(
     request: QRCodeAccessRequest,
     db: Session = Depends(deps.get_db),
     locale: str = Depends(deps.get_locale),
 ):
-    """Access client history using QR code and password."""
     logger.info(f"QR code access attempt: qr_data={request.qr_code_data[:20]}...")
-    
-    # Parse QR code data
     parsed = parse_qr_code_data(request.qr_code_data)
     if not parsed:
         logger.warning("Invalid QR code format")
         raise HTTPException(status_code=400, detail=_("invalid_qr_code", locale))
-    
     client_id, hash_value = parsed
-    
-    # Verify hash
     if not verify_qr_code_hash(client_id, hash_value):
         logger.warning(f"Invalid QR code hash: client_id={client_id}")
         raise HTTPException(status_code=400, detail=_("invalid_qr_code", locale))
-    
-    # Get client by QR code
     client = crud_client.get_client_by_qr_code(db, request.qr_code_data)
     if not client:
         logger.warning(f"Client not found for QR code: client_id={client_id}")
         raise HTTPException(status_code=404, detail=_("client_not_found", locale))
-    
-    # Verify password
     if not crud_client.verify_client_access_password(db, client_id, request.password):
         logger.warning(f"Invalid password for QR code access: client_id={client_id}")
         raise HTTPException(status_code=401, detail=_("invalid_password", locale))
-    
-    # Get client visits
     visits, total = crud_visit.list_visits(db, client_id=client_id)
-    
-    # Calculate total spending
     total_spending = sum(v.price or 0 for v in visits)
-    
-    # Get last visit date
     last_visit_date = None
     if visits:
         last_visit = max(visits, key=lambda v: v.date_start)
         last_visit_date = last_visit.date_start.isoformat()
-    
-    # Format visits for response
     visits_data = [
         {
             "id": v.id,
@@ -545,9 +396,7 @@ def access_client_history_by_qr(
         }
         for v in visits
     ]
-    
     logger.info(f"QR code access successful: client_id={client_id}, visits={total}")
-    
     return ClientHistoryResponse(
         client_id=client.id,
         client_name=client.full_name,
@@ -556,4 +405,3 @@ def access_client_history_by_qr(
         total_spending=total_spending,
         last_visit_date=last_visit_date,
     )
-

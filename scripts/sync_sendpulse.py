@@ -1,37 +1,14 @@
-#!/usr/bin/env python3
-"""
-Скрипт для синхронизации контактов из базы данных в SendPulse.
-
-Использование:
-    # Синхронизировать всех клиентов
-    python scripts/sync_sendpulse.py --type clients
-    
-    # Синхронизировать всех пользователей
-    python scripts/sync_sendpulse.py --type users
-    
-    # Синхронизировать всех контактов
-    python scripts/sync_sendpulse.py --type all
-    
-    # Синхронизировать с ограничением
-    python scripts/sync_sendpulse.py --type clients --limit 100
-"""
 import sys
 import os
 import argparse
-
-# Добавляем корневую директорию в путь
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 from app.api.core.sendpulse_sync import (
     sync_all_clients_to_sendpulse,
     sync_all_users_to_sendpulse,
     sync_all_contacts_to_sendpulse,
 )
 from app.api.core.logger import logger
-
-
 def main():
-    """Главная функция для синхронизации контактов в SendPulse."""
     parser = argparse.ArgumentParser(description='Sync contacts to SendPulse')
     parser.add_argument(
         '--type',
@@ -53,25 +30,21 @@ def main():
         help='SendPulse address book ID (optional)'
     )
     args = parser.parse_args()
-    
     try:
         logger.info(f"Starting SendPulse sync: type={args.type}, limit={args.limit}")
-        
         if args.type == 'clients':
             results = sync_all_clients_to_sendpulse(
                 address_book_id=args.address_book_id,
                 limit=args.limit,
             )
             print(f"Clients sync completed: {results}")
-            
         elif args.type == 'users':
             results = sync_all_users_to_sendpulse(
                 address_book_id=args.address_book_id,
                 limit=args.limit,
             )
             print(f"Users sync completed: {results}")
-            
-        else:  # all
+        else:  
             results = sync_all_contacts_to_sendpulse(
                 address_book_id=args.address_book_id,
                 limit=args.limit,
@@ -80,14 +53,10 @@ def main():
             print(f"  Clients: {results['clients']}")
             print(f"  Users: {results['users']}")
             print(f"  Total: {results['total']}")
-        
         logger.info("SendPulse sync completed successfully")
         return 0
-        
     except Exception as e:
         logger.error(f"Error during SendPulse sync: {e}", exc_info=True)
         return 1
-
-
 if __name__ == "__main__":
     exit(main())

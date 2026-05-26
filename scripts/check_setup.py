@@ -1,12 +1,7 @@
-"""Скрипт для проверки настройки проекта."""
 import sys
 import os
-
-# Добавляем корневую директорию в путь
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 def check_env_file():
-    """Проверяет наличие .env файла."""
     env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
     if os.path.exists(env_path):
         print("[OK] Файл .env найден")
@@ -15,15 +10,11 @@ def check_env_file():
         print("[ERROR] Файл .env НЕ найден!")
         print(f"  Создайте файл .env в корне проекта: {env_path}")
         return False
-
 def check_database_connection():
-    """Проверяет подключение к базе данных."""
     try:
         from app.api.core.config import settings
         print(f"[OK] Настройки загружены")
         print(f"  DATABASE_URL: {settings.database_url[:30]}...")
-        
-        # Пытаемся подключиться
         from sqlalchemy import create_engine
         engine = create_engine(settings.database_url)
         with engine.connect() as conn:
@@ -36,16 +27,13 @@ def check_database_connection():
         print("  2. Неправильный DATABASE_URL в .env")
         print("  3. PostgreSQL не запущен")
         return False
-
 def check_required_settings():
-    """Проверяет обязательные настройки."""
     try:
         from app.api.core.config import settings
         required = {
             "DATABASE_URL": settings.database_url,
             "JWT_SECRET": settings.jwt_secret,
         }
-        
         all_ok = True
         for key, value in required.items():
             if not value or value == "":
@@ -53,29 +41,23 @@ def check_required_settings():
                 all_ok = False
             else:
                 print(f"[OK] {key} установлен")
-        
         return all_ok
     except Exception as e:
         print(f"[ERROR] Ошибка загрузки настроек: {e}")
         return False
-
 if __name__ == "__main__":
     print("=" * 50)
     print("Проверка настройки проекта Xtrix")
     print("=" * 50)
     print()
-    
     env_ok = check_env_file()
     print()
-    
     if env_ok:
         settings_ok = check_required_settings()
         print()
-        
         if settings_ok:
             db_ok = check_database_connection()
             print()
-            
             if db_ok:
                 print("=" * 50)
                 print("[SUCCESS] Все проверки пройдены! Проект готов к работе.")
@@ -97,4 +79,3 @@ if __name__ == "__main__":
         print("JWT_SECRET=ваш_секретный_ключ_минимум_32_символа_длинный")
         print("REDIS_URL=redis://localhost:6379/0")
         print("RATE_LIMIT_ENABLED=false")
-

@@ -1,10 +1,7 @@
-"""Analytics and reporting endpoints."""
 from datetime import datetime
 from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-
 from app.api import deps
 from app.api.core.i18n import _
 from app.api.core.analytics import (
@@ -43,10 +40,7 @@ from app.schemas.analytics import (
     SmartInsightsResponse,
     AnonymousBenchmarksResponse,
 )
-
 router = APIRouter()
-
-
 @router.get("/visits/statistics", response_model=VisitStatisticsResponse)
 def get_visits_statistics(
     specialist_id: Optional[int] = Query(None),
@@ -57,21 +51,13 @@ def get_visits_statistics(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Get visit statistics."""
     from app.api.core.permissions import get_filtered_specialist_id
-    
-    # Фильтрация по ролям
     if current_user.role == "admin":
-        # Админ может видеть все, но может фильтровать по specialist_id
         pass
     elif current_user.role == "business_owner":
-        # Владелец бизнеса видит статистику всего бизнеса
         specialist_id = None
     else:
-        # specialist и employee видят только свою статистику
         specialist_id = get_filtered_specialist_id(current_user)
-    
-    # Check cache
     cache_key = {
         'specialist_id': specialist_id,
         'client_id': client_id,
@@ -81,7 +67,6 @@ def get_visits_statistics(
     cached = get_cached_analytics('visits_statistics', **cache_key)
     if cached:
         return VisitStatisticsResponse(**cached)
-    
     stats = get_visit_statistics(
         db,
         specialist_id=specialist_id,
@@ -89,13 +74,8 @@ def get_visits_statistics(
         date_from=date_from,
         date_to=date_to,
     )
-    
-    # Cache result
     cache_analytics('visits_statistics', stats, ttl_seconds=300, **cache_key)
-    
     return VisitStatisticsResponse(**stats)
-
-
 @router.get("/financial/report", response_model=FinancialReportResponse)
 def get_financial_report_endpoint(
     specialist_id: Optional[int] = Query(None),
@@ -106,25 +86,15 @@ def get_financial_report_endpoint(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Get financial report."""
     from app.api.core.permissions import get_filtered_specialist_id, can_view_financials
-    
-    # Проверяем право на просмотр финансов
     if not can_view_financials(current_user, db):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    
-    # Фильтрация по ролям
     if current_user.role == "admin":
-        # Админ может видеть все, но может фильтровать по specialist_id
         pass
     elif current_user.role == "business_owner":
-        # Владелец бизнеса видит финансовую отчетность всего бизнеса
         specialist_id = None
     else:
-        # specialist и employee видят только свою финансовую информацию
         specialist_id = get_filtered_specialist_id(current_user)
-    
-    # Check cache
     cache_key = {
         'specialist_id': specialist_id,
         'date_from': date_from.isoformat() if date_from is not None else None,
@@ -134,7 +104,6 @@ def get_financial_report_endpoint(
     cached = get_cached_analytics('financial_report', **cache_key)
     if cached:
         return FinancialReportResponse(**cached)
-    
     report = get_financial_report(
         db,
         specialist_id=specialist_id,
@@ -142,13 +111,8 @@ def get_financial_report_endpoint(
         date_to=date_to,
         group_by=group_by,
     )
-    
-    # Cache result
     cache_analytics('financial_report', report, ttl_seconds=600, **cache_key)
-    
     return FinancialReportResponse(**report)
-
-
 @router.get("/services/popular", response_model=PopularServicesResponse)
 def get_popular_services_endpoint(
     specialist_id: Optional[int] = Query(None),
@@ -159,10 +123,8 @@ def get_popular_services_endpoint(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Get most popular services."""
     if current_user.role != "admin":
         specialist_id = current_user.id
-    
     services = get_popular_services(
         db,
         specialist_id=specialist_id,
@@ -170,10 +132,7 @@ def get_popular_services_endpoint(
         date_to=date_to,
         limit=limit,
     )
-    
     return PopularServicesResponse(services=services)
-
-
 @router.get("/clients/statistics", response_model=ClientStatisticsResponse)
 def get_clients_statistics(
     owner_id: Optional[int] = Query(None),
@@ -182,22 +141,14 @@ def get_clients_statistics(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Get client statistics."""
-    # Get business_id for current user (function defined below)
     user_business_id = get_user_business_id(current_user, db)
-    
-    # Use business_id if available, otherwise fall back to owner_id
     if user_business_id:
         business_id = user_business_id
-        owner_id = None  # Don't use owner_id when business_id is available
+        owner_id = None  
     elif current_user.role != "admin":
         owner_id = current_user.id
-    
     stats = get_client_statistics(db, owner_id=owner_id, business_id=business_id)
-    
     return ClientStatisticsResponse(**stats)
-
-
 @router.get("/payments/statistics", response_model=PaymentStatisticsResponse)
 def get_payments_statistics(
     specialist_id: Optional[int] = Query(None),
@@ -207,27 +158,20 @@ def get_payments_statistics(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Get payment statistics grouped by payment method."""
     from app.api.core.permissions import get_filtered_specialist_id
-    
-    # Фильтрация по ролям
     if current_user.role == "admin":
         pass
     elif current_user.role == "business_owner":
         specialist_id = None
     else:
         specialist_id = get_filtered_specialist_id(current_user)
-    
     stats = get_payment_statistics(
         db,
         specialist_id=specialist_id,
         date_from=date_from,
         date_to=date_to,
     )
-    
     return PaymentStatisticsResponse(**stats)
-
-
 @router.post("/reports/export")
 def export_report(
     request: ReportExportRequest,
@@ -235,14 +179,11 @@ def export_report(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Export comprehensive report."""
     if current_user.role != "admin":
         request.specialist_id = current_user.id
-    
     export_data = []
     filename = ""
     sheet_name = ""
-    
     if request.report_type == "financial":
         report = get_financial_report(
             db,
@@ -251,8 +192,6 @@ def export_report(
             date_to=request.date_to,
             group_by="month",
         )
-        
-        # Prepare financial data for export
         export_data = [
             {
                 'Period': period['period'],
@@ -261,17 +200,13 @@ def export_report(
             }
             for period in report['revenue_by_period']
         ]
-        
-        # Add summary
         export_data.insert(0, {
             'Period': 'TOTAL',
             'Revenue': report['total_revenue'],
             'Visit Count': sum(p['count'] for p in report['revenue_by_period']),
         })
-        
         filename = "financial_report"
         sheet_name = "Financial Report"
-        
     elif request.report_type == "visits":
         stats = get_visit_statistics(
             db,
@@ -279,7 +214,6 @@ def export_report(
             date_from=request.date_from,
             date_to=request.date_to,
         )
-        
         export_data = [
             {
                 'Period': period['period'],
@@ -287,15 +221,12 @@ def export_report(
             }
             for period in stats['monthly_visits']
         ]
-        
         export_data.insert(0, {
             'Period': 'TOTAL',
             'Visit Count': stats['total_visits'],
         })
-        
         filename = "visits_report"
         sheet_name = "Visits Report"
-        
     elif request.report_type == "services":
         services = get_popular_services(
             db,
@@ -304,7 +235,6 @@ def export_report(
             date_to=request.date_to,
             limit=50,
         )
-        
         export_data = [
             {
                 'Service Name': s['service_name'],
@@ -314,13 +244,10 @@ def export_report(
             }
             for s in services
         ]
-        
         filename = "services_report"
         sheet_name = "Services Report"
-        
     elif request.report_type == "clients":
         stats = get_client_statistics(db, owner_id=request.specialist_id)
-        
         export_data = [
             {
                 'Client Name': client['client_name'],
@@ -328,36 +255,23 @@ def export_report(
             }
             for client in stats['top_spenders']
         ]
-        
         filename = "clients_report"
         sheet_name = "Clients Report"
-        
     else:
         raise HTTPException(status_code=400, detail=_("invalid_report_type", locale))
-    
-    # Export based on format
     if request.format == "csv":
         return export_to_csv(export_data, filename=f"{filename}.csv")
     else:
         return export_to_excel(export_data, filename=f"{filename}.xlsx", sheet_name=sheet_name)
-
-
 def get_user_business_id(current_user: User, db: Session) -> Optional[int]:
-    """Получить business_id текущего пользователя."""
     if hasattr(current_user, 'business_id') and current_user.business_id:
         return current_user.business_id
-    
     if current_user.role == "employee":
         from app.api.crud import crud_employee
         employee = crud_employee.get_employee_by_user_id(db, current_user.id)
         if employee and employee.business_id:
             return employee.business_id
-    
     return None
-
-
-# ============ ADVANCED ANALYTICS ENDPOINTS ============
-
 @router.get("/retention/metrics", response_model=RetentionMetricsResponse)
 def get_retention_metrics_endpoint(
     date_from: Optional[datetime] = Query(None),
@@ -366,15 +280,11 @@ def get_retention_metrics_endpoint(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Get client retention metrics."""
     business_id = get_user_business_id(current_user, db)
     if current_user.role not in ("admin", "business_owner"):
-        business_id = None  # specialists/employees see only their data
-    
+        business_id = None  
     metrics = get_retention_metrics(db, business_id=business_id, date_from=date_from, date_to=date_to)
     return RetentionMetricsResponse(**metrics)
-
-
 @router.get("/retention/cohorts", response_model=CohortTableResponse)
 def get_cohorts_endpoint(
     date_from: Optional[datetime] = Query(None),
@@ -383,13 +293,9 @@ def get_cohorts_endpoint(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Get client cohort retention table."""
     business_id = get_user_business_id(current_user, db)
-    
     cohorts = get_client_cohorts(db, business_id=business_id, date_from=date_from, date_to=date_to)
     return CohortTableResponse(**cohorts)
-
-
 @router.get("/trends", response_model=TrendsAnalysisResponse)
 def get_trends_endpoint(
     metric: str = Query("revenue", pattern="^(revenue|clients|visits|average_check|load)$"),
@@ -398,15 +304,11 @@ def get_trends_endpoint(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Get trends analysis with period-over-period comparison."""
     business_id = get_user_business_id(current_user, db)
     if current_user.role not in ("admin", "business_owner"):
         business_id = None
-    
     trends = get_trends_analysis(db, business_id=business_id, metric=metric, comparison_type=comparison_type)
     return TrendsAnalysisResponse(**trends)
-
-
 @router.get("/forecast", response_model=ForecastResponse)
 def get_forecast_endpoint(
     forecast_type: str = Query("revenue", pattern="^(revenue|visits)$"),
@@ -415,13 +317,9 @@ def get_forecast_endpoint(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Get forecasts for revenue or visits."""
     business_id = get_user_business_id(current_user, db)
-    
     forecast = get_forecast(db, business_id=business_id, forecast_type=forecast_type, periods=periods)
     return ForecastResponse(**forecast)
-
-
 @router.get("/services-specialists", response_model=ServiceAndSpecialistAnalyticsResponse)
 def get_service_and_specialist_analytics_endpoint(
     date_from: Optional[datetime] = Query(None),
@@ -430,28 +328,20 @@ def get_service_and_specialist_analytics_endpoint(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Get analytics for services and specialists."""
     business_id = get_user_business_id(current_user, db)
-    
     analytics = get_service_and_specialist_analytics(
         db, business_id=business_id, date_from=date_from, date_to=date_to
     )
     return ServiceAndSpecialistAnalyticsResponse(**analytics)
-
-
 @router.get("/insights", response_model=SmartInsightsResponse)
 def get_insights_endpoint(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Get smart insights and recommendations."""
     business_id = get_user_business_id(current_user, db)
-    
     insights = get_smart_insights(db, business_id=business_id)
     return SmartInsightsResponse(insights=insights)
-
-
 @router.get("/benchmarks", response_model=AnonymousBenchmarksResponse)
 def get_benchmarks_endpoint(
     business_type: Optional[str] = Query(None, description="Filter by business type"),
@@ -460,7 +350,5 @@ def get_benchmarks_endpoint(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    """Get anonymous platform benchmarks."""
     benchmarks = get_anonymous_benchmarks(db, business_type=business_type, min_businesses=min_businesses)
     return AnonymousBenchmarksResponse(**benchmarks)
-

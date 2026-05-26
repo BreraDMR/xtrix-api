@@ -1,27 +1,20 @@
 """create business model
-
 Revision ID: 0013_create_business_model
 Revises: 0012_add_global_client_account
 Create Date: 2024-12-22 14:00:00
 """
-
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.sql import text
-
 revision = "0013_create_business_model"
 down_revision = "0012_add_global_client_account"
 branch_labels = None
 depends_on = None
-
-
 def upgrade():
-    # Step 1: Create businesses table structure first (check if exists)
     from sqlalchemy import inspect
     conn = op.get_bind()
     inspector = inspect(conn)
     table_names = inspector.get_table_names()
-    
     if 'businesses' not in table_names:
         op.create_table(
             "businesses",
@@ -41,31 +34,20 @@ def upgrade():
         op.create_index("ix_businesses_email", "businesses", ["email"])
         op.create_index("ix_businesses_created_at", "businesses", ["created_at"])
         op.create_index("ix_businesses_deleted_at", "businesses", ["deleted_at"])
-    
-    # Step 2: Add business_id columns FIRST (before foreign keys and data migration)
-    # Это критически важно - колонки должны быть созданы до любых операций с данными
-    # Проверяем, существует ли колонка перед добавлением
     if 'users' in table_names:
         users_columns = [col['name'] for col in inspector.get_columns('users')]
         if 'business_id' not in users_columns:
             op.add_column("users", sa.Column("business_id", sa.Integer(), nullable=True))
             op.create_index("ix_users_business_id", "users", ["business_id"])
-    
     if 'specialist_profiles' in table_names:
         specialist_profiles_columns = [col['name'] for col in inspector.get_columns('specialist_profiles')]
         if 'business_id' not in specialist_profiles_columns:
             op.add_column("specialist_profiles", sa.Column("business_id", sa.Integer(), nullable=True))
             op.create_index("ix_specialist_profiles_business_id", "specialist_profiles", ["business_id"])
-    
-    # Step 4: Create foreign keys BEFORE data migration (can be empty)
-    # Foreign keys can be created even if tables are empty
-    # Проверяем существование constraint перед созданием
     conn = op.get_bind()
     inspector = inspect(conn)
-    
     if 'users' in table_names:
         try:
-            # Проверяем существующие foreign keys
             fks = inspector.get_foreign_keys('users')
             fk_names = [fk['name'] for fk in fks] if fks else []
             if 'fk_users_business_id' not in fk_names:
@@ -78,12 +60,9 @@ def upgrade():
                     ondelete="SET NULL"
                 )
         except Exception as e:
-            # НЕ делаем rollback - Alembic управляет транзакциями
             print(f"Warning: Could not create FK fk_users_business_id: {e}")
-    
     if 'specialist_profiles' in table_names:
         try:
-            # Проверяем существующие foreign keys
             fks = inspector.get_foreign_keys('specialist_profiles')
             fk_names = [fk['name'] for fk in fks] if fks else []
             if 'fk_specialist_profiles_business_id' not in fk_names:
@@ -96,17 +75,10 @@ def upgrade():
                     ondelete="SET NULL"
                 )
         except Exception as e:
-            # НЕ делаем rollback - Alembic управляет транзакциями
             print(f"Warning: Could not create FK fk_specialist_profiles_business_id: {e}")
-    
-    # Step 5: Try to migrate existing data (with error handling - failures shouldn't block)
-    # Миграция данных опциональна - если она падает, структура уже создана
-    # НЕ используем conn.commit() - Alembic управляет транзакциями сам
     try:
         user_count = conn.execute(text("SELECT COUNT(*) FROM users WHERE role IN ('specialist', 'admin')")).scalar()
         if user_count and user_count > 0:
-            # Create default business for existing users if they don't have one
-            # Simplified: create one business per user
             conn.execute(text("""
                 INSERT INTO businesses (name, business_type, created_at)
                 SELECT DISTINCT
@@ -122,8 +94,6 @@ def upgrade():
                     AND b.business_type = COALESCE(sp.business_type, 'individual')
                 )
             """))
-            
-            # Update users.business_id - simplified approach
             conn.execute(text("""
                 UPDATE users u
                 SET business_id = (
@@ -143,8 +113,6 @@ def upgrade():
                 WHERE u.business_id IS NULL
                 AND (u.role = 'specialist' OR u.role = 'admin')
             """))
-            
-            # Update specialist_profiles.business_id
             conn.execute(text("""
                 UPDATE specialist_profiles sp
                 SET business_id = u.business_id
@@ -154,50 +122,34 @@ def upgrade():
                 AND u.business_id IS NOT NULL
             """))
     except Exception as e:
-        # Log error but continue - data migration is not critical, structure is already created
-        # НЕ делаем rollback - Alembic управляет транзакциями
         print(f"Warning: Data migration failed (non-critical, structure already created): {e}")
         import traceback
         traceback.print_exc()
-        # Don't re-raise - structure is more important than data
-    
-
-
 def downgrade():
-    # Remove foreign keys first
     try:
         op.drop_constraint("fk_specialist_profiles_business_id", "specialist_profiles", type_="foreignkey")
     except:
         pass
-    
     try:
         op.drop_constraint("fk_users_business_id", "users", type_="foreignkey")
     except:
         pass
-    
-    # Remove indexes
     try:
         op.drop_index("ix_specialist_profiles_business_id", "specialist_profiles")
     except:
         pass
-    
     try:
         op.drop_index("ix_users_business_id", "users")
     except:
         pass
-    
-    # Remove columns
     try:
         op.drop_column("specialist_profiles", "business_id")
     except:
         pass
-    
     try:
         op.drop_column("users", "business_id")
     except:
         pass
-    
-    # Drop businesses table
     try:
         op.drop_index("ix_businesses_deleted_at", "businesses")
         op.drop_index("ix_businesses_created_at", "businesses")
