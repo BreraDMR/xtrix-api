@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -9,14 +10,17 @@ from app.db.models.user import User
 from app.db.models.client import Client
 from app.api.crud import crud_client
 from app.schemas.client import ClientCreate
+
 def create_test_data():
+    user_email = os.environ.get("DEV_LOGIN_EMAIL", "demo@example.com")
+    user_password = os.environ.get("DEV_LOGIN_PASSWORD")
+    if not user_password:
+        raise SystemExit("Set DEV_LOGIN_PASSWORD in your environment.")
+    user_phone = "+420000000000"
     db: Session = SessionLocal()
     try:
         print("Создание тестовых данных...")
-        print("\n1. Создаю пользователя (специалиста)...")
-        user_email = "ivan.petrov@example.com"
-        user_phone = "+420123456789"
-        user_password = "TestP@ss57!"  
+        print("\n1. Создаю пользователя (специалиста)...")  
         existing_user = db.query(User).filter(
             (User.email == user_email) | 
             (User.phone == user_phone)
@@ -32,9 +36,8 @@ def create_test_data():
             user = existing_user
         else:
             from app.api.core.security import get_password_hash
-            simple_password = "TestP@ss57!"
             try:
-                hashed = get_password_hash(simple_password)
+                hashed = get_password_hash(user_password)
             except Exception as e:
                 print(f"   [ERROR] Не удалось создать хеш пароля: {e}")
                 print("   Попробуйте запустить скрипт снова или создайте пользователя через API")

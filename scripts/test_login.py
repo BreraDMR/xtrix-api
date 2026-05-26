@@ -1,10 +1,12 @@
+import os
 import requests
 import json
+
 def test_login():
-    base_url = "http://localhost:8000"
+    base_url = os.environ.get("API_BASE_URL", "http://localhost:8000")
     login_data = {
-        "email": "ivan.petrov@example.com",
-        "password": "TestP@ss57!"
+        "email": os.environ["DEV_LOGIN_EMAIL"],
+        "password": os.environ["DEV_LOGIN_PASSWORD"],
     }
     try:
         print("Тестирую логин...")
@@ -36,4 +38,6 @@ def test_login():
         import traceback
         traceback.print_exc()
 if __name__ == "__main__":
+    if not os.environ.get("DEV_LOGIN_EMAIL") or not os.environ.get("DEV_LOGIN_PASSWORD"):
+        raise SystemExit("Set DEV_LOGIN_EMAIL and DEV_LOGIN_PASSWORD in your environment.")
     test_login()

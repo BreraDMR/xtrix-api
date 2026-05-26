@@ -1,13 +1,19 @@
+import os
 import requests
 import json
+
 def create_user():
-    base_url = "http://localhost:8000"
+    base_url = os.environ.get("API_BASE_URL", "http://localhost:8000")
+    email = os.environ.get("DEV_LOGIN_EMAIL", "demo@example.com")
+    password = os.environ.get("DEV_LOGIN_PASSWORD")
+    if not password:
+        raise SystemExit("Set DEV_LOGIN_PASSWORD in your environment.")
     user_data = {
-        "full_name": "Иван Петров",
-        "email": "ivan.petrov@example.com",
-        "phone": "+420123456789",
-        "password": "TestP@ss57!",
-        "role": "specialist"
+        "full_name": "Demo User",
+        "email": email,
+        "phone": "+420000000000",
+        "password": password,
+        "role": "specialist",
     }
     try:
         print("Создаю пользователя через API...")

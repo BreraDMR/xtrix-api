@@ -28,6 +28,11 @@ env/
 
 # Environment variables
 .env
+.env.*
+!.env.example
+
+# Local-only dev helpers (never commit credentials)
+scripts/local_*.py
 
 # Logs
 logs/

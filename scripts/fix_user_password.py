@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -5,11 +6,14 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.db.models.user import User
 import bcrypt
+
 def fix_password():
+    email = os.environ.get("DEV_LOGIN_EMAIL")
+    password = os.environ.get("DEV_LOGIN_PASSWORD")
+    if not email or not password:
+        raise SystemExit("Set DEV_LOGIN_EMAIL and DEV_LOGIN_PASSWORD in your environment.")
     db: Session = SessionLocal()
     try:
-        email = "ivan.petrov@example.com"
-        password = "TestP@ss57!"
         user = db.query(User).filter(User.email == email).first()
         if not user:
             print(f"[ERROR] Пользователь с email {email} не найден")
