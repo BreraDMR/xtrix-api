@@ -116,7 +116,7 @@ class Settings(BaseSettings):
         description="Enable HSTS header (only for HTTPS)",
     )
     detailed_errors: bool = Field(
-        default=True,
+        default=False,
         env="DETAILED_ERRORS",
         description="Enable detailed error messages (recommended for development only)",
     )

@@ -7,6 +7,18 @@ from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from app.api.core.config import settings
 from app.api.core.logger import logger
+SECRET_HEADERS = {"authorization", "cookie", "x-apple-token", "x-google-token", "x-erl-token", "stripe-signature"}
+SECRET_KEY_PARTS = ("password", "token", "secret", "totp")
+def _redact(value: Any) -> Any:
+    # error responses echo the request in detailed mode - never send credentials back
+    if isinstance(value, dict):
+        return {
+            k: "***" if any(part in str(k).lower() for part in SECRET_KEY_PARTS) else _redact(v)
+            for k, v in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact(v) for v in value]
+    return value
 def create_error_response(
     status_code: int,
     message: str,
@@ -30,10 +42,13 @@ def create_error_response(
         try:
             request_info: Dict[str, Any] = {
                 "method": request.method,
-                "url": str(request.url),
+                "url": str(request.url.replace(query="")),
                 "path": request.url.path,
-                "query_params": dict(request.query_params),
-                "headers": dict(request.headers),
+                "query_params": _redact(dict(request.query_params)),
+                "headers": {
+                    k: "***" if k.lower() in SECRET_HEADERS else v
+                    for k, v in request.headers.items()
+                },
                 "client": {
                     "host": request.client.host if request.client else None,
                     "port": request.client.port if request.client else None,
@@ -45,9 +60,10 @@ def create_error_response(
                     if body:
                         import json
                         try:
-                            request_info["body"] = json.loads(body.decode())
+                            request_info["body"] = _redact(json.loads(body.decode()))
                         except:
-                            request_info["body"] = body.decode()[:500]  
+                            # not JSON, can't tell what's secret in there - leave it out
+                            request_info["body"] = "<non-JSON body omitted>"
             except:
                 pass
             response_data["error"]["request"] = request_info
