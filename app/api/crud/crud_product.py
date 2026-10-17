@@ -70,7 +70,7 @@ def reduce_product_quantity(db: Session, product_id: int, quantity: float, busin
     if not product:
         return None
     if product.quantity < quantity:
-        raise ValueError(f"Недостаточно товара на складе. Доступно: {product.quantity}, требуется: {quantity}")
+        raise ValueError(f"Not enough stock. Available: {product.quantity}, requested: {quantity}")
     product.quantity -= quantity
     db.commit()
     db.refresh(product)

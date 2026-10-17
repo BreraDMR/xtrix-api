@@ -13,9 +13,9 @@ def create_product_usage(
 ) -> ProductUsage:
     product = db.query(Product).filter(Product.id == usage_in.product_id).first()
     if not product:
-        raise ValueError(f"Товар с ID {usage_in.product_id} не найден")
+        raise ValueError(f"Product {usage_in.product_id} not found")
     if product.business_id != usage_in.business_id:
-        raise ValueError("Товар не принадлежит указанному бизнесу")
+        raise ValueError("Product doesn't belong to this business")
     if auto_reduce_stock:
         reduce_product_quantity(db, usage_in.product_id, usage_in.quantity, usage_in.business_id)
     usage = ProductUsage(**usage_in.model_dump())
