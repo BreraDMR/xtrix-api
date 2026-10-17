@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -45,7 +45,8 @@ def test_birthday_job_uses_each_clients_language(client, make_user, headers_for,
     from app.api.core import notification_tasks
 
     a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
-    today = datetime.utcnow().date()
+    # the job picks birthdays by date.today(), so ask for the same day - utcnow() is a day off around midnight
+    today = date.today()
     r = client.put(f"/clients/{a['client']['id']}", headers=a["headers"],
                    json={"language": "cz", "birth_date": today.replace(year=1992).isoformat()})
     assert r.status_code == 200, r.text
