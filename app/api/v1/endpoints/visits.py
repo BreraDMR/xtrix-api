@@ -14,6 +14,7 @@ from app.api.crud import crud_visit, crud_schedule
 from app.db.models.service import Service
 from app.db.models.user import User
 from app.schemas.visit import VisitCreate, VisitOut, VisitUpdate
+from app.api.core.clock import utcnow
 router = APIRouter()
 logger = get_logger("visits")
 def _check_slot_free(db, specialist_id, start, end, service_id, exclude_id, locale):
@@ -216,7 +217,7 @@ def visits_for_reminders(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
 ):
-    now = datetime.utcnow()
+    now = utcnow()
     horizon = now + timedelta(hours=24)
     visits, _total = crud_visit.list_visits(
         db,

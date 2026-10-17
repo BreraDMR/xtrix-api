@@ -11,6 +11,7 @@ from app.schemas.expense import ExpenseCreate, ExpenseUpdate, ExpenseOut
 from app.schemas.expense_category import ExpenseCategoryCreate, ExpenseCategoryUpdate, ExpenseCategoryOut
 from app.api.crud import crud_expense, crud_expense_category
 from app.api.core.logger import logger
+from app.api.core.clock import utcnow
 router = APIRouter()
 def get_user_business_id(current_user: User, db: Session) -> Optional[int]:
     if current_user.business_id:
@@ -219,7 +220,7 @@ def get_profit_report(
     if not business_id:
         raise HTTPException(status_code=403, detail=_("business_required", locale))
     if not date_from or not date_to:
-        now = datetime.utcnow()
+        now = utcnow()
         date_from = datetime(now.year, now.month, 1)
         if now.month == 12:
             date_to = datetime(now.year + 1, 1, 1) - timedelta(seconds=1)

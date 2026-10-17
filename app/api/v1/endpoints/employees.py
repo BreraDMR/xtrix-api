@@ -20,6 +20,7 @@ from app.schemas.salary import (
     SalaryPaymentUpdate,
     SalaryPaymentOut
 )
+from app.api.core.clock import utcnow
 router = APIRouter()
 logger = get_logger("employees")
 def can_manage_employees(current_user: User) -> bool:
@@ -228,9 +229,8 @@ def create_employee_with_user(
                 specialist_category=specialist_category,
             )
             new_profile = crud_specialist_profile.create_specialist_profile(db, profile_create)
-            from datetime import datetime
             new_profile.is_verified = "verified"
-            new_profile.verified_at = datetime.utcnow()
+            new_profile.verified_at = utcnow()
             db.add(new_profile)
             db.commit()
             logger.info(f"Auto-verified specialist profile for user {new_user.id} (created by admin)")

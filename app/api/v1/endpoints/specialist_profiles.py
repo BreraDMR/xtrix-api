@@ -11,6 +11,7 @@ from app.schemas.specialist_profile import (
     SpecialistProfileUpdate,
     SpecialistProfileOut,
 )
+from app.api.core.clock import utcnow
 router = APIRouter()
 logger = get_logger("specialist_profiles")
 @router.post("/", response_model=SpecialistProfileOut)
@@ -147,9 +148,8 @@ def verify_specialist_profile(
             status_code=404,
             detail=_("specialist_profile_not_found", locale)
         )
-    from datetime import datetime
     profile.is_verified = "verified"
-    profile.verified_at = datetime.utcnow()
+    profile.verified_at = utcnow()
     db.commit()
     db.refresh(profile)
     logger.info(f"Specialist profile verified by admin: user_id={user_id}, admin_id={current_user.id}")
