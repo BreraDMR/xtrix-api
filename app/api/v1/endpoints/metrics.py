@@ -1,6 +1,6 @@
 from datetime import datetime
 from fastapi import APIRouter, Depends, Response
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.monitoring import metrics_collector, get_health_status
@@ -15,7 +15,7 @@ async def liveness():
 @router.get("/health/ready")
 async def readiness(db: Session = Depends(deps.get_db)):
     try:
-        db.execute(func.select(1))
+        db.execute(text("SELECT 1"))
         return {"status": "ready"}
     except Exception:
         return Response(status_code=503, content='{"status": "not_ready"}')
