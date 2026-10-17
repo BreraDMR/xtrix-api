@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, BaseModel, Field
 from app.schemas.limits import Currency, LongText, PositiveMoney
 class ExpenseBase(BaseModel):
     category_id: Optional[int] = None
@@ -25,7 +25,6 @@ class ExpenseOut(ExpenseBase):
     created_at: datetime
     updated_at: datetime
     category: Optional["ExpenseCategoryOut"] = None
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 from app.schemas.expense_category import ExpenseCategoryOut
 ExpenseOut.model_rebuild()

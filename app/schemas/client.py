@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from typing import Optional
-from pydantic import BaseModel, Field, EmailStr, field_validator
+from pydantic import ConfigDict, BaseModel, Field, EmailStr, field_validator
 class ClientBase(BaseModel):
     full_name: str = Field(..., max_length=255, min_length=1)
     birth_date: Optional[date] = None
@@ -89,14 +89,12 @@ class ClientOut(ClientBase):
     id: int
     owner_id: Optional[int] = None  
     created_at: datetime
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 class BasicMedicalInfo(BaseModel):
     allergies: Optional[str] = None
     chronic_diseases: Optional[str] = None
     pregnancy: Optional[bool] = None
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 class ClientSearchOut(BaseModel):
     id: int
     full_name: str
@@ -107,5 +105,4 @@ class ClientSearchOut(BaseModel):
     basic_medical_info: Optional[BasicMedicalInfo] = None
     is_linked_to_my_business: bool = False
     created_at: datetime
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

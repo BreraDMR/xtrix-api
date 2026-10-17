@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Literal, Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, BaseModel, Field
 class VisitStatisticsResponse(BaseModel):
     total_visits: int
     visits_by_status: Dict[str, int]
@@ -43,8 +43,7 @@ class AuditLogOut(BaseModel):
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
     created_at: datetime
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 class ReportExportRequest(BaseModel):
     report_type: Literal["financial", "visits", "services", "clients"]
     format: Literal["csv", "excel"] = "excel"

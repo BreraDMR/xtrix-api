@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import ConfigDict, BaseModel, EmailStr, Field, field_validator
 from typing import Literal
 class UserPreferencesBase(BaseModel):
     timezone: Optional[str] = Field(None, description="Часовой пояс (например: Europe/Prague)")
@@ -42,5 +42,4 @@ class UserPreferencesOut(UserPreferencesBase):
     user_id: int
     created_at: datetime
     updated_at: datetime
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

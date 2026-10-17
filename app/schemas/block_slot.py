@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field, field_validator
+from pydantic import ConfigDict, BaseModel, Field, field_validator
 class BlockSlotBase(BaseModel):
     start: datetime
     end: datetime
@@ -28,5 +28,4 @@ class BlockSlotUpdate(BaseModel):
 class BlockSlotOut(BlockSlotBase):
     id: int
     specialist_id: int
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

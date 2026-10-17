@@ -1,7 +1,7 @@
 from typing import Optional
 from datetime import datetime
 from app.schemas.limits import MAX_MONEY, LongText, PaymentMethod, PaymentStatus, PositiveMoney
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, BaseModel, Field
 class SalaryCalculationBase(BaseModel):
     employee_id: int = Field(..., description="ID сотрудника (Employee)")
     period_start: datetime = Field(..., description="Начало периода расчета")
@@ -32,8 +32,7 @@ class SalaryCalculationOut(SalaryCalculationBase):
     calculated_by_id: Optional[int] = Field(None, description="ID пользователя, который рассчитал зарплату")
     created_at: datetime
     updated_at: datetime
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 class SalaryCalculationWithEmployee(SalaryCalculationOut):
     employee: Optional[dict] = Field(None, description="Информация о сотруднике")
 class CalculateSalaryRequest(BaseModel):
@@ -51,8 +50,7 @@ class SalaryAdjustmentOut(SalaryAdjustmentBase):
     salary_calculation_id: int
     created_by_id: int
     created_at: datetime
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 class SalaryPaymentBase(BaseModel):
     amount: PositiveMoney = Field(..., description="Payment amount")
     payment_date: datetime = Field(..., description="Payment date")
@@ -75,8 +73,7 @@ class SalaryPaymentOut(SalaryPaymentBase):
     created_by_id: int
     created_at: datetime
     updated_at: datetime
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 class SalaryCalculationDetail(SalaryCalculationOut):
     adjustments: list[SalaryAdjustmentOut] = Field(default_factory=list, description="Список бонусов/штрафов")
     payments: list[SalaryPaymentOut] = Field(default_factory=list, description="Список выплат")

@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from app.schemas.limits import MAX_MONEY
-from pydantic import BaseModel, Field, field_validator
+from pydantic import ConfigDict, BaseModel, Field, field_validator
 class EmployeePermissions(BaseModel):
     can_create_visits: bool = Field(default=True, description="Может создавать визиты")
     can_edit_clients: bool = Field(default=True, description="Может редактировать клиентов")
@@ -54,8 +54,7 @@ class EmployeeOut(EmployeeBase):
     hired_at: Optional[datetime] = None
     fired_at: Optional[datetime] = None
     employee_user: Optional[Dict[str, Any]] = None  
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 class EmployeeCreateResponse(EmployeeOut):
     generated_password: str = Field(..., description="Сгенерированный пароль для сотрудника")
     user_id: int = Field(..., description="ID созданного пользователя")

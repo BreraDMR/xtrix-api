@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, BaseModel, Field
 class SubscriptionBase(BaseModel):
     user_id: int
     plan_id: int
@@ -28,8 +28,7 @@ class SubscriptionUpdate(BaseModel):
 class SubscriptionOut(SubscriptionBase):
     id: int
     created_at: datetime
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 class SubscriptionCancelRequest(BaseModel):
     cancel_at_period_end: bool = Field(default=True, description="Cancel at end of current period (true) or immediately (false)")
 class SubscriptionReactivateRequest(BaseModel):

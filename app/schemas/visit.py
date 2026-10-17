@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, List
 from app.schemas.limits import LongText, Money, ShortText
-from pydantic import BaseModel, Field, field_validator
+from pydantic import ConfigDict, BaseModel, Field, field_validator
 class UsedProduct(BaseModel):
     product_id: int
     quantity: float = Field(..., gt=0)
@@ -115,5 +115,4 @@ class VisitUpdate(BaseModel):
 class VisitOut(VisitBase):
     id: int
     created_at: datetime
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

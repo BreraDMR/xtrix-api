@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, BaseModel, Field
 class ProductUsageBase(BaseModel):
     product_id: int
     quantity: float = Field(..., gt=0)
@@ -16,5 +16,4 @@ class ProductUsageOut(ProductUsageBase):
     used_by_id: Optional[int] = None
     usage_date: datetime
     created_at: datetime
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

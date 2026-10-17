@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 from app.schemas.limits import MAX_MONEY
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, BaseModel, Field
 class ProductBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=5000)
@@ -33,8 +33,7 @@ class ProductOut(ProductBase):
     business_id: int
     created_at: datetime
     updated_at: datetime
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 class ProductStockOut(BaseModel):
     id: int
     name: str
@@ -42,5 +41,4 @@ class ProductStockOut(BaseModel):
     min_quantity: float
     unit: str
     is_low_stock: bool  
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

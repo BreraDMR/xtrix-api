@@ -1,5 +1,5 @@
 from datetime import time
-from pydantic import BaseModel, Field, field_validator
+from pydantic import ConfigDict, BaseModel, Field, field_validator
 class WorkScheduleBase(BaseModel):
     weekday: int = Field(..., ge=0, le=6, description="0=Monday, 6=Sunday")
     start_time: time
@@ -24,5 +24,4 @@ class WorkScheduleUpdate(BaseModel):
 class WorkScheduleOut(WorkScheduleBase):
     id: int
     specialist_id: int
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

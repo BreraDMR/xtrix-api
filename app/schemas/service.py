@@ -1,5 +1,5 @@
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, BaseModel, Field
 from app.schemas.limits import Minutes, Money, Name, ShortText
 class ServiceBase(BaseModel):
     name: Name
@@ -23,5 +23,4 @@ class ServiceOut(ServiceBase):
     specialist_id: int
     specialist_ids: Optional[List[int]] = Field(None, description="Список ID всех специалистов, которые могут предоставлять эту услугу")
     specialists: Optional[List[dict]] = Field(None, description="Информация о специалистах")
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
