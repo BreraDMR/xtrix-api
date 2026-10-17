@@ -1,18 +1,22 @@
-# Xtrix
+# Xtrix API
 
-Business management platform: clients, visits, services, staff, finance, and analytics.
+Backend for Xtrix, a business management platform: clients, visits, services, staff, salaries,
+inventory, expenses, loyalty and analytics.
+
+The web client lives in a separate repo: [BreraDMR/xtrix-web](https://github.com/BreraDMR/xtrix-web).
 
 ## Stack
 
-- **Backend:** FastAPI, PostgreSQL, Alembic
-- **Web:** React, TypeScript, Vite, Tailwind CSS
-- **Mobile:** Flutter
+FastAPI, SQLAlchemy, PostgreSQL, Alembic, Redis (optional, for rate limiting).
 
 ## Local setup
 
 1. Copy `.env.example` to `.env` and fill in your values.
-2. Backend: `pip install -r requirements.txt` → `alembic upgrade head` → `uvicorn app.main:app --reload`
-3. Frontend: `cd frontend` → `npm install` → `npm run dev`
+2. `pip install -r requirements.txt`
+3. `alembic upgrade head`
+4. `uvicorn app.main:app --reload`
+
+Or just `docker compose up` for the API with Postgres and Redis.
 
 ## License
 
