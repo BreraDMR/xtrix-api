@@ -145,3 +145,10 @@ def test_refresh_token_rotation(test_user, db):
     assert crud_refresh_token.get_refresh_token(db, refresh_token_1) is None
     assert crud_refresh_token.get_refresh_token(db, refresh_token_2) is None
     assert crud_refresh_token.get_refresh_token(db, refresh_token_3) is not None
+def test_two_logins_in_the_same_second(test_user):
+    body = {"email": "test@example.com", "password": "Str0ng!Pass-word"}
+    first = client.post("/users/login", json=body)
+    second = client.post("/users/login", json=body)
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["refresh_token"] != second.json()["refresh_token"]

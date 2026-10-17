@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 import re
 import jwt
+import secrets
 from jose import JWTError
 from passlib.context import CryptContext
 import bcrypt
@@ -204,7 +205,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def create_refresh_token(data: dict) -> tuple[str, datetime]:
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
-    to_encode.update({"exp": expire, "type": "refresh"})
+    # jti makes every token unique - without it two logins in the same second
+    # produced the same string and hit the unique index on refresh_tokens.token
+    to_encode.update({"exp": expire, "type": "refresh", "jti": secrets.token_hex(16)})
     encoded_jwt = jwt.encode(
         to_encode, settings.jwt_secret, algorithm=settings.jwt_algorithm
     )
