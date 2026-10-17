@@ -118,6 +118,7 @@ def list_specialist_profiles(
         is_verified=is_verified,
         skip=skip,
         limit=limit,
+        viewer=current_user,
     )
     return [
         profile.model_dump() if hasattr(profile, 'model_dump') else profile

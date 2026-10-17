@@ -65,8 +65,15 @@ def list_specialist_profiles(
     is_verified: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
+    viewer: Optional[User] = None,
 ) -> List[SpecialistProfile]:
     query = db.query(SpecialistProfile)
+    if viewer is not None and viewer.role != "admin":
+        # not a public catalog - everyone but an admin sees their own business only
+        if viewer.business_id:
+            query = query.join(User, User.id == SpecialistProfile.user_id).filter(User.business_id == viewer.business_id)
+        else:
+            query = query.filter(SpecialistProfile.user_id == viewer.id)
     if specialist_type:
         query = query.filter(SpecialistProfile.specialist_type == specialist_type)
     if specialist_category:
