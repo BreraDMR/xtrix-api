@@ -33,3 +33,19 @@ def test_update_service_and_visit(client, make_user, headers_for):
     assert r.status_code == 200 and r.json()["price"] == 650
     r = client.put(f"/visits/{a['visit']['id']}", json={"note": "moved inside"}, headers=h)
     assert r.status_code == 200 and r.json()["note"] == "moved inside"
+
+
+def test_employee_sees_own_salary_but_not_a_colleagues(client, db, make_user, headers_for):
+    from app.db.models.user import User
+
+    a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
+    me = headers_for(db.get(User, a["employee_user_id"]))
+    emp, sal = a["employee"]["id"], a["salary"]["id"]
+    assert client.get(f"/employees/{emp}/salary/{sal}", headers=me).status_code == 200
+    assert client.get(f"/employees/{emp}/salary/{sal}/payments", headers=me).status_code == 200
+
+    colleague = client.post("/employees/create-with-user", headers=a["headers"],
+                            json={"full_name": "Alpha Colleague", "email": "colleague@example.com", "phone": "+420700112233"})
+    assert colleague.status_code == 200, colleague.text
+    colleague_user = db.get(User, colleague.json()["user_id"])
+    assert client.get(f"/employees/{emp}/salary/{sal}", headers=headers_for(colleague_user)).status_code == 403

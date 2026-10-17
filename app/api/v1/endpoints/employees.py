@@ -29,6 +29,24 @@ def get_business_owner_id(current_user: User) -> Optional[int]:
     if current_user.role == "business_owner":
         return current_user.id
     return None
+def _manager_owner_id(current_user: User, locale: str) -> Optional[int]:
+    # owners/admins manage staff; a platform admin isn't tied to one owner
+    from app.api.core.permissions import can_manage_employees
+    if not can_manage_employees(current_user):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    return None if current_user.role == "admin" else get_business_owner_id(current_user)
+def _employee_for_viewer(db: Session, current_user: User, employee_id: int, locale: str):
+    """The employee record, for the employee themself or for whoever manages them."""
+    # staff made via create-with-user have role "specialist", not "employee" - so look at the
+    # employee record itself instead of the role
+    own = crud_employee.get_employee_by_user_id(db, current_user.id)
+    if own and own.id == employee_id:
+        return own
+    owner_id = _manager_owner_id(current_user, locale)
+    employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
+    if not employee:
+        raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
+    return employee
 @router.post("/", response_model=EmployeeOut, summary="Hire employee")
 def create_employee(
     employee: EmployeeCreate,
@@ -628,12 +646,7 @@ def calculate_employee_salary(
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    from app.api.core.permissions import can_manage_employees
-    if not can_manage_employees(current_user):
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    owner_id = get_business_owner_id(current_user)
-    if current_user.role == "admin":
-        owner_id = None
+    owner_id = _manager_owner_id(current_user, locale)
     employee = crud_employee.get_employee(
         db=db,
         employee_id=employee_id,
@@ -664,24 +677,7 @@ def get_employee_current_salary(
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    from app.api.core.permissions import can_manage_employees
-    if current_user.role == "employee":
-        employee = crud_employee.get_employee_by_user_id(db, current_user.id)
-        if not employee or employee.id != employee_id:
-            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    elif can_manage_employees(current_user):
-        owner_id = get_business_owner_id(current_user)
-        if current_user.role == "admin":
-            owner_id = None
-        employee = crud_employee.get_employee(
-            db=db,
-            employee_id=employee_id,
-            business_owner_id=owner_id
-        )
-        if not employee:
-            raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
-    else:
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    _employee_for_viewer(db, current_user, employee_id, locale)
     salary = crud_salary.get_current_unpaid_salary(db=db, employee_id=employee_id)
     if not salary:
         raise HTTPException(status_code=404, detail=_("no_unpaid_salary", locale))
@@ -738,20 +734,7 @@ def get_salary_calculation(
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    from app.api.core.permissions import can_manage_employees
-    if current_user.role == "employee":
-        employee = crud_employee.get_employee_by_user_id(db, current_user.id)
-        if not employee or employee.id != employee_id:
-            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    elif can_manage_employees(current_user):
-        owner_id = get_business_owner_id(current_user)
-        if current_user.role == "admin":
-            owner_id = None
-        employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
-        if not employee:
-            raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
-    else:
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    employee = _employee_for_viewer(db, current_user, employee_id, locale)
     salary = crud_salary.get_salary_calculation(db=db, salary_id=salary_id, employee_id=employee_id)
     if not salary:
         raise HTTPException(status_code=404, detail=_("salary_calculation_not_found", locale))
@@ -774,12 +757,7 @@ def update_salary_calculation(
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    from app.api.core.permissions import can_manage_employees
-    if not can_manage_employees(current_user):
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    owner_id = get_business_owner_id(current_user)
-    if current_user.role == "admin":
-        owner_id = None
+    owner_id = _manager_owner_id(current_user, locale)
     employee = crud_employee.get_employee(
         db=db,
         employee_id=employee_id,
@@ -801,12 +779,7 @@ def create_salary_adjustment(
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    from app.api.core.permissions import can_manage_employees
-    if not can_manage_employees(current_user):
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    owner_id = get_business_owner_id(current_user)
-    if current_user.role == "admin":
-        owner_id = None
+    owner_id = _manager_owner_id(current_user, locale)
     employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
     if not employee:
         raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
@@ -832,20 +805,7 @@ def get_salary_adjustments(
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    from app.api.core.permissions import can_manage_employees
-    if current_user.role == "employee":
-        employee = crud_employee.get_employee_by_user_id(db, current_user.id)
-        if not employee or employee.id != employee_id:
-            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    elif can_manage_employees(current_user):
-        owner_id = get_business_owner_id(current_user)
-        if current_user.role == "admin":
-            owner_id = None
-        employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
-        if not employee:
-            raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
-    else:
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    _employee_for_viewer(db, current_user, employee_id, locale)
     salary = crud_salary.get_salary_calculation(db=db, salary_id=salary_id, employee_id=employee_id)
     if not salary:
         raise HTTPException(status_code=404, detail=_("salary_calculation_not_found", locale))
@@ -860,12 +820,7 @@ def delete_salary_adjustment(
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    from app.api.core.permissions import can_manage_employees
-    if not can_manage_employees(current_user):
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    owner_id = get_business_owner_id(current_user)
-    if current_user.role == "admin":
-        owner_id = None
+    owner_id = _manager_owner_id(current_user, locale)
     employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
     if not employee:
         raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
@@ -882,12 +837,7 @@ def create_salary_payment(
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    from app.api.core.permissions import can_manage_employees
-    if not can_manage_employees(current_user):
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    owner_id = get_business_owner_id(current_user)
-    if current_user.role == "admin":
-        owner_id = None
+    owner_id = _manager_owner_id(current_user, locale)
     employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
     if not employee:
         raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
@@ -933,20 +883,7 @@ def get_salary_payments(
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    from app.api.core.permissions import can_manage_employees
-    if current_user.role == "employee":
-        employee = crud_employee.get_employee_by_user_id(db, current_user.id)
-        if not employee or employee.id != employee_id:
-            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    elif can_manage_employees(current_user):
-        owner_id = get_business_owner_id(current_user)
-        if current_user.role == "admin":
-            owner_id = None
-        employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
-        if not employee:
-            raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
-    else:
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    _employee_for_viewer(db, current_user, employee_id, locale)
     salary = crud_salary.get_salary_calculation(db=db, salary_id=salary_id, employee_id=employee_id)
     if not salary:
         raise HTTPException(status_code=404, detail=_("salary_calculation_not_found", locale))
@@ -962,12 +899,7 @@ def update_salary_payment(
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    from app.api.core.permissions import can_manage_employees
-    if not can_manage_employees(current_user):
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    owner_id = get_business_owner_id(current_user)
-    if current_user.role == "admin":
-        owner_id = None
+    owner_id = _manager_owner_id(current_user, locale)
     employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
     if not employee:
         raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
@@ -985,12 +917,7 @@ def delete_salary_payment(
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    from app.api.core.permissions import can_manage_employees
-    if not can_manage_employees(current_user):
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    owner_id = get_business_owner_id(current_user)
-    if current_user.role == "admin":
-        owner_id = None
+    owner_id = _manager_owner_id(current_user, locale)
     employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
     if not employee:
         raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
