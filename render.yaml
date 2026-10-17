@@ -1,0 +1,21 @@
+# Render Blueprint: the API as a free Docker web service. The database lives on Neon (free, permanent) -
+# Render's own free Postgres is deleted after 30 days. Scheduled jobs run from GitHub Actions (jobs.yml).
+services:
+  - type: web
+    name: xtrix-api
+    runtime: docker
+    plan: free
+    healthCheckPath: /metrics/health/ready
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        sync: false  # Neon connection string, with ?sslmode=require
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false  # web client origin(s), comma-separated
+      - key: DOCS_USERNAME
+        sync: false
+      - key: DOCS_PASSWORD
+        sync: false

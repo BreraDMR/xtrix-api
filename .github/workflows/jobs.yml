@@ -1,0 +1,39 @@
+name: Scheduled jobs
+
+# Free stand-in for a worker on the free hosting: runs scripts/run_jobs.py every 15 minutes
+# against the real database. Does nothing until the JOBS_DATABASE_URL secret is set.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.JOBS_DATABASE_URL }}
+      JWT_SECRET: ${{ secrets.JOBS_JWT_SECRET }}
+      ENVIRONMENT: production
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      SMTP_FROM: ${{ secrets.SMTP_FROM }}
+    steps:
+      - name: Skip if not configured
+        id: cfg
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "JOBS_DATABASE_URL not set, nothing to do"; echo "skip=1" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/checkout@v4
+        if: steps.cfg.outputs.skip != '1'
+      - uses: actions/setup-python@v5
+        if: steps.cfg.outputs.skip != '1'
+        with:
+          python-version: "3.11"
+          cache: pip
+      - if: steps.cfg.outputs.skip != '1'
+        run: pip install -r requirements.txt
+      - if: steps.cfg.outputs.skip != '1'
+        run: |
+          # daily jobs only from 8:00 UTC, frequent ones every run (all idempotent, see notification_log)
+          if [ "$(date -u +%H)" -ge 8 ]; then python scripts/run_jobs.py all; else python scripts/run_jobs.py reminders followups; fi

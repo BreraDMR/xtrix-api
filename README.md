@@ -21,6 +21,19 @@ Or just `docker compose up` for the API with Postgres and Redis.
 In production set at least `DATABASE_URL`, `JWT_SECRET` and `CORS_ORIGINS` (comma-separated web client
 origins) - nothing about the hosting is hardcoded.
 
+## Deploying for free (test environment)
+
+- **Database:** [Neon](https://neon.com) free plan (permanent, 1 GB, sleeps after 5 min idle). Copy the
+  connection string, keep `?sslmode=require`.
+- **API:** [Render](https://render.com) - "New Blueprint" on this repo picks up `render.yaml` (free Docker
+  web service; sleeps after 15 min idle, ~1 min to wake). Fill in `DATABASE_URL`, `CORS_ORIGINS` and,
+  if you want `/docs`, `DOCS_USERNAME`/`DOCS_PASSWORD`. Migrations run on every start; a failed
+  migration stops the deploy.
+- **Scheduled jobs:** `.github/workflows/jobs.yml` runs them every 15 minutes once the repo secrets
+  `JOBS_DATABASE_URL` and `JOBS_JWT_SECRET` (plus `SMTP_*` for e-mail) are set.
+
+Render's own free Postgres is deleted after 30 days, so it isn't used.
+
 ## Scheduled jobs
 
 Reminders, follow-ups, birthday greetings, subscription expiry, low-stock e-mails and the monthly
