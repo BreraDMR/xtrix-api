@@ -21,7 +21,9 @@ def can_view_financials(user: User, db: Session) -> bool:
         if employee and employee.permissions:
             permissions = EmployeePermissions(**employee.permissions)
             return permissions.can_view_financials
-    return True
+        return False
+    # a solo specialist sees their own money; anyone else (client etc.) doesn't
+    return user.role == "specialist"
 def can_manage_services(user: User, db: Session) -> bool:
     if user.role in ["admin", "business_owner", "specialist"]:
         return True
@@ -112,7 +114,8 @@ def check_visit_access(db: Session, user: User, visit: Visit) -> bool:
         business_id = getattr(user, 'business_id', None)
         if business_id and hasattr(visit, 'business_id'):
             return visit.business_id == business_id
-        return True
+        # no business yet: only their own visits, not everybody's
+        return visit.specialist_id == user.id
     if user.role == "employee":
         if visit.specialist_id == user.id:
             return True
@@ -127,7 +130,7 @@ def check_service_access(db: Session, user: User, service: Service) -> bool:
         business_id = getattr(user, 'business_id', None)
         if business_id and hasattr(service, 'business_id'):
             return service.business_id == business_id
-        return True
+        return service.specialist_id == user.id
     if user.role == "employee":
         if hasattr(service, 'specialist_id') and service.specialist_id == user.id:
             return True

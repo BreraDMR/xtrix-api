@@ -10,6 +10,12 @@ from app.db.models.service import Service
 from app.db.models.user import User
 from app.schemas.service import ServiceCreate, ServiceOut, ServiceUpdate
 router = APIRouter()
+def _check_specialists(db: Session, user: User, specialist_ids, locale: str) -> None:
+    # owners used to be able to put any user on the platform down as the specialist
+    from app.api.core.permissions import check_specialist_in_scope
+    for sid in specialist_ids:
+        if sid and not check_specialist_in_scope(db, user, sid):
+            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
 @router.post("/", response_model=ServiceOut)
 def create_service(
     service: ServiceCreate,
@@ -22,9 +28,7 @@ def create_service(
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     if service.specialist_id is None or service.specialist_id == 0:
         service.specialist_id = current_user.id
-    elif current_user.role not in ["admin", "business_owner"]:
-        if service.specialist_id != current_user.id:
-            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    _check_specialists(db, current_user, [service.specialist_id] + (service.specialist_ids or []), locale)
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     result = crud_service.create_service(db, service, business_id=business_id)
     result = crud_service.get_service(db, result.id)
@@ -171,6 +175,7 @@ def update_service(
     from app.api.core.permissions import check_service_access
     if not check_service_access(db, current_user, service):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    _check_specialists(db, current_user, [payload.specialist_id] + (payload.specialist_ids or []), locale)
     result = crud_service.update_service(db, service, payload)
     result = crud_service.get_service(db, result.id)
     service_dict = result.dict() if hasattr(result, 'dict') else result.__dict__.copy()
