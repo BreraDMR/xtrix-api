@@ -307,7 +307,7 @@ def export_clients_csv(
     from app.api.core.export import export_to_csv, prepare_client_export_data
     if current_user.role != "admin":
         owner_id = current_user.id
-    clients, _ = crud_client.list_clients(db, owner_id=owner_id, phone=phone, name=name)
+    clients, _total = crud_client.list_clients(db, owner_id=owner_id, phone=phone, name=name)
     export_data = prepare_client_export_data(clients)
     return export_to_csv(export_data, filename="clients_export.csv")
 @router.get("/export/excel")
@@ -321,7 +321,7 @@ def export_clients_excel(
     from app.api.core.export import export_to_excel, prepare_client_export_data
     if current_user.role != "admin":
         owner_id = current_user.id
-    clients, _ = crud_client.list_clients(db, owner_id=owner_id, phone=phone, name=name)
+    clients, _total = crud_client.list_clients(db, owner_id=owner_id, phone=phone, name=name)
     export_data = prepare_client_export_data(clients)
     return export_to_excel(export_data, filename="clients_export.xlsx", sheet_name="Clients")
 @router.post("/{client_id}/qr-code/generate", response_model=QRCodeGenerateResponse)

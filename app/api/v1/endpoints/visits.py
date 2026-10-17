@@ -245,7 +245,7 @@ def next_available_slot(
         service = db.query(Service).filter(Service.id == service_id).first()
         duration_minutes = service.duration_minutes if service and service.duration_minutes else 60
     duration_minutes = duration_minutes or 60
-    visits, _ = crud_visit.list_visits(
+    visits, _total = crud_visit.list_visits(
         db,
         specialist_id=specialist_id,
         include_deleted=False,
@@ -281,7 +281,7 @@ def visits_for_reminders(
 ):
     now = datetime.utcnow()
     horizon = now + timedelta(hours=24)
-    visits, _ = crud_visit.list_visits(
+    visits, _total = crud_visit.list_visits(
         db,
         specialist_id=None if current_user.role == "admin" else current_user.id,
         include_deleted=False,
@@ -329,7 +329,7 @@ def export_visits_csv(
     from app.api.core.export import export_to_csv, prepare_visit_export_data
     if current_user.role != "admin":
         specialist_id = current_user.id
-    visits, _ = crud_visit.list_visits(
+    visits, _total = crud_visit.list_visits(
         db,
         client_id=client_id,
         specialist_id=specialist_id,
@@ -352,7 +352,7 @@ def export_visits_excel(
     from app.api.core.export import export_to_excel, prepare_visit_export_data
     if current_user.role != "admin":
         specialist_id = current_user.id
-    visits, _ = crud_visit.list_visits(
+    visits, _total = crud_visit.list_visits(
         db,
         client_id=client_id,
         specialist_id=specialist_id,

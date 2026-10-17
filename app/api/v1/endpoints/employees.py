@@ -786,7 +786,7 @@ def get_my_salary_history(
     if not employee:
         raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
     pagination = PaginationParams(page=1, per_page=limit)
-    salaries, _ = crud_salary.list_salary_calculations(
+    salaries, _total = crud_salary.list_salary_calculations(
         db=db,
         employee_id=employee.id,
         payment_status=payment_status,

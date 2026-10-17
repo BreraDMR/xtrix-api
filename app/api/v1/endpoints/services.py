@@ -241,7 +241,7 @@ def export_services_csv(
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     if current_user.role != "admin":
         specialist_id = current_user.id
-    services, _ = crud_service.list_services(
+    services, _total = crud_service.list_services(
         db,
         specialist_id=specialist_id,
         business_id=business_id,  
@@ -262,7 +262,7 @@ def export_services_excel(
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     if current_user.role != "admin":
         specialist_id = current_user.id
-    services, _ = crud_service.list_services(
+    services, _total = crud_service.list_services(
         db,
         specialist_id=specialist_id,
         business_id=business_id,  
