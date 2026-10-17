@@ -6,6 +6,7 @@ from app.api import deps
 from app.api.core.i18n import _, localize_response
 from app.api.core.notify import send_notifications
 from app.api.core.pagination import PaginationParams, PaginatedResponse
+from app.api.core.soft_delete import hard_delete, restore_soft_deleted, soft_delete
 from app.db.models.client import Client
 from app.api.core.slots import find_next_available_slot
 from app.api.crud import crud_visit, crud_schedule
