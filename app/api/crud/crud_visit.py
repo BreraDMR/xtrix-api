@@ -96,6 +96,15 @@ def update_visit(db: Session, visit: Visit, update: VisitUpdate) -> Visit:
     db.commit()
     db.refresh(visit)
     return visit
+def _no_business_but_ours(business_id: int):
+    # visits with no business are a solo specialist's - only count them when that specialist
+    # is in this business now (e.g. the owner's own visits from before the business existed)
+    from sqlalchemy import and_, select
+    from app.db.models.user import User
+    return and_(
+        Visit.business_id.is_(None),
+        Visit.specialist_id.in_(select(User.id).where(User.business_id == business_id)),
+    )
 def get_visit(
     db: Session, 
     visit_id: int, 
@@ -123,7 +132,7 @@ def get_visit(
             from sqlalchemy import or_
             query = query.filter(or_(
                 Visit.business_id == business_id,
-                Visit.business_id.is_(None)  
+                _no_business_but_ours(business_id),
             ))
     return query.first()
 def list_visits(
@@ -240,7 +249,7 @@ def list_visits(
         from sqlalchemy import or_
         q = q.filter(or_(
             Visit.business_id == business_id,
-            Visit.business_id.is_(None)  
+            _no_business_but_ours(business_id),
         ))
     if client_id:
         q = q.filter(Visit.client_id == client_id)
