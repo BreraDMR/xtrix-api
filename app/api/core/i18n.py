@@ -1,6 +1,11 @@
 from typing import Dict, Any, Optional
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
+    "time_slot_taken": {
+        "en": "This time is already booked for the specialist",
+        "ru": "У специалиста уже есть запись на это время",
+        "cz": "Specialista má na tento čas už rezervaci",
+    },
     "phone_exists": {
         "en": "Phone already registered",
         "ru": "Телефон уже зарегистрирован",
