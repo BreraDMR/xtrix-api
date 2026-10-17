@@ -1,7 +1,6 @@
 from datetime import datetime
-from typing import Optional, Type, TypeVar
+from typing import TypeVar
 from sqlalchemy.orm import Session, Query
-from sqlalchemy import Column, DateTime
 T = TypeVar('T')
 def soft_delete(db: Session, instance: T) -> T:
     if hasattr(instance, 'deleted_at'):

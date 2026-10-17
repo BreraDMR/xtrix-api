@@ -1,12 +1,10 @@
 from datetime import datetime, timedelta
-from typing import Type, List, Optional
+from typing import Type, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from app.api.core.soft_delete import filter_active
 from app.db.models.client import Client
 from app.db.models.visit import Visit
 from app.db.models.service import Service
-from app.db.models.user import User
 def archive_old_clients(
     db: Session,
     days_old: int = 365,

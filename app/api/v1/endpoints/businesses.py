@@ -37,7 +37,6 @@ def list_businesses(
     locale: str = Depends(deps.get_locale),
 ):
     from app.db.models.business import Business
-    from sqlalchemy import or_
     query = db.query(Business).filter(Business.deleted_at.is_(None))
     if search:
         query = query.filter(Business.name.ilike(f"%{search}%"))

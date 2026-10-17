@@ -1,15 +1,11 @@
 from datetime import datetime, date
 from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import func, case
 from app.db.models.loyalty_program import (
-    LoyaltyProgram,
-    LoyaltyLevel,
     LoyaltyTransaction,
 )
 from app.db.models.client_business_relation import ClientBusinessRelation
 from app.api.crud import crud_loyalty
-from app.api.core.logger import logger
 def get_loyalty_statistics(
     db: Session,
     business_id: int,

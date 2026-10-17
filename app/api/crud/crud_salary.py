@@ -10,7 +10,6 @@ from app.db.models.employee import Employee
 from app.db.models.visit import Visit
 from app.api.crud import crud_employee
 from app.schemas.salary import (
-    SalaryCalculationCreate,
     SalaryCalculationUpdate,
     SalaryAdjustmentCreate,
     SalaryPaymentCreate,
@@ -237,7 +236,6 @@ def create_salary_payment(
     if payment_in.status == 'completed' and business_id:
         from app.api.crud import crud_expense, crud_expense_category
         from app.schemas.expense import ExpenseCreate
-        from datetime import datetime
         salary_category = crud_expense_category.list_expense_categories(
             db, 
             business_id=business_id,

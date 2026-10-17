@@ -1,5 +1,4 @@
 from typing import Optional, Dict, Any
-from datetime import datetime
 from sqlalchemy.orm import Session
 from fastapi import Request
 from app.db.models.audit_log import AuditLog

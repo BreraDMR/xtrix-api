@@ -1,4 +1,3 @@
-import logging
 from typing import Optional
 from datetime import datetime
 from app.api.core.sendpulse import get_sendpulse_client

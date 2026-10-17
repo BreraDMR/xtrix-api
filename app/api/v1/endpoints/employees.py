@@ -4,14 +4,13 @@ from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _
 from app.api.core.logger import get_logger
-from app.api.core.pagination import PaginationParams, PaginatedResponse
+from app.api.core.pagination import PaginationParams
 from app.api.crud import crud_employee, crud_salary
 from app.db.models.user import User
 from app.db.models.employee import Employee
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeOut, EmployeeCreateWithUser, EmployeeCreateResponse
 from app.schemas.salary import (
     SalaryCalculationOut, 
-    SalaryCalculationCreate, 
     SalaryCalculationUpdate,
     CalculateSalaryRequest,
     SalaryCalculationDetail,
@@ -217,7 +216,7 @@ def create_employee_with_user(
         if not existing_profile:
             specialist_category = None
             if employee_data.specialist_type:
-                from app.db.models.specialist_type import SpecialistType, SpecialistCategory, get_category_for_type
+                from app.db.models.specialist_type import SpecialistType, get_category_for_type
                 try:
                     specialist_type_enum = SpecialistType(employee_data.specialist_type)
                     specialist_category = get_category_for_type(specialist_type_enum).value

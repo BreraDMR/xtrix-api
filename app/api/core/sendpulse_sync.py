@@ -1,5 +1,4 @@
-from typing import Optional, List, Dict, Any
-from datetime import datetime
+from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.api.core.logger import logger

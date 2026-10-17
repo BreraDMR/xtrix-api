@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Float, Integer, String, Interval
+from sqlalchemy import Boolean, Column, Float, Integer, String
 from app.db.base import Base
 class SubscriptionPlan(Base):
     __tablename__ = "subscription_plans"

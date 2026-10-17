@@ -27,10 +27,6 @@ app.add_exception_handler(Exception, error_handlers.general_exception_handler)
 async def protect_docs(request: Request, call_next):
     if request.url.path in ["/docs", "/redoc", "/openapi.json"]:
         if settings.environment == "production":
-            from app.api.deps import get_current_user
-            from fastapi import Depends
-            from fastapi.security import HTTPBearer
-            from sqlalchemy.orm import Session
             from app.db.session import SessionLocal
             auth_header = request.headers.get("Authorization")
             if not auth_header or not auth_header.startswith("Bearer "):
@@ -170,7 +166,6 @@ if settings.environment == "production":
         max_age=3600,  
     )
 else:
-    import re
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",  

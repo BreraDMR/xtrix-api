@@ -1,8 +1,7 @@
 import time
 import platform
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from datetime import datetime
-from fastapi import Request, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 try:

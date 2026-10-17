@@ -1,6 +1,5 @@
 from typing import Optional
 from datetime import datetime
-import re
 from pydantic import BaseModel, EmailStr, Field, field_validator
 class UserBase(BaseModel):
     full_name: str = Field(..., max_length=255, min_length=1)

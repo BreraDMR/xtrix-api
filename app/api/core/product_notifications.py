@@ -1,6 +1,5 @@
-from typing import List, Optional
+from typing import Optional
 from sqlalchemy.orm import Session
-from app.db.models.product import Product
 from app.db.models.user import User
 from app.api.core.logger import logger, mask_email
 from app.api.crud import crud_product

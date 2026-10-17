@@ -1,7 +1,7 @@
 from typing import Optional, Tuple, List
 from sqlalchemy.orm import Session, joinedload
 from app.api.core.pagination import PaginationParams
-from app.api.core.soft_delete import filter_active, soft_delete
+from app.api.core.soft_delete import filter_active
 from app.db.models.service import Service
 from app.db.models.service_specialist import ServiceSpecialist
 from app.schemas.service import ServiceCreate, ServiceUpdate

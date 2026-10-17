@@ -1,7 +1,7 @@
 from typing import List, Optional
-from datetime import date, datetime, timedelta
+from datetime import date
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func
+from sqlalchemy import and_, or_
 from app.db.models.loyalty_program import (
     LoyaltyProgram,
     LoyaltyLevel,
@@ -9,7 +9,6 @@ from app.db.models.loyalty_program import (
     LoyaltyTransaction,
 )
 from app.db.models.client_business_relation import ClientBusinessRelation
-from app.db.models.client import Client
 from app.schemas.loyalty import (
     LoyaltyProgramCreate,
     LoyaltyProgramUpdate,

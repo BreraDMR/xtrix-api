@@ -1,7 +1,7 @@
-from typing import List, Optional, Dict, Tuple
-from datetime import datetime, timedelta
+from typing import List, Optional, Dict
+from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func, extract
+from sqlalchemy import and_, func
 from app.db.models.expense import Expense
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate
 def create_expense(db: Session, expense_in: ExpenseCreate, created_by_id: Optional[int] = None) -> Expense:

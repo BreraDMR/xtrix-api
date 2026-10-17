@@ -5,12 +5,11 @@ from io import BytesIO
 import base64
 try:
     import qrcode
-    from qrcode.image.pil import PilImage
+    from qrcode.image.pil import PilImage  # noqa: F401 - just checking PIL support is installed
     QRCODE_AVAILABLE = True
 except ImportError:
     QRCODE_AVAILABLE = False
 from app.api.core.config import settings
-from app.api.core.security import get_password_hash, verify_password
 def generate_qr_code_data(client_id: int) -> str:
     random_token = secrets.token_urlsafe(16)
     hash_value = hashlib.sha256(f"{client_id}:{random_token}:{settings.jwt_secret}".encode()).hexdigest()[:16]

@@ -4,7 +4,7 @@ from typing import Optional, Tuple
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
 from app.api.core.pagination import PaginationParams
-from app.api.core.soft_delete import filter_active, soft_delete
+from app.api.core.soft_delete import filter_active
 from app.db.models.visit import Visit
 from app.schemas.visit import VisitCreate, VisitUpdate
 def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] = None) -> Visit:
@@ -26,7 +26,7 @@ def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] 
             date_end_in_data = visit_data.get('date_end')
             date_start = visit_data.get('date_start')
             if service.duration_minutes and date_start:
-                from datetime import timedelta, datetime, timezone
+                from datetime import timedelta, datetime
                 logger.info(f"create_visit: will auto-apply date_end, date_start={date_start}, type={type(date_start)}, duration={service.duration_minutes}, existing date_end={date_end_in_data}")
                 if isinstance(date_start, str):
                     if date_start.endswith('Z'):

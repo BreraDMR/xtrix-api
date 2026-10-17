@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
     "time_slot_taken": {

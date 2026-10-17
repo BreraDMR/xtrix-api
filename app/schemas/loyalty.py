@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 from app.schemas.limits import HexColor, PromotionType, LongText, LoyaltyProgramType, Money, Multiplier, Percent, Points, ShortText
 from pydantic import BaseModel, Field, model_validator
 class LoyaltyProgramBase(BaseModel):

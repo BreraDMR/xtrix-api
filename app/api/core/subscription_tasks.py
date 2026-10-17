@@ -1,4 +1,3 @@
-from datetime import datetime
 from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.api.crud import crud_subscription

@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _, localize_response
 from app.api.core.logger import get_logger
-from app.api.core.pagination import PaginationParams, PaginatedResponse
 from app.api.crud import crud_specialist_profile
 from app.db.models.user import User
 from app.schemas.specialist_profile import (

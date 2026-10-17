@@ -4,8 +4,6 @@ from app.api import deps
 from app.api.core.i18n import _
 from app.api.crud import crud_schedule
 from app.db.models.user import User
-from app.db.models.work_schedule import WorkSchedule
-from app.db.models.block_slot import BlockSlot
 from app.schemas.work_schedule import WorkScheduleCreate, WorkScheduleOut, WorkScheduleUpdate
 from app.schemas.block_slot import BlockSlotCreate, BlockSlotOut, BlockSlotUpdate
 router = APIRouter()

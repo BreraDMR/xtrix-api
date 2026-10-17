@@ -1,7 +1,5 @@
-import logging
 import time
 from typing import Optional, Dict, List, Any
-from datetime import datetime
 import requests
 from app.api.core.config import settings
 from app.api.core.logger import logger, mask_email, mask_phone

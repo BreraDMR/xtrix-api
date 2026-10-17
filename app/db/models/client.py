@@ -1,15 +1,12 @@
-from datetime import date, datetime
+from datetime import datetime
 from sqlalchemy import (
-    Boolean,
     Column,
     Date,
     DateTime,
     Float,
     ForeignKey,
     Integer,
-    JSON,
     String,
-    Text,
 )
 from sqlalchemy.orm import relationship
 from app.db.base import Base

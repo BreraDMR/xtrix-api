@@ -9,7 +9,7 @@ from app.api.core.redis_client import (
 from app.api.core.pagination import PaginationParams
 from app.api.core.qr_code import generate_qr_code_data, generate_access_password
 from app.api.core.security import get_password_hash, verify_password
-from app.api.core.soft_delete import filter_active, soft_delete, restore_soft_deleted
+from app.api.core.soft_delete import filter_active
 from sqlalchemy.orm import joinedload
 from sqlalchemy import or_
 from app.db.models.client import Client

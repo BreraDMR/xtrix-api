@@ -21,7 +21,7 @@ from app.api.core.advanced_analytics import (
     get_anonymous_benchmarks,
 )
 from app.api.core.redis_client import (
-    cache_analytics, get_cached_analytics, invalidate_analytics,
+    cache_analytics, get_cached_analytics,
 )
 from app.api.core.export import export_to_csv, export_to_excel
 from app.db.models.user import User

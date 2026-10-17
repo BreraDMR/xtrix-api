@@ -1,9 +1,8 @@
 from typing import Optional, List, Tuple
 from datetime import datetime
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import and_, or_
+from sqlalchemy import and_
 from app.api.core.pagination import PaginationParams
-from app.api.core.soft_delete import filter_active
 from app.db.models.employee import Employee
 from app.db.models.user import User
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeePermissions

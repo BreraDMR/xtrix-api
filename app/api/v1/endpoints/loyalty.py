@@ -1,10 +1,10 @@
 from typing import Optional, List
-from datetime import date, datetime
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
-from app.api.core.i18n import _, localize_response
-from app.api.core.pagination import PaginationParams, PaginatedResponse
+from app.api.core.i18n import _
+from app.api.core.pagination import PaginatedResponse
 from app.db.models.user import User
 from app.schemas.loyalty import (
     LoyaltyProgramCreate,
@@ -21,13 +21,9 @@ from app.schemas.loyalty import (
     UsePointsRequest,
     LoyaltyStatisticsResponse,
     LevelDistributionResponse,
-    LevelDistributionItem,
     TopClientsResponse,
-    TopClientItem,
     PromotionEffectivenessResponse,
-    PromotionEffectivenessItem,
     PointsUsageTrendsResponse,
-    PointsUsageTrendItem,
 )
 from app.api.crud import crud_loyalty
 from app.api.core.logger import logger

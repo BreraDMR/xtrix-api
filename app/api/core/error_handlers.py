@@ -3,7 +3,6 @@ from typing import Dict, Any, Optional
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from app.api.core.config import settings
 from app.api.core.logger import logger

@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from typing import List
 from sqlalchemy.orm import Session
 from app.db.models.subscription import Subscription
 from app.db.models.user import User

@@ -1,10 +1,9 @@
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, extract, case, or_, text
+from sqlalchemy import func, extract
 from collections import defaultdict
 from app.db.models.visit import Visit
-from app.db.models.client import Client
 from app.db.models.service import Service
 from app.db.models.user import User
 def get_retention_metrics(

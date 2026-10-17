@@ -127,7 +127,7 @@ def visits_list(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    from app.api.core.permissions import get_filtered_specialist_id, get_accessible_client_ids
+    from app.api.core.permissions import get_filtered_specialist_id
     if current_user.role == "admin":
         specialist_id = None
     elif current_user.role == "business_owner":

@@ -3,7 +3,6 @@ from typing import Optional
 import secrets
 from sqlalchemy.orm import Session
 from app.db.models.password_reset_token import PasswordResetToken
-from app.db.models.user import User
 def create_password_reset_token(db: Session, user_id: int, expires_in_hours: int = 1) -> PasswordResetToken:
     token = secrets.token_urlsafe(32)
     code = str(secrets.randbelow(900000) + 100000)  

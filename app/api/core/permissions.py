@@ -1,6 +1,5 @@
 from typing import Optional, List, Set
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
 from app.db.models.user import User
 from app.db.models.client import Client
 from app.db.models.visit import Visit

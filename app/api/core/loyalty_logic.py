@@ -1,5 +1,5 @@
 from datetime import date, datetime, timedelta
-from typing import Optional, Dict, Any, Tuple, List
+from typing import Optional, Tuple, List
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from app.db.models.loyalty_program import (
@@ -8,7 +8,6 @@ from app.db.models.loyalty_program import (
     LoyaltyPromotion,
     LoyaltyTransaction,
 )
-from app.db.models.client_business_relation import ClientBusinessRelation
 from app.db.models.visit import Visit
 from app.db.models.client import Client
 from app.api.crud import crud_loyalty

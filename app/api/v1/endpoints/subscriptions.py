@@ -1,14 +1,13 @@
 import hmac
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime
 import stripe
 from app.api import deps
 from app.api.core.i18n import _, localize_response
 from app.api.core.config import settings
 from app.api.core.logger import logger
 from app.api.crud import crud_subscription
-from app.db.models.subscription_plan import SubscriptionPlan
 from app.db.models.subscription import Subscription
 from app.db.models.user import User
 from app.schemas.subscription import (

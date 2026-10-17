@@ -2,7 +2,6 @@ import pyotp
 import qrcode
 from io import BytesIO
 import base64
-from app.api.core.config import settings
 def generate_totp_secret() -> str:
     return pyotp.random_base32()
 def generate_totp_qr_code(email: str, secret: str) -> str:

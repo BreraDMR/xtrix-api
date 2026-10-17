@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _, localize_response
-from app.api.core.pagination import PaginationParams, PaginatedResponse
+from app.api.core.pagination import PaginatedResponse
 from app.db.models.user import User
 from app.db.models.product import Product
 from app.schemas.product import ProductCreate, ProductUpdate, ProductOut, ProductStockOut

@@ -1,9 +1,8 @@
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import func, extract
+from sqlalchemy import func
 from app.db.models.visit import Visit
-from app.db.models.expense import Expense
 from app.api.crud import crud_expense
 from app.api.core.logger import logger
 def archive_monthly_financial_data(

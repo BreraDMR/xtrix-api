@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from app.db.models.specialist_profile import SpecialistProfile
 from app.db.models.user import User
-from app.db.models.specialist_type import SpecialistType, SpecialistCategory, get_category_for_type
+from app.db.models.specialist_type import SpecialistType, get_category_for_type
 from app.schemas.specialist_profile import SpecialistProfileCreate, SpecialistProfileUpdate
 def get_specialist_profile_by_user_id(db: Session, user_id: int) -> Optional[SpecialistProfile]:
     return db.query(SpecialistProfile).filter(SpecialistProfile.user_id == user_id).first()

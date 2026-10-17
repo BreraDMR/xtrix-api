@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from fastapi import Response
 try:
-    import openpyxl
+    import openpyxl  # noqa: F401 - just checking it is installed
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment
     EXCEL_AVAILABLE = True
