@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _, localize_response
+from app.api.core.logger import get_logger
 from app.api.core.notify import send_notifications
 from app.api.core.pagination import PaginationParams, PaginatedResponse
 from app.api.core.soft_delete import hard_delete, restore_soft_deleted, soft_delete
@@ -14,6 +15,7 @@ from app.db.models.service import Service
 from app.db.models.user import User
 from app.schemas.visit import VisitCreate, VisitOut, VisitUpdate
 router = APIRouter()
+logger = get_logger("visits")
 @router.post("/", response_model=VisitOut)
 def create_visit(
     visit: VisitCreate,
