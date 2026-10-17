@@ -10,12 +10,15 @@ from app.db.models.user import User
 def get_retention_metrics(
     db: Session,
     business_id: Optional[int] = None,
+    specialist_id: Optional[int] = None,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     filters = []
     if business_id:
         filters.append(Visit.business_id == business_id)
+    if specialist_id:
+        filters.append(Visit.specialist_id == specialist_id)
     if date_from:
         filters.append(Visit.date_start >= date_from)
     if date_to:
@@ -79,12 +82,15 @@ def get_retention_metrics(
 def get_client_cohorts(
     db: Session,
     business_id: Optional[int] = None,
+    specialist_id: Optional[int] = None,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     filters = []
     if business_id:
         filters.append(Visit.business_id == business_id)
+    if specialist_id:
+        filters.append(Visit.specialist_id == specialist_id)
     if date_from:
         filters.append(Visit.date_start >= date_from)
     if date_to:
@@ -140,6 +146,7 @@ def get_client_cohorts(
 def get_trends_analysis(
     db: Session,
     business_id: Optional[int] = None,
+    specialist_id: Optional[int] = None,
     metric: str = 'revenue',  
     comparison_type: str = 'MoM',  
 ) -> Dict[str, Any]:
@@ -167,6 +174,8 @@ def get_trends_analysis(
     filters_base = []
     if business_id:
         filters_base.append(Visit.business_id == business_id)
+    if specialist_id:
+        filters_base.append(Visit.specialist_id == specialist_id)
     if metric == 'revenue':
         current_filters = filters_base + [
             Visit.date_start >= current_start,
@@ -262,6 +271,7 @@ def get_trends_analysis(
 def get_forecast(
     db: Session,
     business_id: Optional[int] = None,
+    specialist_id: Optional[int] = None,
     forecast_type: str = 'revenue',  
     periods: int = 1,  
 ) -> Dict[str, Any]:
@@ -270,6 +280,8 @@ def get_forecast(
     filters = []
     if business_id:
         filters.append(Visit.business_id == business_id)
+    if specialist_id:
+        filters.append(Visit.specialist_id == specialist_id)
     filters.append(Visit.date_start >= start_date)
     filters.append(Visit.status == 'completed')
     if forecast_type == 'revenue':
@@ -317,12 +329,15 @@ def get_forecast(
 def get_service_and_specialist_analytics(
     db: Session,
     business_id: Optional[int] = None,
+    specialist_id: Optional[int] = None,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     filters = []
     if business_id:
         filters.append(Visit.business_id == business_id)
+    if specialist_id:
+        filters.append(Visit.specialist_id == specialist_id)
     if date_from:
         filters.append(Visit.date_start >= date_from)
     if date_to:
@@ -380,13 +395,16 @@ def get_service_and_specialist_analytics(
 def get_smart_insights(
     db: Session,
     business_id: Optional[int] = None,
+    specialist_id: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     insights = []
     now = datetime.utcnow()
     filters = []
     if business_id:
         filters.append(Visit.business_id == business_id)
-    retention_metrics = get_retention_metrics(db, business_id=business_id)
+    if specialist_id:
+        filters.append(Visit.specialist_id == specialist_id)
+    retention_metrics = get_retention_metrics(db, business_id=business_id, specialist_id=specialist_id)
     if retention_metrics['retention_30_days'] < 30:
         insights.append({
             'type': 'warning',
@@ -394,7 +412,7 @@ def get_smart_insights(
             'message': f"30-day retention is {retention_metrics['retention_30_days']}%, which is below optimal levels.",
             'priority': 'high',
         })
-    services_analytics = get_service_and_specialist_analytics(db, business_id=business_id)
+    services_analytics = get_service_and_specialist_analytics(db, business_id=business_id, specialist_id=specialist_id)
     if services_analytics['services']:
         top_service = max(services_analytics['services'], key=lambda x: x['visits_per_client'])
         insights.append({
@@ -403,7 +421,7 @@ def get_smart_insights(
             'message': f"Service '{top_service['service_name']}' has the highest client return rate ({top_service['visits_per_client']:.1f} visits per client).",
             'priority': 'medium',
         })
-    revenue_trend = get_trends_analysis(db, business_id=business_id, metric='revenue', comparison_type='MoM')
+    revenue_trend = get_trends_analysis(db, business_id=business_id, specialist_id=specialist_id, metric='revenue', comparison_type='MoM')
     if revenue_trend['trend_direction'] == 'down' and abs(revenue_trend['change_percent']) > 5:
         insights.append({
             'type': 'warning',

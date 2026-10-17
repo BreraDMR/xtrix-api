@@ -9,6 +9,7 @@ from app.db.models.client_business_relation import ClientBusinessRelation
 def get_visit_statistics(
     db: Session,
     specialist_id: Optional[int] = None,
+    business_id: Optional[int] = None,
     client_id: Optional[int] = None,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
@@ -16,6 +17,8 @@ def get_visit_statistics(
     q = db.query(Visit)
     if specialist_id:
         q = q.filter(Visit.specialist_id == specialist_id)
+    if business_id:
+        q = q.filter(Visit.business_id == business_id)
     if client_id:
         q = q.filter(Visit.client_id == client_id)
     if date_from:
@@ -27,6 +30,7 @@ def get_visit_statistics(
         db.query(Visit.status, func.count(Visit.id).label('count'))
         .filter(*[
             Visit.specialist_id == specialist_id if specialist_id else True,
+            Visit.business_id == business_id if business_id else True,
             Visit.client_id == client_id if client_id else True,
             Visit.date_start >= date_from if date_from else True,
             Visit.date_start <= date_to if date_to else True,
@@ -38,6 +42,8 @@ def get_visit_statistics(
     base_filters = []
     if specialist_id:
         base_filters.append(Visit.specialist_id == specialist_id)
+    if business_id:
+        base_filters.append(Visit.business_id == business_id)
     if client_id:
         base_filters.append(Visit.client_id == client_id)
     if date_from:
@@ -83,6 +89,7 @@ def get_visit_statistics(
 def get_financial_report(
     db: Session,
     specialist_id: Optional[int] = None,
+    business_id: Optional[int] = None,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
     group_by: str = 'month',  
@@ -90,6 +97,8 @@ def get_financial_report(
     q = db.query(Visit).filter(Visit.price.isnot(None))
     if specialist_id:
         q = q.filter(Visit.specialist_id == specialist_id)
+    if business_id:
+        q = q.filter(Visit.business_id == business_id)
     if date_from:
         q = q.filter(Visit.date_start >= date_from)
     if date_to:
@@ -99,6 +108,8 @@ def get_financial_report(
     revenue_filters = [Visit.price.isnot(None)]
     if specialist_id:
         revenue_filters.append(Visit.specialist_id == specialist_id)
+    if business_id:
+        revenue_filters.append(Visit.business_id == business_id)
     if date_from:
         revenue_filters.append(Visit.date_start >= date_from)
     if date_to:
@@ -203,12 +214,15 @@ def get_financial_report(
 def get_payment_statistics(
     db: Session,
     specialist_id: Optional[int] = None,
+    business_id: Optional[int] = None,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     base_filters = []
     if specialist_id:
         base_filters.append(Visit.specialist_id == specialist_id)
+    if business_id:
+        base_filters.append(Visit.business_id == business_id)
     if date_from:
         base_filters.append(Visit.date_start >= date_from)
     if date_to:
@@ -260,6 +274,7 @@ def get_payment_statistics(
 def get_popular_services(
     db: Session,
     specialist_id: Optional[int] = None,
+    business_id: Optional[int] = None,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
     limit: int = 10,
@@ -267,6 +282,8 @@ def get_popular_services(
     service_filters = []
     if specialist_id:
         service_filters.append(Visit.specialist_id == specialist_id)
+    if business_id:
+        service_filters.append(Visit.business_id == business_id)
     if date_from:
         service_filters.append(Visit.date_start >= date_from)
     if date_to:
