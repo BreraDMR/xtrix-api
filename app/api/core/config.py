@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     database_url: str = Field(
@@ -6,6 +6,15 @@ class Settings(BaseSettings):
         env="DATABASE_URL",
         description="SQLAlchemy DSN (postgresql://user:password@host:port/dbname)",
     )
+    @field_validator("database_url")
+    @classmethod
+    def use_psycopg2_driver(cls, v: str) -> str:
+        # SQLAlchemy 2.1 maps a bare postgresql:// to psycopg 3, but we ship psycopg2.
+        # Railway & co hand out bare URLs, so pin the driver here once for everyone.
+        for prefix in ("postgres://", "postgresql://"):
+            if v.startswith(prefix):
+                return "postgresql+psycopg2://" + v[len(prefix):]
+        return v
     redis_url: str = Field("redis://localhost:6379/0", env="REDIS_URL")
     jwt_secret: str = Field(
         ...,  
