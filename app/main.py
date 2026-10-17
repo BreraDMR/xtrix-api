@@ -1,4 +1,3 @@
-import jwt
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
@@ -19,54 +18,40 @@ app = FastAPI(
     title="Xtrix API",
     version="1.0.0",
     redirect_slashes=True,
+    docs_url=None,  # /docs is the Scalar page below
+    redoc_url=None,
 )
 app.add_exception_handler(RequestValidationError, error_handlers.validation_exception_handler)
 app.add_exception_handler(SQLAlchemyError, error_handlers.database_exception_handler)
 app.add_exception_handler(HTTPException, error_handlers.http_exception_handler)
 app.add_exception_handler(Exception, error_handlers.general_exception_handler)
+DOCS_PATHS = ("/docs", "/openapi.json")
 @app.middleware("http")
 async def protect_docs(request: Request, call_next):
-    if request.url.path in ["/docs", "/redoc", "/openapi.json"]:
-        if settings.environment == "production":
-            from app.db.session import SessionLocal
-            auth_header = request.headers.get("Authorization")
-            if not auth_header or not auth_header.startswith("Bearer "):
-                from fastapi.responses import JSONResponse
-                return JSONResponse(
-                    status_code=401,
-                    content={
-                        "detail": "Authentication required to access API documentation. Please provide a valid JWT token in the Authorization header: Authorization: Bearer <your_token>"
-                    }
-                )
-            token = auth_header.replace("Bearer ", "")
-            try:
-                payload = jwt.decode(
-                    token,
-                    settings.jwt_secret,
-                    algorithms=[settings.jwt_algorithm]
-                )
-                user_id = payload.get("sub")
-                # only a live access token opens the docs, not a refresh token or a deleted user's
-                if user_id is None or payload.get("type") != "access":
-                    raise HTTPException(status_code=401, detail="Invalid token")
-                db = SessionLocal()
-                try:
-                    from app.api.crud import crud_user
-                    user = crud_user.get_active_user(db, int(user_id))
-                    if not user or (hasattr(user, 'is_active') and not user.is_active):
-                        raise HTTPException(status_code=401, detail="User not found or inactive")
-                finally:
-                    db.close()
-            except (jwt.InvalidTokenError, HTTPException) as e:
-                from fastapi.responses import JSONResponse
-                return JSONResponse(
-                    status_code=401,
-                    content={
-                        "detail": f"Invalid or expired token: {str(e)}"
-                    }
-                )
-    response = await call_next(request)
-    return response
+    # in production the API reference sits behind HTTP Basic (a browser can't send a Bearer
+    # header when you just open a page); no DOCS_USERNAME/DOCS_PASSWORD configured = no docs at all
+    if request.url.path in DOCS_PATHS and settings.environment == "production":
+        from fastapi.responses import JSONResponse, Response
+        if not (settings.docs_username and settings.docs_password):
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
+        if not _docs_credentials_ok(request.headers.get("Authorization", "")):
+            return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="Xtrix API docs"'})
+    return await call_next(request)
+def _docs_credentials_ok(header: str) -> bool:
+    import base64
+    import hmac
+    if not header.startswith("Basic "):
+        return False
+    try:
+        user, _, password = base64.b64decode(header[6:]).decode("utf-8").partition(":")
+    except Exception:
+        return False
+    return hmac.compare_digest(user, settings.docs_username) & hmac.compare_digest(password, settings.docs_password)
+@app.get("/docs", include_in_schema=False)
+def api_reference():
+    # Scalar instead of Swagger UI / ReDoc
+    from scalar_fastapi import get_scalar_api_reference
+    return get_scalar_api_reference(openapi_url=app.openapi_url, title="Xtrix API")
 @app.middleware("http")
 async def fix_proxy_headers(request: Request, call_next):
     if request.headers.get("X-Forwarded-Proto") == "https":

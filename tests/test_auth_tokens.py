@@ -25,9 +25,27 @@ def test_valid_access_token_works(client, test_user, auth_headers):
     assert client.get("/users/me", headers=auth_headers).status_code == 200
 
 
-def test_docs_in_production_need_a_live_access_token(client, test_user, auth_headers, monkeypatch):
+def test_docs_page_is_scalar(client):
+    r = client.get("/docs")
+    assert r.status_code == 200 and "@scalar/api-reference" in r.text
+    assert client.get("/redoc").status_code == 404
+
+
+def test_docs_in_production_sit_behind_basic_auth(client, monkeypatch):
+    import base64
+
     monkeypatch.setattr(config.settings, "environment", "production")
-    refresh, _ = create_refresh_token({"sub": str(test_user.id)})
-    assert client.get("/openapi.json").status_code == 401
-    assert client.get("/openapi.json", headers={"Authorization": f"Bearer {refresh}"}).status_code == 401
-    assert client.get("/openapi.json", headers=auth_headers).status_code == 200
+    # not configured -> no docs at all
+    monkeypatch.setattr(config.settings, "docs_username", "")
+    assert client.get("/docs").status_code == 404
+    assert client.get("/openapi.json").status_code == 404
+
+    monkeypatch.setattr(config.settings, "docs_username", "alex")
+    monkeypatch.setattr(config.settings, "docs_password", "s3cret-docs")
+    r = client.get("/docs")
+    assert r.status_code == 401 and r.headers["www-authenticate"].startswith("Basic")
+    bad = base64.b64encode(b"alex:nope").decode()
+    assert client.get("/openapi.json", headers={"Authorization": f"Basic {bad}"}).status_code == 401
+    good = {"Authorization": "Basic " + base64.b64encode(b"alex:s3cret-docs").decode()}
+    assert client.get("/docs", headers=good).status_code == 200
+    assert client.get("/openapi.json", headers=good).status_code == 200

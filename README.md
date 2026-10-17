@@ -34,6 +34,12 @@ Running a job twice is harmless: sent messages are recorded in `notification_log
 Messages to clients use the client's own `language`, e-mails to staff use their UI language
 from preferences.
 
+## API reference
+
+`/docs` serves a [Scalar](https://scalar.com) page built from the same OpenAPI schema (Swagger UI and
+ReDoc are off). In production it's behind HTTP Basic: set `DOCS_USERNAME` and `DOCS_PASSWORD`, or
+leave them empty and there are no docs at all.
+
 ## API contract
 
 `openapi.json` in the repo root is the contract the web client builds its types from

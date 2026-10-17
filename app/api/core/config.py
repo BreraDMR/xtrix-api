@@ -99,6 +99,8 @@ class Settings(BaseSettings):
         default="logs/errors.log",
         description="Path to errors log file",
     )
+    docs_username: str = Field("", description="HTTP Basic login for /docs in production (empty = docs off)")
+    docs_password: str = Field("", description="HTTP Basic password for /docs in production")
     csp_policy: str = Field(
         default="",
         description="Content-Security-Policy header value (empty for default)",

@@ -24,7 +24,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "includeSubDomains; "
                 "preload"
             )
-        is_docs_page = request.url.path in ["/docs", "/redoc", "/openapi.json"]
+        is_docs_page = request.url.path in ["/docs", "/openapi.json"]
         csp = self._get_csp(is_docs=is_docs_page)
         if csp:
             response.headers["Content-Security-Policy"] = csp
@@ -40,7 +40,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                     "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
                     "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
                     "img-src 'self' data: https:; "
-                    "font-src 'self' data: https://cdn.jsdelivr.net; "
+                    "font-src 'self' data: https://cdn.jsdelivr.net https://fonts.scalar.com; "
                     "connect-src 'self'; "
                     "frame-ancestors 'none'; "
                     "base-uri 'self'; "
