@@ -93,6 +93,17 @@ def create_product_usage(
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     if not usage.used_by_id:
         usage.used_by_id = current_user.id
+    # whoever, whomever and on which visit - all of it has to be ours
+    from app.api.core.permissions import check_client_access, check_specialist_in_scope, check_visit_access
+    if usage.client_id is not None and not check_client_access(db, current_user, usage.client_id):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    if not check_specialist_in_scope(db, current_user, usage.used_by_id):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    if usage.visit_id is not None:
+        from app.api.crud import crud_visit
+        visit = crud_visit.get_visit(db, usage.visit_id)
+        if not visit or not check_visit_access(db, current_user, visit):
+            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     try:
         result = crud_product_usage.create_product_usage(db, usage, auto_reduce_stock=auto_reduce_stock)
         logger.info(f"Created product usage {result.id} by user {current_user.id}")
