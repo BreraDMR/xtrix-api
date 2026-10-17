@@ -42,29 +42,21 @@ def test_generate_qr_code_image():
     qr_data = "123:abcdef1234567890"
     img_base64 = generate_qr_code_base64(qr_data)
     assert img_base64 is None or isinstance(img_base64, str)
+def _create_client(headers, full_name="Test Client QR"):
+    r = test_client.post("/clients/", json={"full_name": full_name, "contact_phone": "+420777000222"}, headers=headers)
+    assert r.status_code == 200, r.text
+    return r.json()
 @pytest.fixture
-def test_client_with_qr(db: Session, test_user):
+def test_client_with_qr(db: Session, auth_headers):
     from app.api.crud import crud_client
-    from app.schemas.client import ClientCreate
-    client_data = ClientCreate(
-        owner_id=test_user.id,
-        full_name="Test Client QR",
-        contact_phone="+1234567890",
-    )
-    client = crud_client.create_client(db, client_data)
+    created = _create_client(auth_headers)
+    client = crud_client.get_client(db, created["id"])
     qr_data, password = crud_client.generate_client_qr_code(db, client.id)
     return client, qr_data, password
-def test_generate_client_qr_code_endpoint(db: Session, test_user, auth_headers):
-    from app.api.crud import crud_client
-    from app.schemas.client import ClientCreate
-    client_data = ClientCreate(
-        owner_id=test_user.id,
-        full_name="Test Client for QR",
-        contact_phone="+1234567890",
-    )
-    client = crud_client.create_client(db, client_data)
+def test_generate_client_qr_code_endpoint(db: Session, auth_headers):
+    client = _create_client(auth_headers, "Test Client for QR")
     response = test_client.post(
-        f"/clients/{client.id}/qr-code/generate",
+        f"/clients/{client['id']}/qr-code/generate",
         headers=auth_headers,
     )
     assert response.status_code == 200
@@ -111,20 +103,13 @@ def test_access_client_history_invalid_password(db: Session, test_client_with_qr
         },
     )
     assert response.status_code == 401
-def test_qr_code_generation_permissions(db: Session, test_user, auth_headers):
-    from app.api.crud import crud_client
-    from app.schemas.client import ClientCreate
-    client_data = ClientCreate(
-        owner_id=test_user.id,
-        full_name="Test Client",
-        contact_phone="+1234567890",
-    )
-    client_obj = crud_client.create_client(db, client_data)
+def test_qr_code_generation_permissions(db: Session, auth_headers, make_user, headers_for):
+    client_obj = _create_client(auth_headers, "Test Client")
     response = test_client.post(
-        f"/clients/{client_obj.id}/qr-code/generate",
-        headers=auth_headers,
+        f"/clients/{client_obj['id']}/qr-code/generate",
+        headers=headers_for(make_user("specialist")),
     )
-    assert response.status_code in [200, 403]
+    assert response.status_code == 403
 def test_qr_code_regeneration(db: Session, test_client_with_qr, auth_headers):
     client_obj, old_qr_data, old_password = test_client_with_qr
     response = test_client.post(
