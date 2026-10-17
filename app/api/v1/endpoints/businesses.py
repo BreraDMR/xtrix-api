@@ -1,5 +1,5 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _
@@ -29,27 +29,26 @@ def create_business(
     return BusinessOut.model_validate(new_business)
 @router.get("/", response_model=List[BusinessOut], summary="List businesses")
 def list_businesses(
-    search: Optional[str] = None,  
-    skip: int = 0,
-    limit: int = 100,
+    search: Optional[str] = None,
+    skip: int = Query(0, ge=0, le=1_000_000),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(deps.get_db),
-    current_user: Optional[User] = Depends(deps.get_current_user_optional),  
+    current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
+    # there is no public catalog (yet) - anonymous callers used to get every business on the
+    # platform with phones and e-mails. Admins see all, everyone else just their own.
     from app.db.models.business import Business
-    query = db.query(Business).filter(Business.deleted_at.is_(None))
-    if search:
-        query = query.filter(Business.name.ilike(f"%{search}%"))
-    if current_user is None:
+    if current_user.role == "admin":
+        query = db.query(Business).filter(Business.deleted_at.is_(None))
+        if search:
+            query = query.filter(Business.name.ilike(f"%{search}%"))
         businesses = query.offset(skip).limit(limit).all()
-    elif current_user.role == "admin":
-        businesses = query.offset(skip).limit(limit).all()
+    elif current_user.business_id:
+        business = crud_business.get_business(db=db, business_id=current_user.business_id)
+        businesses = [business] if business else []
     else:
-        if current_user.business_id:
-            business = crud_business.get_business(db=db, business_id=current_user.business_id)
-            businesses = [business] if business else []
-        else:
-            businesses = []
+        businesses = []
     return [BusinessOut.model_validate(b) for b in businesses]
 @router.get("/me", response_model=BusinessOut, summary="Get my business")
 def get_my_business(

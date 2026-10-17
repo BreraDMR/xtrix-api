@@ -10676,6 +10676,7 @@
             "required": false,
             "schema": {
               "default": 1,
+              "maximum": 100000,
               "minimum": 1,
               "title": "Page",
               "type": "integer"
@@ -10885,6 +10886,8 @@
             "required": false,
             "schema": {
               "default": 0,
+              "maximum": 1000000,
+              "minimum": 0,
               "title": "Skip",
               "type": "integer"
             }
@@ -10895,24 +10898,10 @@
             "required": false,
             "schema": {
               "default": 100,
+              "maximum": 200,
+              "minimum": 1,
               "title": "Limit",
               "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
             }
           },
           {
@@ -10958,6 +10947,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
         "summary": "List businesses",
         "tags": [
           "businesses"
@@ -11602,6 +11596,7 @@
             "required": false,
             "schema": {
               "default": 1,
+              "maximum": 100000,
               "minimum": 1,
               "title": "Page",
               "type": "integer"
@@ -12421,6 +12416,7 @@
             "required": false,
             "schema": {
               "default": 1,
+              "maximum": 100000,
               "minimum": 1,
               "title": "Page",
               "type": "integer"
@@ -13211,6 +13207,7 @@
             "required": false,
             "schema": {
               "default": 1,
+              "maximum": 100000,
               "minimum": 1,
               "title": "Page",
               "type": "integer"
@@ -14137,6 +14134,7 @@
             "required": false,
             "schema": {
               "default": 1,
+              "maximum": 100000,
               "minimum": 1,
               "title": "Page",
               "type": "integer"
@@ -16255,6 +16253,7 @@
             "required": false,
             "schema": {
               "default": 1,
+              "maximum": 100000,
               "minimum": 1,
               "title": "Page",
               "type": "integer"
@@ -16759,6 +16758,7 @@
             "required": false,
             "schema": {
               "default": 1,
+              "maximum": 100000,
               "minimum": 1,
               "title": "Page",
               "type": "integer"
@@ -17038,6 +17038,7 @@
             "required": false,
             "schema": {
               "default": 1,
+              "maximum": 100000,
               "minimum": 1,
               "title": "Page",
               "type": "integer"
@@ -17958,6 +17959,7 @@
             "required": false,
             "schema": {
               "default": 1,
+              "maximum": 100000,
               "minimum": 1,
               "title": "Page",
               "type": "integer"
@@ -20158,6 +20160,7 @@
             "required": false,
             "schema": {
               "default": 1,
+              "maximum": 100000,
               "minimum": 1,
               "title": "Page",
               "type": "integer"
@@ -20771,6 +20774,7 @@
             "required": false,
             "schema": {
               "default": 1,
+              "maximum": 100000,
               "minimum": 1,
               "title": "Page",
               "type": "integer"
@@ -21107,6 +21111,7 @@
             "required": false,
             "schema": {
               "default": 1,
+              "maximum": 100000,
               "minimum": 1,
               "title": "Page",
               "type": "integer"
