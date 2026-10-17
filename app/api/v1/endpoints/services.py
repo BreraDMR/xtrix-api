@@ -2,7 +2,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
-from app.api.core.i18n import _, localize_response
+from app.api.core.i18n import _
 from app.api.core.pagination import PaginationParams, PaginatedResponse
 from app.api.core.soft_delete import hard_delete, restore_soft_deleted, soft_delete
 from app.api.crud import crud_service
@@ -41,7 +41,7 @@ def create_service(
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     result = crud_service.create_service(db, service, business_id=business_id)
     result = crud_service.get_service(db, result.id)
-    return localize_response(_service_out(result), locale)
+    return _service_out(result)
 @router.get("/", response_model=PaginatedResponse[ServiceOut])
 def list_services(
     specialist_id: Optional[int] = None,
@@ -94,7 +94,7 @@ def list_services(
         is_active=is_active_filter,
         pagination=pagination
     )
-    localized_items = [localize_response(_service_out(s), locale) for s in services]
+    localized_items = [_service_out(s) for s in services]
     return PaginatedResponse.create(
         items=localized_items,
         total=total,
@@ -114,7 +114,7 @@ def get_service(
     from app.api.core.permissions import check_service_access
     if not check_service_access(db, current_user, service):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    return localize_response(_service_out(service), locale)
+    return _service_out(service)
 @router.put("/{service_id}", response_model=ServiceOut)
 def update_service(
     service_id: int,
@@ -132,7 +132,7 @@ def update_service(
     _check_specialists(db, current_user, [payload.specialist_id] + (payload.specialist_ids or []), locale)
     result = crud_service.update_service(db, service, payload)
     result = crud_service.get_service(db, result.id)
-    return localize_response(_service_out(result), locale)
+    return _service_out(result)
 @router.delete("/{service_id}")
 def delete_service(
     service_id: int,

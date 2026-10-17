@@ -2,7 +2,7 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
-from app.api.core.i18n import _, localize_response
+from app.api.core.i18n import _
 from app.api.core.logger import get_logger
 from app.api.crud import crud_specialist_profile
 from app.db.models.user import User
@@ -26,9 +26,7 @@ def create_specialist_profile(
     try:
         result = crud_specialist_profile.create_specialist_profile(db, profile)
         logger.info(f"Specialist profile created: user_id={profile.user_id}")
-        return localize_response(
-            result.model_dump() if hasattr(result, 'model_dump') else result, locale
-        )
+        return result.model_dump() if hasattr(result, 'model_dump') else result
     except ValueError as e:
         logger.warning(f"Failed to create specialist profile: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -44,9 +42,7 @@ def get_my_profile(
             status_code=404,
             detail=_("specialist_profile_not_found", locale)
         )
-    return localize_response(
-        profile.model_dump() if hasattr(profile, 'model_dump') else profile, locale
-    )
+    return profile.model_dump() if hasattr(profile, 'model_dump') else profile
 @router.get("/users/{user_id}", response_model=SpecialistProfileOut)
 def get_specialist_profile_by_user(
     user_id: int,
@@ -62,9 +58,7 @@ def get_specialist_profile_by_user(
             status_code=404,
             detail=_("specialist_profile_not_found", locale)
         )
-    return localize_response(
-        profile.model_dump() if hasattr(profile, 'model_dump') else profile, locale
-    )
+    return profile.model_dump() if hasattr(profile, 'model_dump') else profile
 @router.put("/me", response_model=SpecialistProfileOut)
 def update_my_profile(
     profile_update: SpecialistProfileUpdate,
@@ -81,9 +75,7 @@ def update_my_profile(
     try:
         result = crud_specialist_profile.update_specialist_profile(db, profile, profile_update)
         logger.info(f"Specialist profile updated: user_id={current_user.id}")
-        return localize_response(
-            result.model_dump() if hasattr(result, 'model_dump') else result, locale
-        )
+        return result.model_dump() if hasattr(result, 'model_dump') else result
     except ValueError as e:
         logger.warning(f"Failed to update specialist profile: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -104,9 +96,7 @@ def update_specialist_profile(
     try:
         result = crud_specialist_profile.update_specialist_profile(db, profile, profile_update)
         logger.info(f"Specialist profile updated by admin: user_id={user_id}")
-        return localize_response(
-            result.model_dump() if hasattr(result, 'model_dump') else result, locale
-        )
+        return result.model_dump() if hasattr(result, 'model_dump') else result
     except ValueError as e:
         logger.warning(f"Failed to update specialist profile: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -130,9 +120,7 @@ def list_specialist_profiles(
         limit=limit,
     )
     return [
-        localize_response(
-            profile.model_dump() if hasattr(profile, 'model_dump') else profile, locale
-        )
+        profile.model_dump() if hasattr(profile, 'model_dump') else profile
         for profile in profiles
     ]
 @router.post("/users/{user_id}/verify", response_model=SpecialistProfileOut)
@@ -153,9 +141,7 @@ def verify_specialist_profile(
     db.commit()
     db.refresh(profile)
     logger.info(f"Specialist profile verified by admin: user_id={user_id}, admin_id={current_user.id}")
-    return localize_response(
-        profile.model_dump() if hasattr(profile, 'model_dump') else profile, locale
-    )
+    return profile.model_dump() if hasattr(profile, 'model_dump') else profile
 @router.post("/users/{user_id}/reject", response_model=SpecialistProfileOut)
 def reject_specialist_profile(
     user_id: int,
@@ -174,9 +160,7 @@ def reject_specialist_profile(
     db.commit()
     db.refresh(profile)
     logger.info(f"Specialist profile rejected by admin: user_id={user_id}, admin_id={current_user.id}")
-    return localize_response(
-        profile.model_dump() if hasattr(profile, 'model_dump') else profile, locale
-    )
+    return profile.model_dump() if hasattr(profile, 'model_dump') else profile
 @router.get("/types", response_model=dict)
 def get_available_specialist_types(
     locale: str = Depends(deps.get_locale),

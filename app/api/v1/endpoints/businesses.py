@@ -2,7 +2,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.api import deps
-from app.api.core.i18n import _, localize_response
+from app.api.core.i18n import _
 from app.api.crud import crud_business
 from app.db.models.user import User
 from app.schemas.business import BusinessCreate, BusinessOut, BusinessUpdate
@@ -106,10 +106,7 @@ def update_business(
         business=business,
         business_update=business_update
     )
-    return localize_response(
-        updated_business.__dict__ if hasattr(updated_business, '__dict__') else updated_business,
-        locale
-    )
+    return updated_business.__dict__ if hasattr(updated_business, '__dict__') else updated_business
 @router.delete("/{business_id}", response_model=BusinessOut, summary="Delete business")
 def delete_business(
     business_id: int,
@@ -126,7 +123,4 @@ def delete_business(
             detail=_("business_not_found", locale) or "Business not found"
         )
     deleted_business = crud_business.delete_business(db=db, business=business)
-    return localize_response(
-        deleted_business.__dict__ if hasattr(deleted_business, '__dict__') else deleted_business,
-        locale
-    )
+    return deleted_business.__dict__ if hasattr(deleted_business, '__dict__') else deleted_business

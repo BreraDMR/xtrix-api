@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
-from app.api.core.i18n import _, localize_response
+from app.api.core.i18n import _
 from app.api.core.pagination import PaginatedResponse
 from app.db.models.user import User
 from app.db.models.expense import Expense
@@ -39,7 +39,7 @@ def create_expense_category(
     try:
         result = crud_expense_category.create_expense_category(db, category)
         logger.info(f"Created expense category {result.id} by user {current_user.id}")
-        return localize_response(result, locale)
+        return result
     except ValueError as e:
         logger.error(f"Error creating expense category: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -60,7 +60,7 @@ def list_expense_categories(
         is_system=is_system,
         is_active=is_active,
     )
-    return [localize_response(c, locale) for c in categories]
+    return [c for c in categories]
 @router.put("/categories/{category_id}", response_model=ExpenseCategoryOut)
 def update_expense_category(
     category_id: int,
@@ -78,7 +78,7 @@ def update_expense_category(
     try:
         result = crud_expense_category.update_expense_category(db, db_category, category)
         logger.info(f"Updated expense category {category_id} by user {current_user.id}")
-        return localize_response(result, locale)
+        return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 @router.delete("/categories/{category_id}")
@@ -114,7 +114,7 @@ def create_expense(
     try:
         result = crud_expense.create_expense(db, expense, created_by_id=current_user.id)
         logger.info(f"Created expense {result.id} by user {current_user.id}")
-        return localize_response(result, locale)
+        return result
     except ValueError as e:
         logger.error(f"Error creating expense: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -150,7 +150,7 @@ def list_expenses(
     )
     total = db.query(Expense).filter(Expense.business_id == business_id).count()
     return PaginatedResponse.create(
-        items=[localize_response(e, locale) for e in expenses],
+        items=[e for e in expenses],
         total=total,
         page=page,
         per_page=per_page,
@@ -168,7 +168,7 @@ def get_expense(
     expense = crud_expense.get_expense(db, expense_id, business_id)
     if not expense:
         raise HTTPException(status_code=404, detail=_("expense_not_found", locale))
-    return localize_response(expense, locale)
+    return expense
 @router.put("/{expense_id}", response_model=ExpenseOut)
 def update_expense(
     expense_id: int,
@@ -186,7 +186,7 @@ def update_expense(
     try:
         result = crud_expense.update_expense(db, db_expense, expense)
         logger.info(f"Updated expense {expense_id} by user {current_user.id}")
-        return localize_response(result, locale)
+        return result
     except ValueError as e:
         logger.error(f"Error updating expense: {e}")
         raise HTTPException(status_code=400, detail=str(e))

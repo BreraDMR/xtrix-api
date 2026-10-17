@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
-from app.api.core.i18n import _, localize_response
+from app.api.core.i18n import _
 from app.api.core.pagination import PaginatedResponse
 from app.db.models.user import User
 from app.db.models.product import Product
@@ -36,7 +36,7 @@ def create_product(
     try:
         result = crud_product.create_product(db, product)
         logger.info(f"Created product {result.id} by user {current_user.id}")
-        return localize_response(result, locale)
+        return result
     except ValueError as e:
         logger.error(f"Error creating product: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -68,7 +68,7 @@ def list_products(
     )
     total = db.query(Product).filter(Product.business_id == business_id).count()
     return PaginatedResponse.create(
-        items=[localize_response(p, locale) for p in products],
+        items=[p for p in products],
         total=total,
         page=page,
         per_page=per_page,
@@ -93,7 +93,7 @@ def get_low_stock_products(
             unit=p.unit,
             is_low_stock=True,
         ))
-    return [localize_response(r, locale) for r in result]
+    return [r for r in result]
 @router.post("/usage", response_model=ProductUsageOut)
 def create_product_usage(
     usage: ProductUsageCreate,
@@ -112,7 +112,7 @@ def create_product_usage(
     try:
         result = crud_product_usage.create_product_usage(db, usage, auto_reduce_stock=auto_reduce_stock)
         logger.info(f"Created product usage {result.id} by user {current_user.id}")
-        return localize_response(result, locale)
+        return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 @router.get("/usage", response_model=PaginatedResponse[ProductUsageOut])
@@ -146,7 +146,7 @@ def list_product_usages(
     from app.db.models.product_usage import ProductUsage
     total = db.query(ProductUsage).filter(ProductUsage.business_id == business_id).count()
     return PaginatedResponse.create(
-        items=[localize_response(u, locale) for u in usages],
+        items=[u for u in usages],
         total=total,
         page=page,
         per_page=per_page,
@@ -165,7 +165,7 @@ def get_product(
     product = crud_product.get_product(db, product_id, business_id)
     if not product:
         raise HTTPException(status_code=404, detail=_("product_not_found", locale))
-    return localize_response(product, locale)
+    return product
 @router.put("/{product_id}", response_model=ProductOut)
 def update_product(
     product_id: int,
@@ -183,7 +183,7 @@ def update_product(
     try:
         result = crud_product.update_product(db, db_product, product)
         logger.info(f"Updated product {product_id} by user {current_user.id}")
-        return localize_response(result, locale)
+        return result
     except ValueError as e:
         logger.error(f"Error updating product: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -217,7 +217,7 @@ def add_product_quantity(
     if not product:
         raise HTTPException(status_code=404, detail=_("product_not_found", locale))
     logger.info(f"Added {quantity} to product {product_id} by user {current_user.id}")
-    return localize_response(product, locale)
+    return product
 @router.post("/{product_id}/reduce-quantity")
 def reduce_product_quantity_endpoint(
     product_id: int,
@@ -234,6 +234,6 @@ def reduce_product_quantity_endpoint(
         if not product:
             raise HTTPException(status_code=404, detail=_("product_not_found", locale))
         logger.info(f"Reduced {quantity} from product {product_id} by user {current_user.id}")
-        return localize_response(product, locale)
+        return product
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

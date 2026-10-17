@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Body, Query
 from sqlalchemy.orm import Session
 from app.api import deps
-from app.api.core.i18n import _, localize_response
+from app.api.core.i18n import _
 from app.api.core.config import settings
 from app.api.core.logger import get_logger, mask_email, mask_phone
 from app.api.core.security import verify_refresh_token, create_access_token, create_refresh_token
@@ -55,7 +55,7 @@ def create_user(
             raise HTTPException(status_code=400, detail=_("email_exists", locale))
     result = crud_user.create_user(db, user)
     logger.info(f"User created successfully: id={result.id}")
-    return localize_response(result.model_dump(), locale) if hasattr(result, 'model_dump') else result
+    return result.model_dump() if hasattr(result, 'model_dump') else result
 @router.post(
     "/login",
     response_model=LoginResponse,
@@ -107,10 +107,10 @@ def get_current_user_info(
 ):
     result = current_user
     if hasattr(result, 'model_dump'):
-        return localize_response(result.model_dump(), locale)
+        return result.model_dump()
     elif hasattr(result, 'model_dump'):
-        return localize_response(result.model_dump(), locale)
-    return localize_response(result, locale)
+        return result.model_dump()
+    return result
 @router.post("/refresh", response_model=TokenResponse)
 def refresh_token(
     token_data: TokenRefresh = Body(...),
@@ -202,10 +202,7 @@ def list_pending_users(
     pagination = PaginationParams(page=page, per_page=per_page)
     users, total = crud_user.list_users_pending_moderation(db, pagination)
     localized_items = [
-        localize_response(
-            u.model_dump() if hasattr(u, 'model_dump') else u,
-            locale
-        )
+        u.model_dump() if hasattr(u, 'model_dump') else u
         for u in users
     ]
     return PaginatedResponse.create(
@@ -252,10 +249,7 @@ def users_list(
     pagination = PaginationParams(page=page, per_page=per_page)
     users, total = crud_user.list_users(db, role, pagination, viewer=current_user)
     localized_items = [
-        localize_response(
-            u.model_dump() if hasattr(u, 'model_dump') else u,
-            locale
-        )
+        u.model_dump() if hasattr(u, 'model_dump') else u
         for u in users
     ]
     return PaginatedResponse.create(

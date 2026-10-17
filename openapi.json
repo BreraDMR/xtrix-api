@@ -449,6 +449,14 @@
             "title": "Address"
           },
           "business_type": {
+            "enum": [
+              "salon",
+              "clinic",
+              "medical",
+              "dental",
+              "hospital",
+              "individual"
+            ],
             "title": "Business Type",
             "type": "string"
           },
@@ -5958,6 +5966,12 @@
           },
           "payment_method": {
             "default": "other",
+            "enum": [
+              "cash",
+              "card",
+              "transfer",
+              "other"
+            ],
             "title": "Payment Method",
             "type": "string"
           },
@@ -5967,6 +5981,11 @@
           },
           "status": {
             "default": "completed",
+            "enum": [
+              "completed",
+              "pending",
+              "failed"
+            ],
             "title": "Status",
             "type": "string"
           },

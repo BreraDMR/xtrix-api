@@ -54,13 +54,11 @@ class SalaryAdjustmentOut(SalaryAdjustmentBase):
 class SalaryPaymentBase(BaseModel):
     amount: PositiveMoney = Field(..., description="Payment amount")
     payment_date: datetime = Field(..., description="Payment date")
-    payment_method: str = Field(default="other")
-    # plain str in the base: status gets localized in responses
-    status: str = Field(default="completed")
+    payment_method: PaymentMethod = Field(default="other")
+    status: PaymentStatus = Field(default="completed")
     notes: Optional[LongText] = Field(None, description="Notes")
 class SalaryPaymentCreate(SalaryPaymentBase):
-    payment_method: PaymentMethod = "other"
-    status: PaymentStatus = "completed"
+    pass
 class SalaryPaymentUpdate(BaseModel):
     amount: Optional[PositiveMoney] = None
     payment_date: Optional[datetime] = None

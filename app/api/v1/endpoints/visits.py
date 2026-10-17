@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
-from app.api.core.i18n import _, localize_response
+from app.api.core.i18n import _
 from app.api.core.logger import get_logger
 from app.api.core.notify import send_notifications
 from app.api.core.pagination import PaginationParams, PaginatedResponse
@@ -112,8 +112,7 @@ def create_visit(
                 logger.info(f"Auto-usage: product {used_product.product_id}, quantity {used_product.quantity}, visit {result.id}")
             except Exception as e:
                 logger.error(f"Failed to auto-usage product {used_product.product_id} for visit {result.id}: {e}")
-    from app.api.core.i18n import localize_response
-    return localize_response(result.model_dump() if hasattr(result, 'model_dump') else result, locale)
+    return result.model_dump() if hasattr(result, 'model_dump') else result
 @router.get("/", response_model=PaginatedResponse[VisitOut])
 def visits_list(
     client_id: Optional[int] = None,
@@ -156,7 +155,7 @@ def visits_list(
         include_archived=include_archived,
     )
     localized_items = [
-        localize_response(v.model_dump() if hasattr(v, 'model_dump') else v, locale) for v in visits
+        v.model_dump() if hasattr(v, 'model_dump') else v for v in visits
     ]
     return PaginatedResponse.create(
         items=localized_items,
@@ -320,7 +319,7 @@ def get_visit(
     from app.api.core.permissions import check_visit_access
     if not check_visit_access(db, current_user, visit):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    return localize_response(visit.model_dump() if hasattr(visit, 'model_dump') else visit, locale)
+    return visit.model_dump() if hasattr(visit, 'model_dump') else visit
 @router.put("/{visit_id}", response_model=VisitOut)
 def update_visit(
     visit_id: int,
@@ -364,8 +363,7 @@ def update_visit(
         except Exception as e:
             from app.api.core.logger import logger
             logger.error(f"Error awarding loyalty bonus for visit {result.id}: {e}")
-    from app.api.core.i18n import localize_response
-    return localize_response(result.model_dump() if hasattr(result, 'model_dump') else result, locale)
+    return result.model_dump() if hasattr(result, 'model_dump') else result
 @router.delete("/{visit_id}")
 def delete_visit(
     visit_id: int,

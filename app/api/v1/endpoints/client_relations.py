@@ -2,7 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.api import deps
-from app.api.core.i18n import _, localize_response
+from app.api.core.i18n import _
 from app.api.core.logger import get_logger
 from app.api.crud import crud_client_specialist_relation
 from app.db.models.user import User
@@ -43,7 +43,7 @@ def create_client_specialist_relation(
             raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     result = crud_client_specialist_relation.create_relation(db, relation)
     logger.info(f"Client-specialist relation created: client_id={relation.client_id}, specialist_id={relation.specialist_id}")
-    return localize_response(result.model_dump() if hasattr(result, 'model_dump') else result, locale)
+    return result.model_dump() if hasattr(result, 'model_dump') else result
 @router.get(
     "/clients/{client_id}/specialists",
     response_model=List[ClientSpecialistRelationOut],
@@ -67,7 +67,7 @@ def get_client_specialists(
         if not has_access:
             raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     relations = crud_client_specialist_relation.get_client_specialists(db, client_id)
-    return [localize_response(r.model_dump() if hasattr(r, 'model_dump') else r, locale) for r in relations]
+    return [r.model_dump() if hasattr(r, 'model_dump') else r for r in relations]
 @router.get(
     "/specialists/{specialist_id}/clients",
     response_model=List[ClientSpecialistRelationOut],
@@ -82,7 +82,7 @@ def get_specialist_clients(
     if current_user.role != "admin" and specialist_id != current_user.id:
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     relations = crud_client_specialist_relation.get_specialist_clients(db, specialist_id)
-    return [localize_response(r.model_dump() if hasattr(r, 'model_dump') else r, locale) for r in relations]
+    return [r.model_dump() if hasattr(r, 'model_dump') else r for r in relations]
 @router.delete(
     "/clients/{client_id}/specialists/{specialist_id}",
     summary="Unlink client from specialist",
