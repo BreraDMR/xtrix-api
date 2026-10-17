@@ -62,7 +62,9 @@ def update_plan(
 def create_subscription(
     payload: SubscriptionCreate,
     db: Session = Depends(deps.get_db),
-    _: User = Depends(deps.role_required("admin", "specialist")),
+    # admin only: everyone else pays through checkout. Specialists used to be able to
+    # hand themselves (or anyone) an active plan for free with a non-stripe provider
+    _: User = Depends(deps.role_required("admin")),
     locale: str = Depends(deps.get_locale),
 ):
     if payload.provider == "stripe":

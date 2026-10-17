@@ -23,3 +23,11 @@ def test_create_subscription_sets_period_end(db, make_user):
     assert sub.current_period_end is not None
     expected = datetime.utcnow() + timedelta(days=plan.period_days)
     assert abs((sub.current_period_end - expected).total_seconds()) < 60
+
+
+def test_only_admin_creates_subscriptions_directly(client, db, make_user, headers_for):
+    plan = crud_subscription.list_plans(db)[0]
+    spec = make_user("specialist")
+    body = {"user_id": spec.id, "plan_id": plan.id, "provider": "apple", "status": "active"}
+    assert client.post("/subscriptions/", json=body, headers=headers_for(spec)).status_code == 403
+    assert client.post("/subscriptions/", json=body, headers=headers_for(make_user("admin"))).status_code == 200
