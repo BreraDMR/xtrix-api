@@ -104,9 +104,19 @@ def make_user(db):
 
 
 @pytest.fixture
-def auth_headers():
+def headers_for():
     def _headers(user):
-        token = create_access_token({"sub": str(user.id), "type": "access"})
+        token = create_access_token({"sub": str(user.id)})
         return {"Authorization": f"Bearer {token}"}
 
     return _headers
+
+
+@pytest.fixture
+def test_user(make_user):
+    return make_user("specialist")
+
+
+@pytest.fixture
+def auth_headers(test_user, headers_for):
+    return headers_for(test_user)
