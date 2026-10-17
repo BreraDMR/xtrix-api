@@ -72,7 +72,7 @@ def reset_failed_login_attempts(db: Session, user: User) -> None:
         user.locked_until = None
         db.commit()
 def authenticate(db: Session, credentials: UserLogin, totp_token: str | None = None) -> tuple[tuple[str, str] | None, bool]:
-    query = db.query(User)
+    query = db.query(User).filter(User.deleted_at.is_(None))
     if credentials.phone:
         user = query.filter(User.phone == credentials.phone).first()
     elif credentials.email:
@@ -116,6 +116,9 @@ def unlock_account(db: Session, user_id: int) -> bool:
     return True
 def get_user(db: Session, user_id: int) -> User | None:
     return db.query(User).filter(User.id == user_id).first()
+def get_active_user(db: Session, user_id: int) -> User | None:
+    # soft-deleted accounts must not authenticate, even with tokens issued before the delete
+    return db.query(User).filter(User.id == user_id, User.deleted_at.is_(None)).first()
 def get_by_phone_or_email(db: Session, phone: str | None, email: str | None) -> User | None:
     q = db.query(User)
     if phone:

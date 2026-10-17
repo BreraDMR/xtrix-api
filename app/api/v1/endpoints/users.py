@@ -127,7 +127,7 @@ def refresh_token(
         logger.warning("Refresh token not found in database or revoked")
         raise HTTPException(status_code=401, detail=_("invalid_refresh_token", locale))
     user_id = int(payload.get("sub"))
-    user = crud_user.get_user(db, user_id)
+    user = crud_user.get_active_user(db, user_id)
     if not user:
         logger.warning(f"User not found for refresh token: user_id={user_id}")
         raise HTTPException(status_code=401, detail=_("user_not_found", locale))

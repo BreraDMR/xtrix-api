@@ -36,7 +36,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     except JWTError as e:
         logger.warning(f"JWT validation failed: {str(e)}")
         raise credentials_exception
-    user = crud_user.get_user(db, int(user_id))
+    user = crud_user.get_active_user(db, int(user_id))
     if user is None:
         logger.warning(f"User not found: id={user_id}")
         raise credentials_exception
@@ -61,7 +61,7 @@ def get_current_user_optional(
             return None
     except JWTError:
         return None
-    user = crud_user.get_user(db, int(user_id))
+    user = crud_user.get_active_user(db, int(user_id))
     return user
 def role_required(*roles: str):
     def checker(

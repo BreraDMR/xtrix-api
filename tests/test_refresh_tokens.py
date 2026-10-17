@@ -152,3 +152,12 @@ def test_two_logins_in_the_same_second(test_user):
     assert first.status_code == 200
     assert second.status_code == 200
     assert first.json()["refresh_token"] != second.json()["refresh_token"]
+def test_deleted_user_loses_access_and_refresh(test_user, db):
+    body = {"email": "test@example.com", "password": "Str0ng!Pass-word"}
+    tokens = client.post("/users/login", json=body).json()
+    test_user.deleted_at = datetime.utcnow()
+    db.commit()
+    me = client.get("/users/me", headers={"Authorization": f"Bearer {tokens['access_token']}"})
+    assert me.status_code == 401
+    assert client.post("/users/refresh", json={"refresh_token": tokens["refresh_token"]}).status_code == 401
+    assert client.post("/users/login", json=body).status_code == 401
