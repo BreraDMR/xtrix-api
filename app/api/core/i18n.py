@@ -451,6 +451,9 @@ def normalize_locale(locale: str | None) -> str:
     if not locale:
         return "en"
     locale = locale.split(",")[0].split("-")[0].lower()
+    # the web client says "cz", browsers say "cs" (cs-CZ) - same language
+    if locale == "cs":
+        locale = "cz"
     return locale if locale in SUPPORTED_LOCALES else "en"
 def _(key: str, locale: str | None = None) -> str:
     loc = normalize_locale(locale)

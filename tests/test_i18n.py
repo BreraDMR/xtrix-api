@@ -1,7 +1,9 @@
 from app.api.core.i18n import _, normalize_locale
 def test_normalize_locale():
     assert normalize_locale("ru-RU") == "ru"
-    assert normalize_locale("cs") == "cs"
+    assert normalize_locale("cs") == "cz"
+    assert normalize_locale("cs-CZ,cs;q=0.9") == "cz"
+    assert normalize_locale("cz") == "cz"
     assert normalize_locale("en-US,en;q=0.9") == "en"
     assert normalize_locale(None) == "en"
     assert normalize_locale("fr") == "en"
