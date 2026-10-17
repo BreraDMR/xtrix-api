@@ -1,3 +1,4 @@
+import jwt
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
@@ -39,24 +40,24 @@ async def protect_docs(request: Request, call_next):
                 )
             token = auth_header.replace("Bearer ", "")
             try:
-                from jose import JWTError, jwt
                 payload = jwt.decode(
-                    token, 
-                    settings.jwt_secret, 
+                    token,
+                    settings.jwt_secret,
                     algorithms=[settings.jwt_algorithm]
                 )
-                user_id: int = payload.get("sub")
-                if user_id is None:
+                user_id = payload.get("sub")
+                # only a live access token opens the docs, not a refresh token or a deleted user's
+                if user_id is None or payload.get("type") != "access":
                     raise HTTPException(status_code=401, detail="Invalid token")
                 db = SessionLocal()
                 try:
                     from app.api.crud import crud_user
-                    user = crud_user.get_user(db, user_id)
+                    user = crud_user.get_active_user(db, int(user_id))
                     if not user or (hasattr(user, 'is_active') and not user.is_active):
                         raise HTTPException(status_code=401, detail="User not found or inactive")
                 finally:
                     db.close()
-            except (JWTError, HTTPException) as e:
+            except (jwt.InvalidTokenError, HTTPException) as e:
                 from fastapi.responses import JSONResponse
                 return JSONResponse(
                     status_code=401,
