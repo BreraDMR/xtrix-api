@@ -383,6 +383,8 @@ def access_client_history_by_qr(
     if not client:
         logger.warning(f"Client not found for QR code: client_id={client_id}")
         raise HTTPException(status_code=404, detail=_("client_not_found", locale))
+    if crud_client.qr_locked(client):
+        raise HTTPException(status_code=429, detail=_("qr_access_locked", locale))
     if not crud_client.verify_client_access_password(db, client_id, request.password):
         logger.warning(f"Invalid password for QR code access: client_id={client_id}")
         raise HTTPException(status_code=401, detail=_("invalid_password", locale))

@@ -1,6 +1,11 @@
 from typing import Dict, Any
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
+    "qr_access_locked": {
+        "en": "Too many wrong codes, access is locked for 30 minutes",
+        "ru": "Слишком много неверных кодов, доступ закрыт на 30 минут",
+        "cz": "Příliš mnoho chybných kódů, přístup je na 30 minut zablokován",
+    },
     "time_slot_taken": {
         "en": "This time is already booked for the specialist",
         "ru": "У специалиста уже есть запись на это время",

@@ -1,6 +1,7 @@
 from typing import Set, Optional, Tuple
-from datetime import date
+from datetime import date, timedelta
 from sqlalchemy.orm import Session
+from app.api.core.clock import utcnow
 from sqlalchemy import func, and_
 from app.api.core.redis_client import (
     cache_client, get_cached_client, invalidate_client,
@@ -318,12 +319,33 @@ def generate_client_qr_code(db: Session, client_id: int) -> tuple[str, str]:
     hashed_password = get_password_hash(access_password)
     client.qr_code = qr_data
     client.access_password = hashed_password
+    # a fresh QR starts with a clean slate
+    client.qr_failed_attempts = 0
+    client.qr_locked_until = None
     db.commit()
     db.refresh(client)
     invalidate_client(client_id)
     return qr_data, access_password
+QR_MAX_ATTEMPTS = 5
+QR_LOCK_MINUTES = 30
+
+
+def qr_locked(client: Client) -> bool:
+    return bool(client.qr_locked_until and client.qr_locked_until > utcnow())
+
+
 def verify_client_access_password(db: Session, client_id: int, password: str) -> bool:
-    client = get_client(db, client_id)
-    if not client or not client.access_password:
+    # the PIN is 4 digits, so wrong guesses count per client (from any IP) and lock the QR for a while
+    client = db.query(Client).filter(Client.id == client_id).with_for_update().first()
+    if not client or not client.access_password or qr_locked(client):
         return False
-    return verify_password(password, client.access_password)
+    if verify_password(password, client.access_password):
+        client.qr_failed_attempts = 0
+        db.commit()
+        return True
+    client.qr_failed_attempts = (client.qr_failed_attempts or 0) + 1
+    if client.qr_failed_attempts >= QR_MAX_ATTEMPTS:
+        client.qr_locked_until = utcnow() + timedelta(minutes=QR_LOCK_MINUTES)
+        client.qr_failed_attempts = 0
+    db.commit()
+    return False

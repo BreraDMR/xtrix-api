@@ -120,3 +120,18 @@ def test_qr_code_regeneration(db: Session, test_client_with_qr, auth_headers):
     new_password = data["access_password"]
     assert new_qr_data != old_qr_data
     assert len(new_password) == 4
+def test_qr_pin_guessing_locks_the_qr(db: Session, test_client_with_qr, auth_headers):
+    client_obj, qr_data, password = test_client_with_qr
+    wrong = "0000" if password != "0000" else "1111"
+    access = lambda pin: test_client.post("/clients/qr-code/access", json={"qr_code_data": qr_data, "password": pin})
+    for _ in range(4):
+        assert access(wrong).status_code == 401
+    assert access(password).status_code == 200  # a right PIN resets the counter
+    for _ in range(5):
+        assert access(wrong).status_code == 401
+    r = access(password)
+    assert r.status_code == 429  # locked now, even with the right PIN
+    # issuing a new QR unlocks
+    regen = test_client.post(f"/clients/{client_obj.id}/qr-code/generate", headers=auth_headers).json()
+    r = test_client.post("/clients/qr-code/access", json={"qr_code_data": regen["qr_code_data"], "password": regen["access_password"]})
+    assert r.status_code == 200

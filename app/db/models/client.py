@@ -26,6 +26,8 @@ class Client(Base):
     created_at = Column(DateTime, default=utcnow, index=True)
     qr_code = Column(String, unique=True, index=True, nullable=True)
     access_password = Column(String, nullable=True)  
+    qr_failed_attempts = Column(Integer, nullable=False, default=0, server_default="0")
+    qr_locked_until = Column(DateTime, nullable=True)
     deleted_at = Column(DateTime, nullable=True, index=True)  
     archived_at = Column(DateTime, nullable=True, index=True)  
     owner = relationship("User", foreign_keys=[owner_id], back_populates="clients", lazy="select")  
