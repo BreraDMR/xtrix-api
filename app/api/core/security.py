@@ -3,11 +3,9 @@ from typing import Optional
 import re
 import jwt
 import secrets
-from passlib.context import CryptContext
 import bcrypt
 from app.api.core.config import settings
 from app.api.core.clock import utcnow
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def _truncate_password_bytes(password_bytes: bytes) -> bytes:
     if len(password_bytes) <= 72:
         return password_bytes
@@ -16,36 +14,16 @@ def _truncate_password_bytes(password_bytes: bytes) -> bytes:
         truncated = truncated[:-1]
     return truncated
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    if hashed_password.startswith("$2"):
-        try:
-            password_bytes = plain_password.encode('utf-8')
-            password_bytes = _truncate_password_bytes(password_bytes)
-            hashed_bytes = hashed_password.encode('utf-8')
-            return bcrypt.checkpw(password_bytes, hashed_bytes)
-        except Exception:
-            pass
+    # every hash we store is bcrypt ($2b$...), the old passlib wrapper made the same format
+    if not hashed_password or not hashed_password.startswith("$2"):
+        return False
     try:
-        password_bytes = plain_password.encode('utf-8')
-        if len(password_bytes) > 72:
-            password_bytes = _truncate_password_bytes(password_bytes)
-            plain_password = password_bytes.decode('utf-8', errors='ignore')
-        return pwd_context.verify(plain_password, hashed_password)
-    except Exception:
+        return bcrypt.checkpw(_truncate_password_bytes(plain_password.encode("utf-8")), hashed_password.encode("utf-8"))
+    except ValueError:
         return False
 def get_password_hash(password: str) -> str:
-    password_bytes = password.encode('utf-8')
-    if len(password_bytes) > 72:
-        password_bytes = _truncate_password_bytes(password_bytes)
-        password = password_bytes.decode('utf-8', errors='ignore')
-    try:
-        return pwd_context.hash(password)
-    except ValueError as e:
-        if "72 bytes" in str(e):
-            password_bytes = password.encode('utf-8')
-            password_bytes = _truncate_password_bytes(password_bytes)
-            salt = bcrypt.gensalt()
-            return bcrypt.hashpw(password_bytes, salt).decode('utf-8')
-        raise
+    # bcrypt only looks at 72 bytes; cut on a character boundary so we never split a UTF-8 char
+    return bcrypt.hashpw(_truncate_password_bytes(password.encode("utf-8")), bcrypt.gensalt()).decode("utf-8")
 def validate_password_strength(password: str) -> tuple[bool, str]:
     if len(password) < 8:
         return False, "Password must be at least 8 characters long"
