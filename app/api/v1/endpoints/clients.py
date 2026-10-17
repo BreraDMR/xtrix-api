@@ -11,6 +11,7 @@ from app.api.crud import crud_client, crud_visit
 from app.db.models.user import User
 from app.schemas.client import ClientCreate, ClientOut, ClientUpdate, ClientSearchOut, BasicMedicalInfo
 from app.schemas.qr_code import QRCodeGenerateResponse, QRCodeAccessRequest, ClientHistoryResponse
+from app.schemas.datetimes import utc_iso
 router = APIRouter()
 logger = get_logger("clients")
 @router.post(
@@ -393,12 +394,12 @@ def access_client_history_by_qr(
     last_visit_date = None
     if visits:
         last_visit = max(visits, key=lambda v: v.date_start)
-        last_visit_date = last_visit.date_start.isoformat()
+        last_visit_date = utc_iso(last_visit.date_start)
     visits_data = [
         {
             "id": v.id,
-            "date_start": v.date_start.isoformat(),
-            "date_end": v.date_end.isoformat() if v.date_end else None,
+            "date_start": utc_iso(v.date_start),
+            "date_end": utc_iso(v.date_end) if v.date_end else None,
             "service_name": v.service_name,
             "price": v.price,
             "status": v.status,
