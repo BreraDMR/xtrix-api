@@ -6,6 +6,7 @@ from app.api.core.security import (
     create_refresh_token, validate_password_strength
 )
 from app.api.core.config import settings
+from app.api.core.pagination import PaginationParams
 from app.db.models.user import User
 from app.schemas.user import UserCreate, UserLogin
 from app.schemas.refresh_token import RefreshTokenCreate
@@ -124,7 +125,7 @@ def get_by_phone_or_email(db: Session, phone: str | None, email: str | None) -> 
     return None
 def list_users_pending_moderation(
     db: Session,
-    pagination: Optional["PaginationParams"] = None,
+    pagination: Optional[PaginationParams] = None,
 ) -> Tuple[list[User], int]:
     query = db.query(User).filter(
         User.moderation_status == "pending",
@@ -155,7 +156,7 @@ def moderate_user(
 def list_users(
     db: Session,
     role: str | None = None,
-    pagination: Optional["PaginationParams"] = None,
+    pagination: Optional[PaginationParams] = None,
 ) -> Tuple[list[User], int]:
     from app.api.core.pagination import PaginationParams
     q = db.query(User)
