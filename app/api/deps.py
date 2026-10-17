@@ -21,8 +21,8 @@ def token_revoked(user, payload: dict) -> bool:
     if not user.tokens_valid_after:
         return False
     # the DB keeps naive UTC; tokens from before iat_ms existed count as issued at 0
-    valid_after_ms = int(user.tokens_valid_after.replace(tzinfo=timezone.utc).timestamp() * 1000)
-    return int(payload.get("iat_ms") or 0) < valid_after_ms
+    valid_after_ms = user.tokens_valid_after.replace(tzinfo=timezone.utc).timestamp() * 1000
+    return float(payload.get("iat_ms") or 0) < valid_after_ms
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

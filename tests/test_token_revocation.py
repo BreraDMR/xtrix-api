@@ -34,3 +34,26 @@ def test_logging_in_again_right_after_logout_all_works(client, make_user):
     client.post("/users/logout-all", headers={"Authorization": f"Bearer {token}"})
     fresh = _login(client, user)["access_token"]
     assert client.get("/users/me", headers={"Authorization": f"Bearer {fresh}"}).status_code == 200
+
+
+def test_logout_all_keeps_submillisecond_precision():
+    from datetime import datetime
+    from types import SimpleNamespace
+    from app.api.deps import token_revoked
+
+    user = SimpleNamespace(tokens_valid_after=datetime(2030, 1, 1, 0, 0, 0, 900))
+    issued_ms = 1893456000000
+    assert token_revoked(user, {"iat_ms": issued_ms})
+    assert token_revoked(user, {"iat_ms": issued_ms + 0.5})
+    assert not token_revoked(user, {"iat_ms": issued_ms + 0.95})
+
+
+def test_access_issue_time_preserves_submillisecond_precision(monkeypatch):
+    import jwt
+    from app.api.core import security
+
+    monkeypatch.setattr(security.time, "time", lambda: 1893456000.0005)
+    token = security.create_access_token({"sub": "1"})
+    payload = jwt.decode(token, config.settings.jwt_secret,
+                         algorithms=[config.settings.jwt_algorithm])
+    assert payload["iat_ms"] == 1893456000000.5
