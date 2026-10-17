@@ -95,18 +95,21 @@ def get_financial_report(
     if date_to:
         q = q.filter(Visit.date_start <= date_to)
     total_revenue = q.with_entities(func.sum(Visit.price)).scalar() or 0.0
+    # same conditions as q, reused by the grouped queries below
+    revenue_filters = [Visit.price.isnot(None)]
+    if specialist_id:
+        revenue_filters.append(Visit.specialist_id == specialist_id)
+    if date_from:
+        revenue_filters.append(Visit.date_start >= date_from)
+    if date_to:
+        revenue_filters.append(Visit.date_start <= date_to)
     revenue_by_status = (
         db.query(
             Visit.status,
             func.sum(Visit.price).label('revenue'),
             func.count(Visit.id).label('count')
         )
-        .filter(*[
-            Visit.price.isnot(None),
-            Visit.specialist_id == specialist_id if specialist_id else True,
-            Visit.date_start >= date_from if date_from else True,
-            Visit.date_start <= date_to if date_to else True,
-        ])
+        .filter(*revenue_filters)
         .group_by(Visit.status)
         .all()
     )
