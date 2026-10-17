@@ -1,6 +1,5 @@
 import os
 import requests
-import json
 
 def create_user():
     base_url = os.environ.get("API_BASE_URL", "http://localhost:8000")

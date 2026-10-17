@@ -3,8 +3,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
-from app.db.models.user import User
-from app.db.models.specialist_profile import SpecialistProfile
 from app.db.models.specialist_type import (
     SpecialistType,
     SpecialistCategory,

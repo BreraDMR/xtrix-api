@@ -2,9 +2,8 @@ import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from datetime import date, datetime
+from datetime import date
 from sqlalchemy.orm import Session
-from sqlalchemy import text
 from app.db.session import SessionLocal
 from app.db.models.user import User
 from app.db.models.client import Client

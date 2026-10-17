@@ -1,7 +1,6 @@
 import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from app.db.session import SessionLocal
 from app.api.core.subscription_tasks import deactivate_expired_subscriptions
 from app.api.core.logger import logger
 def main():
