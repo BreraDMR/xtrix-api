@@ -1,6 +1,7 @@
+import calendar
 from datetime import date, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func
+from sqlalchemy import and_, or_, func
 from app.db.session import SessionLocal
 from app.api.core.logger import logger
 from app.db.models.client import Client
@@ -17,6 +18,7 @@ from app.api.core.notify import (
 )
 from app.api.core.loyalty_logic import award_birthday_bonus
 from app.api.core.clock import utcnow
+from app.api.core.sent_log import mark_sent, was_sent
 def send_automatic_reminders(channel: str = "email") -> int:
     db: Session = SessionLocal()
     try:
@@ -40,7 +42,15 @@ def send_automatic_reminders(channel: str = "email") -> int:
             c.id: {"email": c.contact_email, "phone": c.contact_phone, "language": c.language, "name": c.full_name}
             for c in clients
         }
-        sent = send_notifications(visits, channel=channel, contacts=contacts)
+        sent = 0
+        for visit in visits:
+            # keyed by start time too: a moved visit deserves a fresh reminder
+            key = f"{visit.id}:{visit.date_start.isoformat()}"
+            if was_sent(db, f"reminder_{channel}", key):
+                continue
+            if send_notifications([visit], channel=channel, contacts=contacts):
+                mark_sent(db, f"reminder_{channel}", key)
+                sent += 1
         logger.info(f"Sent {sent} reminders via {channel}")
         return sent
     except Exception as e:
@@ -52,11 +62,16 @@ def send_birthday_greetings(channel: str = "email") -> int:
     db: Session = SessionLocal()
     try:
         today = date.today()
+        birthday_today = and_(func.extract('month', Client.birth_date) == today.month,
+                              func.extract('day', Client.birth_date) == today.day)
+        if today.month == 2 and today.day == 28 and not calendar.isleap(today.year):
+            # 29 February people get greeted on the 28th in a non-leap year, not never
+            birthday_today = or_(birthday_today, and_(func.extract('month', Client.birth_date) == 2,
+                                                      func.extract('day', Client.birth_date) == 29))
         clients = db.query(Client).filter(
             and_(
                 Client.birth_date.isnot(None),
-                func.extract('month', Client.birth_date) == today.month,
-                func.extract('day', Client.birth_date) == today.day,
+                birthday_today,
                 Client.deleted_at.is_(None),
             )
         ).all()
@@ -75,6 +90,10 @@ def send_birthday_greetings(channel: str = "email") -> int:
                 for relation in business_relations:
                     business = db.query(Business).filter(Business.id == relation.business_id).first()
                     business_name = business.name if business else None
+                    greeting_key = f"{client.id}:{relation.business_id}:{today.year}"
+                    if was_sent(db, f"birthday_{channel}", greeting_key):
+                        continue
+                    ok = False
                     if channel == "email" and client.contact_email:
                         ok = send_birthday_greeting_email(client.contact_email, client.full_name, business_name, language=client.language)
                         if ok:
@@ -90,6 +109,8 @@ def send_birthday_greetings(channel: str = "email") -> int:
                         if ok:
                             sent_count += 1
                             logger.info(f"Sent birthday WhatsApp to client {client.id}")
+                    if ok:
+                        mark_sent(db, f"birthday_{channel}", greeting_key)
                     try:
                         award_birthday_bonus(db, client.id, relation.business_id)
                     except Exception as e:
@@ -125,6 +146,9 @@ def send_visit_followups(channel: str = "email", hours_after: int = 24) -> int:
             return 0
         sent_count = 0
         for visit in visits:
+            if was_sent(db, f"followup_{channel}", str(visit.id)):
+                continue
+            ok = False
             try:
                 client = db.query(Client).filter(Client.id == visit.client_id).first()
                 if not client:
@@ -172,6 +196,8 @@ def send_visit_followups(channel: str = "email", hours_after: int = 24) -> int:
                         logger.info(f"Sent follow-up WhatsApp for visit {visit.id} to client {client.id}")
             except Exception as e:
                 logger.error(f"Error sending follow-up for visit {visit.id}: {e}")
+            if ok:
+                mark_sent(db, f"followup_{channel}", str(visit.id))
                 continue
         logger.info(f"Sent {sent_count} follow-up messages via {channel}")
         return sent_count

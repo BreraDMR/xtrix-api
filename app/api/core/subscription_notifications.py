@@ -5,6 +5,7 @@ from app.db.models.user import User
 from app.api.core import notify
 from app.api.core.logger import logger, mask_email
 from app.api.core.clock import utcnow
+from app.api.core.sent_log import mark_sent, was_sent
 from app.api.core.staff_messages import contact_for, subscription_expiry
 
 
@@ -25,6 +26,9 @@ def send_subscription_expiry_notifications(db: Session, days_before: int = 3) ->
     )
     sent_count = 0
     for sub in expiring:
+        key = f"{sub.id}:{days_before}:{sub.current_period_end.date()}"
+        if was_sent(db, "subscription_expiry", key):
+            continue
         try:
             contact = contact_for(db, sub.user)
             msg = subscription_expiry(contact.language, sub.user.full_name, sub.current_period_end, days_before)
@@ -35,6 +39,7 @@ def send_subscription_expiry_notifications(db: Session, days_before: int = 3) ->
                 sent = notify._send_sms(contact.phone, msg.short) or sent
             # count what actually went out, not just who we tried
             if sent:
+                mark_sent(db, "subscription_expiry", key)
                 sent_count += 1
                 logger.info(f"Sent expiry notice for subscription {sub.id} to {mask_email(contact.email)}")
         except Exception as e:

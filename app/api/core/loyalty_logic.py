@@ -1,3 +1,4 @@
+import calendar
 from datetime import date, datetime, timedelta
 from typing import Optional, Tuple, List
 from sqlalchemy import or_
@@ -137,6 +138,11 @@ def award_bonus_for_visit(
     if program.use_levels:
         update_client_level(db, visit.client_id, visit.business_id, program)
     return transaction
+def _birthday_in(year: int, birth_date: date) -> date:
+    # 29 Feb in a non-leap year is celebrated on the 28th (date() would just blow up)
+    if birth_date.month == 2 and birth_date.day == 29 and not calendar.isleap(year):
+        return date(year, 2, 28)
+    return date(year, birth_date.month, birth_date.day)
 def award_birthday_bonus(
     db: Session,
     client_id: int,
@@ -151,10 +157,10 @@ def award_birthday_bonus(
     if not client or not client.birth_date:
         return None
     today = date.today()
-    birthday_this_year = date(today.year, client.birth_date.month, client.birth_date.day)
+    birthday_this_year = _birthday_in(today.year, client.birth_date)
     days_since_birthday = (today - birthday_this_year).days
     if days_since_birthday < 0:
-        days_since_birthday = (today - date(today.year - 1, client.birth_date.month, client.birth_date.day)).days
+        days_since_birthday = (today - _birthday_in(today.year - 1, client.birth_date)).days
     if days_since_birthday > 7:
         return None
     relation = crud_loyalty.get_client_loyalty_balance(db, client_id, business_id)
