@@ -147,13 +147,10 @@ def get_cors_origins():
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
     ]
-    prod_default_origins = [
-        "https://xtrix.vercel.app",
-        "https://xtrix-production.vercel.app",
-    ]
     env_origins = settings.get_cors_origins_list()
     if settings.environment == "production":
-        return list(set(prod_default_origins + env_origins)) if env_origins else prod_default_origins
+        # production origins come only from CORS_ORIGINS - hosting isn't hardcoded anymore
+        return env_origins
     else:
         return list(set(dev_origins + env_origins))  
 if settings.environment == "production":
