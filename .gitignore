@@ -65,16 +65,5 @@ Thumbs.db
 .coverage
 htmlcov/
 
-# Frontend
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
 
-# Mobile
-mobile/.dart_tool/
-mobile/.flutter-plugins
-mobile/.flutter-plugins-dependencies
-mobile/.packages
-mobile/build/
-mobile/.pub-cache/
 
