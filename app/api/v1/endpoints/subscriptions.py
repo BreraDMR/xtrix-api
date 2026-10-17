@@ -293,7 +293,6 @@ async def stripe_webhook(request: Request, db: Session = Depends(deps.get_db)):
         if sub:
             period_end = obj.get("period_end")
             if period_end:
-                from datetime import datetime
                 update_data = SubscriptionUpdate(
                     current_period_end=datetime.fromtimestamp(period_end)
                 )
