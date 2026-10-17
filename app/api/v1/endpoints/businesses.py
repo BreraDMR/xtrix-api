@@ -99,8 +99,12 @@ def update_business(
             status_code=404,
             detail=_("business_not_found", locale)
         )
-    if current_user.role != "admin" and current_user.business_id != business_id:
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    if current_user.role != "admin":
+        from app.api.core.permissions import get_staff_record
+        # the owner edits the business, staff of that business don't
+        is_owner = current_user.business_id == business_id and current_user.role in ("business_owner", "specialist")
+        if not is_owner or get_staff_record(db, current_user):
+            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     updated_business = crud_business.update_business(
         db=db,
         business=business,
