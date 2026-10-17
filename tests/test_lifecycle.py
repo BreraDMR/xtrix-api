@@ -49,3 +49,13 @@ def test_employee_sees_own_salary_but_not_a_colleagues(client, db, make_user, he
     assert colleague.status_code == 200, colleague.text
     colleague_user = db.get(User, colleague.json()["user_id"])
     assert client.get(f"/employees/{emp}/salary/{sal}", headers=headers_for(colleague_user)).status_code == 403
+
+
+def test_service_lists_its_specialists_everywhere(client, make_user, headers_for):
+    a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
+    h, sid, owner = a["headers"], a["service"]["id"], a["owner"]
+    expected = [{"id": owner.id, "full_name": owner.full_name, "email": owner.email, "phone": owner.phone}]
+    assert client.get(f"/services/{sid}", headers=h).json()["specialists"] == expected
+    listed = [s for s in client.get("/services/", headers=h).json()["items"] if s["id"] == sid][0]
+    assert listed["specialists"] == expected and listed["specialist_ids"] == [owner.id]
+    assert client.put(f"/services/{sid}", json={"price": 1}, headers=h).json()["specialists"] == expected
