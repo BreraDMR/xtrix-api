@@ -7,7 +7,7 @@ class UserBase(BaseModel):
     phone: Optional[str] = Field(None, max_length=50)
     email: Optional[EmailStr] = None
     role: str = Field(..., description="admin|business_owner|specialist|employee|client")
-    specialist_type: Optional[str] = Field(None, description="Type of specialist (only for role='specialist')")
+    specialist_type: Optional[str] = Field(None, max_length=64, description="Type of specialist (only for role='specialist')")
     @field_validator('phone')
     @classmethod
     def validate_phone(cls, v):

@@ -1,6 +1,7 @@
 from typing import Optional, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
+from typing import Literal
 class UserPreferencesBase(BaseModel):
     timezone: Optional[str] = Field(None, description="Часовой пояс (например: Europe/Prague)")
     date_format: Optional[str] = Field("DD/MM/YYYY", description="Формат даты: DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD")
@@ -13,17 +14,29 @@ class UserPreferencesBase(BaseModel):
     auto_save_interval: int = Field(30, ge=5, le=300, description="Интервал автосохранения в секундах")
     export_format: Optional[str] = Field("csv", description="Формат экспорта: csv, excel, json")
 class UserPreferencesUpdate(BaseModel):
-    timezone: Optional[str] = None
-    date_format: Optional[str] = None
-    time_format: Optional[str] = None
+    # same values the Out model accepts - otherwise garbage got saved and then blew up the response
+    timezone: Optional[str] = Field(None, max_length=64)
+    date_format: Optional[Literal["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD"]] = None
+    time_format: Optional[Literal["24h", "12h"]] = None
     email_notifications: Optional[bool] = None
     push_notifications: Optional[bool] = None
-    notification_email: Optional[str] = None
-    theme: Optional[str] = None
+    notification_email: Optional[EmailStr] = None
+    theme: Optional[Literal["light", "dark", "system"]] = None
     auto_save_enabled: Optional[bool] = None
-    auto_save_interval: Optional[int] = None
-    export_format: Optional[str] = None
+    auto_save_interval: Optional[int] = Field(None, ge=5, le=300)
+    export_format: Optional[Literal["csv", "excel", "json"]] = None
     additional_settings: Optional[Dict[str, Any]] = None
+    @field_validator("timezone")
+    @classmethod
+    def known_timezone(cls, v):
+        if v is None:
+            return v
+        from zoneinfo import ZoneInfo
+        try:
+            ZoneInfo(v)
+        except Exception:
+            raise ValueError("Unknown timezone, use an IANA name like Europe/Prague")
+        return v
 class UserPreferencesOut(UserPreferencesBase):
     id: int
     user_id: int

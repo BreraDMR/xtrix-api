@@ -1,27 +1,26 @@
 from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
+from app.schemas.limits import BusinessType, Currency, LongText, Phone, ShortText
 class BusinessBase(BaseModel):
-    name: str = Field(..., min_length=1, max_length=255, description="Название бизнеса")
-    business_type: str = Field(
-        ..., 
-        description="Тип бизнеса: salon, clinic, medical, dental, hospital, individual"
-    )
-    address: Optional[str] = Field(None, description="Адрес бизнеса")
-    phone: Optional[str] = Field(None, description="Телефон бизнеса")
-    email: Optional[str] = Field(None, description="Email бизнеса")
-    description: Optional[str] = Field(None, description="Описание бизнеса")
-    currency: str = Field(default="EUR", description="Валюта: EUR, USD, CZK, RUB, UAH")
+    name: str = Field(..., min_length=1, max_length=255)
+    # plain str here: responses carry the localized label ("Beauty Salon"), see localize_response
+    business_type: str
+    address: Optional[ShortText] = None
+    phone: Optional[Phone] = None
+    email: Optional[EmailStr] = None
+    description: Optional[LongText] = None
+    currency: Currency = Field(default="EUR", description="ISO code: EUR, USD, CZK...")
 class BusinessCreate(BusinessBase):
-    pass
+    business_type: BusinessType
 class BusinessUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
-    business_type: Optional[str] = None
-    address: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    description: Optional[str] = None
-    currency: Optional[str] = None
+    business_type: Optional[BusinessType] = None
+    address: Optional[ShortText] = None
+    phone: Optional[Phone] = None
+    email: Optional[EmailStr] = None
+    description: Optional[LongText] = None
+    currency: Optional[Currency] = None
 class BusinessOut(BusinessBase):
     id: int
     created_at: datetime

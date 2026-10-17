@@ -6,7 +6,7 @@ class ProductUsageBase(BaseModel):
     quantity: float = Field(..., gt=0)
     visit_id: Optional[int] = None
     client_id: Optional[int] = None
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(None, max_length=5000)
 class ProductUsageCreate(ProductUsageBase):
     business_id: int
     used_by_id: Optional[int] = None

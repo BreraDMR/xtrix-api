@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Literal, Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 class VisitStatisticsResponse(BaseModel):
     total_visits: int
@@ -46,8 +46,8 @@ class AuditLogOut(BaseModel):
     class Config:
         from_attributes = True
 class ReportExportRequest(BaseModel):
-    report_type: str = Field(..., description="Type of report: financial, visits, services, clients")
-    format: str = Field("excel", description="Export format: csv or excel")
+    report_type: Literal["financial", "visits", "services", "clients"]
+    format: Literal["csv", "excel"] = "excel"
     date_from: Optional[datetime] = None
     date_to: Optional[datetime] = None
     specialist_id: Optional[int] = None

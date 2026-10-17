@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional, List
+from app.schemas.limits import LongText, Money, ShortText
 from pydantic import BaseModel, Field, field_validator
 class UsedProduct(BaseModel):
     product_id: int
@@ -10,10 +11,10 @@ class VisitBase(BaseModel):
     service_id: Optional[int] = None
     date_start: datetime
     date_end: Optional[datetime] = None
-    service_name: Optional[str] = None
-    note: Optional[str] = None
-    photo_url: Optional[str] = None
-    price: Optional[float] = Field(None, ge=0.0)
+    service_name: Optional[ShortText] = None
+    note: Optional[LongText] = None
+    photo_url: Optional[str] = Field(None, max_length=2048)
+    price: Optional[Money] = None
     status: Optional[str] = Field("planned", description="planned|completed|cancelled|in_progress")
     payment_method: Optional[str] = Field(None, description="card|cash|other - способ оплаты")
     used_products: Optional[List[UsedProduct]] = Field(None, description="Список использованных товаров")
@@ -74,10 +75,10 @@ class VisitUpdate(BaseModel):
     date_start: Optional[datetime] = None
     date_end: Optional[datetime] = None
     service_id: Optional[int] = None
-    service_name: Optional[str] = None
-    note: Optional[str] = None
-    photo_url: Optional[str] = None
-    price: Optional[float] = Field(None, ge=0.0)
+    service_name: Optional[ShortText] = None
+    note: Optional[LongText] = None
+    photo_url: Optional[str] = Field(None, max_length=2048)
+    price: Optional[Money] = None
     status: Optional[str] = None
     payment_method: Optional[str] = Field(None, description="card|cash|other - способ оплаты")
     @field_validator('date_end')
