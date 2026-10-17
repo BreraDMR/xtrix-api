@@ -16,6 +16,15 @@ from app.db.models.user import User
 from app.schemas.visit import VisitCreate, VisitOut, VisitUpdate
 router = APIRouter()
 logger = get_logger("visits")
+def _check_slot_free(db, specialist_id, start, end, service_id, exclude_id, locale):
+    if start is None:
+        return
+    if end is None:
+        service = db.query(Service).filter(Service.id == service_id).first() if service_id else None
+        end = start + timedelta(minutes=(service.duration_minutes if service and service.duration_minutes else 60))
+    clash = crud_visit.find_overlapping_visit(db, specialist_id, start, end, exclude_id)
+    if clash:
+        raise HTTPException(status_code=409, detail=_("time_slot_taken", locale) or "This time is already booked")
 @router.post("/", response_model=VisitOut)
 def create_visit(
     visit: VisitCreate,
@@ -39,6 +48,7 @@ def create_visit(
         service = db.query(Service).filter(Service.id == visit.service_id).first()
         if not service or not check_service_access(db, current_user, service):
             raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    _check_slot_free(db, visit.specialist_id, visit.date_start, visit.date_end, visit.service_id, None, locale)
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     specialist_id_for_links = current_user.id
     if current_user.role == "employee":

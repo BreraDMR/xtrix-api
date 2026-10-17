@@ -1,5 +1,7 @@
+from datetime import timedelta
 from datetime import datetime
 from typing import Optional, Tuple
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
 from app.api.core.pagination import PaginationParams
 from app.api.core.soft_delete import filter_active, soft_delete
@@ -319,3 +321,16 @@ def list_visits(
         else:
             raise
     return items, total
+def find_overlapping_visit(db: Session, specialist_id: int, start, end, exclude_id: Optional[int] = None) -> Optional[Visit]:
+    # a specialist can't be in two places at once; cancelled visits don't hold the slot
+    q = db.query(Visit).filter(
+        Visit.specialist_id == specialist_id,
+        Visit.deleted_at.is_(None),
+        Visit.status != "cancelled",
+        Visit.date_start < end,
+        # old rows may have no end - treat them as one hour long
+        or_(Visit.date_end > start, and_(Visit.date_end.is_(None), Visit.date_start > start - timedelta(hours=1))),
+    )
+    if exclude_id:
+        q = q.filter(Visit.id != exclude_id)
+    return q.first()

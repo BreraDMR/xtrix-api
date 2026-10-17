@@ -59,3 +59,11 @@ def test_owner_without_business_sees_only_own_visits_and_services(client, make_u
     fresh = headers_for(make_user("business_owner"))
     assert client.get(f"/visits/{a['visit']['id']}", headers=fresh).status_code in (403, 404)
     assert client.get(f"/services/{a['service']['id']}", headers=fresh).status_code in (403, 404)
+
+
+def test_specialist_cannot_be_double_booked(client, make_user, headers_for):
+    a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
+    v = a["visit"]
+    body = {"client_id": a["client"]["id"], "specialist_id": a["owner"].id,
+            "date_start": v["date_start"], "date_end": v["date_end"], "price": 1}
+    assert client.post("/visits/", json=body, headers=a["headers"]).status_code == 409
