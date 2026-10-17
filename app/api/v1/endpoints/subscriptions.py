@@ -92,7 +92,7 @@ def create_checkout_session(
     locale: str = Depends(deps.get_locale),
 ):
     if not settings.stripe_api_key:
-        raise HTTPException(status_code=500, detail="Stripe not configured")
+        raise HTTPException(status_code=503, detail="Stripe not configured")
     plan = crud_subscription.get_plan(db, plan_id)
     if not plan or not plan.is_active:
         raise HTTPException(status_code=404, detail=_("plan_not_found", locale) or "Plan not found")
@@ -153,7 +153,7 @@ def get_checkout_session(
     locale: str = Depends(deps.get_locale),
 ):
     if not settings.stripe_api_key:
-        raise HTTPException(status_code=500, detail="Stripe not configured")
+        raise HTTPException(status_code=503, detail="Stripe not configured")
     stripe.api_key = settings.stripe_api_key
     try:
         session = stripe.checkout.Session.retrieve(session_id)
