@@ -16,6 +16,7 @@ def get_refresh_token(db: Session, token: str) -> RefreshToken | None:
     return db.query(RefreshToken).filter(
         RefreshToken.token == token,
         RefreshToken.is_revoked == False,
+        RefreshToken.expires_at > datetime.utcnow(),
     ).first()
 def revoke_refresh_token(db: Session, token: str) -> bool:
     db_token = db.query(RefreshToken).filter(RefreshToken.token == token).first()
