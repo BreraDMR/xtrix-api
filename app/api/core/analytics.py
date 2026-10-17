@@ -355,8 +355,7 @@ def get_client_statistics(
         .all()
     )
     clients_by_gender = {gender or 'unknown': count for gender, count in gender_counts}
-    # spending = sum of completed visits; ClientBusinessRelation.spending is never written anywhere
-    # and Client.spending doesn't exist, so the old version showed 0 or crashed
+    # spending = sum of completed visits (there's no stored spending column)
     spending = func.sum(Visit.price).label('spending')
     per_client = (
         db.query(Client.id, Client.full_name, spending)

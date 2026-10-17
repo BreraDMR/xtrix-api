@@ -7,7 +7,6 @@ class ClientBusinessRelation(Base):
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
     business_id = Column(Integer, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
-    spending = Column(Float, default=0.0, index=True)
     birthday_discount = Column(Boolean, default=False, index=True)
     personal_notes = Column(Text, nullable=True)  
     inventory = Column(JSON, nullable=True)  
