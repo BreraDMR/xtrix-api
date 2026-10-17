@@ -250,7 +250,7 @@ def users_list(
     locale: str = Depends(deps.get_locale),
 ):
     pagination = PaginationParams(page=page, per_page=per_page)
-    users, total = crud_user.list_users(db, role, pagination)
+    users, total = crud_user.list_users(db, role, pagination, viewer=current_user)
     localized_items = [
         localize_response(
             u.model_dump() if hasattr(u, 'model_dump') else (u.dict() if hasattr(u, 'dict') else u),

@@ -160,9 +160,15 @@ def list_users(
     db: Session,
     role: str | None = None,
     pagination: Optional[PaginationParams] = None,
+    viewer: Optional[User] = None,
 ) -> Tuple[list[User], int]:
-    from app.api.core.pagination import PaginationParams
-    q = db.query(User)
+    q = db.query(User).filter(User.deleted_at.is_(None))
+    if viewer is not None and viewer.role != "admin":
+        # everyone but a platform admin only sees people from their own business
+        if viewer.business_id:
+            q = q.filter(User.business_id == viewer.business_id)
+        else:
+            q = q.filter(User.id == viewer.id)
     if role:
         q = q.filter(User.role == role)
     total = q.count()
