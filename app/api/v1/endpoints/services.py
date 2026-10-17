@@ -32,7 +32,7 @@ def create_service(
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     result = crud_service.create_service(db, service, business_id=business_id)
     result = crud_service.get_service(db, result.id)
-    service_dict = result.dict() if hasattr(result, 'dict') else result.__dict__.copy()
+    service_dict = result.model_dump() if hasattr(result, 'model_dump') else result.__dict__.copy()
     specialist_ids = [ss.specialist_id for ss in result.service_specialists] if hasattr(result, 'service_specialists') and result.service_specialists else [result.specialist_id]
     service_dict['specialist_ids'] = specialist_ids
     specialists = []
@@ -107,7 +107,7 @@ def list_services(
         pagination=pagination
     )
     def service_to_dict(service: Service):
-        result = service.dict() if hasattr(service, 'dict') else service.__dict__.copy()
+        result = service.model_dump() if hasattr(service, 'model_dump') else service.__dict__.copy()
         specialist_ids = []
         specialists = []
         if hasattr(service, 'service_specialists') and service.service_specialists:
@@ -145,7 +145,7 @@ def get_service(
     from app.api.core.permissions import check_service_access
     if not check_service_access(db, current_user, service):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    service_dict = service.dict() if hasattr(service, 'dict') else service.__dict__.copy()
+    service_dict = service.model_dump() if hasattr(service, 'model_dump') else service.__dict__.copy()
     specialist_ids = []
     specialists = []
     if hasattr(service, 'service_specialists') and service.service_specialists:
@@ -178,7 +178,7 @@ def update_service(
     _check_specialists(db, current_user, [payload.specialist_id] + (payload.specialist_ids or []), locale)
     result = crud_service.update_service(db, service, payload)
     result = crud_service.get_service(db, result.id)
-    service_dict = result.dict() if hasattr(result, 'dict') else result.__dict__.copy()
+    service_dict = result.model_dump() if hasattr(result, 'model_dump') else result.__dict__.copy()
     specialist_ids = [ss.specialist_id for ss in result.service_specialists] if hasattr(result, 'service_specialists') and result.service_specialists else [result.specialist_id]
     service_dict['specialist_ids'] = specialist_ids
     specialists = []

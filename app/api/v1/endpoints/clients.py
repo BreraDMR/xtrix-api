@@ -100,7 +100,7 @@ def create_client(
             db.commit()
     action = "created" if was_created else "found existing"
     logger.info(f"Client {action}: id={result.id}")
-    return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
+    return localize_response(result.model_dump() if hasattr(result, 'model_dump') else result, locale)
 @router.get("/", response_model=PaginatedResponse[ClientOut])
 def list_clients(
     owner_id: Optional[int] = None,
@@ -139,7 +139,7 @@ def list_clients(
         accessible_client_ids=accessible_client_ids,  
     )
     localized_items = [
-        localize_response(c.dict() if hasattr(c, 'dict') else c, locale) for c in clients
+        localize_response(c.model_dump() if hasattr(c, 'model_dump') else c, locale) for c in clients
     ]
     return PaginatedResponse.create(
         items=localized_items,
@@ -264,7 +264,7 @@ def search_client_global(
         is_linked_to_my_business=is_linked,
         created_at=client.created_at,
     )
-    return localize_response(result.dict(), locale)
+    return localize_response(result.model_dump(), locale)
 @router.get("/{client_id}", response_model=ClientOut)
 def get_client(
     client_id: int,
@@ -281,7 +281,7 @@ def get_client(
     from app.api.core.permissions import check_client_access
     if not check_client_access(db, current_user, client_id):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    return localize_response(client.dict() if hasattr(client, 'dict') else client, locale)
+    return localize_response(client.model_dump() if hasattr(client, 'model_dump') else client, locale)
 @router.put("/{client_id}", response_model=ClientOut)
 def update_client(
     client_id: int,
@@ -303,7 +303,7 @@ def update_client(
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     result = crud_client.update_client(db, client, payload)
     logger.info(f"Client updated successfully: id={result.id}")
-    return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
+    return localize_response(result.model_dump() if hasattr(result, 'model_dump') else result, locale)
 @router.get("/export/csv")
 def export_clients_csv(
     owner_id: Optional[int] = None,

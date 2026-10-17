@@ -55,7 +55,7 @@ def create_user(
             raise HTTPException(status_code=400, detail=_("email_exists", locale))
     result = crud_user.create_user(db, user)
     logger.info(f"User created successfully: id={result.id}")
-    return localize_response(result.dict(), locale) if hasattr(result, 'dict') else result
+    return localize_response(result.model_dump(), locale) if hasattr(result, 'model_dump') else result
 @router.post(
     "/login",
     response_model=LoginResponse,
@@ -108,8 +108,8 @@ def get_current_user_info(
     result = current_user
     if hasattr(result, 'model_dump'):
         return localize_response(result.model_dump(), locale)
-    elif hasattr(result, 'dict'):
-        return localize_response(result.dict(), locale)
+    elif hasattr(result, 'model_dump'):
+        return localize_response(result.model_dump(), locale)
     return localize_response(result, locale)
 @router.post("/refresh", response_model=TokenResponse)
 def refresh_token(
@@ -203,7 +203,7 @@ def list_pending_users(
     users, total = crud_user.list_users_pending_moderation(db, pagination)
     localized_items = [
         localize_response(
-            u.model_dump() if hasattr(u, 'model_dump') else (u.dict() if hasattr(u, 'dict') else u),
+            u.model_dump() if hasattr(u, 'model_dump') else u,
             locale
         )
         for u in users
@@ -253,7 +253,7 @@ def users_list(
     users, total = crud_user.list_users(db, role, pagination, viewer=current_user)
     localized_items = [
         localize_response(
-            u.model_dump() if hasattr(u, 'model_dump') else (u.dict() if hasattr(u, 'dict') else u),
+            u.model_dump() if hasattr(u, 'model_dump') else u,
             locale
         )
         for u in users

@@ -35,7 +35,7 @@ def create_plan(
     if existing:
         raise HTTPException(status_code=400, detail=_("plan_not_found", locale))
     result = crud_subscription.create_plan(db, payload)
-    return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
+    return localize_response(result.model_dump() if hasattr(result, 'model_dump') else result, locale)
 @router.get("/plans", response_model=list[SubscriptionPlanOut])
 def list_plans(
     active_only: bool = True,
@@ -43,7 +43,7 @@ def list_plans(
     locale: str = Depends(deps.get_locale),
 ):
     plans = crud_subscription.list_plans(db, active_only=active_only)
-    return [localize_response(p.dict() if hasattr(p, 'dict') else p, locale) for p in plans]
+    return [localize_response(p.model_dump() if hasattr(p, 'model_dump') else p, locale) for p in plans]
 @router.put("/plans/{plan_id}", response_model=SubscriptionPlanOut)
 def update_plan(
     plan_id: int,
@@ -56,7 +56,7 @@ def update_plan(
     if not plan:
         raise HTTPException(status_code=404, detail=_("plan_not_found", locale))
     result = crud_subscription.update_plan(db, plan, payload)
-    return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
+    return localize_response(result.model_dump() if hasattr(result, 'model_dump') else result, locale)
 @router.post("/", response_model=SubscriptionOut)
 def create_subscription(
     payload: SubscriptionCreate,
@@ -76,7 +76,7 @@ def create_subscription(
     if not plan or not plan.is_active:
         raise HTTPException(status_code=400, detail=_("plan_not_active", locale))
     result = crud_subscription.create_subscription(db, payload)
-    return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
+    return localize_response(result.model_dump() if hasattr(result, 'model_dump') else result, locale)
 @router.get("/me", response_model=SubscriptionOut | None)
 def my_subscription(
     db: Session = Depends(deps.get_db),
@@ -85,7 +85,7 @@ def my_subscription(
 ):
     sub = crud_subscription.get_active_subscription(db, current_user.id)
     if sub:
-        return localize_response(sub.dict() if hasattr(sub, 'dict') else sub, locale)
+        return localize_response(sub.model_dump() if hasattr(sub, 'model_dump') else sub, locale)
 @router.post("/checkout/create-session")
 def create_checkout_session(
     plan_id: int,
@@ -513,7 +513,7 @@ def cancel_subscription(
     )
     if not cancelled_sub:
         raise HTTPException(status_code=400, detail=_("cannot_cancel_subscription", locale) or "Cannot cancel subscription")
-    return localize_response(cancelled_sub.dict() if hasattr(cancelled_sub, 'dict') else cancelled_sub, locale)
+    return localize_response(cancelled_sub.model_dump() if hasattr(cancelled_sub, 'model_dump') else cancelled_sub, locale)
 @router.post("/{subscription_id}/reactivate", response_model=SubscriptionOut)
 def reactivate_subscription(
     subscription_id: int,
@@ -535,7 +535,7 @@ def reactivate_subscription(
     )
     if not reactivated_sub:
         raise HTTPException(status_code=400, detail=_("cannot_reactivate_subscription", locale) or "Cannot reactivate subscription")
-    return localize_response(reactivated_sub.dict() if hasattr(reactivated_sub, 'dict') else reactivated_sub, locale)
+    return localize_response(reactivated_sub.model_dump() if hasattr(reactivated_sub, 'model_dump') else reactivated_sub, locale)
 @router.get("/{subscription_id}/transactions", response_model=list[TransactionOut])
 def get_subscription_transactions(
     subscription_id: int,
@@ -550,7 +550,7 @@ def get_subscription_transactions(
         raise HTTPException(status_code=403, detail=_("not_allowed", locale) or "Not allowed")
     from app.api.crud import crud_transaction
     transactions = crud_transaction.get_transactions_by_subscription(db, subscription_id)
-    return [localize_response(t.dict() if hasattr(t, 'dict') else t, locale) for t in transactions]
+    return [localize_response(t.model_dump() if hasattr(t, 'model_dump') else t, locale) for t in transactions]
 @router.get("/history", response_model=list[SubscriptionOut])
 def get_subscription_history(
     db: Session = Depends(deps.get_db),
@@ -563,4 +563,4 @@ def get_subscription_history(
         .order_by(Subscription.created_at.desc())
         .all()
     )
-    return [localize_response(s.dict() if hasattr(s, 'dict') else s, locale) for s in subscriptions]
+    return [localize_response(s.model_dump() if hasattr(s, 'model_dump') else s, locale) for s in subscriptions]

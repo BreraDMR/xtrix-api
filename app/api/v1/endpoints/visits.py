@@ -112,7 +112,7 @@ def create_visit(
             except Exception as e:
                 logger.error(f"Failed to auto-usage product {used_product.product_id} for visit {result.id}: {e}")
     from app.api.core.i18n import localize_response
-    return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
+    return localize_response(result.model_dump() if hasattr(result, 'model_dump') else result, locale)
 @router.get("/", response_model=PaginatedResponse[VisitOut])
 def visits_list(
     client_id: Optional[int] = None,
@@ -155,7 +155,7 @@ def visits_list(
         include_archived=include_archived,
     )
     localized_items = [
-        localize_response(v.dict() if hasattr(v, 'dict') else v, locale) for v in visits
+        localize_response(v.model_dump() if hasattr(v, 'model_dump') else v, locale) for v in visits
     ]
     return PaginatedResponse.create(
         items=localized_items,
@@ -318,7 +318,7 @@ def get_visit(
     from app.api.core.permissions import check_visit_access
     if not check_visit_access(db, current_user, visit):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    return localize_response(visit.dict() if hasattr(visit, 'dict') else visit, locale)
+    return localize_response(visit.model_dump() if hasattr(visit, 'model_dump') else visit, locale)
 @router.put("/{visit_id}", response_model=VisitOut)
 def update_visit(
     visit_id: int,
@@ -363,7 +363,7 @@ def update_visit(
             from app.api.core.logger import logger
             logger.error(f"Error awarding loyalty bonus for visit {result.id}: {e}")
     from app.api.core.i18n import localize_response
-    return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
+    return localize_response(result.model_dump() if hasattr(result, 'model_dump') else result, locale)
 @router.delete("/{visit_id}")
 def delete_visit(
     visit_id: int,

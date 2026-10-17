@@ -41,7 +41,7 @@ def list_audit_logs(
         q = q.filter(AuditLog.action == action)
     total = q.count()
     return PaginatedResponse.create(
-        items=[AuditLogOut.from_orm(log) for log in logs],
+        items=[AuditLogOut.model_validate(log) for log in logs],
         total=total,
         page=page,
         per_page=per_page,
