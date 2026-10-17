@@ -29,6 +29,22 @@ from app.api.crud import crud_loyalty
 from app.api.core.logger import logger
 from app.api.core.permissions import require_business_id
 router = APIRouter()
+def _check_client(db: Session, user: User, client_id, locale: str, status: int = 403) -> None:
+    from app.api.core.permissions import check_client_access
+    if client_id is not None and not check_client_access(db, user, client_id):
+        raise HTTPException(status_code=status, detail=_("client_not_found" if status == 404 else "not_allowed", locale))
+def _check_services(db: Session, service_ids, business_id: int, locale: str) -> None:
+    # service_ids is a comma separated string - every id in it has to be one of our services
+    if not service_ids:
+        return
+    from app.db.models.service import Service
+    try:
+        ids = {int(x) for x in str(service_ids).split(",") if x.strip()}
+    except ValueError:
+        raise HTTPException(status_code=400, detail=_("not_allowed", locale))
+    own = db.query(Service.id).filter(Service.id.in_(ids), Service.business_id == business_id).count()
+    if own != len(ids):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
 @router.post("/program", response_model=LoyaltyProgramOut)
 def create_loyalty_program(
     program: LoyaltyProgramCreate,
@@ -181,6 +197,8 @@ def create_loyalty_promotion(
         raise HTTPException(status_code=404, detail=_("loyalty_program_not_found", locale))
     if promotion.program_id != program.id:
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    _check_client(db, current_user, promotion.client_id, locale)
+    _check_services(db, promotion.service_ids, business_id, locale)
     try:
         result = crud_loyalty.create_loyalty_promotion(db, promotion)
         logger.info(f"Created loyalty promotion {result.id}")
@@ -219,6 +237,8 @@ def update_loyalty_promotion(
     promotion = crud_loyalty.get_loyalty_promotion(db, promotion_id, program_id=program.id)
     if not promotion:
         raise HTTPException(status_code=404, detail=_("loyalty_promotion_not_found", locale))
+    _check_client(db, current_user, promotion_update.client_id, locale)
+    _check_services(db, promotion_update.service_ids, business_id, locale)
     try:
         result = crud_loyalty.update_loyalty_promotion(db, promotion, promotion_update)
         return result
@@ -253,6 +273,7 @@ def get_client_loyalty_balance(
     locale: str = Depends(deps.get_locale),
 ):
     business_id = require_business_id(current_user, db, locale)
+    _check_client(db, current_user, client_id, locale, status=404)
     relation = crud_loyalty.get_client_loyalty_balance(db, client_id, business_id)
     if not relation:
         return ClientLoyaltyBalance(
@@ -288,6 +309,7 @@ def list_client_transactions(
     locale: str = Depends(deps.get_locale),
 ):
     business_id = require_business_id(current_user, db, locale)
+    _check_client(db, current_user, client_id, locale, status=404)
     skip = (page - 1) * per_page
     transactions = crud_loyalty.list_loyalty_transactions(
         db,
@@ -320,12 +342,16 @@ def use_points(
     locale: str = Depends(deps.get_locale),
 ):
     business_id = require_business_id(current_user, db, locale)
+    _check_client(db, current_user, client_id, locale, status=404)
     visit_amount = None
     if request.visit_id:
         from app.api.crud import crud_visit
+        from app.api.core.permissions import check_visit_access
         visit = crud_visit.get_visit(db, request.visit_id)
-        if visit:
-            visit_amount = visit.price
+        # the visit has to be ours and this client's
+        if not visit or visit.client_id != client_id or not check_visit_access(db, current_user, visit):
+            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+        visit_amount = visit.price
     try:
         from app.api.core.loyalty_logic import use_points_for_visit
         success, discount_amount, error_message = use_points_for_visit(
