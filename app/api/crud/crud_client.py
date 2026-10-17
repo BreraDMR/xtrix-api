@@ -114,6 +114,9 @@ def find_or_create_client(
     client_data = client_in.dict()
     client_data.pop('owner_id', None)  
     client = Client(**client_data)
+    if specialist_id and not business_id:
+        # solo specialist: no business to hang relations on, so ownership is the only link
+        client.owner_id = specialist_id
     db.add(client)
     db.flush()  
     if specialist_id:
