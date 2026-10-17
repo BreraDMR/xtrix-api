@@ -293,6 +293,7 @@ def get_forecast(
             'periods': periods,
             'forecast': [],
             'historical_average': 0.0,
+            'last_value': 0.0,
         }
     values = [float(value) for _, _, value in monthly_data]
     if len(values) >= 3:
