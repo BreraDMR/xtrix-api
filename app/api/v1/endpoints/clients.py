@@ -58,11 +58,15 @@ def create_client(
             status_code=400,
             detail=_("business_id_required_for_client_creation", locale) or "Business ID is required. Please create a business first."
         )
+    from app.api.core.permissions import get_accessible_client_ids
+    # match an existing card only among the caller's own clients - a phone number must not
+    # pull in (and expose) a client of another business
     result, was_created = crud_client.find_or_create_client(
         db=db,
         client_in=client,
         business_id=business_id,
-        specialist_id=current_user.id  
+        specialist_id=current_user.id,
+        within_ids=get_accessible_client_ids(db, current_user) or set(),
     )
     if business_id:
         from app.db.models.client_specialist_relation import ClientSpecialistRelation
@@ -162,12 +166,16 @@ def search_client_global(
             status_code=400,
             detail=_("Must provide phone, email, or both name and birth_date", locale)
         )
+    from app.api.core.permissions import get_accessible_client_ids
+    # search used to cover every business on the platform (with medical data for "healthcare"
+    # specialists, which anyone can claim to be at signup). Now: own clients only.
     client = crud_client.find_client_by_identifiers(
         db=db,
         contact_phone=phone,
         contact_email=email,
         full_name=name,
         birth_date=birth_date,
+        within_ids=get_accessible_client_ids(db, current_user) or set(),
     )
     if not client:
         raise HTTPException(status_code=404, detail=_("client_not_found", locale))

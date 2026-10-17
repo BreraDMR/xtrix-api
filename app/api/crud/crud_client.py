@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Set, Optional, Tuple
 from datetime import date
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
@@ -21,9 +21,15 @@ def find_client_by_identifiers(
     contact_email: Optional[str] = None,
     full_name: Optional[str] = None,
     birth_date: Optional[date] = None,
+    within_ids: Optional[Set[int]] = None,
 ) -> Optional[Client]:
     query = db.query(Client)
     query = filter_active(query)  
+    if within_ids is not None:
+        # only ever match among clients the caller already has access to
+        if not within_ids:
+            return None
+        query = query.filter(Client.id.in_(within_ids))
     if contact_phone:
         phone_cleaned = contact_phone.strip()
         client = query.filter(Client.contact_phone == phone_cleaned).first()
@@ -94,6 +100,7 @@ def find_or_create_client(
     client_in: ClientCreate,
     business_id: Optional[int] = None,
     specialist_id: Optional[int] = None,
+    within_ids: Optional[Set[int]] = None,
 ) -> Tuple[Client, bool]:
     existing_client = find_client_by_identifiers(
         db=db,
@@ -101,6 +108,7 @@ def find_or_create_client(
         contact_email=client_in.contact_email,
         full_name=client_in.full_name,
         birth_date=client_in.birth_date,
+        within_ids=within_ids,
     )
     if existing_client:
         if specialist_id:

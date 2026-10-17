@@ -33,3 +33,23 @@ def test_specialist_cannot_list_someone_elses_services(client, make_user, header
     items = client.get("/services/", params={"specialist_id": alice.id}, headers=headers_for(bob)).json()["items"]
 
     assert items == []
+
+
+def test_search_and_create_never_reach_another_business(client, make_user, headers_for):
+    from tests.tenant_world import MARKER, build_tenant
+
+    a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
+    b = build_tenant(client, make_user, headers_for, "Bravo", "+42070022")
+    a_phone = a["client"]["contact_phone"]
+
+    r = client.get("/clients/search", params={"phone": a_phone}, headers=b["headers"])
+    assert r.status_code == 404 and MARKER not in r.text
+
+    r = client.post("/clients/", json={"full_name": "Bravo's new client", "contact_phone": a_phone}, headers=b["headers"])
+    assert r.status_code == 200
+    assert r.json()["id"] != a["client"]["id"]
+    assert MARKER not in r.text
+
+    # own clients are still found
+    own = client.get("/clients/search", params={"phone": a_phone}, headers=a["headers"])
+    assert own.status_code == 200 and own.json()["id"] == a["client"]["id"]
