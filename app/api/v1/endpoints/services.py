@@ -244,13 +244,16 @@ def export_services_csv(
 ):
     from app.api.core.export import export_to_csv, prepare_service_export_data
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
-    if current_user.role != "admin":
+    if current_user.role == "business_owner" and business_id:
+        specialist_id = None  # the whole business
+    elif current_user.role != "admin":
         specialist_id = current_user.id
     services, _total = crud_service.list_services(
         db,
         specialist_id=specialist_id,
-        business_id=business_id,  
-        is_active=active_only,
+        business_id=business_id,
+        # False means "don't filter", not "inactive only"
+        is_active=True if active_only else None,
         include_deleted=False,
         include_archived=False,
     )
@@ -265,13 +268,16 @@ def export_services_excel(
 ):
     from app.api.core.export import export_to_excel, prepare_service_export_data
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
-    if current_user.role != "admin":
+    if current_user.role == "business_owner" and business_id:
+        specialist_id = None  # the whole business
+    elif current_user.role != "admin":
         specialist_id = current_user.id
     services, _total = crud_service.list_services(
         db,
         specialist_id=specialist_id,
-        business_id=business_id,  
-        is_active=active_only,
+        business_id=business_id,
+        # False means "don't filter", not "inactive only"
+        is_active=True if active_only else None,
         include_deleted=False,
         include_archived=False,
     )

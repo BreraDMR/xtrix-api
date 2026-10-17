@@ -63,8 +63,9 @@ def export_to_excel(
     else:
         if fieldnames is None:
             fieldnames = list(data[0].keys())
-        header_row = ws.append(fieldnames)
-        for cell in header_row:
+        ws.append(fieldnames)
+        # ws.append returns None, style the row it just wrote instead
+        for cell in ws[1]:
             cell.font = Font(bold=True)
             cell.alignment = Alignment(horizontal="center")
         for row in data:
@@ -101,15 +102,19 @@ def export_to_excel(
             "Content-Disposition": f'attachment; filename="{filename}"',
         },
     )
+def _as_dict(obj: Any) -> Dict[str, Any]:
+    # endpoints hand us ORM rows, pydantic models or plain dicts - dict(orm_row) used to blow up
+    if isinstance(obj, dict):
+        return obj
+    if hasattr(obj, 'model_dump'):
+        return obj.model_dump()
+    if hasattr(obj, '__table__'):
+        return {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
+    return dict(obj)
 def prepare_client_export_data(clients: List[Any]) -> List[Dict[str, Any]]:
     export_data = []
     for client in clients:
-        if hasattr(client, 'dict'):
-            data = client.dict()
-        elif hasattr(client, 'model_dump'):
-            data = client.model_dump()
-        else:
-            data = dict(client)
+        data = _as_dict(client)
         export_data.append({
             'ID': data.get('id'),
             'Full Name': data.get('full_name'),
@@ -129,12 +134,7 @@ def prepare_client_export_data(clients: List[Any]) -> List[Dict[str, Any]]:
 def prepare_visit_export_data(visits: List[Any]) -> List[Dict[str, Any]]:
     export_data = []
     for visit in visits:
-        if hasattr(visit, 'dict'):
-            data = visit.dict()
-        elif hasattr(visit, 'model_dump'):
-            data = visit.model_dump()
-        else:
-            data = dict(visit)
+        data = _as_dict(visit)
         export_data.append({
             'ID': data.get('id'),
             'Client ID': data.get('client_id'),
@@ -144,19 +144,14 @@ def prepare_visit_export_data(visits: List[Any]) -> List[Dict[str, Any]]:
             'Date End': data.get('date_end'),
             'Status': data.get('status'),
             'Price': data.get('price'),
-            'Notes': data.get('notes'),
+            'Notes': data.get('note') or data.get('notes'),
             'Created At': data.get('created_at'),
         })
     return export_data
 def prepare_service_export_data(services: List[Any]) -> List[Dict[str, Any]]:
     export_data = []
     for service in services:
-        if hasattr(service, 'dict'):
-            data = service.dict()
-        elif hasattr(service, 'model_dump'):
-            data = service.model_dump()
-        else:
-            data = dict(service)
+        data = _as_dict(service)
         export_data.append({
             'ID': data.get('id'),
             'Specialist ID': data.get('specialist_id'),
