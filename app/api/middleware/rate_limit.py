@@ -1,6 +1,16 @@
-from starlette.requests import Request
+import time
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from limits import parse_many
+from limits.storage import storage_from_string
+from limits.strategies import FixedWindowRateLimiter
 from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from starlette.middleware.base import BaseHTTPMiddleware
 from app.api.core.config import settings
+from app.api.core.logger import logger
+
+
 def client_ip(request: Request) -> str:
     """Who the request is from, for rate limiting.
 
@@ -14,29 +24,87 @@ def client_ip(request: Request) -> str:
         if last:
             return last
     return request.client.host if request.client else "unknown"
-storage_uri = "memory://"  
-if settings.rate_limit_enabled and settings.redis_url.startswith("redis://"):
+
+
+def _storage_uri() -> str:
+    # one counter store for every worker if Redis is there, else per-process memory
+    if not (settings.rate_limit_enabled and settings.redis_url.startswith("redis://")):
+        return "memory://"
     try:
         import redis
-        test_redis = redis.from_url(settings.redis_url, socket_connect_timeout=0.5, socket_timeout=0.5)
-        test_redis.ping()
-        storage_uri = settings.redis_url
-        test_redis.close()
-    except:
-        storage_uri = "memory://"
+        probe = redis.from_url(settings.redis_url, socket_connect_timeout=0.5, socket_timeout=0.5)
+        probe.ping()
+        probe.close()
+        logger.info("Redis connected, using it for rate limiting")
+        return settings.redis_url
+    except Exception as e:
+        logger.warning(f"Redis unavailable ({str(e)[:50]}...), using in-memory rate limiting")
+        return "memory://"
+
+
+_STORAGE_URI = _storage_uri()
+
+# The one limiter for per-route limits (@limiter.limit on login, signup, QR, exports...).
+# (There used to be a second Limiter in main.py with the default limit, and it never ran.)
 limiter = Limiter(
     key_func=client_ip,
-    storage_uri=storage_uri,
+    storage_uri=_STORAGE_URI,
+    enabled=settings.rate_limit_enabled,
 )
-def get_rate_limit_for_login():
-    if not settings.rate_limit_enabled:
-        return None
-    return settings.rate_limit_login
-def get_rate_limit_for_create():
-    if not settings.rate_limit_enabled:
-        return None
-    return "10/minute"  
-def get_rate_limit_for_read():
-    if not settings.rate_limit_enabled:
-        return None
-    return "100/minute"  
+
+LOGIN_LIMIT = settings.rate_limit_login
+SIGNUP_LIMIT = settings.rate_limit_signup
+SENSITIVE_LIMIT = "10/minute"  # QR codes, 2FA, token refresh
+EXPORT_LIMIT = "10/minute"
+
+
+def _retry_after(exc: RateLimitExceeded) -> int:
+    try:
+        return int(exc.limit.limit.get_expiry())
+    except Exception:
+        return 60
+
+
+def too_many_requests(retry: int) -> JSONResponse:
+    # same shape as every other error, plus Retry-After (slowapi's own handler sent {"error": "..."})
+    return JSONResponse(
+        status_code=429,
+        content={"error": {"message": f"Too many requests, try again in {retry} s",
+                           "status_code": 429, "type": "RateLimitExceeded"}},
+        headers={"Retry-After": str(retry)},
+    )
+
+
+def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    logger.warning(f"Rate limit hit: {request.method} {request.url.path} - {exc.detail}")
+    return too_many_requests(_retry_after(exc))
+
+
+# health probes come every few seconds from the host, webhooks are checked by their own
+# tokens/signatures and payment providers send them in bursts
+DEFAULT_LIMIT_EXEMPT_PREFIXES = ("/metrics/health", "/subscriptions/webhooks/")
+
+
+class DefaultRateLimitMiddleware(BaseHTTPMiddleware):
+    """The default per-IP limit on every route.
+
+    slowapi's own SlowAPIMiddleware can't find the endpoint behind FastAPI's included routers
+    (it only sees the router object), so its default limit silently never applied. This counts
+    by path prefix instead, in the same store as the per-route limits (Redis when there is one).
+    """
+
+    def __init__(self, app):
+        super().__init__(app)
+        self.items = parse_many(settings.rate_limit_default)
+        self.strategy = FixedWindowRateLimiter(storage_from_string(_STORAGE_URI))
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        if settings.rate_limit_enabled and not path.startswith(DEFAULT_LIMIT_EXEMPT_PREFIXES):
+            ip = client_ip(request)
+            for item in self.items:
+                if not self.strategy.hit(item, "default", ip):
+                    reset = self.strategy.get_window_stats(item, "default", ip).reset_time
+                    logger.warning(f"Default rate limit hit: {request.method} {path}")
+                    return too_many_requests(max(1, int(reset - time.time())))
+        return await call_next(request)

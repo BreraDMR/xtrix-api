@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
-from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy.exc import SQLAlchemyError
 import time
@@ -13,7 +12,7 @@ from app.api.v1.endpoints import (
     analytics, audit, archiving, specialist_profiles, client_relations, employees, businesses, products, expenses, loyalty, user_preferences
 )
 from app.api.core import error_handlers
-from app.api.middleware.rate_limit import client_ip
+from app.api.middleware.rate_limit import DefaultRateLimitMiddleware, limiter, rate_limit_exceeded_handler
 from app.api.middleware.trailing_slash import TrailingSlashMiddleware
 app = FastAPI(
     title="Xtrix API",
@@ -102,28 +101,9 @@ async def log_requests(request: Request, call_next):
             exc_info=True,
         )
         raise
-if settings.rate_limit_enabled:
-    storage_uri = "memory://"  
-    if settings.redis_url.startswith("redis://"):
-        try:
-            import redis
-            test_redis = redis.from_url(settings.redis_url, socket_connect_timeout=0.5, socket_timeout=0.5)
-            test_redis.ping()
-            storage_uri = settings.redis_url
-            test_redis.close()
-            logger.info("Redis connected, using it for rate limiting")
-        except Exception as e:
-            logger.warning(f"Redis unavailable ({str(e)[:50]}...), using in-memory rate limiting")
-            storage_uri = "memory://"
-    else:
-        logger.info("Using in-memory rate limiting (no Redis URL configured)")
-    app_limiter = Limiter(
-        key_func=client_ip,
-        default_limits=[settings.rate_limit_default],
-        storage_uri=storage_uri,
-    )
-    app.state.limiter = app_limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+app.add_middleware(DefaultRateLimitMiddleware)
 def get_cors_origins():
     dev_origins = [
         "http://localhost:3000",

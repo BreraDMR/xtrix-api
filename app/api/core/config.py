@@ -84,8 +84,12 @@ class Settings(BaseSettings):
         description="Default rate limit (e.g., '1000/hour', '100/minute')",
     )
     rate_limit_login: str = Field(
-        default="5/minute",
-        description="Rate limit for login endpoint",
+        default="10/minute",
+        description="Per-IP rate limit for login (a salon's staff often share one IP; per-account protection is separate)",
+    )
+    rate_limit_signup: str = Field(
+        default="5/minute;30/hour",
+        description="Per-IP rate limit for public signup",
     )
     log_level: str = Field(
         default="INFO",
