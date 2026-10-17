@@ -3,7 +3,6 @@ from typing import Optional
 import re
 import jwt
 import secrets
-from jose import JWTError
 from passlib.context import CryptContext
 import bcrypt
 from app.api.core.config import settings
@@ -226,5 +225,5 @@ def verify_refresh_token(token: str) -> Optional[dict]:
         if payload.get("type") != "refresh":
             return None
         return payload
-    except (JWTError, ValueError, Exception):
+    except (jwt.InvalidTokenError, ValueError):
         return None

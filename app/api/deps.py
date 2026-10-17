@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError
 from sqlalchemy.orm import Session
 from app.api.core.config import settings
 from app.api.core.i18n import _
@@ -33,7 +34,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         if user_id is None:
             logger.warning("JWT token missing user_id")
             raise credentials_exception
-    except JWTError as e:
+    except InvalidTokenError as e:
         logger.warning(f"JWT validation failed: {str(e)}")
         raise credentials_exception
     user = crud_user.get_active_user(db, int(user_id))
@@ -59,7 +60,7 @@ def get_current_user_optional(
         user_id: str | None = payload.get("sub")
         if user_id is None:
             return None
-    except JWTError:
+    except InvalidTokenError:
         return None
     user = crud_user.get_active_user(db, int(user_id))
     return user
