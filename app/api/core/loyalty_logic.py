@@ -1,5 +1,6 @@
 from datetime import date, datetime, timedelta
 from typing import Optional, Dict, Any, Tuple, List
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from app.db.models.loyalty_program import (
     LoyaltyProgram,
