@@ -27,6 +27,7 @@ from app.schemas.user import (
 from app.schemas.refresh_token import TokenRefresh, TokenResponse, RefreshTokenCreate
 router = APIRouter()
 logger = get_logger("users")
+PUBLIC_SIGNUP_ROLES = ("specialist", "business_owner")
 @router.post("/", response_model=UserOut)
 def create_user(
     user: UserCreate,
@@ -34,6 +35,11 @@ def create_user(
     locale: str = Depends(deps.get_locale),
 ):
     logger.info(f"Creating user: phone={user.phone}, email={user.email}")
+    # this endpoint is open to anyone, so only roles you can honestly pick for yourself.
+    # admins are made by hand, employees and their business link come from the owner (/employees)
+    if user.role not in PUBLIC_SIGNUP_ROLES or user.business_id:
+        logger.warning(f"Signup rejected: role={user.role}, business_id={user.business_id}")
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     if not user.phone and not user.email:
         raise HTTPException(
             status_code=422,
