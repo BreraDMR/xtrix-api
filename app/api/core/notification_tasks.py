@@ -78,17 +78,17 @@ def send_birthday_greetings(channel: str = "email") -> int:
                         ok = send_birthday_greeting_email(client.contact_email, client.full_name, business_name)
                         if ok:
                             sent_count += 1
-                            logger.info(f"Sent birthday email to {client.full_name} ({client.contact_email})")
+                            logger.info(f"Sent birthday email to client {client.id}")
                     elif channel == "sms" and client.contact_phone:
                         ok = send_birthday_greeting_sms(client.contact_phone, client.full_name, business_name)
                         if ok:
                             sent_count += 1
-                            logger.info(f"Sent birthday SMS to {client.full_name} ({client.contact_phone})")
+                            logger.info(f"Sent birthday SMS to client {client.id}")
                     elif channel == "whatsapp" and client.contact_phone:
                         ok = send_birthday_greeting_whatsapp(client.contact_phone, client.full_name, business_name)
                         if ok:
                             sent_count += 1
-                            logger.info(f"Sent birthday WhatsApp to {client.full_name} ({client.contact_phone})")
+                            logger.info(f"Sent birthday WhatsApp to client {client.id}")
                     try:
                         award_birthday_bonus(db, client.id, relation.business_id)
                     except Exception as e:
@@ -143,7 +143,7 @@ def send_visit_followups(channel: str = "email", hours_after: int = 24) -> int:
                     )
                     if ok:
                         sent_count += 1
-                        logger.info(f"Sent follow-up email for visit {visit.id} to {client.full_name}")
+                        logger.info(f"Sent follow-up email for visit {visit.id} to client {client.id}")
                 elif channel == "sms" and client.contact_phone:
                     ok = send_visit_followup_sms(
                         client.contact_phone,
@@ -154,7 +154,7 @@ def send_visit_followups(channel: str = "email", hours_after: int = 24) -> int:
                     )
                     if ok:
                         sent_count += 1
-                        logger.info(f"Sent follow-up SMS for visit {visit.id} to {client.full_name}")
+                        logger.info(f"Sent follow-up SMS for visit {visit.id} to client {client.id}")
                 elif channel == "whatsapp" and client.contact_phone:
                     ok = send_visit_followup_whatsapp(
                         client.contact_phone,
@@ -165,7 +165,7 @@ def send_visit_followups(channel: str = "email", hours_after: int = 24) -> int:
                     )
                     if ok:
                         sent_count += 1
-                        logger.info(f"Sent follow-up WhatsApp for visit {visit.id} to {client.full_name}")
+                        logger.info(f"Sent follow-up WhatsApp for visit {visit.id} to client {client.id}")
             except Exception as e:
                 logger.error(f"Error sending follow-up for visit {visit.id}: {e}")
                 continue

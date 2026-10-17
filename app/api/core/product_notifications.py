@@ -2,7 +2,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.db.models.product import Product
 from app.db.models.user import User
-from app.api.core.logger import logger
+from app.api.core.logger import logger, mask_email
 from app.api.crud import crud_product
 def send_low_stock_notifications(db: Session, business_id: Optional[int] = None) -> int:
     low_stock_products = crud_product.get_low_stock_products(db, business_id=business_id)
@@ -40,7 +40,7 @@ def send_low_stock_notifications(db: Session, business_id: Optional[int] = None)
                         products_list,
                         len(products),
                     )
-                    logger.info(f"Sent low stock email to {admin.email} for business {business_id}")
+                    logger.info(f"Sent low stock email to {mask_email(admin.email)} for business {business_id}")
                     sent_count += 1
         except Exception as e:
             logger.error(f"Failed to send low stock notifications for business {business_id}: {e}")
@@ -56,7 +56,7 @@ def send_low_stock_email(
     from email.message import EmailMessage
     from app.api.core.config import settings
     if not settings.smtp_host or not settings.smtp_from:
-        logger.warning(f"SMTP not configured, skip low stock email to {email}")
+        logger.warning(f"SMTP not configured, skip low stock email to {mask_email(email)}")
         return
     subject = f"⚠️ Низкий остаток товаров на складе ({products_count} шт.)"
     body = f"""Здравствуйте, {user_name}!
@@ -79,7 +79,7 @@ def send_low_stock_email(
                 server.login(settings.smtp_user, settings.smtp_password)
             server.send_message(msg)
     except Exception as e:
-        logger.error(f"Failed to send low stock email to {email}: {e}")
+        logger.error(f"Failed to send low stock email to {mask_email(email)}: {e}")
         raise
 def check_and_notify_low_stock(db: Session, business_id: Optional[int] = None) -> int:
     return send_low_stock_notifications(db, business_id=business_id)

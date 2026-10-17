@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _, localize_response
 from app.api.core.config import settings
-from app.api.core.logger import get_logger
+from app.api.core.logger import get_logger, mask_email, mask_phone
 from app.api.core.security import verify_refresh_token, create_access_token, create_refresh_token
 from app.api.core.pagination import PaginationParams, PaginatedResponse
 if settings.rate_limit_enabled:
@@ -34,7 +34,7 @@ def create_user(
     db: Session = Depends(deps.get_db),
     locale: str = Depends(deps.get_locale),
 ):
-    logger.info(f"Creating user: phone={user.phone}, email={user.email}")
+    logger.info(f"Creating user: phone={mask_phone(user.phone)}, email={mask_email(user.email)}")
     # this endpoint is open to anyone, so only roles you can honestly pick for yourself.
     # admins are made by hand, employees and their business link come from the owner (/employees)
     if user.role not in PUBLIC_SIGNUP_ROLES or user.business_id:
@@ -47,14 +47,14 @@ def create_user(
         )
     if user.phone:
         if crud_user.get_by_phone_or_email(db, phone=user.phone, email=None):
-            logger.warning(f"User creation failed: phone {user.phone} already exists")
+            logger.warning(f"User creation failed: phone {mask_phone(user.phone)} already exists")
             raise HTTPException(status_code=400, detail=_("phone_exists", locale))
     if user.email:
         if crud_user.get_by_phone_or_email(db, phone=None, email=user.email):
-            logger.warning(f"User creation failed: email {user.email} already exists")
+            logger.warning(f"User creation failed: email {mask_email(user.email)} already exists")
             raise HTTPException(status_code=400, detail=_("email_exists", locale))
     result = crud_user.create_user(db, user)
-    logger.info(f"User created successfully: id={result.id}, phone={result.phone}")
+    logger.info(f"User created successfully: id={result.id}")
     return localize_response(result.dict(), locale) if hasattr(result, 'dict') else result
 @router.post(
     "/login",
@@ -78,19 +78,19 @@ def login(
     db: Session = Depends(deps.get_db),
     locale: str = Depends(deps.get_locale),
 ):
-    logger.info(f"Login attempt: email={credentials.email or 'N/A'}, phone={credentials.phone or 'N/A'}, has_2fa_token={credentials.totp_token is not None}")
+    logger.info(f"Login attempt: email={mask_email(credentials.email)}, phone={mask_phone(credentials.phone)}, has_2fa_token={credentials.totp_token is not None}")
     try:
         result = crud_user.authenticate(db, credentials, credentials.totp_token)
         access_token_or_none, requires_2fa_flag = result
         if access_token_or_none is None:
             if requires_2fa_flag:  
-                logger.info(f"Login requires 2FA: email={credentials.email or 'N/A'}, phone={credentials.phone or 'N/A'}")
+                logger.info(f"Login requires 2FA: email={mask_email(credentials.email)}, phone={mask_phone(credentials.phone)}")
                 return LoginResponse(requires_2fa=True)
             else:
-                logger.warning(f"Failed login attempt: email={credentials.email or 'N/A'}, phone={credentials.phone or 'N/A'}, ip={request.client.host if request.client else 'unknown'}")
+                logger.warning(f"Failed login attempt: email={mask_email(credentials.email)}, phone={mask_phone(credentials.phone)}, ip={request.client.host if request.client else 'unknown'}")
                 raise HTTPException(status_code=401, detail=_("invalid_credentials", locale))
         access_token, refresh_token = access_token_or_none
-        logger.info(f"Successful login: email={credentials.email or 'N/A'}, phone={credentials.phone or 'N/A'}")
+        logger.info(f"Successful login: email={mask_email(credentials.email)}, phone={mask_phone(credentials.phone)}")
         return LoginResponse(
             requires_2fa=False,
             access_token=access_token,

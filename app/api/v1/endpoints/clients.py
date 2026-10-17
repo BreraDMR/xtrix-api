@@ -51,7 +51,7 @@ def create_client(
     from app.api.core.permissions import can_edit_clients
     if not can_edit_clients(current_user, db):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    logger.info(f"Creating/finding client: name={client.full_name}, phone={client.contact_phone}, email={client.contact_email}")
+    logger.info("Creating/finding client")
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     if current_user.role in ["admin", "business_owner"] and not business_id:
         raise HTTPException(
@@ -95,7 +95,7 @@ def create_client(
             db.add(business_relation)
             db.commit()
     action = "created" if was_created else "found existing"
-    logger.info(f"Client {action}: id={result.id}, name={result.full_name}")
+    logger.info(f"Client {action}: id={result.id}")
     return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
 @router.get("/", response_model=PaginatedResponse[ClientOut])
 def list_clients(

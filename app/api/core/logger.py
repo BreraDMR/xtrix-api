@@ -40,3 +40,13 @@ logging.getLogger("fastapi").setLevel(logging.WARNING)
 logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(f"xtrix.{name}")
+def mask_email(email: str | None) -> str:
+    # logs keep enough to tell accounts apart, not the address itself
+    if not email or "@" not in email:
+        return "N/A"
+    name, domain = email.split("@", 1)
+    return f"{name[:1]}***@{domain}"
+def mask_phone(phone: str | None) -> str:
+    if not phone:
+        return "N/A"
+    return f"***{phone[-3:]}"

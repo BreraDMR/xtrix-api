@@ -47,7 +47,7 @@ def sync_client_to_sendpulse(
             variables=variables,
         )
         if success:
-            logger.info(f"Client {client_id} ({client.full_name}) synced to SendPulse")
+            logger.info(f"Client {client_id} synced to SendPulse")
         else:
             logger.warning(f"Failed to sync client {client_id} to SendPulse")
         return success
@@ -86,7 +86,7 @@ def sync_user_to_sendpulse(
             variables=variables,
         )
         if success:
-            logger.info(f"User {user_id} ({user.full_name}) synced to SendPulse")
+            logger.info(f"User {user_id} synced to SendPulse")
         else:
             logger.warning(f"Failed to sync user {user_id} to SendPulse")
         return success

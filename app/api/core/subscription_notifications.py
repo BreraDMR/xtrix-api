@@ -3,7 +3,7 @@ from typing import List
 from sqlalchemy.orm import Session
 from app.db.models.subscription import Subscription
 from app.db.models.user import User
-from app.api.core.logger import logger
+from app.api.core.logger import logger, mask_email, mask_phone
 def send_subscription_expiry_notifications(db: Session, days_before: int = 3) -> int:
     notification_date = datetime.utcnow() + timedelta(days=days_before)
     notification_date_end = notification_date + timedelta(days=1)
@@ -24,13 +24,13 @@ def send_subscription_expiry_notifications(db: Session, days_before: int = 3) ->
             user = sub.user
             if user.email:
                 send_expiry_email(user.email, user.full_name, sub.current_period_end, days_before)
-                logger.info(f"Sent expiry email to {user.email} for subscription {sub.id}")
+                logger.info(f"Sent expiry email to {mask_email(user.email)} for subscription {sub.id}")
             if user.phone:
                 try:
                     send_expiry_sms(user.phone, user.full_name, sub.current_period_end, days_before)
-                    logger.info(f"Sent expiry SMS to {user.phone} for subscription {sub.id}")
+                    logger.info(f"Sent expiry SMS to {mask_phone(user.phone)} for subscription {sub.id}")
                 except Exception as e:
-                    logger.warning(f"Failed to send SMS to {user.phone}: {e}")
+                    logger.warning(f"Failed to send SMS to {mask_phone(user.phone)}: {e}")
             sent_count += 1
         except Exception as e:
             logger.error(f"Failed to send notification for subscription {sub.id}: {e}")
@@ -40,7 +40,7 @@ def send_expiry_email(email: str, user_name: str, expiry_date: datetime, days_be
     from email.message import EmailMessage
     from app.api.core.config import settings
     if not settings.smtp_host or not settings.smtp_from:
-        logger.warning(f"SMTP not configured, skip email to {email}")
+        logger.warning(f"SMTP not configured, skip email to {mask_email(email)}")
         return
     subject = f"Ваша подписка истекает через {days_before} дн."
     if days_before == 1:
@@ -69,13 +69,13 @@ def send_expiry_email(email: str, user_name: str, expiry_date: datetime, days_be
                 server.login(settings.smtp_user, settings.smtp_password)
             server.send_message(msg)
     except Exception as e:
-        logger.error(f"Failed to send email to {email}: {e}")
+        logger.error(f"Failed to send email to {mask_email(email)}: {e}")
         raise
 def send_expiry_sms(phone: str, user_name: str, expiry_date: datetime, days_before: int) -> None:
     import requests
     from app.api.core.config import settings
     if not settings.twilio_sid or not settings.twilio_token or not settings.twilio_from:
-        logger.warning(f"Twilio not configured, skip SMS to {phone}")
+        logger.warning(f"Twilio not configured, skip SMS to {mask_phone(phone)}")
         return
     expiry_str = expiry_date.strftime("%d.%m.%Y")
     if days_before == 0:
@@ -96,7 +96,7 @@ def send_expiry_sms(phone: str, user_name: str, expiry_date: datetime, days_befo
             logger.error(f"Twilio send failed: {resp.status_code} {resp.text}")
             raise Exception(f"Twilio API error: {resp.status_code}")
     except Exception as e:
-        logger.error(f"Failed to send SMS to {phone}: {e}")
+        logger.error(f"Failed to send SMS to {mask_phone(phone)}: {e}")
         raise
 def check_and_notify_expiring_subscriptions(db: Session) -> int:
     total_sent = 0

@@ -2,7 +2,7 @@ import logging
 from typing import Optional
 from datetime import datetime
 from app.api.core.sendpulse import get_sendpulse_client
-from app.api.core.logger import logger
+from app.api.core.logger import logger, mask_email, mask_phone
 def send_email_via_sendpulse(
     email: str,
     subject: str,
@@ -18,14 +18,14 @@ def send_email_via_sendpulse(
             text=text_content,
         )
     except Exception as e:
-        logger.error(f"Failed to send email via SendPulse to {email}: {e}")
+        logger.error(f"Failed to send email via SendPulse to {mask_email(email)}: {e}")
         return False
 def send_sms_via_sendpulse(phone: str, message: str) -> bool:
     try:
         client = get_sendpulse_client()
         return client.send_sms(phone=phone, message=message)
     except Exception as e:
-        logger.error(f"Failed to send SMS via SendPulse to {phone}: {e}")
+        logger.error(f"Failed to send SMS via SendPulse to {mask_phone(phone)}: {e}")
         return False
 def send_visit_reminder_email_sendpulse(email: str, visit, business_name: Optional[str] = None) -> bool:
     service_name = getattr(visit, 'service_name', '') or getattr(visit, 'service_id', '')

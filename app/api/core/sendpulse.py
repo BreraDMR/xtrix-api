@@ -4,7 +4,7 @@ from typing import Optional, Dict, List, Any
 from datetime import datetime
 import requests
 from app.api.core.config import settings
-from app.api.core.logger import logger
+from app.api.core.logger import logger, mask_email, mask_phone
 SENDPULSE_API_URL = "https://api.sendpulse.com"
 SENDPULSE_OAUTH_URL = f"{SENDPULSE_API_URL}/oauth/access_token"
 class SendPulseClient:
@@ -109,7 +109,7 @@ class SendPulseClient:
                 f"/addressbooks/{address_book_id}/emails",
                 data=contact_data,
             )
-            logger.info(f"Contact created/updated in SendPulse: email={email}, phone={phone}")
+            logger.info(f"Contact created/updated in SendPulse: email={mask_email(email)}, phone={mask_phone(phone)}")
             return True
         except Exception as e:
             logger.error(f"Failed to create/update contact in SendPulse: {e}")
@@ -157,7 +157,7 @@ class SendPulseClient:
             email_data["email"]["attachments"] = attachments
         try:
             result = self._make_request("POST", "/smtp/emails", data=email_data)
-            logger.info(f"Email sent via SendPulse to {email}")
+            logger.info(f"Email sent via SendPulse to {mask_email(email)}")
             return True
         except Exception as e:
             logger.error(f"Failed to send email via SendPulse: {e}")
@@ -181,7 +181,7 @@ class SendPulseClient:
         }
         try:
             result = self._make_request("POST", "/sms/send", data=sms_data)
-            logger.info(f"SMS sent via SendPulse to {phone}")
+            logger.info(f"SMS sent via SendPulse to {mask_phone(phone)}")
             return True
         except Exception as e:
             logger.error(f"Failed to send SMS via SendPulse: {e}")
