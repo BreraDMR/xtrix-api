@@ -27,4 +27,4 @@ if [ -z "${DATABASE_URL:-}" ]; then
 fi
 
 echo "==> pytest"
-"$PY" -m pytest -q --cov=app --cov-report=term:skip-covered --cov-fail-under=50 "$@"
+"$PY" -m pytest -q --cov=app --cov-report=term:skip-covered --cov-fail-under=65 "$@"
