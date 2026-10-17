@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 
 PY=${PYTHON:-.venv/bin/python}
 PG_PORT=${CHECK_PG_PORT:-55433}
-PG_NAME=xtrix-check-pg
+PG_NAME=${CHECK_PG_NAME:-xtrix-check-pg}
 
 echo "==> ruff (errors only)"
 "$PY" -m ruff check --isolated --select E9,F63,F7,F82,F811,F823 app tests alembic
