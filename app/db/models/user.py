@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Column, DateTime, Integer, String, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 from app.db.base import Base
+from app.api.core.clock import utcnow
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -14,7 +14,7 @@ class User(Base):
     business_id = Column(Integer, ForeignKey("businesses.id"), nullable=True, index=True)  
     employer_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  
     hire_date = Column(DateTime, nullable=True, index=True)  
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
     failed_login_attempts = Column(Integer, default=0, nullable=False)
     locked_until = Column(DateTime, nullable=True, index=True)
     is_locked = Column(Boolean, default=False, nullable=False, index=True)

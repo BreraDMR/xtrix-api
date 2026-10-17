@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from app.db.base import Base
+from app.api.core.clock import utcnow
 class Subscription(Base):
     __tablename__ = "subscriptions"
     id = Column(Integer, primary_key=True, index=True)
@@ -11,7 +11,7 @@ class Subscription(Base):
     provider = Column(String, nullable=True)  
     external_id = Column(String, nullable=True)
     current_period_end = Column(DateTime, nullable=True, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     is_trial = Column(Boolean, default=False, nullable=False)  
     trial_start = Column(DateTime, nullable=True)  
     trial_end = Column(DateTime, nullable=True)  

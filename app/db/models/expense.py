@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from app.db.base import Base
+from app.api.core.clock import utcnow
 class Expense(Base):
     __tablename__ = "expenses"
     id = Column(Integer, primary_key=True, index=True)
@@ -13,8 +13,8 @@ class Expense(Base):
     expense_date = Column(DateTime, nullable=False, index=True)  
     payment_method = Column(String, nullable=False, default="other", index=True)  
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, index=True)
     business = relationship("Business", lazy="select")
     category = relationship("ExpenseCategory", back_populates="expenses", lazy="select")
     created_by = relationship("User", foreign_keys=[created_by_id], lazy="select")

@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Column, DateTime, Integer, String, Boolean, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from app.db.base import Base
+from app.api.core.clock import utcnow
 class UserPreferences(Base):
     __tablename__ = "user_preferences"
     id = Column(Integer, primary_key=True, index=True)
@@ -17,6 +17,6 @@ class UserPreferences(Base):
     auto_save_interval = Column(Integer, default=30, nullable=False)  
     export_format = Column(String, nullable=True, default="csv")  
     additional_settings = Column(JSON, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, index=True)
     user = relationship("User", back_populates="preferences", lazy="select")

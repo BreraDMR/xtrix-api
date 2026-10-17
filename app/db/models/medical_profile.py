@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, JSON, Text
 from sqlalchemy.orm import relationship
 from app.db.base import Base
+from app.api.core.clock import utcnow
 class MedicalProfile(Base):
     __tablename__ = "medical_profiles"
     id = Column(Integer, primary_key=True, index=True)
@@ -17,7 +17,7 @@ class MedicalProfile(Base):
     emergency_contact = Column(JSON, nullable=True)  
     insurance_info = Column(JSON, nullable=True)  
     doctor_notes = Column(Text, nullable=True)  
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, index=True)
     deleted_at = Column(DateTime, nullable=True, index=True)  
     client = relationship("Client", back_populates="medical_profile", lazy="select")

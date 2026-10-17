@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text, Boolean
 from sqlalchemy.orm import relationship
 from app.db.base import Base
+from app.api.core.clock import utcnow
 class Product(Base):
     __tablename__ = "products"
     id = Column(Integer, primary_key=True, index=True)
@@ -17,7 +17,7 @@ class Product(Base):
     supplier = Column(String, nullable=True)  
     location = Column(String, nullable=True)  
     is_active = Column(Boolean, default=True, nullable=False, index=True)  
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, index=True)
     business = relationship("Business", lazy="select")
     usages = relationship("ProductUsage", back_populates="product", lazy="dynamic", cascade="all,delete")

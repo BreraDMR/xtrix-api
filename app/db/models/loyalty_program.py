@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Boolean, Text, Date
 from sqlalchemy.orm import relationship
 from app.db.base import Base
+from app.api.core.clock import utcnow
 class LoyaltyProgram(Base):
     __tablename__ = "loyalty_programs"
     id = Column(Integer, primary_key=True, index=True)
@@ -18,8 +18,8 @@ class LoyaltyProgram(Base):
     birthday_bonus_percent = Column(Float, nullable=True)  
     is_active = Column(Boolean, default=True, nullable=False, index=True)
     max_bonus_payment_percent = Column(Float, nullable=True, default=100.0)  
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, index=True)
     business = relationship("Business", lazy="select")
     levels = relationship("LoyaltyLevel", back_populates="program", lazy="dynamic", cascade="all,delete", order_by="LoyaltyLevel.min_spending")
     promotions = relationship("LoyaltyPromotion", back_populates="program", lazy="dynamic", cascade="all,delete")
@@ -34,7 +34,7 @@ class LoyaltyLevel(Base):
     cashback_multiplier = Column(Float, nullable=True, default=1.0)  
     benefits = Column(Text, nullable=True)  
     color = Column(String, nullable=True)  
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
     program = relationship("LoyaltyProgram", back_populates="levels", lazy="select")
 class LoyaltyPromotion(Base):
     __tablename__ = "loyalty_promotions"
@@ -53,7 +53,7 @@ class LoyaltyPromotion(Base):
     end_date = Column(Date, nullable=False, index=True)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=True, index=True)
     is_active = Column(Boolean, default=True, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
     program = relationship("LoyaltyProgram", back_populates="promotions", lazy="select")
     client = relationship("Client", lazy="select")
 class LoyaltyTransaction(Base):
@@ -72,7 +72,7 @@ class LoyaltyTransaction(Base):
     level_id = Column(Integer, ForeignKey("loyalty_levels.id", ondelete="SET NULL"), nullable=True, index=True)
     description = Column(Text, nullable=True)
     expiry_date = Column(Date, nullable=True, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
     client = relationship("Client", lazy="select")
     business = relationship("Business", lazy="select")
     program = relationship("LoyaltyProgram", lazy="select")

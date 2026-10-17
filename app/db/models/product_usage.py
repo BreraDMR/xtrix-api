@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, Text
 from sqlalchemy.orm import relationship
 from app.db.base import Base
+from app.api.core.clock import utcnow
 class ProductUsage(Base):
     __tablename__ = "product_usages"
     id = Column(Integer, primary_key=True, index=True)
@@ -12,8 +12,8 @@ class ProductUsage(Base):
     used_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)  
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)  
     notes = Column(Text, nullable=True)  
-    usage_date = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)  
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    usage_date = Column(DateTime, default=utcnow, nullable=False, index=True)  
+    created_at = Column(DateTime, default=utcnow, index=True)
     product = relationship("Product", back_populates="usages", lazy="select")
     visit = relationship("Visit", lazy="select")
     business = relationship("Business", lazy="select")

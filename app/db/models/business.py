@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Column, DateTime, Integer, String, Text
 from sqlalchemy.orm import relationship
 from app.db.base import Base
+from app.api.core.clock import utcnow
 class Business(Base):
     __tablename__ = "businesses"
     id = Column(Integer, primary_key=True, index=True)
@@ -17,7 +17,7 @@ class Business(Base):
     email = Column(String, nullable=True, index=True)
     description = Column(Text, nullable=True)
     currency = Column(String, nullable=False, default="EUR", index=True)  
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
     deleted_at = Column(DateTime, nullable=True, index=True)  
     users = relationship("User", back_populates="business", lazy="dynamic")
     specialist_profiles = relationship("SpecialistProfile", back_populates="business", lazy="dynamic")

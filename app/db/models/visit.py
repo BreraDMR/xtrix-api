@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from app.db.base import Base
+from app.api.core.clock import utcnow
 class Visit(Base):
     __tablename__ = "visits"
     id = Column(Integer, primary_key=True, index=True)
@@ -17,7 +17,7 @@ class Visit(Base):
     price = Column(Float, nullable=True, index=True)
     status = Column(String, default="planned", index=True)
     payment_method = Column(String, nullable=True, index=True)  
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
     deleted_at = Column(DateTime, nullable=True, index=True)  
     archived_at = Column(DateTime, nullable=True, index=True)  
     client = relationship("Client", back_populates="visits", lazy="select")

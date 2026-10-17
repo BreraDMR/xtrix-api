@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Boolean
 from sqlalchemy.orm import relationship
 from app.db.base import Base
+from app.api.core.clock import utcnow
 class ExpenseCategory(Base):
     __tablename__ = "expense_categories"
     id = Column(Integer, primary_key=True, index=True)
@@ -11,6 +11,6 @@ class ExpenseCategory(Base):
     color = Column(String, nullable=True)  
     is_system = Column(Boolean, default=False, nullable=False, index=True)  
     is_active = Column(Boolean, default=True, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
     business = relationship("Business", lazy="select")
     expenses = relationship("Expense", back_populates="category", lazy="dynamic", cascade="all,delete")

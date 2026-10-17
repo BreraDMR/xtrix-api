@@ -1,4 +1,3 @@
-from datetime import datetime
 from sqlalchemy import (
     Column,
     Date,
@@ -10,6 +9,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 from app.db.base import Base
+from app.api.core.clock import utcnow
 class Client(Base):
     __tablename__ = "clients"
     id = Column(Integer, primary_key=True, index=True)
@@ -21,7 +21,7 @@ class Client(Base):
     contact_email = Column(String, index=True, nullable=True)
     location_lat = Column(Float, nullable=True)
     location_lon = Column(Float, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
     qr_code = Column(String, unique=True, index=True, nullable=True)
     access_password = Column(String, nullable=True)  
     deleted_at = Column(DateTime, nullable=True, index=True)  

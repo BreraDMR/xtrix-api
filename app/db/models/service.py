@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from app.db.base import Base
+from app.api.core.clock import utcnow
 class Service(Base):
     __tablename__ = "services"
     id = Column(Integer, primary_key=True, index=True)
@@ -12,7 +12,7 @@ class Service(Base):
     duration_minutes = Column(Integer, nullable=True)
     price = Column(Float, nullable=True, index=True)
     is_active = Column(Boolean, default=True, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
     deleted_at = Column(DateTime, nullable=True, index=True)  
     archived_at = Column(DateTime, nullable=True, index=True)  
     specialist = relationship("User", foreign_keys=[specialist_id], back_populates="services", lazy="select")

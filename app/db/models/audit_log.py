@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, JSON, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from app.db.base import Base
+from app.api.core.clock import utcnow
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     id = Column(Integer, primary_key=True, index=True)
@@ -14,5 +14,5 @@ class AuditLog(Base):
     description = Column(Text, nullable=True)
     ip_address = Column(String, nullable=True)
     user_agent = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = Column(DateTime, default=utcnow, nullable=False, index=True)
     user = relationship("User", foreign_keys=[user_id])
