@@ -129,6 +129,8 @@ def check_redis_health() -> Dict[str, Any]:
             'error': str(e),
         }
 def get_system_metrics() -> Dict[str, Any]:
+    if not PSUTIL_AVAILABLE:
+        return {'error': 'psutil is not installed'}
     try:
         cpu_percent = psutil.cpu_percent(interval=0.1)
         memory = psutil.virtual_memory()

@@ -16,3 +16,10 @@ def test_health_details_are_admin_only(client, make_user, headers_for):
 
 def test_readiness(client):
     assert client.get("/metrics/health/ready").json() == {"status": "ready"}
+
+
+def test_health_details_include_system_metrics(client, make_user, headers_for):
+    r = client.get("/metrics/health/details", headers=headers_for(make_user("admin")))
+    system = r.json()["system"]
+    assert "error" not in system, system
+    assert system["memory"]["total_gb"] > 0
