@@ -5,7 +5,8 @@ from sqlalchemy import MetaData, insert, select, text
 from sqlalchemy.engine import make_url
 
 # Settings are read at import time, so the guard has to run before anything from app/ is imported.
-_db_name = make_url(os.environ.get("DATABASE_URL", "")).database or ""
+_url = os.environ.get("DATABASE_URL", "")
+_db_name = (make_url(_url).database or "") if _url else ""
 if "test" not in _db_name:
     raise RuntimeError(
         f"Refusing to run tests against database {_db_name!r}: every test wipes the tables. "
