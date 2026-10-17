@@ -21,3 +21,10 @@ def test_aws_keys_come_from_the_standard_env_names(monkeypatch):
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secret_test")
     s = config.Settings(_env_file=None)
     assert (s.aws_access_key, s.aws_secret_key) == ("AKIA_TEST", "secret_test")
+
+
+def test_generated_passwords_always_pass_our_own_rules():
+    from app.api.core.security import generate_secure_password, validate_password_strength
+
+    bad = [p for p in (generate_secure_password(12) for _ in range(3000)) if not validate_password_strength(p)[0]]
+    assert not bad, bad[:5]

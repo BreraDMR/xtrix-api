@@ -101,7 +101,12 @@ def generate_secure_password(length: int = 12) -> str:
     for _ in range(length - 4):
         password.append(secrets.choice(all_chars))
     secrets.SystemRandom().shuffle(password)
-    return ''.join(password)
+    candidate = ''.join(password)
+    # a random string can still trip our own strength rules ("abc", "qwe", repeats...) -
+    # then signup of the employee failed with 400 now and then. Just roll again.
+    if not validate_password_strength(candidate)[0]:
+        return generate_secure_password(length)
+    return candidate
 def validate_email(email: str) -> tuple[bool, str]:
     if not email or len(email) == 0:
         return False, "Email cannot be empty"
