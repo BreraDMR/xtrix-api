@@ -28,6 +28,17 @@ def create_visit(
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     if visit.specialist_id is None or visit.specialist_id == 0:
         visit.specialist_id = current_user.id
+    # check everything the body points at *before* any relation gets created below -
+    # linking first used to make the access check pass for any client id
+    from app.api.core.permissions import check_service_access, check_specialist_in_scope
+    if not check_client_access(db, current_user, visit.client_id):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    if not check_specialist_in_scope(db, current_user, visit.specialist_id):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    if visit.service_id:
+        service = db.query(Service).filter(Service.id == visit.service_id).first()
+        if not service or not check_service_access(db, current_user, service):
+            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     specialist_id_for_links = current_user.id
     if current_user.role == "employee":
@@ -64,9 +75,13 @@ def create_visit(
                 db.add(specialist_relation)
                 db.flush()
         db.commit()
-    if not check_client_access(db, current_user, visit.client_id):
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     used_products = visit.used_products if hasattr(visit, 'used_products') else None
+    if used_products:
+        from app.db.models.product import Product
+        product_ids = {p.product_id for p in used_products}
+        own = db.query(Product.id).filter(Product.id.in_(product_ids), Product.business_id == business_id).count()
+        if not business_id or own != len(product_ids):
+            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     result = crud_visit.create_visit(db, visit, business_id=business_id)
     if business_id and used_products:
         from app.api.crud import crud_product_usage
@@ -309,6 +324,11 @@ def update_visit(
     from app.api.core.permissions import check_visit_access
     if not check_visit_access(db, current_user, visit):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    if payload.service_id:
+        from app.api.core.permissions import check_service_access
+        service = db.query(Service).filter(Service.id == payload.service_id).first()
+        if not service or not check_service_access(db, current_user, service):
+            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     final_status = payload.status if payload.status is not None else visit.status
     final_price = payload.price if payload.price is not None else visit.price
     final_payment_method = payload.payment_method if payload.payment_method is not None else visit.payment_method

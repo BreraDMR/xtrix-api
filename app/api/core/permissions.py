@@ -157,3 +157,22 @@ def get_business_owner_ids_for_filter(current_user: User, db: Session) -> Option
     if current_user.role == "business_owner":
         return [current_user.id]
     return None
+def check_specialist_in_scope(db: Session, user: User, specialist_id: int) -> bool:
+    # who may be put down as the specialist of a visit/service/schedule on user's behalf
+    if specialist_id == user.id or user.role == "admin":
+        return True
+    target = db.query(User).filter(User.id == specialist_id, User.deleted_at.is_(None)).first()
+    if not target:
+        return False
+    if user.business_id and target.business_id == user.business_id:
+        return True
+    from app.db.models.employee import Employee
+    owner_id = user.id
+    if user.role == "employee":
+        employee = crud_employee.get_employee_by_user_id(db, user.id)
+        owner_id = employee.business_owner_id if employee else None
+    return bool(owner_id) and db.query(Employee).filter(
+        Employee.business_owner_id == owner_id,
+        Employee.employee_user_id == specialist_id,
+        Employee.is_active == True,  # noqa: E712
+    ).first() is not None
