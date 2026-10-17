@@ -21,6 +21,19 @@ Or just `docker compose up` for the API with Postgres and Redis.
 In production set at least `DATABASE_URL`, `JWT_SECRET` and `CORS_ORIGINS` (comma-separated web client
 origins) - nothing about the hosting is hardcoded.
 
+## Scheduled jobs
+
+Reminders, follow-ups, birthday greetings, subscription expiry, low-stock e-mails and the monthly
+finance archive don't run by themselves. Either start the worker (`docker compose up worker`, or
+`python scripts/run_jobs.py --loop`), or call them from cron, e.g.
+
+    */15 * * * *  python scripts/run_jobs.py reminders followups
+    0 8 * * *     python scripts/run_jobs.py birthdays subscriptions low_stock finance_archive
+
+Running a job twice is harmless: sent messages are recorded in `notification_log`.
+Messages to clients use the client's own `language`, e-mails to staff use their UI language
+from preferences.
+
 ## API contract
 
 `openapi.json` in the repo root is the contract the web client builds its types from

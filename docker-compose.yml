@@ -51,6 +51,21 @@ services:
       retries: 3
       start_period: 40s
 
+  worker:
+    # scheduled jobs (reminders, greetings, subscriptions, low stock) - see scripts/run_jobs.py
+    build: .
+    entrypoint: []
+    command: python scripts/run_jobs.py --loop
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/medic
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-change-me-minimum-32-characters-long}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      JOBS_CHANNEL: ${JOBS_CHANNEL:-email}
+    depends_on:
+      api:
+        condition: service_started
+
 volumes:
   db_data:
 
