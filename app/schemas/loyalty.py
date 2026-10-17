@@ -1,32 +1,33 @@
 from datetime import date, datetime
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from app.schemas.limits import HexColor, PromotionType, LongText, LoyaltyProgramType, Money, Multiplier, Percent, Points, ShortText
+from pydantic import BaseModel, Field, model_validator
 class LoyaltyProgramBase(BaseModel):
-    program_type: str = Field(..., description="Type: 'points', 'cashback', 'hybrid'")
-    points_per_currency: float = Field(1.0, ge=0, description="Points per currency unit")
-    points_name: Optional[str] = Field("points", description="Name of points (e.g., 'баллы', 'stars')")
-    currency_per_point: Optional[float] = Field(None, ge=0, description="Currency value per point")
+    program_type: LoyaltyProgramType
+    points_per_currency: Points = Field(1.0, description="Points per currency unit")
+    points_name: Optional[ShortText] = Field("points", description="Name of points, e.g. stars")
+    currency_per_point: Optional[Money] = Field(None, description="Currency value per point")
     cashback_percent: Optional[float] = Field(0.0, ge=0, le=100, description="Cashback percentage")
     use_levels: bool = Field(False, description="Enable loyalty levels")
-    points_expiry_days: Optional[int] = Field(None, ge=1, description="Points expiry in days (null = no expiry)")
+    points_expiry_days: Optional[int] = Field(None, ge=1, le=36500, description="Points expiry in days (null = no expiry)")
     birthday_bonus_enabled: bool = Field(False, description="Enable birthday bonuses")
-    birthday_bonus_points: Optional[float] = Field(None, ge=0, description="Birthday bonus points")
-    birthday_bonus_percent: Optional[float] = Field(None, ge=0, description="Birthday bonus cashback percent")
+    birthday_bonus_points: Optional[Points] = Field(None, description="Birthday bonus points")
+    birthday_bonus_percent: Optional[Percent] = Field(None, description="Birthday bonus cashback percent")
     is_active: bool = Field(True, description="Is program active")
     max_bonus_payment_percent: Optional[float] = Field(100.0, ge=0, le=100, description="Max % of check that can be paid with bonuses")
 class LoyaltyProgramCreate(LoyaltyProgramBase):
     business_id: int
 class LoyaltyProgramUpdate(BaseModel):
-    program_type: Optional[str] = None
-    points_per_currency: Optional[float] = Field(None, ge=0)
-    points_name: Optional[str] = None
-    currency_per_point: Optional[float] = Field(None, ge=0)
+    program_type: Optional[LoyaltyProgramType] = None
+    points_per_currency: Optional[Points] = None
+    points_name: Optional[ShortText] = None
+    currency_per_point: Optional[Money] = None
     cashback_percent: Optional[float] = Field(None, ge=0, le=100)
     use_levels: Optional[bool] = None
-    points_expiry_days: Optional[int] = Field(None, ge=1)
+    points_expiry_days: Optional[int] = Field(None, ge=1, le=36500)
     birthday_bonus_enabled: Optional[bool] = None
-    birthday_bonus_points: Optional[float] = Field(None, ge=0)
-    birthday_bonus_percent: Optional[float] = Field(None, ge=0)
+    birthday_bonus_points: Optional[Points] = None
+    birthday_bonus_percent: Optional[Percent] = None
     is_active: Optional[bool] = None
     max_bonus_payment_percent: Optional[float] = Field(None, ge=0, le=100)
 class LoyaltyProgramOut(LoyaltyProgramBase):
@@ -39,21 +40,21 @@ class LoyaltyProgramOut(LoyaltyProgramBase):
 class LoyaltyLevelBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     level_number: int = Field(..., ge=1, description="Level number (1, 2, 3...)")
-    min_spending: float = Field(..., ge=0, description="Minimum spending for this level")
-    points_multiplier: Optional[float] = Field(1.0, ge=0, description="Points multiplier")
-    cashback_multiplier: Optional[float] = Field(1.0, ge=0, description="Cashback multiplier")
-    benefits: Optional[str] = Field(None, description="Benefits description (JSON)")
-    color: Optional[str] = Field(None, description="Color for UI")
+    min_spending: Money = Field(..., description="Minimum spending for this level")
+    points_multiplier: Optional[Multiplier] = Field(1.0, description="Points multiplier")
+    cashback_multiplier: Optional[Multiplier] = Field(1.0, description="Cashback multiplier")
+    benefits: Optional[LongText] = Field(None, description="Benefits description (JSON)")
+    color: Optional[HexColor] = Field(None, description="Color for UI, #rrggbb")
 class LoyaltyLevelCreate(LoyaltyLevelBase):
     program_id: int
 class LoyaltyLevelUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     level_number: Optional[int] = Field(None, ge=1)
-    min_spending: Optional[float] = Field(None, ge=0)
-    points_multiplier: Optional[float] = Field(None, ge=0)
-    cashback_multiplier: Optional[float] = Field(None, ge=0)
-    benefits: Optional[str] = None
-    color: Optional[str] = None
+    min_spending: Optional[Money] = None
+    points_multiplier: Optional[Multiplier] = None
+    cashback_multiplier: Optional[Multiplier] = None
+    benefits: Optional[LongText] = None
+    color: Optional[HexColor] = None
 class LoyaltyLevelOut(LoyaltyLevelBase):
     id: int
     program_id: int
@@ -62,30 +63,35 @@ class LoyaltyLevelOut(LoyaltyLevelBase):
         from_attributes = True
 class LoyaltyPromotionBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
-    description: Optional[str] = None
-    promotion_type: str = Field(..., description="Type: 'double_points', 'extra_cashback', 'bonus_points', 'discount'")
-    points_multiplier: Optional[float] = Field(None, ge=0)
-    cashback_percent: Optional[float] = Field(None, ge=0)
-    bonus_points: Optional[float] = Field(None, ge=0)
-    discount_percent: Optional[float] = Field(None, ge=0, le=100)
-    service_ids: Optional[str] = Field(None, description="JSON array of service IDs (null = all services)")
-    min_amount: Optional[float] = Field(None, ge=0)
+    description: Optional[LongText] = None
+    promotion_type: PromotionType
+    points_multiplier: Optional[Multiplier] = None
+    cashback_percent: Optional[Percent] = None
+    bonus_points: Optional[Points] = None
+    discount_percent: Optional[Percent] = None
+    service_ids: Optional[str] = Field(None, max_length=5000, description="JSON array of service IDs (null = all services)")
+    min_amount: Optional[Money] = None
     start_date: date = Field(..., description="Promotion start date")
     end_date: date = Field(..., description="Promotion end date")
     client_id: Optional[int] = Field(None, description="Client ID (null = for all clients)")
     is_active: bool = Field(True, description="Is promotion active")
 class LoyaltyPromotionCreate(LoyaltyPromotionBase):
     program_id: int
+    @model_validator(mode="after")
+    def ends_after_start(self):
+        if self.end_date < self.start_date:
+            raise ValueError("end_date must not be before start_date")
+        return self
 class LoyaltyPromotionUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=200)
-    description: Optional[str] = None
-    promotion_type: Optional[str] = None
-    points_multiplier: Optional[float] = Field(None, ge=0)
-    cashback_percent: Optional[float] = Field(None, ge=0)
-    bonus_points: Optional[float] = Field(None, ge=0)
-    discount_percent: Optional[float] = Field(None, ge=0, le=100)
-    service_ids: Optional[str] = None
-    min_amount: Optional[float] = Field(None, ge=0)
+    description: Optional[LongText] = None
+    promotion_type: Optional[PromotionType] = None
+    points_multiplier: Optional[Multiplier] = None
+    cashback_percent: Optional[Percent] = None
+    bonus_points: Optional[Points] = None
+    discount_percent: Optional[Percent] = None
+    service_ids: Optional[str] = Field(None, max_length=5000)
+    min_amount: Optional[Money] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     client_id: Optional[int] = None
