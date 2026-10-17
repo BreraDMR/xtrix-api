@@ -336,6 +336,48 @@ def list_employees(
             }
         result.append(EmployeeOut(**emp_dict))
     return result
+@router.get("/me/salary/current", response_model=SalaryCalculationDetail, summary="Get current unpaid salary")
+def get_my_current_salary(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    locale: str = Depends(deps.get_locale),
+):
+    if current_user.role not in ("employee", "specialist"):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    salary = crud_salary.get_current_unpaid_salary(db=db, employee_user_id=current_user.id)
+    if not salary:
+        raise HTTPException(status_code=404, detail=_("no_unpaid_salary", locale))
+    employee = crud_employee.get_employee_by_user_id(db, current_user.id)
+    adjustments = crud_salary.list_salary_adjustments(db, salary.id)
+    payments = crud_salary.list_salary_payments(db, salary.id)
+    salary_dict = {
+        **salary.__dict__,
+        'adjustments': adjustments,
+        'payments': payments,
+        'commission_percentage': employee.commission_percentage or 0.0 if employee else 0.0  
+    }
+    return SalaryCalculationDetail(**salary_dict)
+@router.get("/me/salary/history", response_model=List[SalaryCalculationOut], summary="Get my salary history")
+def get_my_salary_history(
+    payment_status: Optional[str] = Query(None, description="Filter by payment status: unpaid, partial, paid"),
+    limit: int = Query(10, ge=1, le=100, description="Maximum number of records to return"),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    locale: str = Depends(deps.get_locale),
+):
+    if current_user.role not in ("employee", "specialist"):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    employee = crud_employee.get_employee_by_user_id(db, current_user.id)
+    if not employee:
+        raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
+    pagination = PaginationParams(page=1, per_page=limit)
+    salaries, _total = crud_salary.list_salary_calculations(
+        db=db,
+        employee_id=employee.id,
+        payment_status=payment_status,
+        pagination=pagination
+    )
+    return salaries
 @router.get("/{employee_id}", response_model=EmployeeOut, summary="Get employee")
 def get_employee(
     employee_id: int,
@@ -751,48 +793,6 @@ def update_salary_calculation(
         raise HTTPException(status_code=404, detail=_("salary_calculation_not_found", locale))
     updated_salary = crud_salary.update_salary_calculation(db=db, salary_calculation=salary, update=update)
     return updated_salary
-@router.get("/me/salary/current", response_model=SalaryCalculationDetail, summary="Get current unpaid salary")
-def get_my_current_salary(
-    db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.get_current_user),
-    locale: str = Depends(deps.get_locale),
-):
-    if current_user.role not in ("employee", "specialist"):
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    salary = crud_salary.get_current_unpaid_salary(db=db, employee_user_id=current_user.id)
-    if not salary:
-        raise HTTPException(status_code=404, detail=_("no_unpaid_salary", locale))
-    employee = crud_employee.get_employee_by_user_id(db, current_user.id)
-    adjustments = crud_salary.list_salary_adjustments(db, salary.id)
-    payments = crud_salary.list_salary_payments(db, salary.id)
-    salary_dict = {
-        **salary.__dict__,
-        'adjustments': adjustments,
-        'payments': payments,
-        'commission_percentage': employee.commission_percentage or 0.0 if employee else 0.0  
-    }
-    return SalaryCalculationDetail(**salary_dict)
-@router.get("/me/salary/history", response_model=List[SalaryCalculationOut], summary="Get my salary history")
-def get_my_salary_history(
-    payment_status: Optional[str] = Query(None, description="Filter by payment status: unpaid, partial, paid"),
-    limit: int = Query(10, ge=1, le=100, description="Maximum number of records to return"),
-    db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.get_current_user),
-    locale: str = Depends(deps.get_locale),
-):
-    if current_user.role not in ("employee", "specialist"):
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    employee = crud_employee.get_employee_by_user_id(db, current_user.id)
-    if not employee:
-        raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
-    pagination = PaginationParams(page=1, per_page=limit)
-    salaries, _total = crud_salary.list_salary_calculations(
-        db=db,
-        employee_id=employee.id,
-        payment_status=payment_status,
-        pagination=pagination
-    )
-    return salaries
 @router.post("/{employee_id}/salary/{salary_id}/adjustments", response_model=SalaryAdjustmentOut, summary="Add salary adjustment (bonus/penalty)")
 def create_salary_adjustment(
     employee_id: int,

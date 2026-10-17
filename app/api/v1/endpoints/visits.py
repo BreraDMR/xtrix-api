@@ -138,94 +138,6 @@ def visits_list(
         page=page,
         per_page=per_page,
     )
-@router.get("/{visit_id}", response_model=VisitOut)
-def get_visit(
-    visit_id: int,
-    include_deleted: bool = Query(False, description="Include soft-deleted visit"),
-    db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
-    locale: str = Depends(deps.get_locale),
-):
-    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
-    if current_user.role != "admin":
-        include_deleted = False
-    visit = crud_visit.get_visit(db, visit_id, include_deleted=include_deleted, business_id=business_id)
-    if not visit:
-        raise HTTPException(status_code=404, detail=_("visit_not_found", locale))
-    from app.api.core.permissions import check_visit_access
-    if not check_visit_access(db, current_user, visit):
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    return localize_response(visit.dict() if hasattr(visit, 'dict') else visit, locale)
-@router.put("/{visit_id}", response_model=VisitOut)
-def update_visit(
-    visit_id: int,
-    payload: VisitUpdate,
-    db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
-    locale: str = Depends(deps.get_locale),
-):
-    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
-    visit = crud_visit.get_visit(db, visit_id, business_id=business_id)
-    if not visit:
-        raise HTTPException(status_code=404, detail=_("visit_not_found", locale))
-    from app.api.core.permissions import check_visit_access
-    if not check_visit_access(db, current_user, visit):
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    final_status = payload.status if payload.status is not None else visit.status
-    final_price = payload.price if payload.price is not None else visit.price
-    final_payment_method = payload.payment_method if payload.payment_method is not None else visit.payment_method
-    if final_status == 'completed' and final_price and final_price > 0:
-        if not final_payment_method or final_payment_method not in ['card', 'cash', 'other']:
-            raise HTTPException(
-                status_code=400,
-                detail=_("payment_method_required_for_completed_visits", locale) or "Payment method is required for completed visits with price"
-            )
-    old_status = visit.status
-    result = crud_visit.update_visit(db, visit, payload)
-    if old_status != 'completed' and result.status == 'completed':
-        try:
-            from app.api.core.loyalty_logic import award_bonus_for_visit
-            award_bonus_for_visit(db, result)
-        except Exception as e:
-            from app.api.core.logger import logger
-            logger.error(f"Error awarding loyalty bonus for visit {result.id}: {e}")
-    from app.api.core.i18n import localize_response
-    return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
-@router.delete("/{visit_id}")
-def delete_visit(
-    visit_id: int,
-    hard_delete_flag: bool = Query(False, description="Permanently delete (admin only)", alias="hard_delete"),
-    db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
-    locale: str = Depends(deps.get_locale),
-):
-    visit = crud_visit.get_visit(db, visit_id)
-    if not visit:
-        raise HTTPException(status_code=404, detail=_("visit_not_found", locale))
-    from app.api.core.permissions import check_visit_access
-    if not check_visit_access(db, current_user, visit):
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    if hard_delete_flag and current_user.role == "admin":
-        hard_delete(db, visit)
-        return {"message": "Visit permanently deleted"}
-    else:
-        soft_delete(db, visit)
-        return {"message": "Visit deleted (soft delete)"}
-@router.post("/{visit_id}/restore")
-def restore_visit(
-    visit_id: int,
-    db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
-    locale: str = Depends(deps.get_locale),
-):
-    visit = crud_visit.get_visit(db, visit_id, include_deleted=True)
-    if not visit:
-        raise HTTPException(status_code=404, detail=_("visit_not_found", locale))
-    from app.api.core.permissions import check_visit_access
-    if not check_visit_access(db, current_user, visit):
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    restore_soft_deleted(db, visit)
-    return {"message": "Visit restored successfully"}
 @router.get("/next_slot")
 def next_available_slot(
     specialist_id: int,
@@ -363,3 +275,92 @@ def export_visits_excel(
     )
     export_data = prepare_visit_export_data(visits)
     return export_to_excel(export_data, filename="visits_export.xlsx", sheet_name="Visits")
+
+@router.get("/{visit_id}", response_model=VisitOut)
+def get_visit(
+    visit_id: int,
+    include_deleted: bool = Query(False, description="Include soft-deleted visit"),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
+):
+    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    if current_user.role != "admin":
+        include_deleted = False
+    visit = crud_visit.get_visit(db, visit_id, include_deleted=include_deleted, business_id=business_id)
+    if not visit:
+        raise HTTPException(status_code=404, detail=_("visit_not_found", locale))
+    from app.api.core.permissions import check_visit_access
+    if not check_visit_access(db, current_user, visit):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    return localize_response(visit.dict() if hasattr(visit, 'dict') else visit, locale)
+@router.put("/{visit_id}", response_model=VisitOut)
+def update_visit(
+    visit_id: int,
+    payload: VisitUpdate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
+):
+    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
+    visit = crud_visit.get_visit(db, visit_id, business_id=business_id)
+    if not visit:
+        raise HTTPException(status_code=404, detail=_("visit_not_found", locale))
+    from app.api.core.permissions import check_visit_access
+    if not check_visit_access(db, current_user, visit):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    final_status = payload.status if payload.status is not None else visit.status
+    final_price = payload.price if payload.price is not None else visit.price
+    final_payment_method = payload.payment_method if payload.payment_method is not None else visit.payment_method
+    if final_status == 'completed' and final_price and final_price > 0:
+        if not final_payment_method or final_payment_method not in ['card', 'cash', 'other']:
+            raise HTTPException(
+                status_code=400,
+                detail=_("payment_method_required_for_completed_visits", locale) or "Payment method is required for completed visits with price"
+            )
+    old_status = visit.status
+    result = crud_visit.update_visit(db, visit, payload)
+    if old_status != 'completed' and result.status == 'completed':
+        try:
+            from app.api.core.loyalty_logic import award_bonus_for_visit
+            award_bonus_for_visit(db, result)
+        except Exception as e:
+            from app.api.core.logger import logger
+            logger.error(f"Error awarding loyalty bonus for visit {result.id}: {e}")
+    from app.api.core.i18n import localize_response
+    return localize_response(result.dict() if hasattr(result, 'dict') else result, locale)
+@router.delete("/{visit_id}")
+def delete_visit(
+    visit_id: int,
+    hard_delete_flag: bool = Query(False, description="Permanently delete (admin only)", alias="hard_delete"),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
+):
+    visit = crud_visit.get_visit(db, visit_id)
+    if not visit:
+        raise HTTPException(status_code=404, detail=_("visit_not_found", locale))
+    from app.api.core.permissions import check_visit_access
+    if not check_visit_access(db, current_user, visit):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    if hard_delete_flag and current_user.role == "admin":
+        hard_delete(db, visit)
+        return {"message": "Visit permanently deleted"}
+    else:
+        soft_delete(db, visit)
+        return {"message": "Visit deleted (soft delete)"}
+@router.post("/{visit_id}/restore")
+def restore_visit(
+    visit_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
+):
+    visit = crud_visit.get_visit(db, visit_id, include_deleted=True)
+    if not visit:
+        raise HTTPException(status_code=404, detail=_("visit_not_found", locale))
+    from app.api.core.permissions import check_visit_access
+    if not check_visit_access(db, current_user, visit):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    restore_soft_deleted(db, visit)
+    return {"message": "Visit restored successfully"}

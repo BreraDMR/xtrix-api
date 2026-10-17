@@ -94,6 +94,67 @@ def get_low_stock_products(
             is_low_stock=True,
         ))
     return [localize_response(r, locale) for r in result]
+@router.post("/usage", response_model=ProductUsageOut)
+def create_product_usage(
+    usage: ProductUsageCreate,
+    auto_reduce_stock: bool = Query(True, description="Автоматически списать со склада"),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
+):
+    business_id = get_user_business_id(current_user, db)
+    if not business_id:
+        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    if usage.business_id != business_id:
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    if not usage.used_by_id:
+        usage.used_by_id = current_user.id
+    try:
+        result = crud_product_usage.create_product_usage(db, usage, auto_reduce_stock=auto_reduce_stock)
+        logger.info(f"Created product usage {result.id} by user {current_user.id}")
+        return localize_response(result, locale)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating product usage: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+@router.get("/usage", response_model=PaginatedResponse[ProductUsageOut])
+def list_product_usages(
+    product_id: Optional[int] = Query(None),
+    visit_id: Optional[int] = Query(None),
+    client_id: Optional[int] = Query(None),
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
+):
+    business_id = get_user_business_id(current_user, db)
+    if not business_id:
+        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    skip = (page - 1) * per_page
+    usages = crud_product_usage.list_product_usages(
+        db,
+        business_id=business_id,
+        product_id=product_id,
+        visit_id=visit_id,
+        client_id=client_id,
+        date_from=date_from,
+        date_to=date_to,
+        skip=skip,
+        limit=per_page,
+    )
+    from app.db.models.product_usage import ProductUsage
+    total = db.query(ProductUsage).filter(ProductUsage.business_id == business_id).count()
+    return PaginatedResponse.create(
+        items=[localize_response(u, locale) for u in usages],
+        total=total,
+        page=page,
+        per_page=per_page,
+    )
+
 @router.get("/{product_id}", response_model=ProductOut)
 def get_product(
     product_id: int,
@@ -179,63 +240,3 @@ def reduce_product_quantity_endpoint(
         return localize_response(product, locale)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-@router.post("/usage", response_model=ProductUsageOut)
-def create_product_usage(
-    usage: ProductUsageCreate,
-    auto_reduce_stock: bool = Query(True, description="Автоматически списать со склада"),
-    db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
-    locale: str = Depends(deps.get_locale),
-):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
-    if usage.business_id != business_id:
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    if not usage.used_by_id:
-        usage.used_by_id = current_user.id
-    try:
-        result = crud_product_usage.create_product_usage(db, usage, auto_reduce_stock=auto_reduce_stock)
-        logger.info(f"Created product usage {result.id} by user {current_user.id}")
-        return localize_response(result, locale)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error creating product usage: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-@router.get("/usage", response_model=PaginatedResponse[ProductUsageOut])
-def list_product_usages(
-    product_id: Optional[int] = Query(None),
-    visit_id: Optional[int] = Query(None),
-    client_id: Optional[int] = Query(None),
-    date_from: Optional[datetime] = Query(None),
-    date_to: Optional[datetime] = Query(None),
-    page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
-    db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
-    locale: str = Depends(deps.get_locale),
-):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
-    skip = (page - 1) * per_page
-    usages = crud_product_usage.list_product_usages(
-        db,
-        business_id=business_id,
-        product_id=product_id,
-        visit_id=visit_id,
-        client_id=client_id,
-        date_from=date_from,
-        date_to=date_to,
-        skip=skip,
-        limit=per_page,
-    )
-    from app.db.models.product_usage import ProductUsage
-    total = db.query(ProductUsage).filter(ProductUsage.business_id == business_id).count()
-    return PaginatedResponse.create(
-        items=[localize_response(u, locale) for u in usages],
-        total=total,
-        page=page,
-        per_page=per_page,
-    )
