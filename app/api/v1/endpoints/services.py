@@ -90,8 +90,8 @@ def list_services(
         employee_specialist_ids = [emp[0] for emp in employees] if employees else []
         specialist_id = None  
     else:
-        if specialist_id is None:
-            specialist_id = get_filtered_specialist_id(current_user)
+        # specialists and employees only ever list their own services, whatever specialist_id says
+        specialist_id = get_filtered_specialist_id(current_user)
     pagination = PaginationParams(page=page, per_page=per_page)
     is_active_filter = True if active_only else None
     services, total = crud_service.list_services(

@@ -93,182 +93,43 @@ def get_service(db: Session, service_id: int, include_deleted: bool = False) -> 
 def list_services(
     db: Session,
     specialist_id: Optional[int] = None,
-    business_id: Optional[int] = None,  
-    employee_specialist_ids: Optional[List[int]] = None,  
-    is_active: Optional[bool] = None,  
+    business_id: Optional[int] = None,
+    employee_specialist_ids: Optional[List[int]] = None,
+    is_active: Optional[bool] = None,
     pagination: Optional[PaginationParams] = None,
     include_deleted: bool = False,
     include_archived: bool = False,
 ) -> Tuple[list[Service], int]:
-    from app.api.core.logger import get_logger
-    logger = get_logger("services")
-    from sqlalchemy import inspect
-    inspector = inspect(db.bind)
-    has_business_id_column = False
-    try:
-        columns = [col['name'] for col in inspector.get_columns('services')]
-        has_business_id_column = 'business_id' in columns
-    except:
-        pass
-    logger.info(f"list_services: specialist_id={specialist_id}, business_id={business_id}, has_business_id_column={has_business_id_column}, is_active={is_active}")
-    if not has_business_id_column:
-        from sqlalchemy import text
-        count_sql = "SELECT COUNT(*) FROM services WHERE 1=1"
-        params = {}
-        if not include_deleted:
-            count_sql += " AND deleted_at IS NULL"
-        if not include_archived:
-            count_sql += " AND archived_at IS NULL"
-        if specialist_id:
-            count_sql += " AND specialist_id = :specialist_id"
-            params['specialist_id'] = specialist_id
-        if is_active is not None:
-            count_sql += " AND is_active = :is_active"
-            params['is_active'] = is_active
-        total = db.execute(text(count_sql), params).scalar()
-        select_sql = """
-            SELECT id, specialist_id, name, duration_minutes, price, is_active, 
-                   created_at, deleted_at, archived_at
-            FROM services
-            WHERE 1=1
-        """
-        select_params = {}
-        if not include_deleted:
-            select_sql += " AND deleted_at IS NULL"
-        if not include_archived:
-            select_sql += " AND archived_at IS NULL"
-        if specialist_id:
-            select_sql += " AND specialist_id = :specialist_id"
-            select_params['specialist_id'] = specialist_id
-        if is_active is not None:
-            select_sql += " AND is_active = :is_active"
-            select_params['is_active'] = is_active
-        if pagination:
-            select_sql += " LIMIT :limit OFFSET :offset"
-            select_params['limit'] = pagination.limit
-            select_params['offset'] = pagination.offset
-        result = db.execute(text(select_sql), select_params)
-        items = []
-        for row in result:
-            service = Service()
-            for key, value in row._mapping.items():
-                setattr(service, key, value)
-            if service.specialist_id:
-                from app.db.models.user import User
-                service.specialist = db.query(User).filter(User.id == service.specialist_id).first()
-            items.append(service)
-        return items, total
+    from sqlalchemy import or_, select
+
+    # Scope rules. There are no "shared" services: business_id IS NULL just means a solo
+    # specialist's service, and those used to show up for every business and every specialist.
+    #   business_id          -> services of that business, plus ones linked to its employees
+    #   specialist_id only   -> that specialist's own services (owned or linked)
+    #   neither              -> no scope (only the platform admin gets here)
     q = db.query(Service).options(joinedload(Service.specialist))
-    logger.info(f"list_services: include_deleted={include_deleted}, include_archived={include_archived}")
     if not include_deleted:
         q = filter_active(q)
-        logger.info("list_services: applied filter_active (deleted_at IS NULL)")
     if not include_archived:
         q = q.filter(Service.archived_at.is_(None))
-        logger.info("list_services: applied archived_at IS NULL filter")
-    if has_business_id_column:
-        from sqlalchemy import or_
-        business_conditions = []
-        if business_id is not None:
-            business_conditions.append(Service.business_id == business_id)
-            business_conditions.append(Service.business_id.is_(None))  
-            logger.info(f"list_services: filtering by (business_id={business_id} OR business_id IS NULL)")
-        if employee_specialist_ids and len(employee_specialist_ids) > 0:
-            from app.db.models.service_specialist import ServiceSpecialist
-            from sqlalchemy import select
-            service_ids_subquery = select(ServiceSpecialist.service_id).where(
-                ServiceSpecialist.specialist_id.in_(employee_specialist_ids)
-            ).distinct()
-            business_conditions.append(Service.id.in_(service_ids_subquery))
-            business_conditions.append(Service.specialist_id.in_(employee_specialist_ids))
-            logger.info(f"list_services: including services from employee specialists: {employee_specialist_ids}")
-        if business_conditions:
-            q = q.filter(or_(*business_conditions))
-        elif business_id is None:
-            if specialist_id:
-                q = q.filter(or_(
-                    Service.business_id.is_(None),  
-                    Service.specialist_id == specialist_id  
-                ))
-            else:
-                q = q.filter(Service.business_id.is_(None))
-                logger.info(f"list_services: filtering by business_id IS NULL (no specialist_id)")
-    else:
-        if employee_specialist_ids and len(employee_specialist_ids) > 0:
-            from app.db.models.service_specialist import ServiceSpecialist
-            from sqlalchemy import or_, select
-            service_ids_subquery = select(ServiceSpecialist.service_id).where(
-                ServiceSpecialist.specialist_id.in_(employee_specialist_ids)
-            ).distinct()
-            q = q.filter(or_(
-                Service.id.in_(service_ids_subquery),
-                Service.specialist_id.in_(employee_specialist_ids)
-            ))
-            logger.info(f"list_services: filtering by employee_specialist_ids: {employee_specialist_ids}")
-    if specialist_id and (business_id is not None or not has_business_id_column) and not employee_specialist_ids:
-        q = q.filter(Service.specialist_id == specialist_id)
-        logger.info(f"list_services: additional filter by specialist_id={specialist_id}")
+    linked = lambda ids: Service.id.in_(  # noqa: E731
+        select(ServiceSpecialist.service_id).where(ServiceSpecialist.specialist_id.in_(ids))
+    )
+    if business_id is not None:
+        conditions = [Service.business_id == business_id]
+        if employee_specialist_ids:
+            conditions += [Service.specialist_id.in_(employee_specialist_ids), linked(employee_specialist_ids)]
+        q = q.filter(or_(*conditions))
+        if specialist_id:
+            q = q.filter(or_(Service.specialist_id == specialist_id, linked([specialist_id])))
+    elif specialist_id:
+        q = q.filter(or_(Service.specialist_id == specialist_id, linked([specialist_id])))
+    elif employee_specialist_ids is not None:
+        # an owner without a business yet: only what their employees provide
+        q = q.filter(or_(Service.specialist_id.in_(employee_specialist_ids), linked(employee_specialist_ids)))
     if is_active is not None:
         q = q.filter(Service.is_active == is_active)
-    try:
-        logger.info(f"list_services: SQL query: {str(q.statement)}")
-        total = q.count()
-        logger.info(f"list_services: count result: {total}")
-    except Exception as e:
-        if 'business_id' in str(e).lower() or 'does not exist' in str(e).lower():
-            from sqlalchemy import text
-            count_sql = "SELECT COUNT(*) FROM services WHERE 1=1"
-            params = {}
-            if not include_deleted:
-                count_sql += " AND deleted_at IS NULL"
-            if not include_archived:
-                count_sql += " AND archived_at IS NULL"
-            if specialist_id:
-                count_sql += " AND specialist_id = :specialist_id"
-                params['specialist_id'] = specialist_id
-            if is_active is not None:
-                count_sql += " AND is_active = :is_active"
-                params['is_active'] = is_active
-            total = db.execute(text(count_sql), params).scalar()
-        else:
-            raise
+    total = q.count()
     if pagination:
         q = q.offset(pagination.offset).limit(pagination.limit)
-    try:
-        items = q.all()
-        logger.info(f"list_services: found {len(items)} services, total={total}")
-    except Exception as e:
-        logger.error(f"list_services: error getting items: {str(e)}")
-        if 'business_id' in str(e).lower() or 'does not exist' in str(e).lower():
-            from sqlalchemy import text
-            select_sql = """
-                SELECT id, specialist_id, name, duration_minutes, price, is_active, 
-                       created_at, deleted_at, archived_at
-                FROM services
-                WHERE 1=1
-            """
-            params = {}
-            if not include_deleted:
-                select_sql += " AND deleted_at IS NULL"
-            if not include_archived:
-                select_sql += " AND archived_at IS NULL"
-            if specialist_id:
-                select_sql += " AND specialist_id = :specialist_id"
-                params['specialist_id'] = specialist_id
-            if is_active is not None:
-                select_sql += " AND is_active = :is_active"
-                params['is_active'] = is_active
-            if pagination:
-                select_sql += " LIMIT :limit OFFSET :offset"
-                params['limit'] = pagination.limit
-                params['offset'] = pagination.offset
-            result = db.execute(text(select_sql), params)
-            items = []
-            for row in result:
-                service = Service()
-                for key, value in row._mapping.items():
-                    setattr(service, key, value)
-                items.append(service)
-        else:
-            raise
-    return items, total
+    return q.all(), total

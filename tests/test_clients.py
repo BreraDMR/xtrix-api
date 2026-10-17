@@ -23,3 +23,13 @@ def test_other_specialist_does_not_see_the_client(client, auth_headers, make_use
 
     assert client.get(f"/clients/{created['id']}", headers=other).status_code == 403
     assert client.get("/clients/", headers=other).json()["items"] == []
+
+
+def test_specialist_cannot_list_someone_elses_services(client, make_user, headers_for):
+    alice, bob = make_user("specialist"), make_user("specialist")
+    r = client.post("/services/", json={"name": "Alice cut", "price": 10, "specialist_id": alice.id}, headers=headers_for(alice))
+    assert r.status_code == 200, r.text
+
+    items = client.get("/services/", params={"specialist_id": alice.id}, headers=headers_for(bob)).json()["items"]
+
+    assert items == []
