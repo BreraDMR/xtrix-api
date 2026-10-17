@@ -43,7 +43,7 @@ def create_user(
     if not user.phone and not user.email:
         raise HTTPException(
             status_code=422,
-            detail=_("phone_or_email_required", locale) or "Either phone or email is required"
+            detail=_("phone_or_email_required", locale)
         )
     if user.phone:
         if crud_user.get_by_phone_or_email(db, phone=user.phone, email=None):
@@ -284,14 +284,14 @@ def enable_2fa(
     from app.api.core.totp import verify_totp_token
     logger.info(f"2FA enable attempt for user_id={current_user.id}")
     if not current_user.totp_secret:
-        raise HTTPException(status_code=400, detail=_("2fa_not_setup", locale) or "2FA not set up. Please run /2fa/setup first.")
+        raise HTTPException(status_code=400, detail=_("2fa_not_setup", locale))
     if not verify_totp_token(current_user.totp_secret, data.token):
         logger.warning(f"Invalid 2FA token for user_id={current_user.id}")
-        raise HTTPException(status_code=400, detail=_("invalid_2fa_token", locale) or "Invalid 2FA token")
+        raise HTTPException(status_code=400, detail=_("invalid_2fa_token", locale))
     current_user.is_2fa_enabled = True
     db.commit()
     logger.info(f"2FA enabled for user_id={current_user.id}")
-    return {"message": _("2fa_enabled", locale) or "2FA enabled successfully", "is_2fa_enabled": True}
+    return {"message": _("2fa_enabled", locale), "is_2fa_enabled": True}
 @router.post("/2fa/disable", response_model=dict)
 def disable_2fa(
     data: TwoFactorVerify,
@@ -302,15 +302,15 @@ def disable_2fa(
     from app.api.core.totp import verify_totp_token
     logger.info(f"2FA disable attempt for user_id={current_user.id}")
     if not current_user.is_2fa_enabled or not current_user.totp_secret:
-        raise HTTPException(status_code=400, detail=_("2fa_not_enabled", locale) or "2FA is not enabled")
+        raise HTTPException(status_code=400, detail=_("2fa_not_enabled", locale))
     if not verify_totp_token(current_user.totp_secret, data.token):
         logger.warning(f"Invalid 2FA token for disabling 2FA for user_id={current_user.id}")
-        raise HTTPException(status_code=400, detail=_("invalid_2fa_token", locale) or "Invalid 2FA token")
+        raise HTTPException(status_code=400, detail=_("invalid_2fa_token", locale))
     current_user.is_2fa_enabled = False
     current_user.totp_secret = None
     db.commit()
     logger.info(f"2FA disabled for user_id={current_user.id}")
-    return {"message": _("2fa_disabled", locale) or "2FA disabled successfully", "is_2fa_enabled": False}
+    return {"message": _("2fa_disabled", locale), "is_2fa_enabled": False}
 @router.get("/2fa/status", response_model=dict)
 def get_2fa_status(
     current_user: User = Depends(deps.get_current_user),

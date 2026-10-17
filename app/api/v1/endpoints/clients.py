@@ -56,7 +56,7 @@ def create_client(
     if current_user.role in ["admin", "business_owner"] and not business_id:
         raise HTTPException(
             status_code=400,
-            detail=_("business_id_required_for_client_creation", locale) or "Business ID is required. Please create a business first."
+            detail=_("business_id_required_for_client_creation", locale)
         )
     from app.api.core.permissions import get_accessible_client_ids
     # match an existing card only among the caller's own clients - a phone number must not

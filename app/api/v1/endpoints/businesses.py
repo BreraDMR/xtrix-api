@@ -19,7 +19,7 @@ def create_business(
     if current_user.business_id:
         raise HTTPException(
             status_code=400,
-            detail=_("user_already_has_business", locale) or "User already has a business"
+            detail=_("user_already_has_business", locale)
         )
     new_business = crud_business.create_business(db=db, business_in=business)
     current_user.business_id = new_business.id
@@ -60,13 +60,13 @@ def get_my_business(
     if not current_user.business_id:
         raise HTTPException(
             status_code=404,
-            detail=_("business_not_found", locale) or "Business not found"
+            detail=_("business_not_found", locale)
         )
     business = crud_business.get_business(db=db, business_id=current_user.business_id)
     if not business:
         raise HTTPException(
             status_code=404,
-            detail=_("business_not_found", locale) or "Business not found"
+            detail=_("business_not_found", locale)
         )
     return BusinessOut.model_validate(business)
 @router.get("/{business_id}", response_model=BusinessOut, summary="Get business by ID")
@@ -80,7 +80,7 @@ def get_business(
     if not business:
         raise HTTPException(
             status_code=404,
-            detail=_("business_not_found", locale) or "Business not found"
+            detail=_("business_not_found", locale)
         )
     if current_user.role != "admin" and current_user.business_id != business_id:
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
@@ -97,7 +97,7 @@ def update_business(
     if not business:
         raise HTTPException(
             status_code=404,
-            detail=_("business_not_found", locale) or "Business not found"
+            detail=_("business_not_found", locale)
         )
     if current_user.role != "admin" and current_user.business_id != business_id:
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
@@ -120,7 +120,7 @@ def delete_business(
     if not business:
         raise HTTPException(
             status_code=404,
-            detail=_("business_not_found", locale) or "Business not found"
+            detail=_("business_not_found", locale)
         )
     deleted_business = crud_business.delete_business(db=db, business=business)
     return deleted_business.__dict__ if hasattr(deleted_business, '__dict__') else deleted_business

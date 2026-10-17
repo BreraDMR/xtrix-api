@@ -125,7 +125,7 @@ def create_employee_with_user(
     if not employee_data.email and not employee_data.phone:
         raise HTTPException(
             status_code=400,
-            detail=_("email_or_phone_required", locale) or "Email or phone number is required"
+            detail=_("email_or_phone_required", locale)
         )
     from app.api.crud import crud_user
     existing_user = crud_user.get_by_phone_or_email(db, phone=employee_data.phone, email=employee_data.email)
@@ -157,7 +157,7 @@ def create_employee_with_user(
     if not business_owner_id:
         raise HTTPException(
             status_code=400,
-            detail=_("business_owner_id_required", locale) or "Business owner ID is required"
+            detail=_("business_owner_id_required", locale)
         )
     from app.api.core.security import generate_secure_password
     generated_password = generate_secure_password(12)
@@ -858,7 +858,7 @@ def create_salary_payment(
     if payment.amount <= 0:
         raise HTTPException(
             status_code=400,
-            detail=_("payment_amount_invalid", locale) or "Payment amount must be greater than 0"
+            detail=_("payment_amount_invalid", locale)
         )
     from app.api.core.permissions import get_user_business_id
     business_id = get_user_business_id(current_user, db)

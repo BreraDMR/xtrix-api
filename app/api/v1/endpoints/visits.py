@@ -25,7 +25,7 @@ def _check_slot_free(db, specialist_id, start, end, service_id, exclude_id, loca
         end = start + timedelta(minutes=(service.duration_minutes if service and service.duration_minutes else 60))
     clash = crud_visit.find_overlapping_visit(db, specialist_id, start, end, exclude_id)
     if clash:
-        raise HTTPException(status_code=409, detail=_("time_slot_taken", locale) or "This time is already booked")
+        raise HTTPException(status_code=409, detail=_("time_slot_taken", locale))
 @router.post("/", response_model=VisitOut)
 def create_visit(
     visit: VisitCreate,
@@ -352,7 +352,7 @@ def update_visit(
         if not final_payment_method or final_payment_method not in ['card', 'cash', 'other']:
             raise HTTPException(
                 status_code=400,
-                detail=_("payment_method_required_for_completed_visits", locale) or "Payment method is required for completed visits with price"
+                detail=_("payment_method_required_for_completed_visits", locale)
             )
     old_status = visit.status
     result = crud_visit.update_visit(db, visit, payload)
