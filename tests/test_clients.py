@@ -53,3 +53,22 @@ def test_search_and_create_never_reach_another_business(client, make_user, heade
     # own clients are still found
     own = client.get("/clients/search", params={"phone": a_phone}, headers=a["headers"])
     assert own.status_code == 200 and own.json()["id"] == a["client"]["id"]
+
+
+def test_owner_id_in_body_is_ignored(client, make_user, headers_for):
+    alice, bob = make_user("specialist"), make_user("specialist")
+    r = client.post("/clients/", json={"full_name": "Planted", "contact_phone": "+420777000444", "owner_id": alice.id},
+                    headers=headers_for(bob))
+    assert r.status_code == 200
+    assert client.get(f"/clients/{r.json()['id']}", headers=headers_for(alice)).status_code == 403
+    assert client.get(f"/clients/{r.json()['id']}", headers=headers_for(bob)).status_code == 200
+
+
+def test_schedules_only_for_yourself(client, make_user, headers_for):
+    alice, bob = make_user("specialist"), make_user("specialist")
+    work = {"weekday": 1, "start_time": "09:00", "end_time": "17:00", "specialist_id": alice.id}
+    block = {"start": "2030-01-01T10:00:00", "end": "2030-01-01T11:00:00", "specialist_id": alice.id}
+    assert client.post("/schedules/work", json=work, headers=headers_for(bob)).status_code == 403
+    assert client.post("/schedules/blocks", json=block, headers=headers_for(bob)).status_code == 403
+    assert client.get("/schedules/work", params={"specialist_id": alice.id}, headers=headers_for(bob)).status_code == 403
+    assert client.post("/schedules/work", json=work, headers=headers_for(alice)).status_code == 200
