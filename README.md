@@ -18,6 +18,15 @@ FastAPI, SQLAlchemy, PostgreSQL, Alembic, Redis (optional, for rate limiting).
 
 Or just `docker compose up` for the API with Postgres and Redis.
 
+In production set at least `DATABASE_URL`, `JWT_SECRET` and `CORS_ORIGINS` (comma-separated web client
+origins) - nothing about the hosting is hardcoded.
+
+## Checks
+
+`./scripts/check.sh` - lint for real errors and the whole test suite against a throwaway Postgres
+in Docker (or against `DATABASE_URL` if you set one; its name must contain `test`). CI runs the same
+script.
+
 ## License
 
 Proprietary. All rights reserved.
