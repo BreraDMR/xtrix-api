@@ -14,3 +14,10 @@ def test_production_refuses_placeholder_jwt_secret(monkeypatch):
         config.Settings()
     monkeypatch.setenv("JWT_SECRET", "x" * 40)
     assert config.Settings().environment == "production"
+
+
+def test_aws_keys_come_from_the_standard_env_names(monkeypatch):
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIA_TEST")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secret_test")
+    s = config.Settings(_env_file=None)
+    assert (s.aws_access_key, s.aws_secret_key) == ("AKIA_TEST", "secret_test")
