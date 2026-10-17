@@ -553,7 +553,6 @@ def get_subscription_history(
     current_user: User = Depends(deps.role_required("admin", "specialist")),
     locale: str = Depends(deps.get_locale),
 ):
-    from app.db.models.subscription import Subscription
     subscriptions = (
         db.query(Subscription)
         .filter(Subscription.user_id == current_user.id)

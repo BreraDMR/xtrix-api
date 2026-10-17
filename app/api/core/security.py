@@ -100,24 +100,6 @@ def generate_secure_password(length: int = 12) -> str:
         password.append(secrets.choice(all_chars))
     secrets.SystemRandom().shuffle(password)
     return ''.join(password)
-def generate_secure_password(length: int = 12) -> str:
-    import secrets
-    import string
-    uppercase = string.ascii_uppercase
-    lowercase = string.ascii_lowercase
-    digits = string.digits
-    special = "!@#$%^&*()_+-=[]{}|;:,.<>?"
-    password = [
-        secrets.choice(uppercase),
-        secrets.choice(lowercase),
-        secrets.choice(digits),
-        secrets.choice(special),
-    ]
-    all_chars = uppercase + lowercase + digits + special
-    for _ in range(length - 4):
-        password.append(secrets.choice(all_chars))
-    secrets.SystemRandom().shuffle(password)
-    return ''.join(password)
 def validate_email(email: str) -> tuple[bool, str]:
     if not email or len(email) == 0:
         return False, "Email cannot be empty"
