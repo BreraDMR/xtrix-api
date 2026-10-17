@@ -24,6 +24,13 @@ from app.schemas.subscription_plan import (
     SubscriptionPlanUpdate,
 )
 router = APIRouter()
+def _own_subscription(db: Session, current_user: User, subscription_id: int, locale: str):
+    sub = crud_subscription.get_subscription(db, subscription_id)
+    if not sub:
+        raise HTTPException(status_code=404, detail=_("subscription_not_found", locale))
+    if sub.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    return sub
 @router.post("/plans", response_model=SubscriptionPlanOut)
 def create_plan(
     payload: SubscriptionPlanCreate,
@@ -69,8 +76,7 @@ def create_subscription(
     if payload.provider == "stripe":
         raise HTTPException(
             status_code=403,
-            detail=_("stripe_subscriptions_must_be_created_via_payment", locale) or 
-                   "Stripe subscriptions can only be created through payment checkout"
+            detail=_("stripe_subscriptions_must_be_created_via_payment", locale)
         )
     plan = crud_subscription.get_plan(db, payload.plan_id)
     if not plan or not plan.is_active:
@@ -97,7 +103,7 @@ def create_checkout_session(
         raise HTTPException(status_code=503, detail="Stripe not configured")
     plan = crud_subscription.get_plan(db, plan_id)
     if not plan or not plan.is_active:
-        raise HTTPException(status_code=404, detail=_("plan_not_found", locale) or "Plan not found")
+        raise HTTPException(status_code=404, detail=_("plan_not_found", locale))
     stripe.api_key = settings.stripe_api_key
     try:
         customer_email = current_user.email
@@ -500,11 +506,7 @@ def cancel_subscription(
     current_user: User = Depends(deps.role_required("admin", "specialist")),
     locale: str = Depends(deps.get_locale),
 ):
-    sub = crud_subscription.get_subscription(db, subscription_id)
-    if not sub:
-        raise HTTPException(status_code=404, detail=_("subscription_not_found", locale) or "Subscription not found")
-    if sub.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale) or "Not allowed")
+    sub = _own_subscription(db, current_user, subscription_id, locale)
     cancelled_sub = crud_subscription.cancel_subscription(
         db, 
         subscription_id, 
@@ -512,7 +514,7 @@ def cancel_subscription(
         user_id=current_user.id
     )
     if not cancelled_sub:
-        raise HTTPException(status_code=400, detail=_("cannot_cancel_subscription", locale) or "Cannot cancel subscription")
+        raise HTTPException(status_code=400, detail=_("cannot_cancel_subscription", locale))
     return cancelled_sub.model_dump() if hasattr(cancelled_sub, 'model_dump') else cancelled_sub
 @router.post("/{subscription_id}/reactivate", response_model=SubscriptionOut)
 def reactivate_subscription(
@@ -522,11 +524,7 @@ def reactivate_subscription(
     current_user: User = Depends(deps.role_required("admin", "specialist")),
     locale: str = Depends(deps.get_locale),
 ):
-    sub = crud_subscription.get_subscription(db, subscription_id)
-    if not sub:
-        raise HTTPException(status_code=404, detail=_("subscription_not_found", locale) or "Subscription not found")
-    if sub.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale) or "Not allowed")
+    sub = _own_subscription(db, current_user, subscription_id, locale)
     reactivated_sub = crud_subscription.reactivate_subscription(
         db,
         subscription_id,
@@ -534,7 +532,7 @@ def reactivate_subscription(
         user_id=current_user.id
     )
     if not reactivated_sub:
-        raise HTTPException(status_code=400, detail=_("cannot_reactivate_subscription", locale) or "Cannot reactivate subscription")
+        raise HTTPException(status_code=400, detail=_("cannot_reactivate_subscription", locale))
     return reactivated_sub.model_dump() if hasattr(reactivated_sub, 'model_dump') else reactivated_sub
 @router.get("/{subscription_id}/transactions", response_model=list[TransactionOut])
 def get_subscription_transactions(
@@ -543,11 +541,7 @@ def get_subscription_transactions(
     current_user: User = Depends(deps.role_required("admin", "specialist")),
     locale: str = Depends(deps.get_locale),
 ):
-    sub = crud_subscription.get_subscription(db, subscription_id)
-    if not sub:
-        raise HTTPException(status_code=404, detail=_("subscription_not_found", locale) or "Subscription not found")
-    if sub.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale) or "Not allowed")
+    sub = _own_subscription(db, current_user, subscription_id, locale)
     from app.api.crud import crud_transaction
     transactions = crud_transaction.get_transactions_by_subscription(db, subscription_id)
     return [t.model_dump() if hasattr(t, 'model_dump') else t for t in transactions]
