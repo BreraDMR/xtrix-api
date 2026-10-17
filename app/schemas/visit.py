@@ -16,8 +16,8 @@ class VisitBase(BaseModel):
     photo_url: Optional[str] = Field(None, max_length=2048)
     price: Optional[Money] = None
     status: Optional[str] = Field("planned", description="planned|completed|cancelled|in_progress")
-    payment_method: Optional[str] = Field(None, description="card|cash|other - способ оплаты")
-    used_products: Optional[List[UsedProduct]] = Field(None, description="Список использованных товаров")
+    payment_method: Optional[str] = Field(None, description="Payment method: card|cash|other")
+    used_products: Optional[List[UsedProduct]] = Field(None, description="Products used")
     @field_validator('date_end')
     @classmethod
     def validate_date_end(cls, v, info):
@@ -80,7 +80,7 @@ class VisitUpdate(BaseModel):
     photo_url: Optional[str] = Field(None, max_length=2048)
     price: Optional[Money] = None
     status: Optional[str] = None
-    payment_method: Optional[str] = Field(None, description="card|cash|other - способ оплаты")
+    payment_method: Optional[str] = Field(None, description="Payment method: card|cash|other")
     @field_validator('date_end')
     @classmethod
     def validate_date_end(cls, v, info):

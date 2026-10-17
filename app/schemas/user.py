@@ -40,7 +40,7 @@ class UserCreate(UserBase):
     password: str = Field(..., min_length=8)
     business_id: Optional[int] = Field(
         None, 
-        description="ID бизнеса для привязки специалиста (опционально, только для role='specialist' или 'employee')"
+        description="Business to attach the specialist to (optional, only for role='specialist' or 'employee')"
     )
     @field_validator('password')
     @classmethod
@@ -58,7 +58,7 @@ class UserLogin(BaseModel):
 class UserOut(UserBase):
     id: int
     is_2fa_enabled: bool = False
-    moderation_status: Optional[str] = Field(default="pending", description="Статус модерации: pending, approved, rejected")
+    moderation_status: Optional[str] = Field(default="pending", description="Moderation status: pending, approved, rejected")
     moderation_notes: Optional[str] = None
     moderated_at: Optional[datetime] = None
     moderated_by_id: Optional[int] = None
@@ -76,8 +76,8 @@ class LoginResponse(BaseModel):
     refresh_token: str | None = None
     token_type: str = "bearer"
 class ModerationRequest(BaseModel):
-    status: str = Field(..., description="Статус модерации: approved или rejected")
-    notes: Optional[str] = Field(None, max_length=1000, description="Комментарий модератора")
+    status: str = Field(..., description="Moderation status: approved or rejected")
+    notes: Optional[str] = Field(None, max_length=1000, description="Moderator's comment")
     @field_validator('status')
     @classmethod
     def validate_status(cls, v):

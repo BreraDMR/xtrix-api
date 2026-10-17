@@ -8,8 +8,8 @@ class SubscriptionPlanBase(BaseModel):
     currency: str = "usd"
     features: Optional[str] = None
     is_active: bool = True
-    is_trial: bool = Field(default=False, description="Является ли план trial")
-    trial_days: Optional[int] = Field(None, ge=1, le=30, description="Количество дней trial (7-14 для solo, 3-5 для admin)")
+    is_trial: bool = Field(default=False, description="Is this a trial plan")
+    trial_days: Optional[int] = Field(None, ge=1, le=30, description="Trial length in days (7-14 for solo, 3-5 for admin)")
 class SubscriptionPlanCreate(SubscriptionPlanBase):
     pass
 class SubscriptionPlanUpdate(BaseModel):

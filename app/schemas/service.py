@@ -9,7 +9,7 @@ class ServiceBase(BaseModel):
     is_active: Optional[bool] = True
 class ServiceCreate(ServiceBase):
     specialist_id: int  
-    specialist_ids: Optional[List[int]] = Field(None, description="Список ID специалистов, которые могут предоставлять эту услугу")
+    specialist_ids: Optional[List[int]] = Field(None, description="IDs of specialists who provide this service")
 class ServiceUpdate(BaseModel):
     name: Optional[Name] = None
     category: Optional[ShortText] = None
@@ -17,10 +17,10 @@ class ServiceUpdate(BaseModel):
     price: Optional[Money] = None
     is_active: Optional[bool] = None
     specialist_id: Optional[int] = None
-    specialist_ids: Optional[List[int]] = Field(None, description="Список ID специалистов, которые могут предоставлять эту услугу")
+    specialist_ids: Optional[List[int]] = Field(None, description="IDs of specialists who provide this service")
 class ServiceOut(ServiceBase):
     id: int
     specialist_id: int
-    specialist_ids: Optional[List[int]] = Field(None, description="Список ID всех специалистов, которые могут предоставлять эту услугу")
-    specialists: Optional[List[dict]] = Field(None, description="Информация о специалистах")
+    specialist_ids: Optional[List[int]] = Field(None, description="IDs of all specialists who provide this service")
+    specialists: Optional[List[dict]] = Field(None, description="Specialists' info")
     model_config = ConfigDict(from_attributes=True)
