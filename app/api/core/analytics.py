@@ -337,45 +337,22 @@ def get_client_statistics(
         .all()
     )
     clients_by_gender = {gender or 'unknown': count for gender, count in gender_counts}
+    # spending = sum of completed visits; ClientBusinessRelation.spending is never written anywhere
+    # and Client.spending doesn't exist, so the old version showed 0 or crashed
+    spending = func.sum(Visit.price).label('spending')
+    per_client = (
+        db.query(Client.id, Client.full_name, spending)
+        .join(Visit, Visit.client_id == Client.id)
+        .filter(*client_filters, Visit.status == 'completed', Visit.price.isnot(None))
+    )
     if business_id:
-        avg_spending = (
-            db.query(func.avg(ClientBusinessRelation.spending))
-            .filter(ClientBusinessRelation.business_id == business_id)
-            .scalar()
-        )
-        top_spenders = (
-            db.query(
-                Client.id,
-                Client.full_name,
-                ClientBusinessRelation.spending,
-            )
-            .join(ClientBusinessRelation, Client.id == ClientBusinessRelation.client_id)
-            .filter(
-                ClientBusinessRelation.business_id == business_id,
-                Client.deleted_at.is_(None),
-                Client.archived_at.is_(None),
-            )
-            .order_by(ClientBusinessRelation.spending.desc())
-            .limit(10)
-            .all()
-        )
-    else:
-        avg_spending = (
-            db.query(func.avg(Client.spending))
-            .filter(*client_filters)
-            .scalar()
-        )
-        top_spenders = (
-            db.query(
-                Client.id,
-                Client.full_name,
-                Client.spending,
-            )
-            .filter(*client_filters)
-            .order_by(Client.spending.desc())
-            .limit(10)
-            .all()
-        )
+        per_client = per_client.filter(Visit.business_id == business_id)
+    elif owner_id:
+        per_client = per_client.filter(Visit.specialist_id == owner_id)
+    per_client = per_client.group_by(Client.id, Client.full_name)
+    totals = per_client.subquery()
+    avg_spending = db.query(func.avg(totals.c.spending)).scalar()
+    top_spenders = per_client.order_by(spending.desc()).limit(10).all()
     top_spenders_list = [
         {
             'client_id': client_id,
