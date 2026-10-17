@@ -14,10 +14,11 @@ from app.api.v1.endpoints import (
 )
 from app.api.core import error_handlers
 from app.api.middleware.rate_limit import client_ip
+from app.api.middleware.trailing_slash import TrailingSlashMiddleware
 app = FastAPI(
     title="Xtrix API",
     version="1.0.0",
-    redirect_slashes=True,
+    redirect_slashes=False,  # TrailingSlashMiddleware below takes both spellings, no 307
     docs_url=None,  # /docs is the Scalar page below
     redoc_url=None,
 )
@@ -61,6 +62,7 @@ async def fix_proxy_headers(request: Request, call_next):
     response = await call_next(request)
     return response
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(TrailingSlashMiddleware, router=app.router)
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start_time = time.time()
