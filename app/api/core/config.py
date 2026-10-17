@@ -1,5 +1,10 @@
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings
+PLACEHOLDER_JWT_SECRETS = {
+    "change-me-minimum-32-characters-long",
+    "test-secret-key-minimum-32-characters-long-for-testing",
+    "put-a-random-string-of-at-least-32-chars-here",
+}
 class Settings(BaseSettings):
     database_url: str = Field(
         ...,  
@@ -125,6 +130,12 @@ class Settings(BaseSettings):
         env="FRONTEND_URL",
         description="Frontend URL for generating QR code access links",
     )
+    @model_validator(mode="after")
+    def no_placeholder_secret_in_production(self):
+        # these strings are public (repo, compose, CI) - a token signed with them can be forged by anyone
+        if self.environment == "production" and self.jwt_secret in PLACEHOLDER_JWT_SECRETS:
+            raise ValueError("JWT_SECRET is a public placeholder, set a real random secret in production")
+        return self
     class Config:
         env_file = ".env"
         case_sensitive = False
