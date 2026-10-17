@@ -6,6 +6,7 @@ from app.db.models.product_usage import ProductUsage
 from app.schemas.product_usage import ProductUsageCreate
 from app.db.models.product import Product
 from app.api.crud.crud_product import reduce_product_quantity
+from app.api.core.clock import utcnow
 def create_product_usage(
     db: Session,
     usage_in: ProductUsageCreate,
@@ -56,7 +57,7 @@ def get_usage_stats(
     days: int = 30,
     business_id: Optional[int] = None,
 ) -> dict:
-    date_from = datetime.utcnow() - timedelta(days=days)
+    date_from = utcnow() - timedelta(days=days)
     query = db.query(ProductUsage).filter(
         and_(
             ProductUsage.product_id == product_id,

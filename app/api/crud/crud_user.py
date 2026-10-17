@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 from app.api.core.security import (
@@ -10,6 +10,7 @@ from app.api.core.pagination import PaginationParams
 from app.db.models.user import User
 from app.schemas.user import UserCreate, UserLogin
 from app.schemas.refresh_token import RefreshTokenCreate
+from app.api.core.clock import utcnow
 def create_user(db: Session, user_in: UserCreate, moderation_status: Optional[str] = None) -> User:
     if user_in.password:
         is_valid, error_msg = validate_password_strength(user_in.password)
@@ -52,8 +53,8 @@ def create_user(db: Session, user_in: UserCreate, moderation_status: Optional[st
 def check_account_locked(user: User) -> tuple[bool, Optional[str]]:
     if not user.is_locked:
         return False, None
-    if user.locked_until and user.locked_until > datetime.utcnow():
-        remaining_minutes = int((user.locked_until - datetime.utcnow()).total_seconds() / 60)
+    if user.locked_until and user.locked_until > utcnow():
+        remaining_minutes = int((user.locked_until - utcnow()).total_seconds() / 60)
         return True, f"Account is locked. Try again in {remaining_minutes} minutes."
     user.is_locked = False
     user.failed_login_attempts = 0
@@ -63,7 +64,7 @@ def increment_failed_login_attempts(db: Session, user: User) -> None:
     user.failed_login_attempts += 1
     if user.failed_login_attempts >= settings.max_login_attempts:
         user.is_locked = True
-        user.locked_until = datetime.utcnow() + timedelta(minutes=settings.lockout_duration_minutes)
+        user.locked_until = utcnow() + timedelta(minutes=settings.lockout_duration_minutes)
     db.commit()
 def reset_failed_login_attempts(db: Session, user: User) -> None:
     if user.failed_login_attempts > 0:
@@ -151,7 +152,7 @@ def moderate_user(
         return None
     user.moderation_status = status
     user.moderation_notes = notes
-    user.moderated_at = datetime.utcnow()
+    user.moderated_at = utcnow()
     user.moderated_by_id = moderated_by_id
     db.commit()
     db.refresh(user)

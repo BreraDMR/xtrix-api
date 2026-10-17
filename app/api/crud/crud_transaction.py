@@ -1,11 +1,11 @@
-from datetime import datetime
 from typing import Optional, List
 from sqlalchemy.orm import Session
 from app.db.models.transaction import Transaction
 from app.schemas.transaction import TransactionCreate, TransactionUpdate
+from app.api.core.clock import utcnow
 def create_transaction(db: Session, data: TransactionCreate) -> Transaction:
     if not data.transaction_date:
-        data.transaction_date = datetime.utcnow()
+        data.transaction_date = utcnow()
     transaction = Transaction(**data.model_dump())
     db.add(transaction)
     db.commit()
@@ -19,7 +19,7 @@ def create_transaction(db: Session, data: TransactionCreate) -> Transaction:
 def update_transaction(db: Session, transaction: Transaction, data: TransactionUpdate) -> Transaction:
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(transaction, k, v)
-    transaction.updated_at = datetime.utcnow()
+    transaction.updated_at = utcnow()
     db.add(transaction)
     db.commit()
     db.refresh(transaction)

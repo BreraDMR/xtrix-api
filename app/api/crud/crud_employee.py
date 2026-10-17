@@ -1,11 +1,11 @@
 from typing import Optional, List, Tuple
-from datetime import datetime
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
 from app.api.core.pagination import PaginationParams
 from app.db.models.employee import Employee
 from app.db.models.user import User
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeePermissions
+from app.api.core.clock import utcnow
 def create_employee(
     db: Session,
     employee_in: EmployeeCreate,
@@ -33,7 +33,7 @@ def create_employee(
     employee_data["permissions"] = permissions
     employee = Employee(**employee_data)
     employee_user.employer_id = business_owner_id
-    employee_user.hire_date = datetime.utcnow()
+    employee_user.hire_date = utcnow()
     if not employee_user.business_id:
         business_owner = db.query(User).filter(User.id == business_owner_id).first()
         if business_owner and hasattr(business_owner, 'business_id') and business_owner.business_id:
@@ -90,7 +90,7 @@ def update_employee(
         update_data["permissions"] = default_permissions.model_dump()
     for field, value in update_data.items():
         setattr(employee, field, value)
-    employee.updated_at = datetime.utcnow()
+    employee.updated_at = utcnow()
     db.add(employee)
     db.commit()
     db.refresh(employee)
@@ -100,8 +100,8 @@ def fire_employee(
     employee: Employee
 ) -> Employee:
     employee.is_active = False
-    employee.fired_at = datetime.utcnow()
-    employee.updated_at = datetime.utcnow()
+    employee.fired_at = utcnow()
+    employee.updated_at = utcnow()
     employee_user = employee.employee_user
     if employee_user:
         employee_user.employer_id = None

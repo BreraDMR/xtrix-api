@@ -1,10 +1,11 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.db.models.subscription import Subscription
 from app.db.models.subscription_plan import SubscriptionPlan
 from app.schemas.subscription import SubscriptionCreate, SubscriptionUpdate
 from app.schemas.subscription_plan import SubscriptionPlanCreate, SubscriptionPlanUpdate
+from app.api.core.clock import utcnow
 def create_plan(db: Session, data: SubscriptionPlanCreate) -> SubscriptionPlan:
     plan = SubscriptionPlan(**data.model_dump())
     db.add(plan)
@@ -38,7 +39,7 @@ def create_subscription(db: Session, data: SubscriptionCreate) -> Subscription:
             if is_trial and trial_end:
                 period_end = trial_end  
             else:
-                period_end = datetime.utcnow() + timedelta(days=plan.period_days)
+                period_end = utcnow() + timedelta(days=plan.period_days)
     payload = data.model_dump(exclude_unset=True) if hasattr(data, 'model_dump') else data.model_dump(exclude_unset=True)
     payload["current_period_end"] = period_end
     if "is_trial" not in payload:
@@ -80,7 +81,7 @@ def create_trial_subscription(db: Session, user_id: int, role: str) -> Optional[
             trial_days=trial_days,
         )
         plan = create_plan(db, plan_data)
-    trial_start = datetime.utcnow()
+    trial_start = utcnow()
     trial_end = trial_start + timedelta(days=trial_days)
     from app.schemas.subscription import SubscriptionCreate
     sub_data = SubscriptionCreate(
@@ -101,7 +102,7 @@ def is_trial_active(db: Session, user_id: int) -> bool:
         return False
     if not sub.trial_end:
         return False
-    return datetime.utcnow() < sub.trial_end
+    return utcnow() < sub.trial_end
 def check_subscription_access(db: Session, user_id: int, require_paid: bool = False) -> tuple[bool, Optional[str]]:
     from app.db.models.user import User
     user = db.query(User).filter(User.id == user_id).first()
@@ -122,7 +123,7 @@ def check_subscription_access(db: Session, user_id: int, require_paid: bool = Fa
         return False, "No active subscription"
     if sub.status not in ["active", "pending_cancellation"]:
         return False, f"Subscription status: {sub.status}"
-    if sub.current_period_end and datetime.utcnow() > sub.current_period_end:
+    if sub.current_period_end and utcnow() > sub.current_period_end:
         return False, "Subscription expired"
     if require_paid:
         if sub.is_trial and not is_trial_active(db, user_id):
@@ -166,13 +167,13 @@ def cancel_subscription(db: Session, subscription_id: int, cancel_at_period_end:
         return None
     if cancel_at_period_end:
         sub.cancel_at_period_end = True
-        sub.cancelled_at = datetime.utcnow()
+        sub.cancelled_at = utcnow()
         sub.status = "pending_cancellation"  
     else:
         sub.cancel_at_period_end = False
-        sub.cancelled_at = datetime.utcnow()
+        sub.cancelled_at = utcnow()
         sub.status = "cancelled"
-        sub.current_period_end = datetime.utcnow()  
+        sub.current_period_end = utcnow()  
     db.commit()
     db.refresh(sub)
     try:
@@ -204,15 +205,15 @@ def reactivate_subscription(db: Session, subscription_id: int, plan_id: Optional
         plan = get_plan(db, plan_id)
         if plan:
             sub.plan_id = plan_id
-            sub.current_period_end = datetime.utcnow() + timedelta(days=plan.period_days)
+            sub.current_period_end = utcnow() + timedelta(days=plan.period_days)
     sub.cancel_at_period_end = False
     sub.cancelled_at = None
-    sub.reactivated_at = datetime.utcnow()
+    sub.reactivated_at = utcnow()
     sub.status = "active"
-    if sub.current_period_end and sub.current_period_end < datetime.utcnow():
+    if sub.current_period_end and sub.current_period_end < utcnow():
         plan = get_plan(db, sub.plan_id)
         if plan:
-            sub.current_period_end = datetime.utcnow() + timedelta(days=plan.period_days)
+            sub.current_period_end = utcnow() + timedelta(days=plan.period_days)
     db.commit()
     db.refresh(sub)
     try:
@@ -233,7 +234,7 @@ def reactivate_subscription(db: Session, subscription_id: int, plan_id: Optional
         logging.warning(f"Failed to log reactivation transaction: {e}")
     return sub
 def deactivate_expired_subscriptions(db: Session) -> int:
-    now = datetime.utcnow()
+    now = utcnow()
     expired_subscriptions = (
         db.query(Subscription)
         .filter(

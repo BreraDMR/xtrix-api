@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy.orm import Session
 from app.db.models.refresh_token import RefreshToken
 from app.schemas.refresh_token import RefreshTokenCreate
+from app.api.core.clock import utcnow
 def create_refresh_token(db: Session, token_data: RefreshTokenCreate) -> RefreshToken:
     db_token = RefreshToken(
         token=token_data.token,
@@ -16,14 +16,14 @@ def get_refresh_token(db: Session, token: str) -> RefreshToken | None:
     return db.query(RefreshToken).filter(
         RefreshToken.token == token,
         RefreshToken.is_revoked == False,
-        RefreshToken.expires_at > datetime.utcnow(),
+        RefreshToken.expires_at > utcnow(),
     ).first()
 def revoke_refresh_token(db: Session, token: str) -> bool:
     db_token = db.query(RefreshToken).filter(RefreshToken.token == token).first()
     if not db_token:
         return False
     db_token.is_revoked = True
-    db_token.revoked_at = datetime.utcnow()
+    db_token.revoked_at = utcnow()
     db.commit()
     return True
 def revoke_all_user_tokens(db: Session, user_id: int) -> int:
@@ -34,11 +34,11 @@ def revoke_all_user_tokens(db: Session, user_id: int) -> int:
     count = len(tokens)
     for token in tokens:
         token.is_revoked = True
-        token.revoked_at = datetime.utcnow()
+        token.revoked_at = utcnow()
     db.commit()
     return count
 def cleanup_expired_tokens(db: Session) -> int:
-    now = datetime.utcnow()
+    now = utcnow()
     expired_tokens = db.query(RefreshToken).filter(
         RefreshToken.expires_at < now
     ).all()

@@ -1,8 +1,8 @@
 from typing import Optional
-from datetime import datetime
 from sqlalchemy.orm import Session
 from app.db.models.business import Business
 from app.schemas.business import BusinessCreate, BusinessUpdate
+from app.api.core.clock import utcnow
 def create_business(db: Session, business_in: BusinessCreate) -> Business:
     business = Business(
         name=business_in.name,
@@ -43,7 +43,7 @@ def update_business(
     db.refresh(business)
     return business
 def delete_business(db: Session, business: Business) -> Business:
-    business.deleted_at = datetime.utcnow()
+    business.deleted_at = utcnow()
     db.add(business)
     db.commit()
     db.refresh(business)

@@ -15,6 +15,7 @@ from app.schemas.salary import (
     SalaryPaymentCreate,
     SalaryPaymentUpdate
 )
+from app.api.core.clock import utcnow
 def calculate_salary(
     db: Session,
     employee_id: int,
@@ -109,7 +110,7 @@ def update_salary_calculation(
 ) -> SalaryCalculation:
     update_data = update.model_dump(exclude_unset=True)
     if update_data.get('is_paid') is True and not salary_calculation.is_paid:
-        update_data['paid_at'] = datetime.utcnow()
+        update_data['paid_at'] = utcnow()
         update_data['payment_status'] = 'paid'
         update_data['paid_amount'] = salary_calculation.total_with_adjustments
     elif update_data.get('is_paid') is False:
@@ -118,7 +119,7 @@ def update_salary_calculation(
         update_data['paid_amount'] = 0.0
     for field, value in update_data.items():
         setattr(salary_calculation, field, value)
-    salary_calculation.updated_at = datetime.utcnow()
+    salary_calculation.updated_at = utcnow()
     db.add(salary_calculation)
     db.commit()
     db.refresh(salary_calculation)
@@ -135,7 +136,7 @@ def _update_salary_payment_status(db: Session, salary_calculation: SalaryCalcula
         salary_calculation.payment_status = 'paid'
         salary_calculation.is_paid = True
         if not salary_calculation.paid_at:
-            salary_calculation.paid_at = datetime.utcnow()
+            salary_calculation.paid_at = utcnow()
     elif salary_calculation.paid_amount > 0:
         salary_calculation.payment_status = 'partial'
         salary_calculation.is_paid = False
@@ -312,7 +313,7 @@ def update_salary_payment(
     update_data = update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(payment, field, value)
-    payment.updated_at = datetime.utcnow()
+    payment.updated_at = utcnow()
     db.commit()
     db.refresh(payment)
     salary_calculation = get_salary_calculation(db, payment.salary_calculation_id)
