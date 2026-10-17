@@ -123,12 +123,12 @@ if settings.rate_limit_enabled:
             test_redis.ping()
             storage_uri = settings.redis_url
             test_redis.close()
-            logger.info("Redis подключен, используется для rate limiting")
+            logger.info("Redis connected, using it for rate limiting")
         except Exception as e:
-            logger.warning(f"Redis недоступен ({str(e)[:50]}...), используется memory storage для rate limiting")
+            logger.warning(f"Redis unavailable ({str(e)[:50]}...), using in-memory rate limiting")
             storage_uri = "memory://"
     else:
-        logger.info("Используется memory storage для rate limiting (Redis URL не настроен)")
+        logger.info("Using in-memory rate limiting (no Redis URL configured)")
     app_limiter = Limiter(
         key_func=get_remote_address,
         default_limits=[settings.rate_limit_default],
