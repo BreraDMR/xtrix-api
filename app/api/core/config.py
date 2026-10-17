@@ -99,6 +99,7 @@ class Settings(BaseSettings):
         default="logs/errors.log",
         description="Path to errors log file",
     )
+    trust_proxy: bool = Field(False, description="Behind our own proxy (Render etc.): take the client IP from the last X-Forwarded-For hop")
     docs_username: str = Field("", description="HTTP Basic login for /docs in production (empty = docs off)")
     docs_password: str = Field("", description="HTTP Basic password for /docs in production")
     csp_policy: str = Field(

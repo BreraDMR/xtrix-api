@@ -1,6 +1,19 @@
+from starlette.requests import Request
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 from app.api.core.config import settings
+def client_ip(request: Request) -> str:
+    """Who the request is from, for rate limiting.
+
+    Behind a proxy we own (TRUST_PROXY=true, e.g. Render) the real client is the last address in
+    X-Forwarded-For - the proxy appends it; everything left of it the client could have typed itself.
+    Otherwise it's the socket peer, and X-Forwarded-For is ignored so it can't be spoofed.
+    """
+    if settings.trust_proxy:
+        forwarded = request.headers.get("x-forwarded-for", "")
+        last = forwarded.split(",")[-1].strip()
+        if last:
+            return last
+    return request.client.host if request.client else "unknown"
 storage_uri = "memory://"  
 if settings.rate_limit_enabled and settings.redis_url.startswith("redis://"):
     try:
@@ -12,7 +25,7 @@ if settings.rate_limit_enabled and settings.redis_url.startswith("redis://"):
     except:
         storage_uri = "memory://"
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=client_ip,
     storage_uri=storage_uri,
 )
 def get_rate_limit_for_login():

@@ -9,6 +9,8 @@ services:
     envVars:
       - key: ENVIRONMENT
         value: production
+      - key: TRUST_PROXY
+        value: "true"  # client IP for rate limiting = last X-Forwarded-For hop, added by Render's proxy
       - key: DATABASE_URL
         sync: false  # Neon connection string, with ?sslmode=require
       - key: JWT_SECRET

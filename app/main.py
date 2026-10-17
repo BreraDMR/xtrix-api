@@ -2,7 +2,6 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy.exc import SQLAlchemyError
 import time
@@ -14,6 +13,7 @@ from app.api.v1.endpoints import (
     analytics, audit, archiving, specialist_profiles, client_relations, employees, businesses, products, expenses, loyalty, user_preferences
 )
 from app.api.core import error_handlers
+from app.api.middleware.rate_limit import client_ip
 app = FastAPI(
     title="Xtrix API",
     version="1.0.0",
@@ -116,7 +116,7 @@ if settings.rate_limit_enabled:
     else:
         logger.info("Using in-memory rate limiting (no Redis URL configured)")
     app_limiter = Limiter(
-        key_func=get_remote_address,
+        key_func=client_ip,
         default_limits=[settings.rate_limit_default],
         storage_uri=storage_uri,
     )
