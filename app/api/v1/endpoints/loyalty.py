@@ -27,16 +27,8 @@ from app.schemas.loyalty import (
 )
 from app.api.crud import crud_loyalty
 from app.api.core.logger import logger
+from app.api.core.permissions import require_business_id
 router = APIRouter()
-def get_user_business_id(current_user: User, db: Session) -> Optional[int]:
-    if hasattr(current_user, 'business_id') and current_user.business_id:
-        return current_user.business_id
-    if current_user.role == "employee":
-        from app.api.crud import crud_employee
-        employee = crud_employee.get_employee_by_user_id(db, current_user.id)
-        if employee and employee.business_id:
-            return employee.business_id
-    return None
 @router.post("/program", response_model=LoyaltyProgramOut)
 def create_loyalty_program(
     program: LoyaltyProgramCreate,
@@ -44,9 +36,7 @@ def create_loyalty_program(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     if program.business_id != business_id:
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     existing = crud_loyalty.get_loyalty_program(db, business_id)
@@ -65,9 +55,7 @@ def get_loyalty_program(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     program = crud_loyalty.get_loyalty_program(db, business_id)
     if not program:
         raise HTTPException(status_code=404, detail=_("loyalty_program_not_found", locale))
@@ -79,9 +67,7 @@ def update_loyalty_program(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     program = crud_loyalty.get_loyalty_program(db, business_id)
     if not program:
         raise HTTPException(status_code=404, detail=_("loyalty_program_not_found", locale))
@@ -98,9 +84,7 @@ def delete_loyalty_program(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     program = crud_loyalty.get_loyalty_program(db, business_id)
     if not program:
         raise HTTPException(status_code=404, detail=_("loyalty_program_not_found", locale))
@@ -118,9 +102,7 @@ def create_loyalty_level(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     program = crud_loyalty.get_loyalty_program(db, business_id)
     if not program:
         raise HTTPException(status_code=404, detail=_("loyalty_program_not_found", locale))
@@ -139,9 +121,7 @@ def list_loyalty_levels(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     program = crud_loyalty.get_loyalty_program(db, business_id)
     if not program:
         return []
@@ -155,9 +135,7 @@ def update_loyalty_level(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     program = crud_loyalty.get_loyalty_program(db, business_id)
     if not program:
         raise HTTPException(status_code=404, detail=_("loyalty_program_not_found", locale))
@@ -177,9 +155,7 @@ def delete_loyalty_level(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     program = crud_loyalty.get_loyalty_program(db, business_id)
     if not program:
         raise HTTPException(status_code=404, detail=_("loyalty_program_not_found", locale))
@@ -199,9 +175,7 @@ def create_loyalty_promotion(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     program = crud_loyalty.get_loyalty_program(db, business_id)
     if not program:
         raise HTTPException(status_code=404, detail=_("loyalty_program_not_found", locale))
@@ -222,9 +196,7 @@ def list_loyalty_promotions(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     program = crud_loyalty.get_loyalty_program(db, business_id)
     if not program:
         return []
@@ -240,9 +212,7 @@ def update_loyalty_promotion(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     program = crud_loyalty.get_loyalty_program(db, business_id)
     if not program:
         raise HTTPException(status_code=404, detail=_("loyalty_program_not_found", locale))
@@ -262,9 +232,7 @@ def delete_loyalty_promotion(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     program = crud_loyalty.get_loyalty_program(db, business_id)
     if not program:
         raise HTTPException(status_code=404, detail=_("loyalty_program_not_found", locale))
@@ -284,9 +252,7 @@ def get_client_loyalty_balance(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     relation = crud_loyalty.get_client_loyalty_balance(db, client_id, business_id)
     if not relation:
         return ClientLoyaltyBalance(
@@ -321,9 +287,7 @@ def list_client_transactions(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     skip = (page - 1) * per_page
     transactions = crud_loyalty.list_loyalty_transactions(
         db,
@@ -355,9 +319,7 @@ def use_points(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     visit_amount = None
     if request.visit_id:
         from app.api.crud import crud_visit
@@ -394,9 +356,7 @@ def get_loyalty_statistics(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     from app.api.core.loyalty_analytics import get_loyalty_statistics
     stats = get_loyalty_statistics(db, business_id, date_from, date_to)
     return LoyaltyStatisticsResponse(**stats)
@@ -406,9 +366,7 @@ def get_level_distribution(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     from app.api.core.loyalty_analytics import get_level_distribution
     distribution = get_level_distribution(db, business_id)
     return LevelDistributionResponse(distribution=distribution)
@@ -419,9 +377,7 @@ def get_top_clients(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     from app.api.core.loyalty_analytics import get_top_clients_by_points
     clients = get_top_clients_by_points(db, business_id, limit)
     return TopClientsResponse(clients=clients)
@@ -433,9 +389,7 @@ def get_promotion_effectiveness(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     from app.api.core.loyalty_analytics import get_promotion_effectiveness
     promotions = get_promotion_effectiveness(db, business_id, date_from, date_to)
     return PromotionEffectivenessResponse(promotions=promotions)
@@ -448,9 +402,7 @@ def get_points_usage_trends(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = get_user_business_id(current_user, db)
-    if not business_id:
-        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    business_id = require_business_id(current_user, db, locale)
     from app.api.core.loyalty_analytics import get_points_usage_trends
     trends = get_points_usage_trends(db, business_id, date_from, date_to, group_by)
     return PointsUsageTrendsResponse(trends=trends)

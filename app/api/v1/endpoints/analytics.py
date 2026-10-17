@@ -40,6 +40,7 @@ from app.schemas.analytics import (
     SmartInsightsResponse,
     AnonymousBenchmarksResponse,
 )
+from app.api.core.permissions import get_user_business_id
 router = APIRouter()
 def _scope(current_user: User, db: Session, requested_specialist_id: Optional[int] = None):
     """(specialist_id, business_id) whose numbers the caller may see.
@@ -270,15 +271,6 @@ def export_report(
         return export_to_csv(export_data, filename=f"{filename}.csv")
     else:
         return export_to_excel(export_data, filename=f"{filename}.xlsx", sheet_name=sheet_name)
-def get_user_business_id(current_user: User, db: Session) -> Optional[int]:
-    if hasattr(current_user, 'business_id') and current_user.business_id:
-        return current_user.business_id
-    if current_user.role == "employee":
-        from app.api.crud import crud_employee
-        employee = crud_employee.get_employee_by_user_id(db, current_user.id)
-        if employee and employee.business_id:
-            return employee.business_id
-    return None
 @router.get("/retention/metrics", response_model=RetentionMetricsResponse)
 def get_retention_metrics_endpoint(
     date_from: Optional[datetime] = Query(None),

@@ -860,7 +860,7 @@ def create_salary_payment(
             status_code=400,
             detail=_("payment_amount_invalid", locale) or "Payment amount must be greater than 0"
         )
-    from app.api.v1.endpoints.expenses import get_user_business_id
+    from app.api.core.permissions import get_user_business_id
     business_id = get_user_business_id(current_user, db)
     if not business_id and employee.business_owner_id:
         owner_user = db.query(User).filter(User.id == employee.business_owner_id).first()

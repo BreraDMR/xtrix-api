@@ -178,3 +178,20 @@ def check_specialist_in_scope(db: Session, user: User, specialist_id: int) -> bo
         Employee.employee_user_id == specialist_id,
         Employee.is_active == True,  # noqa: E712
     ).first() is not None
+def get_user_business_id(current_user: User, db: Session) -> Optional[int]:
+    """The business the user works in: their own, or the employer's for an employee."""
+    if current_user.business_id:
+        return current_user.business_id
+    if current_user.role == "employee":
+        employee = crud_employee.get_employee_by_user_id(db, current_user.id)
+        if employee and employee.business_id:
+            return employee.business_id
+    return None
+def require_business_id(current_user: User, db: Session, locale: str) -> int:
+    # stock, expenses and loyalty only make sense inside a business
+    business_id = get_user_business_id(current_user, db)
+    if not business_id:
+        from fastapi import HTTPException
+        from app.api.core.i18n import _
+        raise HTTPException(status_code=403, detail=_("business_required", locale))
+    return business_id
