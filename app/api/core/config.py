@@ -30,11 +30,15 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 30
     max_login_attempts: int = Field(
         default=5,
-        description="Maximum failed login attempts before account lockout",
+        description="Failed logins per (account, IP) before that pair is refused",
     )
     lockout_duration_minutes: int = Field(
         default=30,
-        description="Account lockout duration in minutes",
+        description="Window for max_login_attempts per (account, IP) - that pair is refused for it",
+    )
+    login_account_failure_limit: str = Field(
+        default="50/hour",
+        description="Failed logins per account from all IPs; past it only IPs with no failures may try",
     )
     # the env names differ from the field names here; the old env="..." kwarg was silently ignored
     aws_access_key: str = Field("", validation_alias=AliasChoices("AWS_ACCESS_KEY_ID", "AWS_ACCESS_KEY"))

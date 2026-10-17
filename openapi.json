@@ -20584,10 +20584,10 @@
             "description": "Validation Error"
           },
           "423": {
-            "description": "Account is locked"
+            "description": "Account is locked by an admin"
           },
           "429": {
-            "description": "Rate limit exceeded"
+            "description": "Too many attempts from this address (Retry-After)"
           }
         },
         "summary": "User login",

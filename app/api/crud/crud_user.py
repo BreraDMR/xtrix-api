@@ -1,11 +1,9 @@
-from datetime import timedelta
 from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 from app.api.core.security import (
     get_password_hash, verify_password, create_access_token, 
     create_refresh_token, validate_password_strength
 )
-from app.api.core.config import settings
 from app.api.core.pagination import PaginationParams
 from app.db.models.user import User
 from app.schemas.user import UserCreate, UserLogin
@@ -60,19 +58,15 @@ def check_account_locked(user: User) -> tuple[bool, Optional[str]]:
     user.failed_login_attempts = 0
     user.locked_until = None
     return False, None
-def increment_failed_login_attempts(db: Session, user: User) -> None:
-    user.failed_login_attempts += 1
-    if user.failed_login_attempts >= settings.max_login_attempts:
-        user.is_locked = True
-        user.locked_until = utcnow() + timedelta(minutes=settings.lockout_duration_minutes)
-    db.commit()
 def reset_failed_login_attempts(db: Session, user: User) -> None:
     if user.failed_login_attempts > 0:
         user.failed_login_attempts = 0
         user.is_locked = False
         user.locked_until = None
         db.commit()
-def authenticate(db: Session, credentials: UserLogin, totp_token: str | None = None) -> tuple[tuple[str, str] | None, bool]:
+def authenticate(db: Session, credentials: UserLogin, totp_token: str | None = None,
+                 ip: str = "unknown") -> tuple[tuple[str, str] | None, bool]:
+    from app.api.core import login_guard
     query = db.query(User).filter(User.deleted_at.is_(None))
     if credentials.phone:
         user = query.filter(User.phone == credentials.phone).first()
@@ -82,19 +76,23 @@ def authenticate(db: Session, credentials: UserLogin, totp_token: str | None = N
         return None, False
     if not user:
         return None, False
+    # an explicit lock (is_locked + locked_until) is still honoured - wrong passwords just
+    # don't set it any more, see login_guard
     is_locked, lockout_message = check_account_locked(user)
     if is_locked:
         raise ValueError(lockout_message)
+    login_guard.check(user.id, ip)
     if not verify_password(credentials.password, user.hashed_password):
-        increment_failed_login_attempts(db, user)
+        login_guard.failed(user.id, ip)
         return None, False
     if user.is_2fa_enabled and user.totp_secret:
         if not totp_token:
             return None, True
         from app.api.core.totp import verify_totp_token
         if not verify_totp_token(user.totp_secret, totp_token):
-            increment_failed_login_attempts(db, user)
+            login_guard.failed(user.id, ip)
             return None, False
+    login_guard.succeeded(user.id, ip)
     reset_failed_login_attempts(db, user)
     access_token = create_access_token({"sub": str(user.id), "role": user.role})
     refresh_token_str, expires_at = create_refresh_token({"sub": str(user.id), "role": user.role})

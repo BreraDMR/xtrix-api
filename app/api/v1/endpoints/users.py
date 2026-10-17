@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Body, Query
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _
-from app.api.core.config import settings
 from app.api.core.logger import get_logger, mask_email, mask_phone
 from app.api.core.security import verify_refresh_token, create_access_token, create_refresh_token
 from app.api.core.pagination import PaginationParams, PaginatedResponse
-from app.api.middleware.rate_limit import limiter, LOGIN_LIMIT, SIGNUP_LIMIT, SENSITIVE_LIMIT
+from fastapi.responses import JSONResponse
+from app.api.core.login_guard import LoginThrottled
+from app.api.middleware.rate_limit import client_ip, limiter, LOGIN_LIMIT, SIGNUP_LIMIT, SENSITIVE_LIMIT
 from app.api.crud import crud_user, crud_refresh_token
 from app.db.models.user import User
 from app.schemas.user import (
@@ -59,8 +60,8 @@ def create_user(
             "description": "Successful login or 2FA required",
         },
         401: {"description": "Invalid credentials"},
-        423: {"description": "Account is locked"},
-        429: {"description": "Rate limit exceeded"},
+        423: {"description": "Account is locked by an admin"},
+        429: {"description": "Too many attempts from this address (Retry-After)"},
     }
 )
 @limiter.limit(LOGIN_LIMIT)
@@ -72,7 +73,7 @@ def login(
 ):
     logger.info(f"Login attempt: email={mask_email(credentials.email)}, phone={mask_phone(credentials.phone)}, has_2fa_token={credentials.totp_token is not None}")
     try:
-        result = crud_user.authenticate(db, credentials, credentials.totp_token)
+        result = crud_user.authenticate(db, credentials, credentials.totp_token, ip=client_ip(request))
         access_token_or_none, requires_2fa_flag = result
         if access_token_or_none is None:
             if requires_2fa_flag:  
@@ -88,6 +89,13 @@ def login(
             access_token=access_token,
             refresh_token=refresh_token,
             token_type="bearer"
+        )
+    except LoginThrottled as e:
+        logger.warning(f"Login throttled: email={mask_email(credentials.email)}, phone={mask_phone(credentials.phone)}")
+        return JSONResponse(
+            status_code=429,
+            content={"error": {"message": _("account_locked", locale), "status_code": 429, "type": "LoginThrottled"}},
+            headers={"Retry-After": str(e.retry_after)},
         )
     except ValueError as e:
         logger.warning(f"Login blocked: {str(e)}")
