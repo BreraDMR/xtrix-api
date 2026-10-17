@@ -339,6 +339,11 @@ def update_visit(
         service = db.query(Service).filter(Service.id == payload.service_id).first()
         if not service or not check_service_access(db, current_user, service):
             raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    if payload.date_start is not None or payload.date_end is not None:
+        # moving the visit: the new time must be free too (the visit itself doesn't count)
+        new_start = payload.date_start or visit.date_start
+        new_end = payload.date_end or (visit.date_end if payload.date_start is None else None)
+        _check_slot_free(db, visit.specialist_id, new_start, new_end, payload.service_id or visit.service_id, visit.id, locale)
     final_status = payload.status if payload.status is not None else visit.status
     final_price = payload.price if payload.price is not None else visit.price
     final_payment_method = payload.payment_method if payload.payment_method is not None else visit.payment_method

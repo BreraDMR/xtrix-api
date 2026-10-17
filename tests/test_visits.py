@@ -67,3 +67,18 @@ def test_specialist_cannot_be_double_booked(client, make_user, headers_for):
     body = {"client_id": a["client"]["id"], "specialist_id": a["owner"].id,
             "date_start": v["date_start"], "date_end": v["date_end"], "price": 1}
     assert client.post("/visits/", json=body, headers=a["headers"]).status_code == 409
+
+
+def test_moving_a_visit_onto_a_taken_slot_is_refused(client, make_user, headers_for):
+    a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
+    first = a["visit"]
+    second = client.post("/visits/", json=_visit_body(a, service_id=None), headers=a["headers"])
+    assert second.status_code == 200, second.text
+
+    r = client.put(f"/visits/{second.json()['id']}", headers=a["headers"],
+                   json={"date_start": first["date_start"], "date_end": first["date_end"]})
+    assert r.status_code == 409
+    assert "already" in r.json()["error"]["message"]
+    # moving a visit within its own slot is fine
+    r = client.put(f"/visits/{first['id']}", headers=a["headers"], json={"date_start": first["date_start"], "date_end": first["date_end"]})
+    assert r.status_code == 200, r.text
