@@ -1,8 +1,8 @@
-from datetime import datetime
 from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.api.core.logger import logger
 from app.api.core.finance_archive import archive_all_businesses_last_month, should_run_monthly_archive
+from app.api.core.clock import utcnow
 def run_monthly_finance_archive():
     db: Session = SessionLocal()
     try:
@@ -15,7 +15,7 @@ def run_monthly_finance_archive():
         audit_log = AuditLog(
             action='monthly_finance_archive',
             details={'archived_businesses': len(archives)},
-            created_at=datetime.utcnow(),
+            created_at=utcnow(),
         )
         db.add(audit_log)
         db.commit()

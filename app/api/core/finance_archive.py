@@ -5,6 +5,7 @@ from sqlalchemy import func
 from app.db.models.visit import Visit
 from app.api.crud import crud_expense
 from app.api.core.logger import logger
+from app.api.core.clock import utcnow
 def archive_monthly_financial_data(
     db: Session,
     year: int,
@@ -110,7 +111,7 @@ def archive_monthly_financial_data(
         },
         "expenses_by_category": expenses_by_category,
         "daily": profit_daily,
-        "archived_at": datetime.utcnow().isoformat(),
+        "archived_at": utcnow().isoformat(),
     }
     logger.info(
         f"Archived financial data for {year}-{month:02d}: "
@@ -119,7 +120,7 @@ def archive_monthly_financial_data(
     return archive_data
 def archive_all_businesses_last_month(db: Session) -> List[Dict[str, Any]]:
     from app.db.models.business import Business
-    now = datetime.utcnow()
+    now = utcnow()
     if now.month == 1:
         last_month = 12
         last_year = now.year - 1
@@ -145,7 +146,7 @@ def archive_all_businesses_last_month(db: Session) -> List[Dict[str, Any]]:
     return archives
 def should_run_monthly_archive(db: Session) -> bool:
     from app.db.models.audit_log import AuditLog
-    now = datetime.utcnow()
+    now = utcnow()
     if now.day != 1:
         return False
     today_start = datetime(now.year, now.month, 1)

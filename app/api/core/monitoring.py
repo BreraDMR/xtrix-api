@@ -1,7 +1,6 @@
 import time
 import platform
 from typing import Dict, Any
-from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 try:
@@ -11,6 +10,7 @@ except ImportError:
     PSUTIL_AVAILABLE = False
 from app.api.core.config import settings
 from app.db.session import SessionLocal
+from app.api.core.clock import utcnow
 class MetricsCollector:
     def __init__(self):
         self.request_count = 0
@@ -18,7 +18,7 @@ class MetricsCollector:
         self.response_times = []
         self.endpoint_stats: Dict[str, Dict[str, Any]] = {}
         self.status_code_counts: Dict[int, int] = {}
-        self.start_time = datetime.utcnow()
+        self.start_time = utcnow()
     def record_request(self, method: str, path: str, status_code: int, duration: float):
         self.request_count += 1
         if status_code >= 400:
@@ -54,7 +54,7 @@ class MetricsCollector:
         )
         min_response_time = min(self.response_times) if self.response_times else 0.0
         max_response_time = max(self.response_times) if self.response_times else 0.0
-        uptime = (datetime.utcnow() - self.start_time).total_seconds()
+        uptime = (utcnow() - self.start_time).total_seconds()
         return {
             'request_count': self.request_count,
             'error_count': self.error_count,
@@ -73,7 +73,7 @@ class MetricsCollector:
         self.response_times = []
         self.endpoint_stats = {}
         self.status_code_counts = {}
-        self.start_time = datetime.utcnow()
+        self.start_time = utcnow()
 metrics_collector = MetricsCollector()
 def check_database_health(db: Session) -> Dict[str, Any]:
     try:
@@ -170,7 +170,7 @@ async def get_health_status() -> Dict[str, Any]:
             overall_status = 'degraded'
         return {
             'status': overall_status,
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': utcnow().isoformat(),
             'database': db_health,
             'redis': redis_health,
             'system': system_metrics,

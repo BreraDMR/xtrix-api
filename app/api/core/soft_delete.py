@@ -1,10 +1,10 @@
-from datetime import datetime
 from typing import TypeVar
 from sqlalchemy.orm import Session, Query
+from app.api.core.clock import utcnow
 T = TypeVar('T')
 def soft_delete(db: Session, instance: T) -> T:
     if hasattr(instance, 'deleted_at'):
-        instance.deleted_at = datetime.utcnow()
+        instance.deleted_at = utcnow()
         db.add(instance)
         db.commit()
         db.refresh(instance)

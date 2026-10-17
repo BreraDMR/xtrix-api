@@ -1,16 +1,17 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Type, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from app.db.models.client import Client
 from app.db.models.visit import Visit
 from app.db.models.service import Service
+from app.api.core.clock import utcnow
 def archive_old_clients(
     db: Session,
     days_old: int = 365,
     owner_id: Optional[int] = None,
 ) -> int:
-    cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+    cutoff_date = utcnow() - timedelta(days=days_old)
     query = db.query(Client).filter(
         and_(
             Client.archived_at.is_(None),
@@ -31,7 +32,7 @@ def archive_old_clients(
             )
         ).count()
         if recent_visits == 0:
-            client.archived_at = datetime.utcnow()
+            client.archived_at = utcnow()
             archived_count += 1
     db.commit()
     return archived_count
@@ -40,7 +41,7 @@ def archive_old_visits(
     days_old: int = 365,
     status: Optional[str] = "completed",
 ) -> int:
-    cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+    cutoff_date = utcnow() - timedelta(days=days_old)
     query = db.query(Visit).filter(
         and_(
             Visit.archived_at.is_(None),
@@ -52,7 +53,7 @@ def archive_old_visits(
         query = query.filter(Visit.status == status)
     visits = query.all()
     for visit in visits:
-        visit.archived_at = datetime.utcnow()
+        visit.archived_at = utcnow()
     db.commit()
     return len(visits)
 def archive_old_services(
@@ -60,7 +61,7 @@ def archive_old_services(
     days_old: int = 180,
     inactive_only: bool = True,
 ) -> int:
-    cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+    cutoff_date = utcnow() - timedelta(days=days_old)
     query = db.query(Service).filter(
         and_(
             Service.archived_at.is_(None),
@@ -81,7 +82,7 @@ def archive_old_services(
             )
         ).count()
         if recent_visits == 0:
-            service.archived_at = datetime.utcnow()
+            service.archived_at = utcnow()
     db.commit()
     return len([s for s in services if s.archived_at])
 def unarchive(
@@ -107,6 +108,6 @@ def get_archived_count(
         model_class.archived_at.isnot(None)
     )
     if days_old:
-        cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+        cutoff_date = utcnow() - timedelta(days=days_old)
         query = query.filter(model_class.archived_at < cutoff_date)
     return query.count()

@@ -1,4 +1,4 @@
-from datetime import datetime, date, timedelta
+from datetime import date, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 from app.db.session import SessionLocal
@@ -16,10 +16,11 @@ from app.api.core.notify import (
     send_visit_followup_whatsapp,
 )
 from app.api.core.loyalty_logic import award_birthday_bonus
+from app.api.core.clock import utcnow
 def send_automatic_reminders(channel: str = "email") -> int:
     db: Session = SessionLocal()
     try:
-        now = datetime.utcnow()
+        now = utcnow()
         horizon = now + timedelta(hours=24)
         visits = db.query(Visit).filter(
             and_(
@@ -105,7 +106,7 @@ def send_birthday_greetings(channel: str = "email") -> int:
 def send_visit_followups(channel: str = "email", hours_after: int = 24) -> int:
     db: Session = SessionLocal()
     try:
-        now = datetime.utcnow()
+        now = utcnow()
         cutoff_time = now - timedelta(hours=hours_after)
         start_time = cutoff_time - timedelta(hours=1)
         visits = db.query(Visit).filter(

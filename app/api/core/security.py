@@ -7,6 +7,7 @@ from jose import JWTError
 from passlib.context import CryptContext
 import bcrypt
 from app.api.core.config import settings
+from app.api.core.clock import utcnow
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def _truncate_password_bytes(password_bytes: bytes) -> bytes:
     if len(password_bytes) <= 72:
@@ -192,7 +193,7 @@ def validate_phone(phone: str) -> tuple[bool, str]:
     return True, ""
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + (
+    expire = utcnow() + (
         expires_delta
         if expires_delta
         else timedelta(minutes=settings.access_token_expire_minutes)
@@ -204,7 +205,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 def create_refresh_token(data: dict) -> tuple[str, datetime]:
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
+    expire = utcnow() + timedelta(days=settings.refresh_token_expire_days)
     # jti makes every token unique - without it two logins in the same second
     # produced the same string and hit the unique index on refresh_tokens.token
     to_encode.update({"exp": expire, "type": "refresh", "jti": secrets.token_hex(16)})

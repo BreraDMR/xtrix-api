@@ -1,12 +1,13 @@
 from datetime import datetime, date, time, timedelta
 from typing import Optional, Tuple
+from app.api.core.clock import utcnow
 def validate_datetime_range(
     start: datetime,
     end: Optional[datetime] = None,
     min_duration_minutes: Optional[int] = None,
     max_duration_hours: Optional[int] = None,
 ) -> Tuple[bool, str]:
-    now = datetime.utcnow()
+    now = utcnow()
     if end is not None:
         if end <= start:
             return False, "End date/time must be after start date/time"
@@ -47,7 +48,7 @@ def validate_date_not_past(check_date: date) -> Tuple[bool, str]:
         return False, "Date cannot be in the past"
     return True, ""
 def validate_datetime_not_past(check_datetime: datetime) -> Tuple[bool, str]:
-    now = datetime.utcnow()
+    now = utcnow()
     if check_datetime < now:
         return False, "Date and time cannot be in the past"
     return True, ""

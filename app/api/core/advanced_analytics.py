@@ -6,6 +6,7 @@ from collections import defaultdict
 from app.db.models.visit import Visit
 from app.db.models.service import Service
 from app.db.models.user import User
+from app.api.core.clock import utcnow
 def get_retention_metrics(
     db: Session,
     business_id: Optional[int] = None,
@@ -52,7 +53,7 @@ def get_retention_metrics(
             first_visit = sorted_dates[0]
             cutoff_date = first_visit + timedelta(days=period)
             has_return = any(d > first_visit and d <= cutoff_date for d in sorted_dates[1:])
-            if first_visit <= (date_to or datetime.utcnow()) - timedelta(days=period):
+            if first_visit <= (date_to or utcnow()) - timedelta(days=period):
                 eligible_count += 1
                 if has_return:
                     retained_count += 1
@@ -149,7 +150,7 @@ def get_trends_analysis(
     metric: str = 'revenue',  
     comparison_type: str = 'MoM',  
 ) -> Dict[str, Any]:
-    now = datetime.utcnow()
+    now = utcnow()
     if comparison_type == 'MoM':
         current_start = datetime(now.year, now.month, 1)
         current_end = now
@@ -274,7 +275,7 @@ def get_forecast(
     forecast_type: str = 'revenue',  
     periods: int = 1,  
 ) -> Dict[str, Any]:
-    now = datetime.utcnow()
+    now = utcnow()
     start_date = now - timedelta(days=180)
     filters = []
     if business_id:
@@ -397,7 +398,7 @@ def get_smart_insights(
     specialist_id: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     insights = []
-    now = datetime.utcnow()
+    now = utcnow()
     filters = []
     if business_id:
         filters.append(Visit.business_id == business_id)

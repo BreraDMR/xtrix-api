@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional, List
 from app.schemas.limits import LongText, Money, ShortText
 from pydantic import ConfigDict, BaseModel, Field, field_validator
+from app.api.core.clock import utcnow
 class UsedProduct(BaseModel):
     product_id: int
     quantity: float = Field(..., gt=0)
@@ -66,7 +67,7 @@ class VisitCreate(VisitBase):
                 else:
                     v_utc = v
             else:
-                now = datetime.utcnow()
+                now = utcnow()
                 v_utc = v
             if v_utc < now - timedelta(days=365):
                 pass

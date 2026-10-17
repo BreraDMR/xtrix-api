@@ -6,6 +6,7 @@ from app.db.models.visit import Visit
 from app.db.models.service import Service
 from app.db.models.client import Client
 from app.db.models.client_business_relation import ClientBusinessRelation
+from app.api.core.clock import utcnow
 def get_visit_statistics(
     db: Session,
     specialist_id: Optional[int] = None,
@@ -339,7 +340,7 @@ def get_client_statistics(
     client_filters.append(Client.deleted_at.is_(None))
     client_filters.append(Client.archived_at.is_(None))
     total_clients = base_query.count()
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     today_end = today_start + timedelta(days=1)
     new_clients_query = db.query(Client).filter(*client_filters)
     new_clients_query = new_clients_query.filter(

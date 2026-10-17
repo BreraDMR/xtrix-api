@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session
 from app.db.models.subscription import Subscription
 from app.db.models.user import User
 from app.api.core.logger import logger, mask_email, mask_phone
+from app.api.core.clock import utcnow
 def send_subscription_expiry_notifications(db: Session, days_before: int = 3) -> int:
-    notification_date = datetime.utcnow() + timedelta(days=days_before)
+    notification_date = utcnow() + timedelta(days=days_before)
     notification_date_end = notification_date + timedelta(days=1)
     expiring_subscriptions = (
         db.query(Subscription)

@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, time
 from typing import List, Tuple, Optional
+from app.api.core.clock import utcnow
 def _overlaps(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime) -> bool:
     return max(a_start, b_start) < min(a_end, b_end)
 def find_next_available_slot(
@@ -14,7 +15,7 @@ def find_next_available_slot(
     schedule: Optional[List[Tuple[int, time, time]]] = None,  
     blocks: Optional[List[Tuple[datetime, datetime]]] = None,
 ) -> datetime | None:
-    start_search = start_from or datetime.utcnow()
+    start_search = start_from or utcnow()
     delta = timedelta(minutes=step_minutes)
     duration = timedelta(minutes=duration_minutes)
     for day_offset in range(days_ahead):
