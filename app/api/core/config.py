@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     apple_webhook_token: str = Field("", env="APPLE_WEBHOOK_TOKEN")
     google_service_account_json: str = Field("", env="GOOGLE_SERVICE_ACCOUNT_JSON")
     google_webhook_token: str = Field("", env="GOOGLE_WEBHOOK_TOKEN")
+    erl_webhook_token: str = Field("", env="ERL_WEBHOOK_TOKEN")
     smtp_host: str = Field("", env="SMTP_HOST")
     smtp_port: int = Field(587, env="SMTP_PORT")
     smtp_user: str = Field("", env="SMTP_USER")

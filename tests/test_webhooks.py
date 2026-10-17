@@ -59,3 +59,15 @@ def settings_patch(monkeypatch, **kwargs):
     from app.api.core import config
     for k, v in kwargs.items():
         monkeypatch.setattr(config.settings, k, v)
+import pytest
+@pytest.mark.parametrize("provider,header", [("apple", "X-Apple-Token"), ("google", "X-Google-Token"), ("erl", "X-ERL-Token")])
+def test_webhook_without_configured_token_is_refused(monkeypatch, provider, header):
+    settings_patch(monkeypatch, **{f"{provider}_webhook_token": ""})
+    resp = client.post(f"/subscriptions/webhooks/{provider}", json={"status": "active"}, headers={header: ""})
+    assert resp.status_code == 503
+def test_erl_webhook_token(monkeypatch):
+    settings_patch(monkeypatch, erl_webhook_token="esecret")
+    resp = client.post("/subscriptions/webhooks/erl", json={"status": "active"}, headers={"X-ERL-Token": "wrong"})
+    assert resp.status_code == 400
+    resp = client.post("/subscriptions/webhooks/erl", json={"status": "active"}, headers={"X-ERL-Token": "esecret"})
+    assert resp.status_code == 200

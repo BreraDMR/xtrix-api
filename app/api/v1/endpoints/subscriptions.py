@@ -1,3 +1,4 @@
+import hmac
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
@@ -340,6 +341,12 @@ async def stripe_webhook(request: Request, db: Session = Depends(deps.get_db)):
             if sub:
                 crud_subscription.update_subscription(db, sub, SubscriptionUpdate(status=status))
     return {"received": True}
+def _check_webhook_token(expected: str, given: str, provider: str) -> None:
+    # fail closed: an unset token used to mean "accept anything from anyone"
+    if not expected:
+        raise HTTPException(status_code=503, detail=f"{provider} webhook is not configured")
+    if not hmac.compare_digest(expected, given or ""):
+        raise HTTPException(status_code=400, detail=f"Invalid {provider} token")
 @router.post("/webhooks/apple")
 async def apple_webhook(
     request: Request,
@@ -348,8 +355,7 @@ async def apple_webhook(
 ):
     from app.api.crud import crud_transaction
     from app.schemas.transaction import TransactionCreate
-    if settings.apple_webhook_token and token != settings.apple_webhook_token:
-        raise HTTPException(status_code=400, detail="Invalid apple token")
+    _check_webhook_token(settings.apple_webhook_token, token, "apple")
     payload = await request.json()
     event_type = payload.get("notification_type", "")
     external_id = str(payload.get("transaction_id") or "")
@@ -402,8 +408,7 @@ async def google_webhook(
 ):
     from app.api.crud import crud_transaction
     from app.schemas.transaction import TransactionCreate
-    if settings.google_webhook_token and token != settings.google_webhook_token:
-        raise HTTPException(status_code=400, detail="Invalid google token")
+    _check_webhook_token(settings.google_webhook_token, token, "google")
     payload = await request.json()
     notification_type = payload.get("notificationType", 0)  
     purchase_token = str(payload.get("purchaseToken") or "")
@@ -440,9 +445,7 @@ async def erl_webhook(
 ):
     from app.api.crud import crud_transaction
     from app.schemas.transaction import TransactionCreate
-    erl_webhook_token = getattr(settings, 'erl_webhook_token', None)
-    if erl_webhook_token and token != erl_webhook_token:
-        raise HTTPException(status_code=400, detail="Invalid ERL token")
+    _check_webhook_token(settings.erl_webhook_token, token, "erl")
     payload = await request.json()
     event_type = payload.get("event_type", "")
     transaction_id = str(payload.get("transaction_id") or "")
