@@ -37,7 +37,8 @@ def send_automatic_reminders(channel: str = "email") -> int:
         client_ids = {v.client_id for v in visits}
         clients = db.query(Client).filter(Client.id.in_(client_ids)).all()
         contacts = {
-            c.id: {"email": c.contact_email, "phone": c.contact_phone} for c in clients
+            c.id: {"email": c.contact_email, "phone": c.contact_phone, "language": c.language, "name": c.full_name}
+            for c in clients
         }
         sent = send_notifications(visits, channel=channel, contacts=contacts)
         logger.info(f"Sent {sent} reminders via {channel}")
@@ -75,17 +76,17 @@ def send_birthday_greetings(channel: str = "email") -> int:
                     business = db.query(Business).filter(Business.id == relation.business_id).first()
                     business_name = business.name if business else None
                     if channel == "email" and client.contact_email:
-                        ok = send_birthday_greeting_email(client.contact_email, client.full_name, business_name)
+                        ok = send_birthday_greeting_email(client.contact_email, client.full_name, business_name, language=client.language)
                         if ok:
                             sent_count += 1
                             logger.info(f"Sent birthday email to client {client.id}")
                     elif channel == "sms" and client.contact_phone:
-                        ok = send_birthday_greeting_sms(client.contact_phone, client.full_name, business_name)
+                        ok = send_birthday_greeting_sms(client.contact_phone, client.full_name, business_name, language=client.language)
                         if ok:
                             sent_count += 1
                             logger.info(f"Sent birthday SMS to client {client.id}")
                     elif channel == "whatsapp" and client.contact_phone:
-                        ok = send_birthday_greeting_whatsapp(client.contact_phone, client.full_name, business_name)
+                        ok = send_birthday_greeting_whatsapp(client.contact_phone, client.full_name, business_name, language=client.language)
                         if ok:
                             sent_count += 1
                             logger.info(f"Sent birthday WhatsApp to client {client.id}")
@@ -139,7 +140,8 @@ def send_visit_followups(channel: str = "email", hours_after: int = 24) -> int:
                         client.full_name,
                         visit.date_end or visit.date_start,
                         service_name,
-                        business_name
+                        business_name,
+                        language=client.language,
                     )
                     if ok:
                         sent_count += 1
@@ -150,7 +152,8 @@ def send_visit_followups(channel: str = "email", hours_after: int = 24) -> int:
                         client.full_name,
                         visit.date_end or visit.date_start,
                         service_name,
-                        business_name
+                        business_name,
+                        language=client.language,
                     )
                     if ok:
                         sent_count += 1
@@ -161,7 +164,8 @@ def send_visit_followups(channel: str = "email", hours_after: int = 24) -> int:
                         client.full_name,
                         visit.date_end or visit.date_start,
                         service_name,
-                        business_name
+                        business_name,
+                        language=client.language,
                     )
                     if ok:
                         sent_count += 1

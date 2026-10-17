@@ -244,7 +244,8 @@ def send_reminders(
     if client_ids:
         clients = db.query(Client).filter(Client.id.in_(client_ids)).all()
         contacts = {
-            c.id: {"email": c.contact_email, "phone": c.contact_phone} for c in clients
+            c.id: {"email": c.contact_email, "phone": c.contact_phone, "language": c.language, "name": c.full_name}
+            for c in clients
         }
     sent = send_notifications(due, channel=channel, contacts=contacts)
     return {"sent": sent, "channel": channel, "message": _("reminders_sent", locale)}
