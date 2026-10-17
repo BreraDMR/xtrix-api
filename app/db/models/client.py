@@ -21,6 +21,8 @@ class Client(Base):
     contact_email = Column(String, index=True, nullable=True)
     location_lat = Column(Float, nullable=True)
     location_lon = Column(Float, nullable=True)
+    # language of reminders/greetings sent to this client, independent of the staff UI language
+    language = Column(String(2), nullable=False, default="ru", server_default="ru")
     created_at = Column(DateTime, default=utcnow, index=True)
     qr_code = Column(String, unique=True, index=True, nullable=True)
     access_password = Column(String, nullable=True)  

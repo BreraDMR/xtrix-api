@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from typing import Optional
+from app.schemas.limits import ClientLanguage
 from pydantic import ConfigDict, BaseModel, Field, EmailStr, field_validator
 class ClientBase(BaseModel):
     full_name: str = Field(..., max_length=255, min_length=1)
@@ -9,6 +10,7 @@ class ClientBase(BaseModel):
     contact_email: Optional[EmailStr] = None
     location_lat: Optional[float] = Field(None, ge=-90, le=90)
     location_lon: Optional[float] = Field(None, ge=-180, le=180)
+    language: ClientLanguage = Field("ru", description="Language of messages sent to the client: en, ru, cz")
     @field_validator('gender')
     @classmethod
     def validate_gender(cls, v):
@@ -52,6 +54,7 @@ class ClientUpdate(BaseModel):
     contact_email: Optional[EmailStr] = None
     location_lat: Optional[float] = Field(None, ge=-90, le=90)
     location_lon: Optional[float] = Field(None, ge=-180, le=180)
+    language: Optional[ClientLanguage] = None
     @field_validator('gender')
     @classmethod
     def validate_gender(cls, v):

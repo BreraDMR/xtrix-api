@@ -708,6 +708,17 @@
             "description": "male|female|other",
             "title": "Gender"
           },
+          "language": {
+            "default": "ru",
+            "description": "Language of messages sent to the client: en, ru, cz",
+            "enum": [
+              "en",
+              "ru",
+              "cz"
+            ],
+            "title": "Language",
+            "type": "string"
+          },
           "location_lat": {
             "anyOf": [
               {
@@ -913,6 +924,17 @@
           "id": {
             "title": "Id",
             "type": "integer"
+          },
+          "language": {
+            "default": "ru",
+            "description": "Language of messages sent to the client: en, ru, cz",
+            "enum": [
+              "en",
+              "ru",
+              "cz"
+            ],
+            "title": "Language",
+            "type": "string"
           },
           "location_lat": {
             "anyOf": [
@@ -1214,6 +1236,22 @@
             ],
             "description": "male|female|other",
             "title": "Gender"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "enum": [
+                  "en",
+                  "ru",
+                  "cz"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
           },
           "location_lat": {
             "anyOf": [
