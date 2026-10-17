@@ -19,6 +19,14 @@ def _finance_business_id(current_user: User, db: Session, locale: str) -> int:
     if not can_view_financials(current_user, db):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     return require_business_id(current_user, db, locale)
+def _check_category(db: Session, category_id, business_id: int, locale: str) -> None:
+    # a category is ours, or one of the shared system ones - never another business's
+    if category_id is None:
+        return
+    from app.db.models.expense_category import ExpenseCategory
+    cat = db.query(ExpenseCategory).filter(ExpenseCategory.id == category_id).first()
+    if not cat or not (cat.business_id == business_id or (cat.business_id is None and cat.is_system)):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
 @router.post("/categories", response_model=ExpenseCategoryOut)
 def create_expense_category(
     category: ExpenseCategoryCreate,
@@ -98,6 +106,7 @@ def create_expense(
     business_id = _finance_business_id(current_user, db, locale)
     if expense.business_id != business_id:
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    _check_category(db, expense.category_id, business_id, locale)
     try:
         result = crud_expense.create_expense(db, expense, created_by_id=current_user.id)
         logger.info(f"Created expense {result.id} by user {current_user.id}")
@@ -164,6 +173,7 @@ def update_expense(
     db_expense = crud_expense.get_expense(db, expense_id, business_id)
     if not db_expense:
         raise HTTPException(status_code=404, detail=_("expense_not_found", locale))
+    _check_category(db, expense.category_id, business_id, locale)
     try:
         result = crud_expense.update_expense(db, db_expense, expense)
         logger.info(f"Updated expense {expense_id} by user {current_user.id}")
