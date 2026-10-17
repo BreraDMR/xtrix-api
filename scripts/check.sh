@@ -11,6 +11,9 @@ PG_NAME=xtrix-check-pg
 echo "==> ruff (errors only)"
 "$PY" -m ruff check --isolated --select E9,F63,F7,F82,F811,F823 app tests alembic
 
+echo "==> openapi.json up to date"
+"$PY" scripts/export_openapi.py --check
+
 cleanup() { docker rm -f "$PG_NAME" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
