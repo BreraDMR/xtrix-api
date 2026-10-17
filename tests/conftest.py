@@ -14,6 +14,8 @@ if "test" not in _db_name:
     )
 os.environ.setdefault("JWT_SECRET", "test-secret-key-minimum-32-characters-long-for-testing")
 os.environ.setdefault("ENVIRONMENT", "test")
+# the limiter keeps counters in process memory, so it would bleed between tests; test_rate_limit covers it
+os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
 
 from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402

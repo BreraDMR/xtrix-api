@@ -81,7 +81,7 @@ class Settings(BaseSettings):
         description="Environment: development, staging, production",
     )
     rate_limit_enabled: bool = Field(
-        default=False,  
+        default=True,
         env="RATE_LIMIT_ENABLED",
         description="Enable rate limiting",
     )
