@@ -6,13 +6,13 @@ from app.db.models.subscription_plan import SubscriptionPlan
 from app.schemas.subscription import SubscriptionCreate, SubscriptionUpdate
 from app.schemas.subscription_plan import SubscriptionPlanCreate, SubscriptionPlanUpdate
 def create_plan(db: Session, data: SubscriptionPlanCreate) -> SubscriptionPlan:
-    plan = SubscriptionPlan(**data.dict())
+    plan = SubscriptionPlan(**data.model_dump())
     db.add(plan)
     db.commit()
     db.refresh(plan)
     return plan
 def update_plan(db: Session, plan: SubscriptionPlan, data: SubscriptionPlanUpdate) -> SubscriptionPlan:
-    for k, v in data.dict(exclude_unset=True).items():
+    for k, v in data.model_dump(exclude_unset=True).items():
         setattr(plan, k, v)
     db.add(plan)
     db.commit()
@@ -39,7 +39,7 @@ def create_subscription(db: Session, data: SubscriptionCreate) -> Subscription:
                 period_end = trial_end  
             else:
                 period_end = datetime.utcnow() + timedelta(days=plan.period_days)
-    payload = data.dict(exclude_unset=True) if hasattr(data, 'dict') else data.model_dump(exclude_unset=True)
+    payload = data.model_dump(exclude_unset=True) if hasattr(data, 'model_dump') else data.model_dump(exclude_unset=True)
     payload["current_period_end"] = period_end
     if "is_trial" not in payload:
         payload["is_trial"] = is_trial
@@ -131,7 +131,7 @@ def check_subscription_access(db: Session, user_id: int, require_paid: bool = Fa
             return False, "Trial access not allowed for this feature"
     return True, None
 def update_subscription(db: Session, sub: Subscription, data: SubscriptionUpdate) -> Subscription:
-    for k, v in data.dict(exclude_unset=True).items():
+    for k, v in data.model_dump(exclude_unset=True).items():
         setattr(sub, k, v)
     db.add(sub)
     db.commit()

@@ -119,7 +119,7 @@ def find_or_create_client(
                 logger = get_logger("clients")
                 logger.warning(f"Healthcare validation failed for existing client {existing_client.id}: {str(e)}")
         return existing_client, False
-    client_data = client_in.dict()
+    client_data = client_in.model_dump()
     client_data.pop('owner_id', None)  
     client = Client(**client_data)
     if specialist_id and not business_id:
@@ -147,13 +147,13 @@ def find_or_create_client(
     db.commit()
     db.refresh(client)
     try:
-        cache_client(client.id, ClientOut.from_orm(client).dict())
+        cache_client(client.id, ClientOut.model_validate(client).model_dump())
         invalidate_client_list()
     except Exception:
         pass
     return client, True
 def create_client(db: Session, client_in: ClientCreate, specialist_id: Optional[int] = None) -> Client:
-    client_data = client_in.dict()
+    client_data = client_in.model_dump()
     client_data.pop('owner_id', None)  
     client = Client(**client_data)
     db.add(client)
@@ -167,13 +167,13 @@ def create_client(db: Session, client_in: ClientCreate, specialist_id: Optional[
     db.commit()
     db.refresh(client)
     try:
-        cache_client(client.id, ClientOut.from_orm(client).dict())
+        cache_client(client.id, ClientOut.model_validate(client).model_dump())
         invalidate_client_list()
     except Exception:
         pass
     return client
 def update_client(db: Session, client: Client, update: ClientUpdate) -> Client:
-    for field, value in update.dict(exclude_unset=True).items():
+    for field, value in update.model_dump(exclude_unset=True).items():
         setattr(client, field, value)
     db.add(client)
     db.commit()
@@ -181,7 +181,7 @@ def update_client(db: Session, client: Client, update: ClientUpdate) -> Client:
     invalidate_client(client.id)
     invalidate_client_list()
     try:
-        cache_client(client.id, ClientOut.from_orm(client).dict())
+        cache_client(client.id, ClientOut.model_validate(client).model_dump())
     except Exception:
         pass
     return client
@@ -302,7 +302,7 @@ def list_clients(
     items = q.all()
     if use_cache and items:
         try:
-            items_dict = [ClientOut.from_orm(item).dict() for item in items]
+            items_dict = [ClientOut.model_validate(item).model_dump() for item in items]
             cache_client_list(items_dict, cache_filters, ttl_seconds=300)
         except Exception:
             pass  

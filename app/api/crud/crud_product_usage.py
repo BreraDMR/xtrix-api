@@ -18,7 +18,7 @@ def create_product_usage(
         raise ValueError("Товар не принадлежит указанному бизнесу")
     if auto_reduce_stock:
         reduce_product_quantity(db, usage_in.product_id, usage_in.quantity, usage_in.business_id)
-    usage = ProductUsage(**usage_in.dict())
+    usage = ProductUsage(**usage_in.model_dump())
     db.add(usage)
     db.commit()
     db.refresh(usage)

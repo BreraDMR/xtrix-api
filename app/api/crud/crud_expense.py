@@ -5,7 +5,7 @@ from sqlalchemy import and_, func
 from app.db.models.expense import Expense
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate
 def create_expense(db: Session, expense_in: ExpenseCreate, created_by_id: Optional[int] = None) -> Expense:
-    expense_data = expense_in.dict()
+    expense_data = expense_in.model_dump()
     expense_data["created_by_id"] = created_by_id
     expense = Expense(**expense_data)
     db.add(expense)
@@ -46,7 +46,7 @@ def list_expenses(
         query = query.filter(Expense.amount <= max_amount)
     return query.order_by(Expense.expense_date.desc()).offset(skip).limit(limit).all()
 def update_expense(db: Session, expense: Expense, expense_in: ExpenseUpdate) -> Expense:
-    update_data = expense_in.dict(exclude_unset=True)
+    update_data = expense_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(expense, field, value)
     db.commit()

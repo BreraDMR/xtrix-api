@@ -4,7 +4,7 @@ from sqlalchemy import and_, or_
 from app.db.models.product import Product
 from app.schemas.product import ProductCreate, ProductUpdate
 def create_product(db: Session, product_in: ProductCreate) -> Product:
-    product = Product(**product_in.dict())
+    product = Product(**product_in.model_dump())
     db.add(product)
     db.commit()
     db.refresh(product)
@@ -44,7 +44,7 @@ def list_products(
         query = query.filter(Product.quantity <= Product.min_quantity)
     return query.order_by(Product.name).offset(skip).limit(limit).all()
 def update_product(db: Session, product: Product, product_in: ProductUpdate) -> Product:
-    update_data = product_in.dict(exclude_unset=True)
+    update_data = product_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(product, field, value)
     db.commit()

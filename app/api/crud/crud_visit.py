@@ -10,7 +10,7 @@ from app.schemas.visit import VisitCreate, VisitUpdate
 def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] = None) -> Visit:
     from app.api.core.logger import get_logger
     logger = get_logger("visits")
-    visit_data = visit_in.dict(exclude={'used_products'} if hasattr(visit_in, 'used_products') else None)
+    visit_data = visit_in.model_dump(exclude={'used_products'} if hasattr(visit_in, 'used_products') else None)
     logger.info(f"create_visit: visit_data keys={list(visit_data.keys())}, service_id={visit_data.get('service_id')}, price={visit_data.get('price')}, date_end={visit_data.get('date_end')}")
     if visit_data.get('service_id'):
         from app.db.models.service import Service
@@ -90,7 +90,7 @@ def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] 
         db.rollback()
         raise
 def update_visit(db: Session, visit: Visit, update: VisitUpdate) -> Visit:
-    for field, value in update.dict(exclude_unset=True).items():
+    for field, value in update.model_dump(exclude_unset=True).items():
         setattr(visit, field, value)
     db.add(visit)
     db.commit()

@@ -5,7 +5,7 @@ from app.db.models.block_slot import BlockSlot
 from app.schemas.work_schedule import WorkScheduleCreate, WorkScheduleUpdate
 from app.schemas.block_slot import BlockSlotCreate, BlockSlotUpdate
 def create_work_schedule(db: Session, data: WorkScheduleCreate) -> WorkSchedule:
-    obj = WorkSchedule(**data.dict())
+    obj = WorkSchedule(**data.model_dump())
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -18,7 +18,7 @@ def list_work_schedules(db: Session, specialist_id: int) -> List[WorkSchedule]:
         .all()
     )
 def update_work_schedule(db: Session, obj: WorkSchedule, data: WorkScheduleUpdate) -> WorkSchedule:
-    for k, v in data.dict(exclude_unset=True).items():
+    for k, v in data.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     db.add(obj)
     db.commit()
@@ -27,7 +27,7 @@ def update_work_schedule(db: Session, obj: WorkSchedule, data: WorkScheduleUpdat
 def get_work_schedule(db: Session, ws_id: int) -> Optional[WorkSchedule]:
     return db.query(WorkSchedule).filter(WorkSchedule.id == ws_id).first()
 def create_block_slot(db: Session, data: BlockSlotCreate) -> BlockSlot:
-    obj = BlockSlot(**data.dict())
+    obj = BlockSlot(**data.model_dump())
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -40,7 +40,7 @@ def list_block_slots(db: Session, specialist_id: int) -> List[BlockSlot]:
         .all()
     )
 def update_block_slot(db: Session, obj: BlockSlot, data: BlockSlotUpdate) -> BlockSlot:
-    for k, v in data.dict(exclude_unset=True).items():
+    for k, v in data.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     db.add(obj)
     db.commit()

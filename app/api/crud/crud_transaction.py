@@ -6,7 +6,7 @@ from app.schemas.transaction import TransactionCreate, TransactionUpdate
 def create_transaction(db: Session, data: TransactionCreate) -> Transaction:
     if not data.transaction_date:
         data.transaction_date = datetime.utcnow()
-    transaction = Transaction(**data.dict())
+    transaction = Transaction(**data.model_dump())
     db.add(transaction)
     db.commit()
     db.refresh(transaction)
@@ -17,7 +17,7 @@ def create_transaction(db: Session, data: TransactionCreate) -> Transaction:
         db.commit()
     return transaction
 def update_transaction(db: Session, transaction: Transaction, data: TransactionUpdate) -> Transaction:
-    for k, v in data.dict(exclude_unset=True).items():
+    for k, v in data.model_dump(exclude_unset=True).items():
         setattr(transaction, k, v)
     transaction.updated_at = datetime.utcnow()
     db.add(transaction)

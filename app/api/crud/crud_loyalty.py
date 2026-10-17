@@ -18,7 +18,7 @@ from app.schemas.loyalty import (
     LoyaltyPromotionUpdate,
 )
 def create_loyalty_program(db: Session, program_in: LoyaltyProgramCreate) -> LoyaltyProgram:
-    program = LoyaltyProgram(**program_in.dict())
+    program = LoyaltyProgram(**program_in.model_dump())
     db.add(program)
     db.commit()
     db.refresh(program)
@@ -28,7 +28,7 @@ def get_loyalty_program(db: Session, business_id: int) -> Optional[LoyaltyProgra
 def update_loyalty_program(
     db: Session, program: LoyaltyProgram, program_in: LoyaltyProgramUpdate
 ) -> LoyaltyProgram:
-    update_data = program_in.dict(exclude_unset=True)
+    update_data = program_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(program, field, value)
     db.commit()
@@ -42,7 +42,7 @@ def delete_loyalty_program(db: Session, program_id: int) -> bool:
     db.commit()
     return True
 def create_loyalty_level(db: Session, level_in: LoyaltyLevelCreate) -> LoyaltyLevel:
-    level = LoyaltyLevel(**level_in.dict())
+    level = LoyaltyLevel(**level_in.model_dump())
     db.add(level)
     db.commit()
     db.refresh(level)
@@ -66,7 +66,7 @@ def list_loyalty_levels(
 def update_loyalty_level(
     db: Session, level: LoyaltyLevel, level_in: LoyaltyLevelUpdate
 ) -> LoyaltyLevel:
-    update_data = level_in.dict(exclude_unset=True)
+    update_data = level_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(level, field, value)
     db.commit()
@@ -82,7 +82,7 @@ def delete_loyalty_level(db: Session, level_id: int) -> bool:
 def create_loyalty_promotion(
     db: Session, promotion_in: LoyaltyPromotionCreate
 ) -> LoyaltyPromotion:
-    promotion = LoyaltyPromotion(**promotion_in.dict())
+    promotion = LoyaltyPromotion(**promotion_in.model_dump())
     db.add(promotion)
     db.commit()
     db.refresh(promotion)
@@ -125,7 +125,7 @@ def list_loyalty_promotions(
 def update_loyalty_promotion(
     db: Session, promotion: LoyaltyPromotion, promotion_in: LoyaltyPromotionUpdate
 ) -> LoyaltyPromotion:
-    update_data = promotion_in.dict(exclude_unset=True)
+    update_data = promotion_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(promotion, field, value)
     db.commit()

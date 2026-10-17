@@ -4,7 +4,7 @@ from sqlalchemy import or_
 from app.db.models.expense_category import ExpenseCategory
 from app.schemas.expense_category import ExpenseCategoryCreate, ExpenseCategoryUpdate
 def create_expense_category(db: Session, category_in: ExpenseCategoryCreate) -> ExpenseCategory:
-    category = ExpenseCategory(**category_in.dict())
+    category = ExpenseCategory(**category_in.model_dump())
     db.add(category)
     db.commit()
     db.refresh(category)
@@ -43,7 +43,7 @@ def list_expense_categories(
 def update_expense_category(db: Session, category: ExpenseCategory, category_in: ExpenseCategoryUpdate) -> ExpenseCategory:
     if category.is_system:
         raise ValueError("Cannot update system category")
-    update_data = category_in.dict(exclude_unset=True)
+    update_data = category_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(category, field, value)
     db.commit()

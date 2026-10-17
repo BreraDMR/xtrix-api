@@ -8,7 +8,7 @@ from app.schemas.service import ServiceCreate, ServiceUpdate
 def create_service(db: Session, service_in: ServiceCreate, business_id: Optional[int] = None) -> Service:
     from app.api.core.logger import get_logger
     logger = get_logger("services")
-    service_data = service_in.dict()
+    service_data = service_in.model_dump()
     logger.info(f"create_service: service_data={service_data}, business_id={business_id}")
     from sqlalchemy import inspect
     inspector = inspect(db.bind)
@@ -65,7 +65,7 @@ def create_service(db: Session, service_in: ServiceCreate, business_id: Optional
     logger.info(f"create_service: created service id={service.id}, specialist_id={service.specialist_id}, business_id={getattr(service, 'business_id', None)}, category={getattr(service, 'category', None)}")
     return service
 def update_service(db: Session, service: Service, update: ServiceUpdate) -> Service:
-    update_data = update.dict(exclude_unset=True)
+    update_data = update.model_dump(exclude_unset=True)
     specialist_ids = update_data.pop('specialist_ids', None)
     for field, value in update_data.items():
         setattr(service, field, value)

@@ -21,7 +21,7 @@ def create_relation(
         return existing
     if business_id is None:
         raise ValueError("business_id is required for ClientSpecialistRelation")
-    relation_data = relation_in.dict()
+    relation_data = relation_in.model_dump()
     relation_data['business_id'] = business_id
     relation = ClientSpecialistRelation(**relation_data)
     db.add(relation)

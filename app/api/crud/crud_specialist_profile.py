@@ -29,7 +29,7 @@ def create_specialist_profile(
             pass
     if profile_in.specialist_type and not user.specialist_type:
         user.specialist_type = profile_in.specialist_type
-    profile_data = profile_in.dict(exclude={"user_id"}) if hasattr(profile_in, 'dict') else profile_in.model_dump(exclude={"user_id"})
+    profile_data = profile_in.model_dump(exclude={"user_id"}) if hasattr(profile_in, 'model_dump') else profile_in.model_dump(exclude={"user_id"})
     profile_data["specialist_category"] = specialist_category
     profile = SpecialistProfile(user_id=profile_in.user_id, **profile_data)
     db.add(profile)
@@ -39,7 +39,7 @@ def create_specialist_profile(
 def update_specialist_profile(
     db: Session, profile: SpecialistProfile, profile_in: SpecialistProfileUpdate
 ) -> SpecialistProfile:
-    update_data = profile_in.dict(exclude_unset=True) if hasattr(profile_in, 'dict') else profile_in.model_dump(exclude_unset=True)
+    update_data = profile_in.model_dump(exclude_unset=True) if hasattr(profile_in, 'model_dump') else profile_in.model_dump(exclude_unset=True)
     if "specialist_type" in update_data and update_data["specialist_type"]:
         if "specialist_category" not in update_data or not update_data["specialist_category"]:
             try:
