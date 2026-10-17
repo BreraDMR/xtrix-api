@@ -15,6 +15,9 @@ from tests.tenant_world import MARKER, build_tenant
 
 SPEC = app.openapi()
 
+# POSTs that only read (the body is just a query) - checked for leaks like GETs, not as writes
+READ_ONLY_POSTS = {("POST", "/analytics/reports/export")}
+
 # endpoints where a 2xx with A's id is fine because the resource isn't tenant data
 NOT_TENANT_DATA = {
     ("GET", "/subscriptions/plans"),
@@ -50,34 +53,46 @@ def _resolve(schema):
     return schema
 
 
+# realistic values for fields the validators are picky about
+NAMED = {
+    "role": "specialist", "password": "Str0ng!Pass-word", "gender": "female", "status": "planned",
+    "payment_method": "cash", "timezone": "Europe/Prague", "currency": "EUR", "color": "#112233",
+    "totp_token": "123456", "token": "123456", "type": "bonus", "report_type": "financial",
+}
+
+
 def _value(name, schema, ids):
     schema = _resolve(schema)
+    t, fmt = schema.get("type"), schema.get("format")
     if name in ids and not name.endswith("_ids"):
         return ids[name]
     if name.endswith("_ids"):
-        return [ids.get(name[:-1], 1)]
+        id_list = [ids.get(name[:-1], 1)]
+        return str(id_list) if t == "string" else id_list
     if "enum" in schema:
         return schema["enum"][0]
-    t, fmt = schema.get("type"), schema.get("format")
+    if name in NAMED and t in ("string", None) and "pattern" not in schema:
+        return NAMED[name]
     if fmt == "date-time":
-        return (datetime.utcnow() + timedelta(days=3)).replace(microsecond=0).isoformat()
+        start = (datetime.utcnow() + timedelta(days=3)).replace(hour=10, minute=0, second=0, microsecond=0)
+        return (start + timedelta(hours=1) if "end" in name else start).isoformat()
     if fmt == "date":
-        return date.today().isoformat()
+        return (date.today() + timedelta(days=30 if "end" in name else 0)).isoformat()
     if t == "string":
         m = re.match(r"^\^\(([^|)]+)", schema.get("pattern", ""))
         if m:
             return m.group(1)
         if "time" in name:
-            return "10:00"
+            return "17:00" if "end" in name else "09:00"
         if "email" in name:
             return "bravo.x@example.com"
         if "phone" in name:
             return "+420700999999"
         return "Bravo x"
     if t == "integer":
-        return 1
+        return max(1, schema.get("minimum", 1), schema.get("exclusiveMinimum", 0) + 1)
     if t == "number":
-        return 1.0
+        return float(max(1, schema.get("minimum", 1)))
     if t == "boolean":
         return True
     if t == "array":
@@ -85,7 +100,6 @@ def _value(name, schema, ids):
     if t == "object":
         return {}
     return None
-
 
 def _body(op, ids):
     content = op.get("requestBody", {}).get("content", {})
@@ -189,7 +203,7 @@ def test_tenant_isolation_sweep(world, db, make_user, headers_for):
             if 200 <= r.status_code < 300:
                 if MARKER in _text(r):
                     leaks.append(f"{method} {path} as {actor}: {r.status_code} leaks {MARKER} data")
-                elif method != "GET" and touches_a:
+                elif method != "GET" and (method, path) not in READ_ONLY_POSTS and touches_a:
                     writes.append(f"{method} {path} as {actor}: {r.status_code} accepted with A's ids")
 
     # and nothing B did changed or removed A's data
