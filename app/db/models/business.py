@@ -10,7 +10,7 @@ class Business(Base):
         String, 
         nullable=False, 
         index=True,
-        comment="Тип бизнеса: salon, clinic, medical, dental, hospital, individual"
+        comment="Business type: salon, clinic, medical, dental, hospital, individual"
     )
     address = Column(Text, nullable=True)
     phone = Column(String, nullable=True, index=True)

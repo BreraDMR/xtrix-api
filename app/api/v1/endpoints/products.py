@@ -42,10 +42,10 @@ def create_product(
         raise HTTPException(status_code=400, detail=str(e))
 @router.get("/", response_model=PaginatedResponse[ProductOut])
 def list_products(
-    category: Optional[str] = Query(None, description="Фильтр по категории"),
-    is_active: Optional[bool] = Query(True, description="Фильтр по активности"),
-    search: Optional[str] = Query(None, description="Поиск по названию, описанию, штрихкоду"),
-    low_stock_only: bool = Query(False, description="Только товары с низким остатком"),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    is_active: Optional[bool] = Query(True, description="Filter by active flag"),
+    search: Optional[str] = Query(None, description="Search by name, description, barcode"),
+    low_stock_only: bool = Query(False, description="Only low-stock products"),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(deps.get_db),
@@ -97,7 +97,7 @@ def get_low_stock_products(
 @router.post("/usage", response_model=ProductUsageOut)
 def create_product_usage(
     usage: ProductUsageCreate,
-    auto_reduce_stock: bool = Query(True, description="Автоматически списать со склада"),
+    auto_reduce_stock: bool = Query(True, description="Deduct from stock automatically"),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
@@ -205,7 +205,7 @@ def delete_product(
 @router.post("/{product_id}/add-quantity")
 def add_product_quantity(
     product_id: int,
-    quantity: float = Query(..., gt=0, description="Количество для добавления"),
+    quantity: float = Query(..., gt=0, description="Quantity to add"),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
@@ -221,7 +221,7 @@ def add_product_quantity(
 @router.post("/{product_id}/reduce-quantity")
 def reduce_product_quantity_endpoint(
     product_id: int,
-    quantity: float = Query(..., gt=0, description="Количество для списания"),
+    quantity: float = Query(..., gt=0, description="Quantity to deduct"),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
