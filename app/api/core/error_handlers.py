@@ -4,7 +4,7 @@ from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from app.api.core.config import settings
 from app.api.core.logger import logger
 SECRET_HEADERS = {"authorization", "cookie", "x-apple-token", "x-google-token", "x-erl-token", "stripe-signature"}
@@ -121,6 +121,15 @@ async def database_exception_handler(
     request: Request,
     exc: SQLAlchemyError,
 ) -> JSONResponse:
+    if isinstance(exc, IntegrityError):
+        # duplicate barcode, email etc. - the client's fault, but keep constraint names and SQL to ourselves
+        logger.warning(f"Integrity error: {request.method} {request.url.path} - {exc.orig}")
+        return create_error_response(
+            status_code=status.HTTP_409_CONFLICT,
+            message="This conflicts with existing data (duplicate value?)",
+            error_type="IntegrityError",
+            request=request,
+        )
     error_msg = str(exc)
     error_class = exc.__class__.__name__
     logger.error(

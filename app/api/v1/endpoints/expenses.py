@@ -39,7 +39,7 @@ def create_expense_category(
         result = crud_expense_category.create_expense_category(db, category)
         logger.info(f"Created expense category {result.id} by user {current_user.id}")
         return localize_response(result, locale)
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Error creating expense category: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 @router.get("/categories", response_model=List[ExpenseCategoryOut])
@@ -80,9 +80,6 @@ def update_expense_category(
         return localize_response(result, locale)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error updating expense category: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
 @router.delete("/categories/{category_id}")
 def delete_expense_category(
     category_id: int,
@@ -117,7 +114,7 @@ def create_expense(
         result = crud_expense.create_expense(db, expense, created_by_id=current_user.id)
         logger.info(f"Created expense {result.id} by user {current_user.id}")
         return localize_response(result, locale)
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Error creating expense: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 @router.get("/", response_model=PaginatedResponse[ExpenseOut])
@@ -189,7 +186,7 @@ def update_expense(
         result = crud_expense.update_expense(db, db_expense, expense)
         logger.info(f"Updated expense {expense_id} by user {current_user.id}")
         return localize_response(result, locale)
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Error updating expense: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 @router.delete("/{expense_id}")

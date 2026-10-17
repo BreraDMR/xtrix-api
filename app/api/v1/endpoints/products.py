@@ -37,7 +37,7 @@ def create_product(
         result = crud_product.create_product(db, product)
         logger.info(f"Created product {result.id} by user {current_user.id}")
         return localize_response(result, locale)
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Error creating product: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 @router.get("/", response_model=PaginatedResponse[ProductOut])
@@ -115,9 +115,6 @@ def create_product_usage(
         return localize_response(result, locale)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error creating product usage: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
 @router.get("/usage", response_model=PaginatedResponse[ProductUsageOut])
 def list_product_usages(
     product_id: Optional[int] = Query(None),
@@ -187,7 +184,7 @@ def update_product(
         result = crud_product.update_product(db, db_product, product)
         logger.info(f"Updated product {product_id} by user {current_user.id}")
         return localize_response(result, locale)
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Error updating product: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 @router.delete("/{product_id}")

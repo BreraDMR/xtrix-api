@@ -60,7 +60,7 @@ def create_loyalty_program(
         result = crud_loyalty.create_loyalty_program(db, program)
         logger.info(f"Created loyalty program {result.id} for business {business_id}")
         return result
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Error creating loyalty program: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 @router.get("/program", response_model=LoyaltyProgramOut)
@@ -93,7 +93,7 @@ def update_loyalty_program(
         result = crud_loyalty.update_loyalty_program(db, program, program_update)
         logger.info(f"Updated loyalty program {result.id} for business {business_id}")
         return result
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Error updating loyalty program: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 @router.delete("/program")
@@ -112,7 +112,7 @@ def delete_loyalty_program(
         crud_loyalty.delete_loyalty_program(db, program.id)
         logger.info(f"Deleted loyalty program {program.id} for business {business_id}")
         return {"message": _("loyalty_program_deleted", locale)}
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Error deleting loyalty program: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 @router.post("/levels", response_model=LoyaltyLevelOut)
@@ -134,7 +134,7 @@ def create_loyalty_level(
         result = crud_loyalty.create_loyalty_level(db, level)
         logger.info(f"Created loyalty level {result.id}")
         return result
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Error creating loyalty level: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 @router.get("/levels", response_model=List[LoyaltyLevelOut])
@@ -171,7 +171,7 @@ def update_loyalty_level(
     try:
         result = crud_loyalty.update_loyalty_level(db, level, level_update)
         return result
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Error updating loyalty level: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 @router.delete("/levels/{level_id}")
@@ -193,7 +193,7 @@ def delete_loyalty_level(
     try:
         crud_loyalty.delete_loyalty_level(db, level_id)
         return {"message": _("loyalty_level_deleted", locale)}
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Error deleting loyalty level: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 @router.post("/promotions", response_model=LoyaltyPromotionOut)
@@ -215,7 +215,7 @@ def create_loyalty_promotion(
         result = crud_loyalty.create_loyalty_promotion(db, promotion)
         logger.info(f"Created loyalty promotion {result.id}")
         return result
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Error creating loyalty promotion: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 @router.get("/promotions", response_model=List[LoyaltyPromotionOut])
@@ -256,7 +256,7 @@ def update_loyalty_promotion(
     try:
         result = crud_loyalty.update_loyalty_promotion(db, promotion, promotion_update)
         return result
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Error updating loyalty promotion: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 @router.delete("/promotions/{promotion_id}")
@@ -278,7 +278,7 @@ def delete_loyalty_promotion(
     try:
         crud_loyalty.delete_loyalty_promotion(db, promotion_id)
         return {"message": _("loyalty_promotion_deleted", locale)}
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Error deleting loyalty promotion: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 @router.get("/balance/{client_id}", response_model=ClientLoyaltyBalance)
@@ -387,7 +387,7 @@ def use_points(
         }
     except HTTPException:
         raise
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Error using loyalty points: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 @router.get("/analytics/statistics", response_model=LoyaltyStatisticsResponse)
