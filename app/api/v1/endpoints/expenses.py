@@ -12,8 +12,13 @@ from app.schemas.expense_category import ExpenseCategoryCreate, ExpenseCategoryU
 from app.api.crud import crud_expense, crud_expense_category
 from app.api.core.logger import logger
 from app.api.core.clock import utcnow
-from app.api.core.permissions import require_business_id
+from app.api.core.permissions import can_view_financials, require_business_id
 router = APIRouter()
+def _finance_business_id(current_user: User, db: Session, locale: str) -> int:
+    # money is for the owner, admins and staff with the "view financials" box ticked
+    if not can_view_financials(current_user, db):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    return require_business_id(current_user, db, locale)
 @router.post("/categories", response_model=ExpenseCategoryOut)
 def create_expense_category(
     category: ExpenseCategoryCreate,
@@ -21,7 +26,7 @@ def create_expense_category(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = require_business_id(current_user, db, locale)
+    business_id = _finance_business_id(current_user, db, locale)
     if category.business_id and category.business_id != business_id:
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     if not category.business_id:
@@ -41,7 +46,7 @@ def list_expense_categories(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = require_business_id(current_user, db, locale)
+    business_id = _finance_business_id(current_user, db, locale)
     categories = crud_expense_category.list_expense_categories(
         db,
         business_id=business_id,
@@ -57,7 +62,7 @@ def update_expense_category(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = require_business_id(current_user, db, locale)
+    business_id = _finance_business_id(current_user, db, locale)
     db_category = crud_expense_category.get_expense_category(db, category_id, business_id)
     if not db_category:
         raise HTTPException(status_code=404, detail=_("category_not_found", locale))
@@ -74,7 +79,7 @@ def delete_expense_category(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = require_business_id(current_user, db, locale)
+    business_id = _finance_business_id(current_user, db, locale)
     try:
         success = crud_expense_category.delete_expense_category(db, category_id, business_id)
         if not success:
@@ -90,7 +95,7 @@ def create_expense(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = require_business_id(current_user, db, locale)
+    business_id = _finance_business_id(current_user, db, locale)
     if expense.business_id != business_id:
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     try:
@@ -114,7 +119,7 @@ def list_expenses(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = require_business_id(current_user, db, locale)
+    business_id = _finance_business_id(current_user, db, locale)
     skip = (page - 1) * per_page
     expenses = crud_expense.list_expenses(
         db,
@@ -142,7 +147,7 @@ def get_expense(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = require_business_id(current_user, db, locale)
+    business_id = _finance_business_id(current_user, db, locale)
     expense = crud_expense.get_expense(db, expense_id, business_id)
     if not expense:
         raise HTTPException(status_code=404, detail=_("expense_not_found", locale))
@@ -155,7 +160,7 @@ def update_expense(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = require_business_id(current_user, db, locale)
+    business_id = _finance_business_id(current_user, db, locale)
     db_expense = crud_expense.get_expense(db, expense_id, business_id)
     if not db_expense:
         raise HTTPException(status_code=404, detail=_("expense_not_found", locale))
@@ -173,7 +178,7 @@ def delete_expense(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = require_business_id(current_user, db, locale)
+    business_id = _finance_business_id(current_user, db, locale)
     success = crud_expense.delete_expense(db, expense_id, business_id)
     if not success:
         raise HTTPException(status_code=404, detail=_("expense_not_found", locale))
@@ -190,7 +195,7 @@ def get_profit_report(
     from datetime import datetime, timedelta
     from app.db.models.visit import Visit
     from sqlalchemy import func
-    business_id = require_business_id(current_user, db, locale)
+    business_id = _finance_business_id(current_user, db, locale)
     if not date_from or not date_to:
         now = utcnow()
         date_from = datetime(now.year, now.month, 1)
@@ -273,7 +278,7 @@ def get_expenses_by_category(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = require_business_id(current_user, db, locale)
+    business_id = _finance_business_id(current_user, db, locale)
     result = crud_expense.get_expenses_by_category(
         db,
         business_id=business_id,
