@@ -302,7 +302,7 @@ def get_client_loyalty_balance(
 def list_client_transactions(
     client_id: int,
     transaction_type: Optional[str] = Query(None),
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=100_000),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),

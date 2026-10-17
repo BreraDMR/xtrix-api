@@ -107,7 +107,7 @@ def list_clients(
     owner_id: Optional[int] = None,
     phone: Optional[str] = None,
     name: Optional[str] = None,
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=100_000),
     per_page: int = Query(20, ge=1, le=100),
     include_deleted: bool = Query(False, description="Include soft-deleted clients"),
     include_archived: bool = Query(False, description="Include archived clients"),

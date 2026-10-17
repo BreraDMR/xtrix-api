@@ -119,7 +119,7 @@ def visits_list(
     specialist_id: Optional[int] = None,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=100_000),
     per_page: int = Query(20, ge=1, le=100),
     include_deleted: bool = Query(False, description="Include soft-deleted visits"),
     include_archived: bool = Query(False, description="Include archived visits"),

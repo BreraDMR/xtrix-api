@@ -193,7 +193,7 @@ def unlock_user_account(
     return {"message": _("account_unlocked", locale)}
 @router.get("/pending", response_model=PaginatedResponse[UserOut], summary="List users pending moderation")
 def list_pending_users(
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=100_000),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin")),
@@ -240,7 +240,7 @@ def moderate_user(
 @router.get("/", response_model=PaginatedResponse[UserOut])
 def users_list(
     role: str | None = None,
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=100_000),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner")),

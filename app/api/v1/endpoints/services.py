@@ -46,7 +46,7 @@ def create_service(
 def list_services(
     specialist_id: Optional[int] = None,
     active_only: bool = False,
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=100_000),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),

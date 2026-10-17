@@ -1,11 +1,13 @@
 from typing import Generic, TypeVar
 from pydantic import BaseModel
 T = TypeVar('T')
+MAX_PAGE = 100_000
 class PaginationParams(BaseModel):
     page: int = 1
     per_page: int = 20
     def __init__(self, page: int = 1, per_page: int = 20, **kwargs):
-        super().__init__(page=max(1, page), per_page=min(max(1, per_page), 100), **kwargs)
+        # page is capped too - a huge page number used to overflow OFFSET (bigint) into a 500
+        super().__init__(page=min(max(1, page), MAX_PAGE), per_page=min(max(1, per_page), 100), **kwargs)
     @property
     def offset(self) -> int:
         return (self.page - 1) * self.per_page
