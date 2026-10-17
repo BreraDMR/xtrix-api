@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _
@@ -41,6 +41,7 @@ from app.schemas.analytics import (
     AnonymousBenchmarksResponse,
 )
 from app.api.core.permissions import get_user_business_id
+from app.api.middleware.rate_limit import limiter, EXPORT_LIMIT
 router = APIRouter()
 def _scope(current_user: User, db: Session, requested_specialist_id: Optional[int] = None):
     """(specialist_id, business_id) whose numbers the caller may see.
@@ -180,23 +181,25 @@ def get_payments_statistics(
     )
     return PaymentStatisticsResponse(**stats)
 @router.post("/reports/export")
+@limiter.limit(EXPORT_LIMIT)
 def export_report(
-    request: ReportExportRequest,
+    request: Request,
+    payload: ReportExportRequest,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    request.specialist_id, business_id = _scope(current_user, db, request.specialist_id)
+    payload.specialist_id, business_id = _scope(current_user, db, payload.specialist_id)
     export_data = []
     filename = ""
     sheet_name = ""
-    if request.report_type == "financial":
+    if payload.report_type == "financial":
         report = get_financial_report(
             db,
-            specialist_id=request.specialist_id,
+            specialist_id=payload.specialist_id,
             business_id=business_id,
-            date_from=request.date_from,
-            date_to=request.date_to,
+            date_from=payload.date_from,
+            date_to=payload.date_to,
             group_by="month",
         )
         export_data = [
@@ -214,13 +217,13 @@ def export_report(
         })
         filename = "financial_report"
         sheet_name = "Financial Report"
-    elif request.report_type == "visits":
+    elif payload.report_type == "visits":
         stats = get_visit_statistics(
             db,
-            specialist_id=request.specialist_id,
+            specialist_id=payload.specialist_id,
             business_id=business_id,
-            date_from=request.date_from,
-            date_to=request.date_to,
+            date_from=payload.date_from,
+            date_to=payload.date_to,
         )
         export_data = [
             {
@@ -235,13 +238,13 @@ def export_report(
         })
         filename = "visits_report"
         sheet_name = "Visits Report"
-    elif request.report_type == "services":
+    elif payload.report_type == "services":
         services = get_popular_services(
             db,
-            specialist_id=request.specialist_id,
+            specialist_id=payload.specialist_id,
             business_id=business_id,
-            date_from=request.date_from,
-            date_to=request.date_to,
+            date_from=payload.date_from,
+            date_to=payload.date_to,
             limit=50,
         )
         export_data = [
@@ -255,9 +258,9 @@ def export_report(
         ]
         filename = "services_report"
         sheet_name = "Services Report"
-    elif request.report_type == "clients":
+    elif payload.report_type == "clients":
         stats = get_client_statistics(
-            db, owner_id=None if business_id else request.specialist_id, business_id=business_id
+            db, owner_id=None if business_id else payload.specialist_id, business_id=business_id
         )
         export_data = [
             {
@@ -270,7 +273,7 @@ def export_report(
         sheet_name = "Clients Report"
     else:
         raise HTTPException(status_code=400, detail=_("invalid_report_type", locale))
-    if request.format == "csv":
+    if payload.format == "csv":
         return export_to_csv(export_data, filename=f"{filename}.csv")
     else:
         return export_to_excel(export_data, filename=f"{filename}.xlsx", sheet_name=sheet_name)

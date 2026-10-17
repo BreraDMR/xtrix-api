@@ -1,11 +1,12 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.audit import get_audit_logs
 from app.api.core.pagination import PaginationParams, PaginatedResponse
 from app.db.models.user import User
 from app.schemas.analytics import AuditLogOut
+from app.api.middleware.rate_limit import limiter, EXPORT_LIMIT
 router = APIRouter()
 @router.get("/", response_model=PaginatedResponse[AuditLogOut])
 def list_audit_logs(
@@ -47,7 +48,9 @@ def list_audit_logs(
         per_page=per_page,
     )
 @router.get("/export/csv")
+@limiter.limit(EXPORT_LIMIT)
 def export_audit_logs_csv(
+    request: Request,
     entity_type: Optional[str] = Query(None),
     entity_id: Optional[int] = Query(None),
     user_id: Optional[int] = Query(None),

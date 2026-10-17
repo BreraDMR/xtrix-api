@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _
@@ -9,6 +9,7 @@ from app.api.crud import crud_service
 from app.db.models.service import Service
 from app.db.models.user import User
 from app.schemas.service import ServiceCreate, ServiceOut, ServiceUpdate
+from app.api.middleware.rate_limit import limiter, EXPORT_LIMIT
 router = APIRouter()
 def _service_out(service: Service) -> dict:
     """Service as a dict plus everyone who provides it (the linked specialists, or the owner of the service)."""
@@ -169,7 +170,9 @@ def restore_service(
     restore_soft_deleted(db, service)
     return {"message": "Service restored successfully"}
 @router.get("/export/csv")
+@limiter.limit(EXPORT_LIMIT)
 def export_services_csv(
+    request: Request,
     specialist_id: Optional[int] = None,
     active_only: bool = False,
     db: Session = Depends(deps.get_db),
@@ -193,7 +196,9 @@ def export_services_csv(
     export_data = prepare_service_export_data(services)
     return export_to_csv(export_data, filename="services_export.csv")
 @router.get("/export/excel")
+@limiter.limit(EXPORT_LIMIT)
 def export_services_excel(
+    request: Request,
     specialist_id: Optional[int] = None,
     active_only: bool = False,
     db: Session = Depends(deps.get_db),

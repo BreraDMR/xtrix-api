@@ -6,17 +6,7 @@ from app.api.core.config import settings
 from app.api.core.logger import get_logger, mask_email, mask_phone
 from app.api.core.security import verify_refresh_token, create_access_token, create_refresh_token
 from app.api.core.pagination import PaginationParams, PaginatedResponse
-if settings.rate_limit_enabled:
-    from app.api.middleware.rate_limit import limiter, get_rate_limit_for_login
-else:
-    class DummyLimiter:
-        def limit(self, *args, **kwargs):
-            def decorator(f):
-                return f
-            return decorator
-    limiter = DummyLimiter()
-    def get_rate_limit_for_login():
-        return None
+from app.api.middleware.rate_limit import limiter, LOGIN_LIMIT, SIGNUP_LIMIT, SENSITIVE_LIMIT
 from app.api.crud import crud_user, crud_refresh_token
 from app.db.models.user import User
 from app.schemas.user import (
@@ -29,7 +19,9 @@ router = APIRouter()
 logger = get_logger("users")
 PUBLIC_SIGNUP_ROLES = ("specialist", "business_owner")
 @router.post("/", response_model=UserOut)
+@limiter.limit(SIGNUP_LIMIT)
 def create_user(
+    request: Request,
     user: UserCreate,
     db: Session = Depends(deps.get_db),
     locale: str = Depends(deps.get_locale),
@@ -71,7 +63,7 @@ def create_user(
         429: {"description": "Rate limit exceeded"},
     }
 )
-@limiter.limit(get_rate_limit_for_login)
+@limiter.limit(LOGIN_LIMIT)
 def login(
     request: Request,
     credentials: UserLogin,
@@ -112,7 +104,9 @@ def get_current_user_info(
         return result.model_dump()
     return result
 @router.post("/refresh", response_model=TokenResponse)
+@limiter.limit(SENSITIVE_LIMIT)
 def refresh_token(
+    request: Request,
     token_data: TokenRefresh = Body(...),
     db: Session = Depends(deps.get_db),
     locale: str = Depends(deps.get_locale),
@@ -259,7 +253,9 @@ def users_list(
         per_page=per_page,
     )
 @router.post("/2fa/setup", response_model=TwoFactorSetup)
+@limiter.limit(SENSITIVE_LIMIT)
 def setup_2fa(
+    request: Request,
     current_user: User = Depends(deps.get_current_user),
     db: Session = Depends(deps.get_db),
     locale: str = Depends(deps.get_locale),
@@ -275,7 +271,9 @@ def setup_2fa(
     logger.info(f"2FA secret generated for user_id={current_user.id}")
     return TwoFactorSetup(secret=secret, qr_code=qr_code)
 @router.post("/2fa/enable", response_model=dict)
+@limiter.limit(SENSITIVE_LIMIT)
 def enable_2fa(
+    request: Request,
     data: TwoFactorEnable,
     current_user: User = Depends(deps.get_current_user),
     db: Session = Depends(deps.get_db),
@@ -293,7 +291,9 @@ def enable_2fa(
     logger.info(f"2FA enabled for user_id={current_user.id}")
     return {"message": _("2fa_enabled", locale), "is_2fa_enabled": True}
 @router.post("/2fa/disable", response_model=dict)
+@limiter.limit(SENSITIVE_LIMIT)
 def disable_2fa(
+    request: Request,
     data: TwoFactorVerify,
     current_user: User = Depends(deps.get_current_user),
     db: Session = Depends(deps.get_db),

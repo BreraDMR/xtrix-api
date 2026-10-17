@@ -1,6 +1,6 @@
 from datetime import date
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _
@@ -11,6 +11,7 @@ from app.api.crud import crud_client, crud_visit
 from app.db.models.user import User
 from app.schemas.client import ClientCreate, ClientOut, ClientUpdate, ClientSearchOut, BasicMedicalInfo
 from app.schemas.qr_code import QRCodeGenerateResponse, QRCodeAccessRequest, ClientHistoryResponse
+from app.api.middleware.rate_limit import limiter, EXPORT_LIMIT, SENSITIVE_LIMIT
 from app.schemas.datetimes import utc_iso
 router = APIRouter()
 logger = get_logger("clients")
@@ -306,7 +307,9 @@ def update_client(
     logger.info(f"Client updated successfully: id={result.id}")
     return result.model_dump() if hasattr(result, 'model_dump') else result
 @router.get("/export/csv")
+@limiter.limit(EXPORT_LIMIT)
 def export_clients_csv(
+    request: Request,
     owner_id: Optional[int] = None,
     phone: Optional[str] = None,
     name: Optional[str] = None,
@@ -320,7 +323,9 @@ def export_clients_csv(
     export_data = prepare_client_export_data(clients)
     return export_to_csv(export_data, filename="clients_export.csv")
 @router.get("/export/excel")
+@limiter.limit(EXPORT_LIMIT)
 def export_clients_excel(
+    request: Request,
     owner_id: Optional[int] = None,
     phone: Optional[str] = None,
     name: Optional[str] = None,
@@ -334,7 +339,9 @@ def export_clients_excel(
     export_data = prepare_client_export_data(clients)
     return export_to_excel(export_data, filename="clients_export.xlsx", sheet_name="Clients")
 @router.post("/{client_id}/qr-code/generate", response_model=QRCodeGenerateResponse)
+@limiter.limit(SENSITIVE_LIMIT)
 def generate_client_qr_code(
+    request: Request,
     client_id: int,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
@@ -366,13 +373,15 @@ def generate_client_qr_code(
         qr_code_url=qr_code_url,
     )
 @router.post("/qr-code/access", response_model=ClientHistoryResponse)
+@limiter.limit(SENSITIVE_LIMIT)
 def access_client_history_by_qr(
-    request: QRCodeAccessRequest,
+    request: Request,
+    payload: QRCodeAccessRequest,
     db: Session = Depends(deps.get_db),
     locale: str = Depends(deps.get_locale),
 ):
-    logger.info(f"QR code access attempt: qr_data={request.qr_code_data[:20]}...")
-    parsed = parse_qr_code_data(request.qr_code_data)
+    logger.info(f"QR code access attempt: qr_data={payload.qr_code_data[:20]}...")
+    parsed = parse_qr_code_data(payload.qr_code_data)
     if not parsed:
         logger.warning("Invalid QR code format")
         raise HTTPException(status_code=400, detail=_("invalid_qr_code", locale))
@@ -380,13 +389,13 @@ def access_client_history_by_qr(
     if not verify_qr_code_hash(client_id, hash_value):
         logger.warning(f"Invalid QR code hash: client_id={client_id}")
         raise HTTPException(status_code=400, detail=_("invalid_qr_code", locale))
-    client = crud_client.get_client_by_qr_code(db, request.qr_code_data)
+    client = crud_client.get_client_by_qr_code(db, payload.qr_code_data)
     if not client:
         logger.warning(f"Client not found for QR code: client_id={client_id}")
         raise HTTPException(status_code=404, detail=_("client_not_found", locale))
     if crud_client.qr_locked(client):
         raise HTTPException(status_code=429, detail=_("qr_access_locked", locale))
-    if not crud_client.verify_client_access_password(db, client_id, request.password):
+    if not crud_client.verify_client_access_password(db, client_id, payload.password):
         logger.warning(f"Invalid password for QR code access: client_id={client_id}")
         raise HTTPException(status_code=401, detail=_("invalid_password", locale))
     visits, total = crud_visit.list_visits(db, client_id=client_id)

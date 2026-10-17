@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, time
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _
@@ -15,6 +15,7 @@ from app.db.models.service import Service
 from app.db.models.user import User
 from app.schemas.visit import VisitCreate, VisitOut, VisitUpdate
 from app.api.core.clock import utcnow
+from app.api.middleware.rate_limit import limiter, EXPORT_LIMIT
 router = APIRouter()
 logger = get_logger("visits")
 def _check_slot_free(db, specialist_id, start, end, service_id, exclude_id, locale):
@@ -256,7 +257,9 @@ def _build_breaks(start: Optional[str], end: Optional[str]):
         return [( _parse_time(start), _parse_time(end))]
     return []
 @router.get("/export/csv")
+@limiter.limit(EXPORT_LIMIT)
 def export_visits_csv(
+    request: Request,
     client_id: Optional[int] = None,
     specialist_id: Optional[int] = None,
     date_from: Optional[datetime] = None,
@@ -279,7 +282,9 @@ def export_visits_csv(
     export_data = prepare_visit_export_data(visits)
     return export_to_csv(export_data, filename="visits_export.csv")
 @router.get("/export/excel")
+@limiter.limit(EXPORT_LIMIT)
 def export_visits_excel(
+    request: Request,
     client_id: Optional[int] = None,
     specialist_id: Optional[int] = None,
     date_from: Optional[datetime] = None,
