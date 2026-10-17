@@ -1,6 +1,201 @@
 from typing import Dict, Any
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
+    "2fa_disabled": {
+        "en": "Two-factor authentication disabled",
+        "ru": "Двухфакторная аутентификация отключена",
+        "cz": "Dvoufázové ověření vypnuto",
+    },
+    "2fa_enabled": {
+        "en": "Two-factor authentication enabled",
+        "ru": "Двухфакторная аутентификация включена",
+        "cz": "Dvoufázové ověření zapnuto",
+    },
+    "2fa_not_enabled": {
+        "en": "Two-factor authentication is not enabled",
+        "ru": "Двухфакторная аутентификация не включена",
+        "cz": "Dvoufázové ověření není zapnuto",
+    },
+    "2fa_not_setup": {
+        "en": "Set up two-factor authentication first",
+        "ru": "Сначала настройте двухфакторную аутентификацию",
+        "cz": "Nejprve nastavte dvoufázové ověření",
+    },
+    "adjustment_deleted": {
+        "en": "Adjustment deleted",
+        "ru": "Корректировка удалена",
+        "cz": "Úprava smazána",
+    },
+    "adjustment_not_found": {
+        "en": "Adjustment not found",
+        "ru": "Корректировка не найдена",
+        "cz": "Úprava nenalezena",
+    },
+    "business_id_required_for_client_creation": {
+        "en": "Create a business first",
+        "ru": "Сначала создайте бизнес",
+        "cz": "Nejprve vytvořte firmu",
+    },
+    "business_not_found": {
+        "en": "Business not found",
+        "ru": "Бизнес не найден",
+        "cz": "Firma nenalezena",
+    },
+    "business_owner_id_required": {
+        "en": "Business owner is required",
+        "ru": "Нужно указать владельца бизнеса",
+        "cz": "Je potřeba uvést majitele firmy",
+    },
+    "business_required": {
+        "en": "This needs a business - create or join one first",
+        "ru": "Нужен бизнес — сначала создайте его или присоединитесь",
+        "cz": "Je potřeba firma - nejprve ji vytvořte nebo se připojte",
+    },
+    "cannot_cancel_subscription": {
+        "en": "This subscription can't be cancelled",
+        "ru": "Эту подписку нельзя отменить",
+        "cz": "Toto předplatné nelze zrušit",
+    },
+    "cannot_reactivate_subscription": {
+        "en": "This subscription can't be reactivated",
+        "ru": "Эту подписку нельзя возобновить",
+        "cz": "Toto předplatné nelze obnovit",
+    },
+    "email_or_phone_required": {
+        "en": "Email or phone is required",
+        "ru": "Нужен email или телефон",
+        "cz": "Je potřeba e-mail nebo telefon",
+    },
+    "employee_already_fired": {
+        "en": "The employee has already been dismissed",
+        "ru": "Сотрудник уже уволен",
+        "cz": "Zaměstnanec už byl propuštěn",
+    },
+    "employee_not_found": {
+        "en": "Employee not found",
+        "ru": "Сотрудник не найден",
+        "cz": "Zaměstnanec nenalezen",
+    },
+    "invalid_2fa_token": {
+        "en": "Invalid two-factor code",
+        "ru": "Неверный код двухфакторной аутентификации",
+        "cz": "Neplatný ověřovací kód",
+    },
+    "loyalty_level_deleted": {
+        "en": "Loyalty level deleted",
+        "ru": "Уровень лояльности удалён",
+        "cz": "Věrnostní úroveň smazána",
+    },
+    "loyalty_level_not_found": {
+        "en": "Loyalty level not found",
+        "ru": "Уровень лояльности не найден",
+        "cz": "Věrnostní úroveň nenalezena",
+    },
+    "loyalty_program_already_exists": {
+        "en": "The business already has a loyalty programme",
+        "ru": "У бизнеса уже есть программа лояльности",
+        "cz": "Firma už má věrnostní program",
+    },
+    "loyalty_program_deleted": {
+        "en": "Loyalty programme deleted",
+        "ru": "Программа лояльности удалена",
+        "cz": "Věrnostní program smazán",
+    },
+    "loyalty_program_not_found": {
+        "en": "Loyalty programme not found",
+        "ru": "Программа лояльности не найдена",
+        "cz": "Věrnostní program nenalezen",
+    },
+    "loyalty_promotion_deleted": {
+        "en": "Promotion deleted",
+        "ru": "Акция удалена",
+        "cz": "Akce smazána",
+    },
+    "loyalty_promotion_not_found": {
+        "en": "Promotion not found",
+        "ru": "Акция не найдена",
+        "cz": "Akce nenalezena",
+    },
+    "no_unpaid_salary": {
+        "en": "No unpaid salary",
+        "ru": "Невыплаченной зарплаты нет",
+        "cz": "Žádná nevyplacená mzda",
+    },
+    "payment_amount_exceeds_remaining": {
+        "en": "The amount is more than what's left to pay",
+        "ru": "Сумма больше остатка к выплате",
+        "cz": "Částka převyšuje zbývající dlužnou částku",
+    },
+    "payment_amount_invalid": {
+        "en": "Invalid payment amount",
+        "ru": "Неверная сумма выплаты",
+        "cz": "Neplatná částka platby",
+    },
+    "payment_deleted": {
+        "en": "Payment deleted",
+        "ru": "Выплата удалена",
+        "cz": "Platba smazána",
+    },
+    "payment_method_required_for_completed_visits": {
+        "en": "Payment method is required for a completed paid visit",
+        "ru": "Для завершённого платного визита нужен способ оплаты",
+        "cz": "U dokončené placené návštěvy je potřeba způsob platby",
+    },
+    "payment_not_found": {
+        "en": "Payment not found",
+        "ru": "Выплата не найдена",
+        "cz": "Platba nenalezena",
+    },
+    "phone_or_email_required": {
+        "en": "Phone or email is required",
+        "ru": "Нужен телефон или email",
+        "cz": "Je potřeba telefon nebo e-mail",
+    },
+    "points_used_successfully": {
+        "en": "Points used",
+        "ru": "Баллы списаны",
+        "cz": "Body uplatněny",
+    },
+    "relation_deleted": {
+        "en": "Link removed",
+        "ru": "Связь удалена",
+        "cz": "Vazba odstraněna",
+    },
+    "relation_not_found": {
+        "en": "Link not found",
+        "ru": "Связь не найдена",
+        "cz": "Vazba nenalezena",
+    },
+    "salary_already_paid": {
+        "en": "This salary is already paid",
+        "ru": "Эта зарплата уже выплачена",
+        "cz": "Tato mzda je už vyplacena",
+    },
+    "salary_calculation_not_found": {
+        "en": "Salary calculation not found",
+        "ru": "Расчёт зарплаты не найден",
+        "cz": "Výpočet mzdy nenalezen",
+    },
+    "stripe_subscriptions_must_be_created_via_payment": {
+        "en": "Stripe subscriptions are created through checkout",
+        "ru": "Подписка Stripe оформляется через оплату",
+        "cz": "Předplatné Stripe se zakládá přes platbu",
+    },
+    "subscription_not_found": {
+        "en": "Subscription not found",
+        "ru": "Подписка не найдена",
+        "cz": "Předplatné nenalezeno",
+    },
+    "user_already_exists": {
+        "en": "User already exists",
+        "ru": "Пользователь уже существует",
+        "cz": "Uživatel už existuje",
+    },
+    "user_already_has_business": {
+        "en": "You already have a business",
+        "ru": "У вас уже есть бизнес",
+        "cz": "Už máte firmu",
+    },
     "qr_access_locked": {
         "en": "Too many wrong codes, access is locked for 30 minutes",
         "ru": "Слишком много неверных кодов, доступ закрыт на 30 минут",
