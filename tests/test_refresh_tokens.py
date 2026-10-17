@@ -2,10 +2,8 @@ import pytest
 from fastapi.testclient import TestClient
 from datetime import datetime, timedelta
 from app.main import app
-from app.api.core.security import create_refresh_token, verify_refresh_token
-from app.api.crud import crud_user, crud_refresh_token
-from app.schemas.user import UserCreate
-from app.db.session import SessionLocal
+from app.api.core.security import create_refresh_token
+from app.api.crud import crud_refresh_token
 client = TestClient(app)
 @pytest.fixture
 def test_user(make_user):

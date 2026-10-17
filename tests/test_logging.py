@@ -1,5 +1,4 @@
 import logging
-import pytest
 from pathlib import Path
 from app.api.core.logger import logger, get_logger
 def test_logger_exists():

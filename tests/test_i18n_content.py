@@ -1,5 +1,3 @@
-import pytest
-from datetime import datetime
 from app.api.core.i18n import localize_response, localize_field, _
 def test_localize_field_role():
     assert localize_field("admin", "role", "en") == "Administrator"

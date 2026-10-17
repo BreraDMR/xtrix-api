@@ -2,7 +2,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from app.main import app
-from app.db.models.client import Client
 from app.api.core.qr_code import (
     generate_qr_code_data,
     generate_access_password,
@@ -10,7 +9,6 @@ from app.api.core.qr_code import (
     verify_qr_code_hash,
     generate_qr_code_base64,
 )
-from app.api.core.security import verify_password, get_password_hash
 test_client = TestClient(app)
 def test_generate_qr_code_data():
     qr_data = generate_qr_code_data(1)
