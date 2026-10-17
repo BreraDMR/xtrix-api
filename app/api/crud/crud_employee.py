@@ -105,6 +105,10 @@ def fire_employee(
     employee_user = employee.employee_user
     if employee_user:
         employee_user.employer_id = None
+        # they got the business through the job - out of the job, out of the business
+        owner = employee.business_owner
+        if owner and owner.business_id and employee_user.business_id == owner.business_id:
+            employee_user.business_id = None
         db.add(employee_user)
     db.add(employee)
     db.commit()
