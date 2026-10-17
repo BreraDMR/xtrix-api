@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timedelta
 from typing import Optional
 import re
@@ -180,7 +181,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         if expires_delta
         else timedelta(minutes=settings.access_token_expire_minutes)
     )
-    to_encode.update({"exp": expire, "type": "access"})
+    # iat_ms: issue time precise enough to compare with users.tokens_valid_after (logout-all)
+    to_encode.update({"exp": expire, "type": "access", "iat_ms": int(time.time() * 1000)})
     encoded_jwt = jwt.encode(
         to_encode, settings.jwt_secret, algorithm=settings.jwt_algorithm
     )

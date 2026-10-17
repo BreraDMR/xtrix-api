@@ -1,3 +1,4 @@
+from datetime import timezone
 from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordBearer
 import jwt
@@ -16,6 +17,12 @@ def get_db():
         yield db
     finally:
         db.close()
+def token_revoked(user, payload: dict) -> bool:
+    if not user.tokens_valid_after:
+        return False
+    # the DB keeps naive UTC; tokens from before iat_ms existed count as issued at 0
+    valid_after_ms = int(user.tokens_valid_after.replace(tzinfo=timezone.utc).timestamp() * 1000)
+    return int(payload.get("iat_ms") or 0) < valid_after_ms
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -41,6 +48,9 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None:
         logger.warning(f"User not found: id={user_id}")
         raise credentials_exception
+    if token_revoked(user, payload):
+        logger.warning(f"Revoked access token used: user_id={user_id}")
+        raise credentials_exception
     logger.debug(f"User authenticated: id={user_id}, role={user.role}")
     return user
 def get_current_user_optional(
@@ -63,6 +73,8 @@ def get_current_user_optional(
     except InvalidTokenError:
         return None
     user = crud_user.get_active_user(db, int(user_id))
+    if user is not None and token_revoked(user, payload):
+        return None
     return user
 def role_required(*roles: str):
     def checker(

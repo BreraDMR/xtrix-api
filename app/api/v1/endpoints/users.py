@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Body, Query
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _
+from app.api.core.clock import utcnow
 from app.api.core.logger import get_logger, mask_email, mask_phone
 from app.api.core.security import verify_refresh_token, create_access_token, create_refresh_token
 from app.api.core.pagination import PaginationParams, PaginatedResponse
@@ -178,6 +179,9 @@ def logout_all(
 ):
     logger.info(f"Logout all devices for user_id={current_user.id}")
     count = crud_refresh_token.revoke_all_user_tokens(db, current_user.id)
+    # refresh tokens are gone, now the access tokens already out there too
+    current_user.tokens_valid_after = utcnow()
+    db.commit()
     logger.info(f"Revoked {count} refresh tokens for user_id={current_user.id}")
     return {"message": _("logout_all_success", locale), "revoked_count": count}
 @router.post("/{user_id}/unlock")

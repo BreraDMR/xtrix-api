@@ -18,6 +18,8 @@ class User(Base):
     failed_login_attempts = Column(Integer, default=0, nullable=False)
     locked_until = Column(DateTime, nullable=True, index=True)
     is_locked = Column(Boolean, default=False, nullable=False, index=True)
+    # access tokens issued before this are dead (logout-all); null = none revoked
+    tokens_valid_after = Column(DateTime, nullable=True)
     deleted_at = Column(DateTime, nullable=True, index=True)  
     archived_at = Column(DateTime, nullable=True, index=True)  
     totp_secret = Column(String, nullable=True)  
