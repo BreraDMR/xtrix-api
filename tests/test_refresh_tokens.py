@@ -8,29 +8,13 @@ from app.schemas.user import UserCreate
 from app.db.session import SessionLocal
 client = TestClient(app)
 @pytest.fixture
-def test_user(db):
-    user_data = UserCreate(
-        full_name="Test User",
-        phone="+1234567890",
-        email="test@example.com",
-        password="testpassword123",
-        role="specialist",
-    )
-    user = crud_user.create_user(db, user_data)
-    yield user
-    db.delete(user)
-    db.commit()
-@pytest.fixture
-def db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+def test_user(make_user):
+    # tables are wiped after each test by conftest, no manual cleanup needed
+    return make_user("specialist", email="test@example.com", password="Str0ng!Pass-word")
 def test_login_returns_both_tokens(test_user, db):
     response = client.post(
         "/users/login",
-        json={"email": "test@example.com", "password": "testpassword123"},
+        json={"email": "test@example.com", "password": "Str0ng!Pass-word"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -44,7 +28,7 @@ def test_login_returns_both_tokens(test_user, db):
 def test_refresh_token_endpoint(test_user, db):
     login_response = client.post(
         "/users/login",
-        json={"email": "test@example.com", "password": "testpassword123"},
+        json={"email": "test@example.com", "password": "Str0ng!Pass-word"},
     )
     assert login_response.status_code == 200
     refresh_token = login_response.json()["refresh_token"]
@@ -86,7 +70,7 @@ def test_refresh_token_expired_token(test_user, db):
 def test_logout_revokes_token(test_user, db):
     login_response = client.post(
         "/users/login",
-        json={"email": "test@example.com", "password": "testpassword123"},
+        json={"email": "test@example.com", "password": "Str0ng!Pass-word"},
     )
     assert login_response.status_code == 200
     access_token = login_response.json()["access_token"]
@@ -104,7 +88,7 @@ def test_logout_all_revokes_all_tokens(test_user, db):
     for _ in range(3):
         login_response = client.post(
             "/users/login",
-            json={"email": "test@example.com", "password": "testpassword123"},
+            json={"email": "test@example.com", "password": "Str0ng!Pass-word"},
         )
         assert login_response.status_code == 200
         tokens.append(login_response.json())
@@ -121,7 +105,7 @@ def test_logout_all_revokes_all_tokens(test_user, db):
 def test_refresh_token_after_logout(test_user, db):
     login_response = client.post(
         "/users/login",
-        json={"email": "test@example.com", "password": "testpassword123"},
+        json={"email": "test@example.com", "password": "Str0ng!Pass-word"},
     )
     assert login_response.status_code == 200
     access_token = login_response.json()["access_token"]
@@ -140,7 +124,7 @@ def test_refresh_token_after_logout(test_user, db):
 def test_refresh_token_rotation(test_user, db):
     login_response = client.post(
         "/users/login",
-        json={"email": "test@example.com", "password": "testpassword123"},
+        json={"email": "test@example.com", "password": "Str0ng!Pass-word"},
     )
     assert login_response.status_code == 200
     refresh_token_1 = login_response.json()["refresh_token"]
