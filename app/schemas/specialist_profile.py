@@ -1,6 +1,6 @@
-from datetime import datetime
 from typing import Optional
 from pydantic import ConfigDict, BaseModel, Field, field_validator
+from app.schemas.datetimes import UtcDatetime
 class SpecialistProfileBase(BaseModel):
     specialist_type: Optional[str] = Field(None, description="Type of specialist (e.g., 'massage', 'cosmetologist', 'dentist')")
     specialist_category: Optional[str] = Field(None, description="Category: 'beauty', 'wellness', or 'healthcare'")
@@ -62,7 +62,7 @@ class SpecialistProfileOut(SpecialistProfileBase):
     id: int
     user_id: int
     is_verified: str
-    verified_at: Optional[datetime] = None
-    created_at: datetime
-    updated_at: datetime
+    verified_at: Optional[UtcDatetime] = None
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)

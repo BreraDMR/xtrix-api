@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any
-from datetime import datetime
 from pydantic import ConfigDict, BaseModel, EmailStr, Field, field_validator
 from typing import Literal
+from app.schemas.datetimes import UtcDatetime
 class UserPreferencesBase(BaseModel):
     timezone: Optional[str] = Field(None, description="Time zone, e.g. Europe/Prague")
     date_format: Optional[str] = Field("DD/MM/YYYY", description="Date format: DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD")
@@ -42,6 +42,6 @@ class UserPreferencesUpdate(BaseModel):
 class UserPreferencesOut(UserPreferencesBase):
     id: int
     user_id: int
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)

@@ -1,8 +1,8 @@
-from datetime import datetime
 from typing import Optional, List
 from app.schemas.limits import LongText, Money, ShortText
 from pydantic import ConfigDict, BaseModel, Field, field_validator
 from app.api.core.clock import utcnow
+from app.schemas.datetimes import UtcDatetime
 class UsedProduct(BaseModel):
     product_id: int
     quantity: float = Field(..., gt=0)
@@ -10,8 +10,8 @@ class VisitBase(BaseModel):
     client_id: int
     specialist_id: int
     service_id: Optional[int] = None
-    date_start: datetime
-    date_end: Optional[datetime] = None
+    date_start: UtcDatetime
+    date_end: Optional[UtcDatetime] = None
     service_name: Optional[ShortText] = None
     note: Optional[LongText] = None
     photo_url: Optional[str] = Field(None, max_length=2048)
@@ -73,8 +73,8 @@ class VisitCreate(VisitBase):
                 pass
         return v
 class VisitUpdate(BaseModel):
-    date_start: Optional[datetime] = None
-    date_end: Optional[datetime] = None
+    date_start: Optional[UtcDatetime] = None
+    date_end: Optional[UtcDatetime] = None
     service_id: Optional[int] = None
     service_name: Optional[ShortText] = None
     note: Optional[LongText] = None
@@ -115,5 +115,5 @@ class VisitUpdate(BaseModel):
         return v
 class VisitOut(VisitBase):
     id: int
-    created_at: datetime
+    created_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)

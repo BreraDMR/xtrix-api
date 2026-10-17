@@ -1,7 +1,8 @@
-from datetime import date, datetime
+from datetime import date
 from typing import Optional, List
 from app.schemas.limits import HexColor, PromotionType, LongText, LoyaltyProgramType, Money, Multiplier, Percent, Points, ShortText
 from pydantic import ConfigDict, BaseModel, Field, model_validator
+from app.schemas.datetimes import UtcDatetime
 class LoyaltyProgramBase(BaseModel):
     program_type: LoyaltyProgramType
     points_per_currency: Points = Field(1.0, description="Points per currency unit")
@@ -33,8 +34,8 @@ class LoyaltyProgramUpdate(BaseModel):
 class LoyaltyProgramOut(LoyaltyProgramBase):
     id: int
     business_id: int
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)
 class LoyaltyLevelBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
@@ -57,7 +58,7 @@ class LoyaltyLevelUpdate(BaseModel):
 class LoyaltyLevelOut(LoyaltyLevelBase):
     id: int
     program_id: int
-    created_at: datetime
+    created_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)
 class LoyaltyPromotionBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
@@ -97,7 +98,7 @@ class LoyaltyPromotionUpdate(BaseModel):
 class LoyaltyPromotionOut(LoyaltyPromotionBase):
     id: int
     program_id: int
-    created_at: datetime
+    created_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)
 class LoyaltyTransactionOut(BaseModel):
     id: int
@@ -114,7 +115,7 @@ class LoyaltyTransactionOut(BaseModel):
     level_id: Optional[int]
     description: Optional[str]
     expiry_date: Optional[date]
-    created_at: datetime
+    created_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)
 class ClientLoyaltyBalance(BaseModel):
     client_id: int

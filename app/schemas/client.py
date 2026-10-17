@@ -1,7 +1,8 @@
-from datetime import date, datetime
+from datetime import date
 from typing import Optional
 from app.schemas.limits import ClientLanguage
 from pydantic import ConfigDict, BaseModel, Field, EmailStr, field_validator
+from app.schemas.datetimes import UtcDatetime
 class ClientBase(BaseModel):
     full_name: str = Field(..., max_length=255, min_length=1)
     birth_date: Optional[date] = None
@@ -91,7 +92,7 @@ class ClientUpdate(BaseModel):
 class ClientOut(ClientBase):
     id: int
     owner_id: Optional[int] = None  
-    created_at: datetime
+    created_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)
 class BasicMedicalInfo(BaseModel):
     allergies: Optional[str] = None
@@ -107,5 +108,5 @@ class ClientSearchOut(BaseModel):
     contact_email: Optional[str] = None
     basic_medical_info: Optional[BasicMedicalInfo] = None
     is_linked_to_my_business: bool = False
-    created_at: datetime
+    created_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)

@@ -1,6 +1,6 @@
 from typing import Optional
-from datetime import datetime
 from pydantic import ConfigDict, BaseModel, EmailStr, Field, field_validator
+from app.schemas.datetimes import UtcDatetime
 class UserBase(BaseModel):
     full_name: str = Field(..., max_length=255, min_length=1)
     phone: Optional[str] = Field(None, max_length=50)
@@ -60,7 +60,7 @@ class UserOut(UserBase):
     is_2fa_enabled: bool = False
     moderation_status: Optional[str] = Field(default="pending", description="Moderation status: pending, approved, rejected")
     moderation_notes: Optional[str] = None
-    moderated_at: Optional[datetime] = None
+    moderated_at: Optional[UtcDatetime] = None
     moderated_by_id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 class TwoFactorSetup(BaseModel):
@@ -89,6 +89,6 @@ class ModerationResponse(BaseModel):
     id: int
     moderation_status: str
     moderation_notes: Optional[str] = None
-    moderated_at: Optional[datetime] = None
+    moderated_at: Optional[UtcDatetime] = None
     moderated_by_id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)

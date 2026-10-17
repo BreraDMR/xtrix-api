@@ -1,6 +1,6 @@
-from datetime import datetime
 from typing import Literal, Optional, List, Dict, Any
 from pydantic import ConfigDict, BaseModel, Field
+from app.schemas.datetimes import UtcDatetime
 class VisitStatisticsResponse(BaseModel):
     total_visits: int
     visits_by_status: Dict[str, int]
@@ -42,13 +42,13 @@ class AuditLogOut(BaseModel):
     description: Optional[str] = None
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
-    created_at: datetime
+    created_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)
 class ReportExportRequest(BaseModel):
     report_type: Literal["financial", "visits", "services", "clients"]
     format: Literal["csv", "excel"] = "excel"
-    date_from: Optional[datetime] = None
-    date_to: Optional[datetime] = None
+    date_from: Optional[UtcDatetime] = None
+    date_to: Optional[UtcDatetime] = None
     specialist_id: Optional[int] = None
     include_charts: bool = Field(False, description="Include charts in Excel export")
 class RetentionMetricsResponse(BaseModel):

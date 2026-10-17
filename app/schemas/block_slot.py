@@ -1,9 +1,9 @@
-from datetime import datetime
 from typing import Optional
 from pydantic import ConfigDict, BaseModel, Field, field_validator
+from app.schemas.datetimes import UtcDatetime
 class BlockSlotBase(BaseModel):
-    start: datetime
-    end: datetime
+    start: UtcDatetime
+    end: UtcDatetime
     reason: Optional[str] = Field(None, max_length=500)
     @field_validator('end')
     @classmethod
@@ -22,8 +22,8 @@ class BlockSlotBase(BaseModel):
 class BlockSlotCreate(BlockSlotBase):
     specialist_id: int
 class BlockSlotUpdate(BaseModel):
-    start: Optional[datetime] = None
-    end: Optional[datetime] = None
+    start: Optional[UtcDatetime] = None
+    end: Optional[UtcDatetime] = None
     reason: Optional[str] = None
 class BlockSlotOut(BlockSlotBase):
     id: int

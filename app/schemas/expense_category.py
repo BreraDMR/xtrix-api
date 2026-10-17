@@ -1,7 +1,7 @@
-from datetime import datetime
 from typing import Optional
 from pydantic import ConfigDict, BaseModel, Field
 from app.schemas.limits import HexColor
+from app.schemas.datetimes import UtcDatetime
 class ExpenseCategoryBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     type: str = Field(default="variable", pattern="^(fixed|variable)$")
@@ -18,5 +18,5 @@ class ExpenseCategoryOut(ExpenseCategoryBase):
     id: int
     business_id: Optional[int]
     is_system: bool
-    created_at: datetime
+    created_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)

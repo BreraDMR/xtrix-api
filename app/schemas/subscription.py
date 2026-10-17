@@ -1,33 +1,33 @@
-from datetime import datetime
 from typing import Optional
 from pydantic import ConfigDict, BaseModel, Field
+from app.schemas.datetimes import UtcDatetime
 class SubscriptionBase(BaseModel):
     user_id: int
     plan_id: int
     provider: Optional[str] = None
     external_id: Optional[str] = None
     status: Optional[str] = "active"
-    current_period_end: Optional[datetime] = None
+    current_period_end: Optional[UtcDatetime] = None
     is_trial: bool = False
-    trial_start: Optional[datetime] = None
-    trial_end: Optional[datetime] = None
+    trial_start: Optional[UtcDatetime] = None
+    trial_end: Optional[UtcDatetime] = None
     cancel_at_period_end: bool = False
-    cancelled_at: Optional[datetime] = None
-    reactivated_at: Optional[datetime] = None
+    cancelled_at: Optional[UtcDatetime] = None
+    reactivated_at: Optional[UtcDatetime] = None
     last_transaction_id: Optional[int] = None
 class SubscriptionCreate(SubscriptionBase):
     pass
 class SubscriptionUpdate(BaseModel):
     status: Optional[str] = None
-    current_period_end: Optional[datetime] = None
+    current_period_end: Optional[UtcDatetime] = None
     external_id: Optional[str] = None
     cancel_at_period_end: Optional[bool] = None
-    cancelled_at: Optional[datetime] = None
-    reactivated_at: Optional[datetime] = None
+    cancelled_at: Optional[UtcDatetime] = None
+    reactivated_at: Optional[UtcDatetime] = None
     last_transaction_id: Optional[int] = None
 class SubscriptionOut(SubscriptionBase):
     id: int
-    created_at: datetime
+    created_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)
 class SubscriptionCancelRequest(BaseModel):
     cancel_at_period_end: bool = Field(default=True, description="Cancel at end of current period (true) or immediately (false)")

@@ -1,7 +1,7 @@
-from datetime import datetime
 from typing import Optional
 from app.schemas.limits import MAX_MONEY
 from pydantic import ConfigDict, BaseModel, Field
+from app.schemas.datetimes import UtcDatetime
 class ProductBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=5000)
@@ -31,8 +31,8 @@ class ProductUpdate(BaseModel):
 class ProductOut(ProductBase):
     id: int
     business_id: int
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)
 class ProductStockOut(BaseModel):
     id: int

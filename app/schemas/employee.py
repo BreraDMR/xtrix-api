@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any, List
-from datetime import datetime
 from app.schemas.limits import MAX_MONEY
 from pydantic import ConfigDict, BaseModel, Field, field_validator
+from app.schemas.datetimes import UtcDatetime
 class EmployeePermissions(BaseModel):
     can_create_visits: bool = Field(default=True, description="Can create visits")
     can_edit_clients: bool = Field(default=True, description="Can edit clients")
@@ -51,8 +51,8 @@ class EmployeeUpdate(BaseModel):
 class EmployeeOut(EmployeeBase):
     id: int
     business_owner_id: int
-    hired_at: Optional[datetime] = None
-    fired_at: Optional[datetime] = None
+    hired_at: Optional[UtcDatetime] = None
+    fired_at: Optional[UtcDatetime] = None
     employee_user: Optional[Dict[str, Any]] = None  
     model_config = ConfigDict(from_attributes=True)
 class EmployeeCreateResponse(EmployeeOut):

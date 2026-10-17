@@ -1,7 +1,7 @@
 from typing import Optional
-from datetime import datetime
 from pydantic import ConfigDict, BaseModel, EmailStr, Field
 from app.schemas.limits import BusinessType, Currency, LongText, Phone, ShortText
+from app.schemas.datetimes import UtcDatetime
 class BusinessBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     business_type: BusinessType
@@ -22,5 +22,5 @@ class BusinessUpdate(BaseModel):
     currency: Optional[Currency] = None
 class BusinessOut(BusinessBase):
     id: int
-    created_at: datetime
+    created_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)

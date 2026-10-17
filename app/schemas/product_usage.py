@@ -1,6 +1,6 @@
-from datetime import datetime
 from typing import Optional
 from pydantic import ConfigDict, BaseModel, Field
+from app.schemas.datetimes import UtcDatetime
 class ProductUsageBase(BaseModel):
     product_id: int
     quantity: float = Field(..., gt=0)
@@ -14,6 +14,6 @@ class ProductUsageOut(ProductUsageBase):
     id: int
     business_id: int
     used_by_id: Optional[int] = None
-    usage_date: datetime
-    created_at: datetime
+    usage_date: UtcDatetime
+    created_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)
