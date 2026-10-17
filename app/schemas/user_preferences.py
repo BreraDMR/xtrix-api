@@ -13,6 +13,7 @@ class UserPreferencesBase(BaseModel):
     auto_save_enabled: bool = Field(True, description="Autosave forms")
     auto_save_interval: int = Field(30, ge=5, le=300, description="Autosave interval, seconds")
     export_format: Optional[str] = Field("csv", description="Export format: csv, excel, json")
+    language: Optional[str] = Field(None, description="UI language (en, ru, cz) - e-mails to this user use it")
 class UserPreferencesUpdate(BaseModel):
     # same values the Out model accepts - otherwise garbage got saved and then blew up the response
     timezone: Optional[str] = Field(None, max_length=64)
@@ -25,6 +26,7 @@ class UserPreferencesUpdate(BaseModel):
     auto_save_enabled: Optional[bool] = None
     auto_save_interval: Optional[int] = Field(None, ge=5, le=300)
     export_format: Optional[Literal["csv", "excel", "json"]] = None
+    language: Optional[Literal["en", "ru", "cz"]] = None
     additional_settings: Optional[Dict[str, Any]] = None
     @field_validator("timezone")
     @classmethod

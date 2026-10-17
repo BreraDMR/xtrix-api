@@ -8144,6 +8144,18 @@
             "title": "Id",
             "type": "integer"
           },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "UI language (en, ru, cz) - e-mails to this user use it",
+            "title": "Language"
+          },
           "notification_email": {
             "anyOf": [
               {
@@ -8292,6 +8304,22 @@
               }
             ],
             "title": "Export Format"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "enum": [
+                  "en",
+                  "ru",
+                  "cz"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
           },
           "notification_email": {
             "anyOf": [

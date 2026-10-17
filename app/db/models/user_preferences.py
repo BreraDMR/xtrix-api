@@ -16,6 +16,7 @@ class UserPreferences(Base):
     auto_save_enabled = Column(Boolean, default=True, nullable=False)
     auto_save_interval = Column(Integer, default=30, nullable=False)  
     export_format = Column(String, nullable=True, default="csv")  
+    language = Column(String(2), nullable=True)  # staff UI language, used for e-mails to this user
     additional_settings = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=utcnow, index=True)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, index=True)
