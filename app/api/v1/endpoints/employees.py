@@ -61,7 +61,6 @@ def create_employee(
         owner_id = employee.business_owner_id or business_owner_id
         if not owner_id:
             if current_user.business_id:
-                from app.db.models.user import User
                 business_owner = db.query(User).filter(
                     User.business_id == current_user.business_id,
                     User.role == "business_owner"
@@ -73,6 +72,13 @@ def create_employee(
     elif current_user.role == "business_owner":
         owner_id = current_user.id
     else:
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    # hiring by id is only for people already in the owner's business. Anyone else
+    # (a solo specialist, someone from another business) can't be pulled in without asking -
+    # new staff come through create-with-user
+    owner = db.query(User).filter(User.id == owner_id).first()
+    target = db.query(User).filter(User.id == employee.employee_user_id).first()
+    if not owner or not owner.business_id or not target or target.business_id != owner.business_id:
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     try:
         new_employee = crud_employee.create_employee(
