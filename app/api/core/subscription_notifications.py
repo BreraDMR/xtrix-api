@@ -1,107 +1,46 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from sqlalchemy.orm import Session
 from app.db.models.subscription import Subscription
 from app.db.models.user import User
-from app.api.core.logger import logger, mask_email, mask_phone
+from app.api.core import notify
+from app.api.core.logger import logger, mask_email
 from app.api.core.clock import utcnow
+from app.api.core.staff_messages import contact_for, subscription_expiry
+
+
 def send_subscription_expiry_notifications(db: Session, days_before: int = 3) -> int:
-    notification_date = utcnow() + timedelta(days=days_before)
-    notification_date_end = notification_date + timedelta(days=1)
-    expiring_subscriptions = (
+    """Warn owners whose paid plan ends in `days_before` days, in their own UI language."""
+    start = utcnow() + timedelta(days=days_before)
+    expiring = (
         db.query(Subscription)
         .join(User, Subscription.user_id == User.id)
         .filter(
             Subscription.status.in_(["active", "pending_cancellation"]),
-            Subscription.current_period_end >= notification_date,
-            Subscription.current_period_end < notification_date_end,
-            Subscription.is_trial == False,  
+            Subscription.current_period_end >= start,
+            Subscription.current_period_end < start + timedelta(days=1),
+            Subscription.is_trial == False,  # noqa: E712
+            User.deleted_at.is_(None),
         )
         .all()
     )
     sent_count = 0
-    for sub in expiring_subscriptions:
+    for sub in expiring:
         try:
-            user = sub.user
-            if user.email:
-                send_expiry_email(user.email, user.full_name, sub.current_period_end, days_before)
-                logger.info(f"Sent expiry email to {mask_email(user.email)} for subscription {sub.id}")
-            if user.phone:
-                try:
-                    send_expiry_sms(user.phone, user.full_name, sub.current_period_end, days_before)
-                    logger.info(f"Sent expiry SMS to {mask_phone(user.phone)} for subscription {sub.id}")
-                except Exception as e:
-                    logger.warning(f"Failed to send SMS to {mask_phone(user.phone)}: {e}")
-            sent_count += 1
+            contact = contact_for(db, sub.user)
+            msg = subscription_expiry(contact.language, sub.user.full_name, sub.current_period_end, days_before)
+            sent = False
+            if contact.email:
+                sent = notify._send_email(contact.email, msg.subject, msg.body) or sent
+            if contact.phone:
+                sent = notify._send_sms(contact.phone, msg.short) or sent
+            # count what actually went out, not just who we tried
+            if sent:
+                sent_count += 1
+                logger.info(f"Sent expiry notice for subscription {sub.id} to {mask_email(contact.email)}")
         except Exception as e:
             logger.error(f"Failed to send notification for subscription {sub.id}: {e}")
     return sent_count
-def send_expiry_email(email: str, user_name: str, expiry_date: datetime, days_before: int) -> None:
-    import smtplib
-    from email.message import EmailMessage
-    from app.api.core.config import settings
-    if not settings.smtp_host or not settings.smtp_from:
-        logger.warning(f"SMTP not configured, skip email to {mask_email(email)}")
-        return
-    subject = f"Ваша подписка истекает через {days_before} дн."
-    if days_before == 1:
-        subject = "Ваша подписка истекает завтра"
-    elif days_before == 0:
-        subject = "Ваша подписка истекает сегодня"
-    expiry_str = expiry_date.strftime("%d.%m.%Y")
-    body = f"""Здравствуйте, {user_name}!
-Это автоматическое уведомление о том, что ваша подписка на Xtrix истекает {expiry_str}.
-Для продолжения использования сервиса, пожалуйста, обновите подписку:
-- Перейдите в раздел "Подписка" в вашем личном кабинете
-- Выберите план и продолжите подписку
-Если у вас возникли вопросы, пожалуйста, свяжитесь с нашей службой поддержки.
-С уважением,
-Команда Xtrix
-"""
-    try:
-        msg = EmailMessage()
-        msg["Subject"] = subject
-        msg["From"] = settings.smtp_from
-        msg["To"] = email
-        msg.set_content(body)
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
-            server.starttls()
-            if settings.smtp_user and settings.smtp_password:
-                server.login(settings.smtp_user, settings.smtp_password)
-            server.send_message(msg)
-    except Exception as e:
-        logger.error(f"Failed to send email to {mask_email(email)}: {e}")
-        raise
-def send_expiry_sms(phone: str, user_name: str, expiry_date: datetime, days_before: int) -> None:
-    import requests
-    from app.api.core.config import settings
-    if not settings.twilio_sid or not settings.twilio_token or not settings.twilio_from:
-        logger.warning(f"Twilio not configured, skip SMS to {mask_phone(phone)}")
-        return
-    expiry_str = expiry_date.strftime("%d.%m.%Y")
-    if days_before == 0:
-        message = f"Xtrix: Ваша подписка истекает сегодня ({expiry_str}). Обновите подписку в личном кабинете."
-    elif days_before == 1:
-        message = f"Xtrix: Ваша подписка истекает завтра ({expiry_str}). Обновите подписку в личном кабинете."
-    else:
-        message = f"Xtrix: Ваша подписка истекает через {days_before} дн. ({expiry_str}). Обновите подписку в личном кабинете."
-    try:
-        url = f"https://api.twilio.com/2010-04-01/Accounts/{settings.twilio_sid}/Messages.json"
-        data = {
-            "From": settings.twilio_from,
-            "To": phone,
-            "Body": message,
-        }
-        resp = requests.post(url, data=data, auth=(settings.twilio_sid, settings.twilio_token), timeout=10)
-        if resp.status_code < 200 or resp.status_code >= 300:
-            logger.error(f"Twilio send failed: {resp.status_code} {resp.text}")
-            raise Exception(f"Twilio API error: {resp.status_code}")
-    except Exception as e:
-        logger.error(f"Failed to send SMS to {mask_phone(phone)}: {e}")
-        raise
+
+
 def check_and_notify_expiring_subscriptions(db: Session) -> int:
-    total_sent = 0
-    total_sent += send_subscription_expiry_notifications(db, days_before=7)
-    total_sent += send_subscription_expiry_notifications(db, days_before=3)
-    total_sent += send_subscription_expiry_notifications(db, days_before=1)
-    total_sent += send_subscription_expiry_notifications(db, days_before=0)
-    return total_sent
+    return sum(send_subscription_expiry_notifications(db, days_before=d) for d in (7, 3, 1, 0))
