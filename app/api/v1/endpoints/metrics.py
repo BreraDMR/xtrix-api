@@ -8,6 +8,16 @@ from app.db.models.visit import Visit
 router = APIRouter()
 @router.get("/health")
 async def health_check():
+    # public endpoint: only up/down per component, no versions, pool sizes or host details
+    full = await get_health_status()
+    return {
+        "status": full.get("status"),
+        "timestamp": full.get("timestamp"),
+        "database": {"status": (full.get("database") or {}).get("status")},
+        "redis": {"status": (full.get("redis") or {}).get("status")},
+    }
+@router.get("/health/details")
+async def health_details(_=Depends(deps.role_required("admin"))):
     return await get_health_status()
 @router.get("/health/live")
 async def liveness():
