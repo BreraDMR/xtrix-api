@@ -116,10 +116,24 @@ async def validation_exception_handler(
         traceback_str=traceback_str,
         request=request,
     )
+def _constraint_name(exc: IntegrityError) -> Optional[str]:
+    diag = getattr(getattr(exc, "orig", None), "diag", None)
+    return getattr(diag, "constraint_name", None)
 async def database_exception_handler(
     request: Request,
     exc: SQLAlchemyError,
 ) -> JSONResponse:
+    if isinstance(exc, IntegrityError) and _constraint_name(exc) == "ex_visits_specialist_slot":
+        # the database caught a double booking the free-slot check let through (two requests at once,
+        # a cancelled or deleted visit coming back) - same answer as the check itself gives
+        from app.api.core.i18n import _, normalize_locale
+        locale = normalize_locale(request.headers.get("accept-language"))
+        return create_error_response(
+            status_code=status.HTTP_409_CONFLICT,
+            message=_("time_slot_taken", locale),
+            error_type="HTTPException",
+            request=request,
+        )
     if isinstance(exc, IntegrityError):
         # duplicate barcode, email etc. - the client's fault, but keep constraint names and SQL to ourselves
         logger.warning(f"Integrity error: {request.method} {request.url.path} - {exc.orig}")

@@ -1,11 +1,16 @@
 from datetime import datetime, timedelta
+from itertools import count
 
 from app.db.models.visit import Visit
 from tests.tenant_world import MARKER
 
 
+_hours = count()
+
+
 def _visit(db, client_id, specialist_id, price, status="completed"):
-    start = datetime.utcnow() - timedelta(days=1)
+    # each one an hour apart - one specialist can't have two visits at the same time (the db refuses)
+    start = datetime.utcnow().replace(minute=0, second=0, microsecond=0) - timedelta(days=1, hours=next(_hours))
     db.add(Visit(client_id=client_id, specialist_id=specialist_id, date_start=start,
                  date_end=start + timedelta(hours=1), price=price, status=status))
     db.commit()
