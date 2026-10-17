@@ -53,7 +53,10 @@ def _scope(current_user: User, db: Session, requested_specialist_id: Optional[in
     business_id = get_user_business_id(current_user, db)
     if business_id and current_user.role == "business_owner":
         from app.api.core.permissions import check_specialist_in_scope
-        if requested_specialist_id and check_specialist_in_scope(db, current_user, requested_specialist_id):
+        if requested_specialist_id:
+            if not check_specialist_in_scope(db, current_user, requested_specialist_id):
+                # somebody else's person - say no instead of quietly showing the whole business
+                raise HTTPException(status_code=403, detail=_("not_allowed"))
             return requested_specialist_id, business_id
         return None, business_id
     return current_user.id, business_id
