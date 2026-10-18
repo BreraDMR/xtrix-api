@@ -130,7 +130,7 @@ if settings.environment == "production":
             "Accept-Language",
             "X-Requested-With",
         ],
-        expose_headers=["X-Total-Count", "X-Page", "X-Per-Page"],
+        expose_headers=["X-Total-Count", "X-Page", "X-Per-Page", "Retry-After"],
         max_age=3600,  
     )
 else:
@@ -147,7 +147,7 @@ else:
             "Accept-Language",
             "X-Requested-With",
         ],
-        expose_headers=["X-Total-Count", "X-Page", "X-Per-Page"],
+        expose_headers=["X-Total-Count", "X-Page", "X-Per-Page", "Retry-After"],
         max_age=3600,  
     )
 @app.get("/")

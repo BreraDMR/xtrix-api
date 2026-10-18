@@ -88,3 +88,11 @@ def test_client_ip_ignores_spoofed_forwarded_for_unless_behind_our_proxy(monkeyp
     # behind Render: the proxy appends the real peer last; the client's own prefix doesn't matter
     assert client_ip(req("6.6.6.6, 203.0.113.7")) == "203.0.113.7"
     assert client_ip(req("")) == "10.0.0.5"
+
+
+def test_browser_on_another_origin_can_read_retry_after(client):
+    # the web app talks to the API cross-origin in production; without this header
+    # listed the browser hides Retry-After from JS
+    r = client.get("/", headers={"Origin": "http://localhost:5173"})
+    exposed = [h.strip().lower() for h in r.headers.get("access-control-expose-headers", "").split(",")]
+    assert "retry-after" in exposed
