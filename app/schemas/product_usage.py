@@ -13,6 +13,7 @@ class ProductUsageCreate(ProductUsageBase):
 class ProductUsageOut(ProductUsageBase):
     id: int
     business_id: int
+    source: Optional[str] = Field(None, description="null for manual write-offs, visit when a visit made it")
     used_by_id: Optional[int] = None
     usage_date: UtcDatetime
     created_at: UtcDatetime

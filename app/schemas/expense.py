@@ -22,6 +22,8 @@ class ExpenseOut(ExpenseBase):
     id: int
     business_id: int
     created_by_id: Optional[int] = None
+    source: Optional[str] = Field(None, description="null for manual expenses, salary_payment for automatic ones")
+    employee_id: Optional[int] = Field(None, description="Employee paid, when source is salary_payment")
     created_at: UtcDatetime
     updated_at: UtcDatetime
     category: Optional["ExpenseCategoryOut"] = None

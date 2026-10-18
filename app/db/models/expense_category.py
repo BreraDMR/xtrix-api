@@ -7,6 +7,8 @@ class ExpenseCategory(Base):
     id = Column(Integer, primary_key=True, index=True)
     business_id = Column(Integer, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=True, index=True)  
     name = Column(String, nullable=False, index=True)
+    # system categories have a code the frontend translates (rent, salaries...), own ones don't
+    code = Column(String, nullable=True)
     type = Column(String, nullable=False, default="variable", index=True)  
     color = Column(String, nullable=True)  
     is_system = Column(Boolean, default=False, nullable=False, index=True)  

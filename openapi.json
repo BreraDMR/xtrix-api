@@ -1969,6 +1969,18 @@
             ],
             "title": "Business Id"
           },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set on system categories: rent, salaries, stock_purchase, marketing, utilities, subscriptions, other",
+            "title": "Code"
+          },
           "color": {
             "anyOf": [
               {
@@ -2205,6 +2217,18 @@
             ],
             "title": "Description"
           },
+          "employee_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employee paid, when source is salary_payment",
+            "title": "Employee Id"
+          },
           "expense_date": {
             "format": "date-time",
             "title": "Expense Date",
@@ -2219,6 +2243,18 @@
             "pattern": "^(cash|card|transfer|other)$",
             "title": "Payment Method",
             "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null for manual expenses, salary_payment for automatic ones",
+            "title": "Source"
           },
           "updated_at": {
             "format": "date-time",
@@ -4648,7 +4684,8 @@
             "title": "Supplier"
           },
           "unit": {
-            "default": "шт",
+            "default": "pcs",
+            "description": "Unit code (pcs, ml, g...) or free text",
             "maxLength": 50,
             "title": "Unit",
             "type": "string"
@@ -4775,7 +4812,8 @@
             "title": "Supplier"
           },
           "unit": {
-            "default": "шт",
+            "default": "pcs",
+            "description": "Unit code (pcs, ml, g...) or free text",
             "maxLength": 50,
             "title": "Unit",
             "type": "string"
@@ -5085,6 +5123,18 @@
             "exclusiveMinimum": 0.0,
             "title": "Quantity",
             "type": "number"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null for manual write-offs, visit when a visit made it",
+            "title": "Source"
           },
           "usage_date": {
             "format": "date-time",

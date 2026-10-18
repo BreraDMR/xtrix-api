@@ -4,9 +4,17 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 from app.db.models.expense import Expense
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate
-def create_expense(db: Session, expense_in: ExpenseCreate, created_by_id: Optional[int] = None) -> Expense:
+def create_expense(
+    db: Session,
+    expense_in: ExpenseCreate,
+    created_by_id: Optional[int] = None,
+    source: Optional[str] = None,
+    employee_id: Optional[int] = None,
+) -> Expense:
     expense_data = expense_in.model_dump()
     expense_data["created_by_id"] = created_by_id
+    expense_data["source"] = source
+    expense_data["employee_id"] = employee_id
     expense = Expense(**expense_data)
     db.add(expense)
     db.commit()
@@ -87,6 +95,7 @@ def get_expenses_by_category(
     query = db.query(
         ExpenseCategory.id,
         ExpenseCategory.name,
+        ExpenseCategory.code,
         ExpenseCategory.color,
         func.sum(Expense.amount).label('total')
     ).join(
@@ -103,13 +112,14 @@ def get_expenses_by_category(
         query = query.filter((Expense.expense_date >= date_from) | (Expense.expense_date.is_(None)))
     if date_to:
         query = query.filter((Expense.expense_date <= date_to) | (Expense.expense_date.is_(None)))
-    query = query.group_by(ExpenseCategory.id, ExpenseCategory.name, ExpenseCategory.color)
+    query = query.group_by(ExpenseCategory.id, ExpenseCategory.name, ExpenseCategory.code, ExpenseCategory.color)
     query = query.having(func.sum(Expense.amount) > 0)
     results = query.all()
     return [
         {
             "category_id": r.id,
             "category_name": r.name,
+            "category_code": r.code,
             "color": r.color,
             "total": float(r.total) if r.total else 0.0
         }

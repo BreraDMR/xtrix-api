@@ -8,7 +8,7 @@ class Product(Base):
     business_id = Column(Integer, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String, nullable=False, index=True)
     description = Column(Text, nullable=True)
-    unit = Column(String, nullable=False, default="шт")  
+    unit = Column(String, nullable=False, default="pcs")  
     quantity = Column(Float, default=0.0, nullable=False, index=True)  
     min_quantity = Column(Float, default=0.0, nullable=False, index=True)  
     price_per_unit = Column(Float, nullable=True)  

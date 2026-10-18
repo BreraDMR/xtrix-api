@@ -235,49 +235,29 @@ def create_salary_payment(
     if salary_calculation:
         _update_salary_payment_status(db, salary_calculation)
     if payment_in.status == 'completed' and business_id:
-        from app.api.crud import crud_expense, crud_expense_category
+        from app.api.crud import crud_expense
+        from app.db.models.expense_category import ExpenseCategory
         from app.schemas.expense import ExpenseCreate
-        salary_category = crud_expense_category.list_expense_categories(
-            db, 
-            business_id=business_id,
-            skip=0,
-            limit=100
-        )
-        salary_category = next(
-            (cat for cat in salary_category if 'зарплат' in cat.name.lower() or 'salary' in cat.name.lower() or 'plat' in cat.name.lower()),
-            None
-        )
-        category_id = None
-        if not salary_category:
-            try:
-                from app.schemas.expense_category import ExpenseCategoryCreate
-                new_category = ExpenseCategoryCreate(
-                    name="Зарплата",
-                    color="#FF6B6B",
-                    business_id=business_id,
-                    is_system=False
-                )
-                salary_category = crud_expense_category.create_expense_category(db, new_category)
-                category_id = salary_category.id
-            except Exception as e:
-                pass
-        else:
-            category_id = salary_category.id
-        expense_date = payment_in.payment_date
-        expense_description = f"Выплата зарплаты сотруднику (ID: {salary_calculation.employee_id})"
-        if payment_in.notes:
-            expense_description += f" - {payment_in.notes}"
+        # the system "salaries" category; the frontend shows the text, we only store codes
+        salary_category = db.query(ExpenseCategory).filter(
+            ExpenseCategory.is_system.is_(True),
+            ExpenseCategory.code == "salaries",
+        ).first()
         expense = ExpenseCreate(
             business_id=business_id,
-            category_id=category_id,
+            category_id=salary_category.id if salary_category else None,
             amount=payment_in.amount,
             currency="EUR",  
-            description=expense_description,
-            expense_date=expense_date,
+            description=payment_in.notes or None,
+            expense_date=payment_in.payment_date,
             payment_method=payment_in.payment_method or "other"
         )
         try:
-            crud_expense.create_expense(db, expense, created_by_id=created_by_id)
+            crud_expense.create_expense(
+                db, expense, created_by_id=created_by_id,
+                source="salary_payment",
+                employee_id=salary_calculation.employee_id if salary_calculation else None,
+            )
         except Exception as e:
             import logging
             logger = logging.getLogger(__name__)

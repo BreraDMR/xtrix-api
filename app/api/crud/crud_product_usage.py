@@ -12,6 +12,7 @@ def create_product_usage(
     usage_in: ProductUsageCreate,
     business_id: int,
     auto_reduce_stock: bool = True,
+    source: Optional[str] = None,
 ) -> ProductUsage:
     product = db.query(Product).filter(Product.id == usage_in.product_id).first()
     if not product:
@@ -20,7 +21,7 @@ def create_product_usage(
         raise ValueError("Product doesn't belong to this business")
     if auto_reduce_stock:
         reduce_product_quantity(db, usage_in.product_id, usage_in.quantity, business_id)
-    usage = ProductUsage(**usage_in.model_dump(), business_id=business_id)
+    usage = ProductUsage(**usage_in.model_dump(), business_id=business_id, source=source)
     db.add(usage)
     db.commit()
     db.refresh(usage)

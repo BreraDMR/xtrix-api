@@ -17,6 +17,8 @@ class ExpenseCategoryUpdate(BaseModel):
 class ExpenseCategoryOut(ExpenseCategoryBase):
     id: int
     business_id: Optional[int]
+    code: Optional[str] = Field(None, description="Set on system categories: rent, salaries, stock_purchase, "
+                                                  "marketing, utilities, subscriptions, other")
     is_system: bool
     created_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)

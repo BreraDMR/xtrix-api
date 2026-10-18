@@ -5,7 +5,7 @@ from app.schemas.datetimes import UtcDatetime
 class ProductBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=5000)
-    unit: str = Field(default="шт", max_length=50)
+    unit: str = Field(default="pcs", max_length=50, description="Unit code (pcs, ml, g...) or free text")
     quantity: float = Field(default=0.0, ge=0, le=MAX_MONEY)
     min_quantity: float = Field(default=0.0, ge=0, le=MAX_MONEY)
     price_per_unit: Optional[float] = Field(None, ge=0, le=MAX_MONEY)

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, Text
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 from app.api.core.clock import utcnow
@@ -12,6 +12,8 @@ class ProductUsage(Base):
     used_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)  
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)  
     notes = Column(Text, nullable=True)  
+    # "visit" when a visit wrote the product off by itself
+    source = Column(String, nullable=True)
     usage_date = Column(DateTime, default=utcnow, nullable=False, index=True)  
     created_at = Column(DateTime, default=utcnow, index=True)
     product = relationship("Product", back_populates="usages", lazy="select")

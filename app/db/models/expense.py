@@ -12,6 +12,9 @@ class Expense(Base):
     description = Column(Text, nullable=True)
     expense_date = Column(DateTime, nullable=False, index=True)  
     payment_method = Column(String, nullable=False, default="other", index=True)  
+    # filled when the app made the expense itself, e.g. "salary_payment"
+    source = Column(String, nullable=True, index=True)
+    employee_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True)
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     created_at = Column(DateTime, default=utcnow, index=True)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, index=True)
