@@ -7,6 +7,9 @@ cd "$(dirname "$0")/.."
 PY=${PYTHON:-.venv/bin/python}
 PG_PORT=${CHECK_PG_PORT:-55433}
 PG_NAME=${CHECK_PG_NAME:-xtrix-check-pg}
+# nothing listens on port 1, so the app falls back to in-memory cache and rate limits -
+# parallel runs then can't see each other's analytics cache through the compose Redis
+export REDIS_URL=${REDIS_URL:-redis://localhost:1/0}
 
 echo "==> ruff (errors only)"
 "$PY" -m ruff check --isolated --select E9,F63,F7,F82,F811,F823 app tests alembic
