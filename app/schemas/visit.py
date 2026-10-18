@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional, List
 from app.schemas.limits import LongText, Money, ShortText
 from pydantic import ConfigDict, BaseModel, Field, field_validator
@@ -21,29 +22,6 @@ class VisitBase(BaseModel):
     status: Optional[str] = Field("planned", description="planned|completed|cancelled|in_progress")
     payment_method: Optional[str] = Field(None, description="Payment method: card|cash|other")
     used_products: Optional[List[UsedProduct]] = Field(None, description="Products used")
-    @field_validator('date_end')
-    @classmethod
-    def validate_date_end(cls, v, info):
-        if v is not None and 'date_start' in info.data:
-            from datetime import datetime
-            date_start = info.data['date_start']
-            date_end = v
-            if isinstance(date_start, datetime) and isinstance(date_end, datetime):
-                if (date_start.tzinfo is not None) != (date_end.tzinfo is not None):
-                    if date_start.tzinfo is not None:
-                        date_start = date_start.replace(tzinfo=None)
-                    if date_end.tzinfo is not None:
-                        date_end = date_end.replace(tzinfo=None)
-            from app.api.core.date_validation import validate_datetime_range
-            is_valid, error_msg = validate_datetime_range(
-                date_start,
-                date_end,
-                min_duration_minutes=15,  
-                max_duration_hours=24,    
-            )
-            if not is_valid:
-                raise invalid("invalid_time_range", error_msg)
-        return v
     @field_validator('status')
     @classmethod
     def validate_status(cls, v):
@@ -57,6 +35,17 @@ class VisitBase(BaseModel):
             raise invalid_choice(['card', 'cash', 'other'], "Payment method")
         return v
 class VisitCreate(InputModel, VisitBase):
+    # input only - VisitOut shouldn't re-check stored rows. No 15-minute floor any more: a visit is
+    # as long as its service, and services can be 1-1440 minutes
+    @field_validator('date_end')
+    @classmethod
+    def validate_date_end(cls, v, info):
+        if v is not None and isinstance(info.data.get('date_start'), datetime):
+            from app.api.core.date_validation import validate_datetime_range
+            is_valid, error_msg = validate_datetime_range(info.data['date_start'], v, max_duration_hours=24)
+            if not is_valid:
+                raise invalid("invalid_time_range", error_msg)
+        return v
     @field_validator('date_start')
     @classmethod
     def validate_date_start(cls, v):
@@ -89,12 +78,7 @@ class VisitUpdate(InputModel):
     def validate_date_end(cls, v, info):
         if v is not None and 'date_start' in info.data and info.data['date_start'] is not None:
             from app.api.core.date_validation import validate_datetime_range
-            is_valid, error_msg = validate_datetime_range(
-                info.data['date_start'],
-                v,
-                min_duration_minutes=15,
-                max_duration_hours=24,
-            )
+            is_valid, error_msg = validate_datetime_range(info.data['date_start'], v, max_duration_hours=24)
             if not is_valid:
                 raise invalid("invalid_time_range", error_msg)
         return v

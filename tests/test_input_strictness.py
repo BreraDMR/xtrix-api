@@ -40,9 +40,6 @@ def _sweep(make_user, headers_for, make_values):
     for method, path, op, schema in _cases():
         props = schema.get("properties", {})
         base = {k: _value(k, v, ids) for k, v in props.items()}
-        if "duration_minutes" in base:
-            # under 15 minutes, POST /visits without date_end answers 500 - a separate bug, keep it out of here
-            base["duration_minutes"] = 60
         url = re.sub(r"\{(\w+)\}", lambda m: str(ids.get(m.group(1), 1)), path)
         # schedules belong to the solo specialist in the tenant world
         headers = a["specialist_headers"] if path.startswith("/schedules") else a["headers"]
