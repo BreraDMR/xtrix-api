@@ -1,7 +1,7 @@
 """Which slots are resting after a rate limit, and until when.
 
-In-process on purpose: each worker keeps its own board. With several workers a slot may get one extra
-429 per worker before they all know - cheap, and it needs no Redis to work.
+This board is per process; shared.SharedCooldownBoard keeps the same thing in Redis so every worker
+sees a rest at once, and falls back to this one when Redis isn't there.
 """
 import threading
 from datetime import datetime, timedelta, timezone

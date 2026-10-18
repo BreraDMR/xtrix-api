@@ -201,8 +201,9 @@ _default_router: Optional[LLMRouter] = None
 
 
 def get_router() -> LLMRouter:
-    """The process-wide router (one cooldown board per worker)."""
+    """The process-wide router; the cooldown board is shared between workers through Redis."""
     global _default_router
     if _default_router is None:
-        _default_router = build_router()
+        from app.ai.shared import SharedCooldownBoard
+        _default_router = build_router(board=SharedCooldownBoard("llm"))
     return _default_router

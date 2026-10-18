@@ -1,5 +1,7 @@
 """Errors the assistant layer raises. Endpoints map them to HTTP answers:
-AIBusy and AILimitReached -> 429 with Retry-After, AINotConfigured/AIUnavailable -> 503."""
+AILimitReached -> 429 with Retry-After (the user's own allowance is used up),
+AIBusy -> 503 with Retry-After (our provider slots are resting - not the user's fault),
+AINotConfigured / AIUnavailable -> 503."""
 
 
 class AIError(Exception):
