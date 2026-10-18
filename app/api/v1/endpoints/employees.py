@@ -175,15 +175,9 @@ def create_employee_with_user(
             if employee_data.email:
                 phone_for_validation = None
             else:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid phone number: {error_msg}. Please provide a valid phone number (minimum 7 digits after country code) or an email address."
-                )
+                raise HTTPException(status_code=400, detail=_("invalid_phone_or_email", locale))
     if not phone_for_validation and not employee_data.email:
-        raise HTTPException(
-            status_code=400,
-            detail="Either a valid phone number or email address is required"
-        )
+        raise HTTPException(status_code=400, detail=_("email_or_phone_required", locale))
     from app.schemas.user import UserCreate
     from pydantic import ValidationError
     try:
@@ -197,28 +191,16 @@ def create_employee_with_user(
             business_id=business_id,  
         )
     except ValidationError as e:
-        errors = []
-        for error in e.errors():
-            field = ".".join(str(loc) for loc in error["loc"])
-            msg = error["msg"]
-            errors.append(f"{field}: {msg}")
-        raise HTTPException(
-            status_code=400,
-            detail=f"Validation error: {'; '.join(errors)}"
-        )
+        logger.info(f"create-with-user rejected: {[(err['loc'], err['type']) for err in e.errors()]}")
+        raise HTTPException(status_code=400, detail=_("invalid_user_data", locale))
     try:
         new_user = crud_user.create_user(db, user_create, moderation_status="approved", with_trial=False)
     except Exception as e:
         error_msg = str(e)
         if "already exists" in error_msg.lower() or "unique" in error_msg.lower():
-            raise HTTPException(
-                status_code=400,
-                detail="User with this email or phone already exists"
-            )
-        raise HTTPException(
-            status_code=400,
-            detail=f"Failed to create user: {error_msg}"
-        )
+            raise HTTPException(status_code=400, detail=_("user_already_exists", locale))
+        logger.warning(f"create-with-user failed: {error_msg}")
+        raise HTTPException(status_code=400, detail=_("user_create_failed", locale))
     from app.schemas.employee import EmployeeCreate
     employee_create = EmployeeCreate(
         employee_user_id=new_user.id,

@@ -1,6 +1,7 @@
 from typing import Optional
 from pydantic import ConfigDict, BaseModel, EmailStr, Field, field_validator
 from app.schemas.datetimes import UtcDatetime
+from app.schemas.errors import invalid, invalid_choice
 class UserBase(BaseModel):
     full_name: str = Field(..., max_length=255, min_length=1)
     phone: Optional[str] = Field(None, max_length=50)
@@ -14,7 +15,7 @@ class UserBase(BaseModel):
             from app.api.core.security import validate_phone
             is_valid, error_msg = validate_phone(v)
             if not is_valid:
-                raise ValueError(error_msg)
+                raise invalid("invalid_phone", error_msg)
         return v
     @field_validator('email')
     @classmethod
@@ -23,14 +24,14 @@ class UserBase(BaseModel):
             from app.api.core.security import validate_email
             is_valid, error_msg = validate_email(v)
             if not is_valid:
-                raise ValueError(error_msg)
+                raise invalid("invalid_email", error_msg)
         return v
     @field_validator('role')
     @classmethod
     def validate_role(cls, v):
         allowed_roles = ['admin', 'business_owner', 'specialist', 'employee', 'client']
         if v not in allowed_roles:
-            raise ValueError(f"Role must be one of: {', '.join(allowed_roles)}")
+            raise invalid_choice(allowed_roles, "Role")
         return v
     @field_validator('specialist_type')
     @classmethod
@@ -48,7 +49,7 @@ class UserCreate(UserBase):
         from app.api.core.security import validate_password_strength
         is_valid, error_msg = validate_password_strength(v)
         if not is_valid:
-            raise ValueError(error_msg)
+            raise invalid("weak_password", error_msg)
         return v
 class UserLogin(BaseModel):
     phone: Optional[str] = None
@@ -83,7 +84,7 @@ class ModerationRequest(BaseModel):
     def validate_status(cls, v):
         allowed_statuses = ['approved', 'rejected']
         if v not in allowed_statuses:
-            raise ValueError(f"Status must be one of: {', '.join(allowed_statuses)}")
+            raise invalid_choice(allowed_statuses, "Status")
         return v
 class ModerationResponse(BaseModel):
     id: int

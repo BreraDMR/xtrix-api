@@ -77,6 +77,14 @@ def create_error_response(
         content=response_data,
         headers=headers,
     )
+def _json_params(ctx: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    # pydantic puts the raw exception object in there for plain ValueErrors - keep only plain values
+    plain = (str, int, float, bool)
+    out: Dict[str, Any] = {}
+    for key, value in (ctx or {}).items():
+        if isinstance(value, plain) or (isinstance(value, (list, tuple)) and all(isinstance(v, plain) for v in value)):
+            out[key] = list(value) if isinstance(value, tuple) else value
+    return out
 async def validation_exception_handler(
     request: Request,
     exc: RequestValidationError,
@@ -88,6 +96,9 @@ async def validation_exception_handler(
             "field": field_path,
             "message": error.get("msg"),
             "type": error.get("type"),
+            # code + params is what the web app translates, the message is only an english fallback
+            "code": error.get("type"),
+            "params": _json_params(error.get("ctx")),
             "input": error.get("input"),
         }
         if error.get("type") == "value_error.missing":
@@ -107,7 +118,7 @@ async def validation_exception_handler(
     if detailed_mode:
         traceback_str = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
     return create_error_response(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=422,
         message=f"Validation error: {len(errors)} field(s) failed validation",
         detail={
             "validation_errors": errors,

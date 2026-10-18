@@ -1,6 +1,7 @@
 from typing import Optional
 from pydantic import ConfigDict, BaseModel, Field, field_validator
 from app.schemas.datetimes import UtcDatetime
+from app.schemas.errors import invalid_choice
 class SpecialistProfileBase(BaseModel):
     specialist_type: Optional[str] = Field(None, description="Type of specialist (e.g., 'massage', 'cosmetologist', 'dentist')")
     specialist_category: Optional[str] = Field(None, description="Category: 'beauty', 'wellness', or 'healthcare'")
@@ -17,13 +18,13 @@ class SpecialistProfileBase(BaseModel):
     @classmethod
     def validate_business_type(cls, v):
         if v is not None and v not in ['individual', 'salon', 'clinic', 'hospital', 'barbershop', 'rehab_center']:
-            raise ValueError("business_type must be one of: individual, salon, clinic, hospital, barbershop, rehab_center")
+            raise invalid_choice(['individual', 'salon', 'clinic', 'hospital', 'barbershop', 'rehab_center'], "business_type")
         return v
     @field_validator('specialist_category')
     @classmethod
     def validate_category(cls, v):
         if v is not None and v not in ['beauty', 'wellness', 'healthcare']:
-            raise ValueError("specialist_category must be one of: beauty, wellness, healthcare")
+            raise invalid_choice(['beauty', 'wellness', 'healthcare'], "specialist_category")
         return v
 class SpecialistProfileCreate(SpecialistProfileBase):
     user_id: int
@@ -44,19 +45,19 @@ class SpecialistProfileUpdate(BaseModel):
     @classmethod
     def validate_business_type(cls, v):
         if v is not None and v not in ['individual', 'salon', 'clinic', 'hospital', 'barbershop', 'rehab_center']:
-            raise ValueError("business_type must be one of: individual, salon, clinic, hospital, barbershop, rehab_center")
+            raise invalid_choice(['individual', 'salon', 'clinic', 'hospital', 'barbershop', 'rehab_center'], "business_type")
         return v
     @field_validator('specialist_category')
     @classmethod
     def validate_category(cls, v):
         if v is not None and v not in ['beauty', 'wellness', 'healthcare']:
-            raise ValueError("specialist_category must be one of: beauty, wellness, healthcare")
+            raise invalid_choice(['beauty', 'wellness', 'healthcare'], "specialist_category")
         return v
     @field_validator('is_verified')
     @classmethod
     def validate_verified_status(cls, v):
         if v is not None and v not in ['pending', 'verified', 'rejected']:
-            raise ValueError("is_verified must be one of: pending, verified, rejected")
+            raise invalid_choice(['pending', 'verified', 'rejected'], "is_verified")
         return v
 class SpecialistProfileOut(SpecialistProfileBase):
     id: int

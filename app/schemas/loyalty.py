@@ -3,6 +3,7 @@ from typing import Optional, List
 from app.schemas.limits import HexColor, PromotionType, LongText, LoyaltyProgramType, Money, Multiplier, Percent, Points, ShortText
 from pydantic import ConfigDict, BaseModel, Field, model_validator
 from app.schemas.datetimes import UtcDatetime
+from app.schemas.errors import invalid
 class LoyaltyProgramBase(BaseModel):
     program_type: LoyaltyProgramType
     points_per_currency: Points = Field(1.0, description="Points per currency unit")
@@ -79,7 +80,7 @@ class LoyaltyPromotionCreate(LoyaltyPromotionBase):
     @model_validator(mode="after")
     def ends_after_start(self):
         if self.end_date < self.start_date:
-            raise ValueError("end_date must not be before start_date")
+            raise invalid("end_before_start", "end_date must not be before start_date")
         return self
 class LoyaltyPromotionUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=200)

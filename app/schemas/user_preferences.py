@@ -2,6 +2,7 @@ from typing import Optional, Dict, Any
 from pydantic import ConfigDict, BaseModel, EmailStr, Field, field_validator
 from typing import Literal
 from app.schemas.datetimes import UtcDatetime
+from app.schemas.errors import invalid
 class UserPreferencesBase(BaseModel):
     timezone: Optional[str] = Field(None, description="Time zone, e.g. Europe/Prague")
     date_format: Optional[str] = Field("DD/MM/YYYY", description="Date format: DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD")
@@ -37,7 +38,7 @@ class UserPreferencesUpdate(BaseModel):
         try:
             ZoneInfo(v)
         except Exception:
-            raise ValueError("Unknown timezone, use an IANA name like Europe/Prague")
+            raise invalid("invalid_timezone", "Unknown timezone, use an IANA name like Europe/Prague")
         return v
 class UserPreferencesOut(UserPreferencesBase):
     id: int

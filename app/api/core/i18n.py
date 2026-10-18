@@ -196,6 +196,21 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Пользователь уже существует",
         "cz": "Uživatel už existuje",
     },
+    "invalid_phone_or_email": {
+        "en": "Enter a valid phone number or email",
+        "ru": "Укажите корректный телефон или email",
+        "cz": "Zadejte platný telefon nebo e-mail",
+    },
+    "invalid_user_data": {
+        "en": "Check the name, phone and email",
+        "ru": "Проверьте имя, телефон и email",
+        "cz": "Zkontrolujte jméno, telefon a e-mail",
+    },
+    "user_create_failed": {
+        "en": "Could not create the user",
+        "ru": "Не удалось создать пользователя",
+        "cz": "Uživatele se nepodařilo vytvořit",
+    },
     "user_already_has_business": {
         "en": "You already have a business",
         "ru": "У вас уже есть бизнес",

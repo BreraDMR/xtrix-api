@@ -3,6 +3,7 @@ from app.schemas.limits import LongText, Money, ShortText
 from pydantic import ConfigDict, BaseModel, Field, field_validator
 from app.api.core.clock import utcnow
 from app.schemas.datetimes import UtcDatetime
+from app.schemas.errors import invalid, invalid_choice
 class UsedProduct(BaseModel):
     product_id: int
     quantity: float = Field(..., gt=0)
@@ -40,19 +41,19 @@ class VisitBase(BaseModel):
                 max_duration_hours=24,    
             )
             if not is_valid:
-                raise ValueError(error_msg)
+                raise invalid("invalid_time_range", error_msg)
         return v
     @field_validator('status')
     @classmethod
     def validate_status(cls, v):
         if v is not None and v not in ['planned', 'completed', 'cancelled', 'in_progress']:
-            raise ValueError("Status must be one of: planned, completed, cancelled, in_progress")
+            raise invalid_choice(['planned', 'completed', 'cancelled', 'in_progress'], "Status")
         return v
     @field_validator('payment_method')
     @classmethod
     def validate_payment_method(cls, v):
         if v is not None and v not in ['card', 'cash', 'other']:
-            raise ValueError("Payment method must be one of: card, cash, other")
+            raise invalid_choice(['card', 'cash', 'other'], "Payment method")
         return v
 class VisitCreate(VisitBase):
     @field_validator('date_start')
@@ -94,24 +95,24 @@ class VisitUpdate(BaseModel):
                 max_duration_hours=24,
             )
             if not is_valid:
-                raise ValueError(error_msg)
+                raise invalid("invalid_time_range", error_msg)
         return v
     @field_validator('status')
     @classmethod
     def validate_status(cls, v):
         if v is not None and v not in ['planned', 'completed', 'cancelled', 'in_progress']:
-            raise ValueError("Status must be one of: planned, completed, cancelled, in_progress")
+            raise invalid_choice(['planned', 'completed', 'cancelled', 'in_progress'], "Status")
         return v
     @field_validator('payment_method')
     @classmethod
     def validate_payment_method(cls, v, info):
         if v is not None and v not in ['card', 'cash', 'other']:
-            raise ValueError("Payment method must be one of: card, cash, other")
+            raise invalid_choice(['card', 'cash', 'other'], "Payment method")
         status = info.data.get('status') if 'status' in info.data else None
         price = info.data.get('price') if 'price' in info.data else None
         if status == 'completed' and price and price > 0:
             if not v or v not in ['card', 'cash', 'other']:
-                raise ValueError("Payment method is required for completed visits with price")
+                raise invalid("payment_method_required", "Payment method is required for completed visits with price")
         return v
 class VisitOut(VisitBase):
     id: int

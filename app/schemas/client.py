@@ -3,6 +3,7 @@ from typing import Optional
 from app.schemas.limits import ClientLanguage
 from pydantic import ConfigDict, BaseModel, Field, EmailStr, field_validator
 from app.schemas.datetimes import UtcDatetime
+from app.schemas.errors import invalid, invalid_choice
 class ClientBase(BaseModel):
     full_name: str = Field(..., max_length=255, min_length=1)
     birth_date: Optional[date] = None
@@ -16,7 +17,7 @@ class ClientBase(BaseModel):
     @classmethod
     def validate_gender(cls, v):
         if v is not None and v not in ['male', 'female', 'other']:
-            raise ValueError("Gender must be one of: male, female, other")
+            raise invalid_choice(['male', 'female', 'other'], "Gender")
         return v
     @field_validator('contact_phone')
     @classmethod
@@ -25,7 +26,7 @@ class ClientBase(BaseModel):
             from app.api.core.security import validate_phone
             is_valid, error_msg = validate_phone(v)
             if not is_valid:
-                raise ValueError(error_msg)
+                raise invalid("invalid_phone", error_msg)
         return v
     @field_validator('contact_email')
     @classmethod
@@ -34,7 +35,7 @@ class ClientBase(BaseModel):
             from app.api.core.security import validate_email
             is_valid, error_msg = validate_email(v)
             if not is_valid:
-                raise ValueError(error_msg)
+                raise invalid("invalid_email", error_msg)
         return v
     @field_validator('birth_date')
     @classmethod
@@ -43,7 +44,7 @@ class ClientBase(BaseModel):
             from app.api.core.date_validation import validate_birth_date
             is_valid, error_msg = validate_birth_date(v)
             if not is_valid:
-                raise ValueError(error_msg)
+                raise invalid("invalid_birth_date", error_msg)
         return v
 class ClientCreate(ClientBase):
     owner_id: Optional[int] = None  
@@ -60,7 +61,7 @@ class ClientUpdate(BaseModel):
     @classmethod
     def validate_gender(cls, v):
         if v is not None and v not in ['male', 'female', 'other']:
-            raise ValueError("Gender must be one of: male, female, other")
+            raise invalid_choice(['male', 'female', 'other'], "Gender")
         return v
     @field_validator('contact_phone')
     @classmethod
@@ -69,7 +70,7 @@ class ClientUpdate(BaseModel):
             from app.api.core.security import validate_phone
             is_valid, error_msg = validate_phone(v)
             if not is_valid:
-                raise ValueError(error_msg)
+                raise invalid("invalid_phone", error_msg)
         return v
     @field_validator('contact_email')
     @classmethod
@@ -78,7 +79,7 @@ class ClientUpdate(BaseModel):
             from app.api.core.security import validate_email
             is_valid, error_msg = validate_email(v)
             if not is_valid:
-                raise ValueError(error_msg)
+                raise invalid("invalid_email", error_msg)
         return v
     @field_validator('birth_date')
     @classmethod
@@ -87,7 +88,7 @@ class ClientUpdate(BaseModel):
             from app.api.core.date_validation import validate_birth_date
             is_valid, error_msg = validate_birth_date(v)
             if not is_valid:
-                raise ValueError(error_msg)
+                raise invalid("invalid_birth_date", error_msg)
         return v
 class ClientOut(ClientBase):
     id: int

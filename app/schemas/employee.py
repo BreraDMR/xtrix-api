@@ -2,6 +2,7 @@ from typing import Optional, Dict, Any, List
 from app.schemas.limits import MAX_MONEY
 from pydantic import ConfigDict, BaseModel, Field, field_validator
 from app.schemas.datetimes import UtcDatetime
+from app.schemas.errors import invalid
 class EmployeePermissions(BaseModel):
     can_create_visits: bool = Field(default=True, description="Can create visits")
     can_edit_clients: bool = Field(default=True, description="Can edit clients")
@@ -26,7 +27,7 @@ class EmployeeBase(BaseModel):
     @classmethod
     def validate_permissions(cls, v):
         if v is not None and not isinstance(v, dict):
-            raise ValueError("permissions must be a dictionary")
+            raise invalid("invalid_permissions", "permissions must be a dictionary")
         return v
 class EmployeeCreate(EmployeeBase):
     business_owner_id: Optional[int] = Field(None, description="Business owner ID (optional, admin only)")

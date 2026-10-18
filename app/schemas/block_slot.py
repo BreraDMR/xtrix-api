@@ -1,6 +1,7 @@
 from typing import Optional
 from pydantic import ConfigDict, BaseModel, Field, field_validator
 from app.schemas.datetimes import UtcDatetime
+from app.schemas.errors import invalid
 class BlockSlotBase(BaseModel):
     start: UtcDatetime
     end: UtcDatetime
@@ -17,7 +18,7 @@ class BlockSlotBase(BaseModel):
                 max_duration_hours=24,     
             )
             if not is_valid:
-                raise ValueError(error_msg)
+                raise invalid("invalid_time_range", error_msg)
         return v
 class BlockSlotCreate(BlockSlotBase):
     specialist_id: int
