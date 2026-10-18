@@ -70,8 +70,11 @@ def test_seeded_plans_have_no_russian(client):
     assert not [r for r in rows if CYRILLIC.search(f"{r.name} {r.features}")], rows
 
 
-def test_migration_turns_old_russian_rows_into_codes(client, make_user, headers_for):
+def test_migration_turns_old_russian_rows_into_codes(client, make_user, headers_for, db):
     a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
+    # Dropping foreign keys needs a lock on users; release the fixture's read
+    # transaction before Alembic runs DDL through another connection.
+    db.rollback()
     cfg = Config("alembic.ini")
     before = ScriptDirectory.from_config(cfg).get_revision("0040_data_codes").down_revision
     command.downgrade(cfg, before)

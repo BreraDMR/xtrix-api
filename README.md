@@ -55,6 +55,16 @@ Running a job twice is harmless: sent messages are recorded in `notification_log
 Messages to clients use the client's own `language`, e-mails to staff use their UI language
 from preferences.
 
+## Stripe checkout
+
+Checkout reuses the user's open session. Choosing another plan expires the old session before creating
+its replacement. `stripe_checkout_state` keeps the customer binding and the exact idempotent request
+across network failures and e-mail changes; run migrations before deploying this code.
+
+An unresolved attempt older than 23 hours returns 409 until it is reconciled with Stripe. It is never
+blindly submitted again after Stripe's idempotency retention window. Subscription changes use cancel
+and undo-cancellation; a paid tariff change needs a separate billing flow.
+
 ## API reference
 
 `/docs` serves a [Scalar](https://scalar.com) page built from the same OpenAPI schema (Swagger UI and

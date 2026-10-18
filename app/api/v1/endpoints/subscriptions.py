@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from sqlalchemy.orm import Session
 from datetime import datetime
 from decimal import Decimal
-from app.api.core import stripe_billing
+from app.api.core import stripe_billing, stripe_checkout
 import stripe
 from app.api import deps
 from app.api.core.i18n import _
@@ -124,28 +124,8 @@ def create_checkout_session(
     amount = Decimal(str(plan.price))
     if plan.is_trial or not amount.is_finite() or amount < Decimal("0.01"):
         raise HTTPException(status_code=400, detail="Choose a paid plan for checkout")
-    existing = db.query(Subscription).filter(
-        Subscription.user_id == current_user.id, Subscription.provider == "stripe",
-        Subscription.status.notin_(["cancelled", "canceled", "expired", "incomplete_expired"]),
-    ).first()
-    if existing:
-        raise HTTPException(status_code=409, detail="Manage the existing Stripe subscription before starting another")
-    stripe.api_key = settings.stripe_api_key
     try:
-        customer_email = current_user.email
-        if not customer_email:
-            raise HTTPException(status_code=400, detail="User email is required for payment")
-        customers = stripe.Customer.list(email=customer_email, limit=1)
-        if customers.data:
-            customer = customers.data[0]
-        else:
-            customer = stripe.Customer.create(
-                email=customer_email,
-                name=current_user.full_name,
-                metadata={"user_id": current_user.id}
-            )
-        checkout_session = stripe.checkout.Session.create(
-            customer=customer.id,
+        payload = dict(
             payment_method_types=["card"],
             line_items=[{
                 "price_data": {
@@ -167,10 +147,7 @@ def create_checkout_session(
             metadata={"user_id": str(current_user.id), "plan_id": str(plan_id)},
             subscription_data={"metadata": {"user_id": str(current_user.id), "plan_id": str(plan_id)}},
         )
-        return {
-            "session_id": checkout_session.id,
-            "url": checkout_session.url,
-        }
+        return stripe_checkout.create_session(db, current_user, plan_id, payload)
     except HTTPException:
         raise
     except stripe.StripeError:

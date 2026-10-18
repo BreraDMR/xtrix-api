@@ -29,12 +29,15 @@ def test_owner_gets_trial_and_manages_billing(client, db, make_user, headers_for
     assert client.get("/subscriptions/history", headers=headers).json()[0]["id"] == sub.id
     assert client.get(f"/subscriptions/{sub.id}/transactions", headers=headers).status_code == 200
     monkeypatch.setattr(settings, "stripe_api_key", "test-key")
-    monkeypatch.setattr(stripe.Customer, "list", lambda **kw: SimpleNamespace(data=[SimpleNamespace(id="cus_owner")]))
+    monkeypatch.setattr(stripe.Customer, "list", lambda **kw: stripe.StripeObject.construct_from(
+        {"data": [{"id": "cus_owner", "metadata": {"user_id": str(owner.id)}}]}, "test-key"))
+    for target in (stripe.Subscription, stripe.checkout.Session):
+        monkeypatch.setattr(target, "list", lambda **_: stripe.StripeObject.construct_from({"data": []}, "test-key"))
     captured = {}
 
     def checkout(**kw):
         captured.update(kw)
-        return SimpleNamespace(id="cs_owner", url="https://example.com/checkout")
+        return stripe.StripeObject.construct_from({"id": "cs_owner", "url": "https://example.com/checkout"}, "test-key")
 
     monkeypatch.setattr(stripe.checkout.Session, "create", checkout)
     paid_plan = crud_subscription.get_plan_by_code(db, "admin_up_to_3_employees")
