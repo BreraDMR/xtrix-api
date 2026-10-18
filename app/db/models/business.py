@@ -17,6 +17,9 @@ class Business(Base):
     email = Column(String, nullable=True, index=True)
     description = Column(Text, nullable=True)
     currency = Column(String, nullable=False, default="EUR", index=True)  
+    # the assistant's name in this business; empty = the default for the interface language
+    assistant_name = Column(String(30), nullable=True)
+    assistant_gender = Column(String(10), nullable=False, default="female", server_default="female")
     created_at = Column(DateTime, default=utcnow, index=True)
     deleted_at = Column(DateTime, nullable=True, index=True)  
     users = relationship("User", back_populates="business", lazy="dynamic")

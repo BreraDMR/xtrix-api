@@ -448,6 +448,22 @@
             ],
             "title": "Address"
           },
+          "assistant_gender": {
+            "default": "female",
+            "title": "Assistant Gender",
+            "type": "string"
+          },
+          "assistant_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assistant Name"
+          },
           "business_type": {
             "enum": [
               "salon",
@@ -539,6 +555,36 @@
               }
             ],
             "title": "Address"
+          },
+          "assistant_gender": {
+            "anyOf": [
+              {
+                "enum": [
+                  "female",
+                  "male",
+                  "neuter"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "female|male|neuter, for verb forms in ru/cz",
+            "title": "Assistant Gender"
+          },
+          "assistant_name": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Empty = default name for the interface language",
+            "title": "Assistant Name"
           },
           "business_type": {
             "anyOf": [
