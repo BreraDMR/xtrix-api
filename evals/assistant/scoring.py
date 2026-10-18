@@ -31,6 +31,7 @@ from datetime import datetime
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
+from app.ai.client_search import resolve_name
 from evals.assistant import fixture as F
 from evals.assistant.cases import Case, resolve
 
@@ -107,17 +108,16 @@ class _Ctx:
         return f"find_client {what!r} would not find {self.fx.client_name(client_id)!r}"
 
     def executor_finds(self, found: dict) -> set:
-        """Own clients the executor's find_client would return: a plain case-insensitive substring
-        of the full name, exact phone, exact e-mail (the fixture has none)."""
-        hits = set(self.fx.own("client"))
-        name = (found.get("name") or "").strip().casefold()
-        if name:
-            hits = {i for i in hits if name in self.fx.client_name(i).casefold()}
+        """Own clients the executor's find_client would return: exact phone, exact e-mail (the fixture
+        has none), then the executor's own name search (app.ai.client_search) over what is left."""
+        rows = [(i, self.fx.client_name(i)) for i in sorted(self.fx.own("client"))]
         if found.get("phone"):
-            hits = {i for i in hits if self.client_phone(i) == found["phone"].strip()}
+            rows = [r for r in rows if self.client_phone(r[0]) == found["phone"].strip()]
         if found.get("email"):
-            hits = set()
-        return hits
+            rows = []
+        if found.get("name"):
+            rows = resolve_name(found["name"], rows)
+        return {i for i, _ in rows}
 
     def is_specialist(self, action: dict, spec_id: int) -> Optional[str]:
         if action.get("specialist_id") is not None:

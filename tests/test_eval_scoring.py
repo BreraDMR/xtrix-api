@@ -51,7 +51,8 @@ def _via_find(**find):
     return plan({"action": "find_client", "ref": "c", **find}, visit(client_ref="c", service_id=ID["service.haircut"]))
 
 
-@pytest.mark.parametrize("find", [{"name": "Анна Петрова"}, {"name": "петрова"}, {"phone": "+420777100001"}])
+@pytest.mark.parametrize("find", [{"name": "Анна Петрова"}, {"name": "петрова"}, {"name": "Анну Петрову"},
+                                  {"name": "Петровой Анне"}, {"phone": "+420777100001"}])
 def test_client_through_find_client_passes(find):
     # the phone has to be typed by the user, or it counts as a leak
     v = check(HAIRCUT, _via_find(**find), text="Запиши Анну Петрову +420777100001 на стрижку завтра в 10")
@@ -59,8 +60,10 @@ def test_client_through_find_client_passes(find):
 
 
 @pytest.mark.parametrize("find, why", [
-    ({"name": "Анну Петрову"}, "would not find"),  # the executor's search is a plain substring match
     ({"name": "Анна"}, "ambiguous"),              # finds Петрова and Петренко
+    ({"name": "Анну"}, "ambiguous"),
+    ({"name": "Анну Петренко"}, "would not find"),
+    ({"name": "Анну Сидорову"}, "would not find"),  # only the first name fits - the executor won't guess
     ({"phone": "+420777100002"}, "would not find"),
 ])
 def test_find_client_that_would_not_land_on_the_client_fails(find, why):
