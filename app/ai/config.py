@@ -13,7 +13,7 @@ from dotenv import dotenv_values
 # Damir's start: 10 free keys. Scanning a bit further means more slots are an env change only.
 MAX_SLOTS = 30
 KEYLESS = "none"
-PROVIDERS = ("pool", "anthropic", "cli")
+PROVIDERS = ("pool", "anthropic", "cli", "fake")
 JSON_MODES = ("json_object", "json_schema", "none")
 
 # requests per calendar month (UTC) by subscription plan code
@@ -61,6 +61,7 @@ class AIConfig:
     slots: tuple = ()
     cli_command: str = "claude --print"
     cli_model: str = ""
+    fake_plan_file: str = ""
     default_timezone: str = "Europe/Prague"
     monthly_limit_default: int = 100
     monthly_limits: dict = field(default_factory=lambda: dict(DEFAULT_MONTHLY_LIMITS))
@@ -171,6 +172,7 @@ def load_ai_config(env: Optional[Mapping[str, str]] = None) -> AIConfig:
         slots=tuple(slots),
         cli_command=_get(env, "LLM_CLI_COMMAND", "claude --print"),
         cli_model=_get(env, "LLM_CLI_MODEL"),
+        fake_plan_file=_get(env, "LLM_FAKE_PLAN_FILE"),
         default_timezone=_get(env, "AI_DEFAULT_TIMEZONE", "Europe/Prague"),
         monthly_limit_default=_num(env, "AI_MONTHLY_LIMIT_DEFAULT", 100, int),
         monthly_limits=_limits(env),

@@ -26,3 +26,22 @@ def test_filling_the_keys_gives_ten_slots():
     cfg = load_ai_config(env)
     assert [s.index for s in cfg.slots] == list(range(1, 11))
     assert len({s.name for s in cfg.slots}) == 10
+
+
+def test_speech_slots_prefilled_without_keys():
+    from app.ai.stt import load_stt_config
+
+    env = dotenv_values(EXAMPLE)
+    hosts = [urlparse(env[f"STT_{i}_BASE_URL"]).hostname for i in range(1, 4)]
+    assert len(set(hosts)) == 3
+    assert all(env[f"STT_{i}_MODEL"] for i in range(1, 4))
+    assert all(not env[f"STT_{i}_API_KEY"] for i in range(1, 4))
+    assert load_stt_config(env).ai.slots == ()
+    env.update({f"STT_{i}_API_KEY": f"test-{i}" for i in range(1, 4)})
+    assert [s.index for s in load_stt_config(env).ai.slots] == [1, 2, 3]
+
+
+def test_fake_provider_documented_but_off():
+    env = dotenv_values(EXAMPLE)
+    assert env["LLM_PROVIDER"] == "pool" and "LLM_FAKE_PLAN_FILE" in env
+    assert env.get("STT_PROVIDER") == "pool" and "STT_FAKE_TEXT" in env

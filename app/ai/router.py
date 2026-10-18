@@ -193,6 +193,12 @@ def build_router(config: Optional[AIConfig] = None, *, http: Optional[httpx.Clie
         slot_cfg = SlotConfig(index=1, kind="cli", base_url="", api_key=None, model_fast=config.cli_model,
                               model_smart=config.cli_model, name="cli")
         return LLMRouter([Slot(slot_cfg, adapter)], config=config, board=board)
+    if config.provider == "fake":
+        from app.ai.providers.fake import FakeAdapter
+        adapter = FakeAdapter(config.fake_plan_file, environment=config.environment)
+        slot_cfg = SlotConfig(index=1, kind="fake", base_url="", api_key=None, model_fast="fake",
+                              model_smart="fake", name="fake", json_mode="none")
+        return LLMRouter([Slot(slot_cfg, adapter)], config=config, board=board)
     slots = [Slot(cfg, _adapter_for(cfg, http)) for cfg in config.slots]
     return LLMRouter(slots, config=config, board=board)
 
