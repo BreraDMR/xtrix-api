@@ -26,6 +26,21 @@ def client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+def user_or_ip(request: Request) -> str:
+    """Per signed-in user for the assistant routes: a salon's staff share one address, but each has
+    their own allowance. Only a valid access token counts; anything else falls back to the IP."""
+    auth = request.headers.get("authorization", "")
+    if auth[:7].lower() == "bearer ":
+        try:
+            import jwt
+            payload = jwt.decode(auth[7:].strip(), settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+            if payload.get("type") == "access" and payload.get("sub"):
+                return f"user:{payload['sub']}"
+        except Exception:
+            pass
+    return client_ip(request)
+
+
 def _storage_uri() -> str:
     # one counter store for every worker if Redis is there, else per-process memory
     if not (settings.rate_limit_enabled and settings.redis_url.startswith("redis://")):
@@ -56,6 +71,10 @@ LOGIN_LIMIT = settings.rate_limit_login
 SIGNUP_LIMIT = settings.rate_limit_signup
 SENSITIVE_LIMIT = "10/minute"  # QR codes, 2FA, token refresh
 EXPORT_LIMIT = "10/minute"
+# per user (user_or_ip); the monthly allowance is the real cap, these only stop a runaway client
+ASSISTANT_PLAN_LIMIT = "20/minute"
+ASSISTANT_EXECUTE_LIMIT = "20/minute"
+ASSISTANT_TRANSCRIBE_LIMIT = "10/minute"
 
 
 def _retry_after(exc: RateLimitExceeded) -> int:

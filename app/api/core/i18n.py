@@ -41,6 +41,31 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Этот клиент уже есть в вашем списке",
         "cz": "Tento klient už ve vašem seznamu je",
     },
+    "ai_limit_reached": {
+        "en": "The assistant's monthly limit is used up",
+        "ru": "Месячный лимит помощника исчерпан",
+        "cz": "Měsíční limit asistenta je vyčerpán",
+    },
+    "ai_busy": {
+        "en": "The assistant is busy right now, try again in a moment",
+        "ru": "Помощник сейчас занят, попробуйте чуть позже",
+        "cz": "Asistent je teď zaneprázdněný, zkuste to za chvíli",
+    },
+    "ai_not_configured": {
+        "en": "The assistant isn't set up yet",
+        "ru": "Помощник ещё не настроен",
+        "cz": "Asistent zatím není nastavený",
+    },
+    "ai_unavailable": {
+        "en": "The assistant couldn't answer, try again",
+        "ru": "Помощник не смог ответить, попробуйте ещё раз",
+        "cz": "Asistent nedokázal odpovědět, zkuste to znovu",
+    },
+    "ai_plan_not_found": {
+        "en": "This plan has expired or was already done - ask again",
+        "ru": "Этот план устарел или уже выполнен — попросите заново",
+        "cz": "Tento plán vypršel nebo už byl proveden - zeptejte se znovu",
+    },
     "business_not_found": {
         "en": "Business not found",
         "ru": "Бизнес не найден",

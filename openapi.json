@@ -1,6 +1,180 @@
 {
   "components": {
     "schemas": {
+      "ActionDisplay": {
+        "description": "Read-only preview resolved by the server within the user's own data; empty for anything else.\nNever phones, e-mails, birth dates or medical data.",
+        "properties": {
+          "client_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Name"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "service_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Name"
+          },
+          "specialist_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Specialist Name"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          }
+        },
+        "title": "ActionDisplay",
+        "type": "object"
+      },
+      "ActionErrorOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "code",
+          "message"
+        ],
+        "title": "ActionErrorOut",
+        "type": "object"
+      },
+      "ActionResultOut": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActionErrorOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "done",
+              "failed",
+              "skipped"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "action",
+          "status",
+          "data"
+        ],
+        "title": "ActionResultOut",
+        "type": "object"
+      },
+      "AddNotePlanned": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "const": "add_note",
+            "title": "Action",
+            "type": "string"
+          },
+          "display": {
+            "$ref": "#/components/schemas/ActionDisplay"
+          },
+          "text": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          },
+          "visit_id": {
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
+            "title": "Visit Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "visit_id",
+          "text"
+        ],
+        "title": "AddNotePlanned",
+        "type": "object"
+      },
       "AnonymousBenchmarksResponse": {
         "properties": {
           "available": {
@@ -89,6 +263,75 @@
           "available"
         ],
         "title": "AnonymousBenchmarksResponse",
+        "type": "object"
+      },
+      "AssistantPersonaOut": {
+        "properties": {
+          "gender": {
+            "enum": [
+              "female",
+              "male",
+              "neuter"
+            ],
+            "title": "Gender",
+            "type": "string"
+          },
+          "is_default": {
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "gender",
+          "is_default"
+        ],
+        "title": "AssistantPersonaOut",
+        "type": "object"
+      },
+      "AssistantStatusOut": {
+        "properties": {
+          "assistant": {
+            "$ref": "#/components/schemas/AssistantPersonaOut"
+          },
+          "enabled": {
+            "description": "A model provider is configured, so /assistant/plan can work",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "limit": {
+            "description": "Assistant requests per calendar month (UTC) for whoever pays",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "resets_at": {
+            "format": "date-time",
+            "title": "Resets At",
+            "type": "string"
+          },
+          "used": {
+            "title": "Used",
+            "type": "integer"
+          },
+          "voice_enabled": {
+            "description": "A speech provider is configured, so /assistant/transcribe can work",
+            "title": "Voice Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "voice_enabled",
+          "assistant",
+          "limit",
+          "used",
+          "resets_at"
+        ],
+        "title": "AssistantStatusOut",
         "type": "object"
       },
       "AuditLogOut": {
@@ -349,6 +592,21 @@
           }
         },
         "title": "BlockSlotUpdate",
+        "type": "object"
+      },
+      "Body_transcribe_assistant_transcribe_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "description": "audio/webm, audio/ogg, audio/mp4, audio/mpeg or audio/wav, up to 5 MB",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_transcribe_assistant_transcribe_post",
         "type": "object"
       },
       "BusinessCreate": {
@@ -703,6 +961,31 @@
           "period_end"
         ],
         "title": "CalculateSalaryRequest",
+        "type": "object"
+      },
+      "CancelVisitPlanned": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "const": "cancel_visit",
+            "title": "Action",
+            "type": "string"
+          },
+          "display": {
+            "$ref": "#/components/schemas/ActionDisplay"
+          },
+          "visit_id": {
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
+            "title": "Visit Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "visit_id"
+        ],
+        "title": "CancelVisitPlanned",
         "type": "object"
       },
       "ClientCreate": {
@@ -1506,6 +1789,235 @@
         "title": "CohortTableResponse",
         "type": "object"
       },
+      "CreateClientPlanned": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "const": "create_client",
+            "title": "Action",
+            "type": "string"
+          },
+          "birth_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birth Date"
+          },
+          "contact_email": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Email"
+          },
+          "contact_phone": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Phone"
+          },
+          "display": {
+            "$ref": "#/components/schemas/ActionDisplay"
+          },
+          "full_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Full Name",
+            "type": "string"
+          },
+          "gender": {
+            "anyOf": [
+              {
+                "enum": [
+                  "male",
+                  "female",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gender"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "enum": [
+                  "en",
+                  "ru",
+                  "cz"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "description": "Short local name for this action's result, used by later actions",
+                "pattern": "^[a-z][a-z0-9_]{0,19}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          }
+        },
+        "required": [
+          "action",
+          "full_name"
+        ],
+        "title": "CreateClientPlanned",
+        "type": "object"
+      },
+      "CreateVisitPlanned": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "const": "create_visit",
+            "title": "Action",
+            "type": "string"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "maximum": 2147483647.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "client_ref": {
+            "anyOf": [
+              {
+                "description": "Short local name for this action's result, used by later actions",
+                "pattern": "^[a-z][a-z0-9_]{0,19}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Ref"
+          },
+          "display": {
+            "$ref": "#/components/schemas/ActionDisplay"
+          },
+          "duration_minutes": {
+            "anyOf": [
+              {
+                "maximum": 1440.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "service_id": {
+            "anyOf": [
+              {
+                "maximum": 2147483647.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Id"
+          },
+          "slot_ref": {
+            "anyOf": [
+              {
+                "description": "Short local name for this action's result, used by later actions",
+                "pattern": "^[a-z][a-z0-9_]{0,19}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Ref"
+          },
+          "specialist_id": {
+            "anyOf": [
+              {
+                "maximum": 2147483647.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Specialist Id"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "CreateVisitPlanned",
+        "type": "object"
+      },
       "EmployeeCreate": {
         "properties": {
           "base_salary": {
@@ -2099,6 +2611,59 @@
         "title": "EmployeeUpdate",
         "type": "object"
       },
+      "ExecuteOut": {
+        "properties": {
+          "done_count": {
+            "title": "Done Count",
+            "type": "integer"
+          },
+          "failed_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failed Index"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/ActionResultOut"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ok",
+          "done_count",
+          "results"
+        ],
+        "title": "ExecuteOut",
+        "type": "object"
+      },
+      "ExecuteRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "plan_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Plan Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "title": "ExecuteRequest",
+        "type": "object"
+      },
       "ExpenseCategoryCreate": {
         "properties": {
           "business_id": {
@@ -2637,6 +3202,165 @@
           "top_clients"
         ],
         "title": "FinancialReportResponse",
+        "type": "object"
+      },
+      "FindClientPlanned": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "const": "find_client",
+            "title": "Action",
+            "type": "string"
+          },
+          "display": {
+            "$ref": "#/components/schemas/ActionDisplay"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "description": "Short local name for this action's result, used by later actions",
+                "pattern": "^[a-z][a-z0-9_]{0,19}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "FindClientPlanned",
+        "type": "object"
+      },
+      "FindFreeSlotPlanned": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "const": "find_free_slot",
+            "title": "Action",
+            "type": "string"
+          },
+          "days_ahead": {
+            "default": 7,
+            "maximum": 31.0,
+            "minimum": 1.0,
+            "title": "Days Ahead",
+            "type": "integer"
+          },
+          "display": {
+            "$ref": "#/components/schemas/ActionDisplay"
+          },
+          "duration_minutes": {
+            "anyOf": [
+              {
+                "maximum": 1440.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Minutes"
+          },
+          "not_before": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Not Before"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "description": "Short local name for this action's result, used by later actions",
+                "pattern": "^[a-z][a-z0-9_]{0,19}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          },
+          "service_id": {
+            "anyOf": [
+              {
+                "maximum": 2147483647.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Id"
+          },
+          "specialist_id": {
+            "anyOf": [
+              {
+                "maximum": 2147483647.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Specialist Id"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "FindFreeSlotPlanned",
         "type": "object"
       },
       "ForecastData": {
@@ -4745,6 +5469,121 @@
         "title": "PaymentStatisticsResponse",
         "type": "object"
       },
+      "PlanOut": {
+        "properties": {
+          "actions": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "add_note": "#/components/schemas/AddNotePlanned",
+                  "cancel_visit": "#/components/schemas/CancelVisitPlanned",
+                  "create_client": "#/components/schemas/CreateClientPlanned",
+                  "create_visit": "#/components/schemas/CreateVisitPlanned",
+                  "find_client": "#/components/schemas/FindClientPlanned",
+                  "find_free_slot": "#/components/schemas/FindFreeSlotPlanned",
+                  "reschedule_visit": "#/components/schemas/RescheduleVisitPlanned",
+                  "update_client": "#/components/schemas/UpdateClientPlanned"
+                },
+                "propertyName": "action"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/FindClientPlanned"
+                },
+                {
+                  "$ref": "#/components/schemas/CreateClientPlanned"
+                },
+                {
+                  "$ref": "#/components/schemas/UpdateClientPlanned"
+                },
+                {
+                  "$ref": "#/components/schemas/FindFreeSlotPlanned"
+                },
+                {
+                  "$ref": "#/components/schemas/CreateVisitPlanned"
+                },
+                {
+                  "$ref": "#/components/schemas/RescheduleVisitPlanned"
+                },
+                {
+                  "$ref": "#/components/schemas/CancelVisitPlanned"
+                },
+                {
+                  "$ref": "#/components/schemas/AddNotePlanned"
+                }
+              ]
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "assistant": {
+            "$ref": "#/components/schemas/AssistantPersonaOut"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "plan_id": {
+            "title": "Plan Id",
+            "type": "string"
+          },
+          "questions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Questions",
+            "type": "array"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_id",
+          "summary",
+          "questions",
+          "actions",
+          "assistant",
+          "expires_at"
+        ],
+        "title": "PlanOut",
+        "type": "object"
+      },
+      "PlanRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "locale": {
+            "anyOf": [
+              {
+                "enum": [
+                  "en",
+                  "ru",
+                  "cz"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Language of the answer; Accept-Language when left out",
+            "title": "Locale"
+          },
+          "text": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "PlanRequest",
+        "type": "object"
+      },
       "PointsUsageTrendItem": {
         "properties": {
           "cashback_earned": {
@@ -5711,6 +6550,56 @@
           "report_type"
         ],
         "title": "ReportExportRequest",
+        "type": "object"
+      },
+      "RescheduleVisitPlanned": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "const": "reschedule_visit",
+            "title": "Action",
+            "type": "string"
+          },
+          "display": {
+            "$ref": "#/components/schemas/ActionDisplay"
+          },
+          "slot_ref": {
+            "anyOf": [
+              {
+                "description": "Short local name for this action's result, used by later actions",
+                "pattern": "^[a-z][a-z0-9_]{0,19}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Ref"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "visit_id": {
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
+            "title": "Visit Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "visit_id"
+        ],
+        "title": "RescheduleVisitPlanned",
         "type": "object"
       },
       "RetentionMetricsResponse": {
@@ -8188,6 +9077,19 @@
         "title": "TransactionOut",
         "type": "object"
       },
+      "TranscribeOut": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "TranscribeOut",
+        "type": "object"
+      },
       "TrendsAnalysisResponse": {
         "properties": {
           "change": {
@@ -8284,6 +9186,133 @@
           "token"
         ],
         "title": "TwoFactorVerify",
+        "type": "object"
+      },
+      "UpdateClientPlanned": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "const": "update_client",
+            "title": "Action",
+            "type": "string"
+          },
+          "birth_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birth Date"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "maximum": 2147483647.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "client_ref": {
+            "anyOf": [
+              {
+                "description": "Short local name for this action's result, used by later actions",
+                "pattern": "^[a-z][a-z0-9_]{0,19}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Ref"
+          },
+          "contact_email": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Email"
+          },
+          "contact_phone": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Phone"
+          },
+          "display": {
+            "$ref": "#/components/schemas/ActionDisplay"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "gender": {
+            "anyOf": [
+              {
+                "enum": [
+                  "male",
+                  "female",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gender"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "enum": [
+                  "en",
+                  "ru",
+                  "cz"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "UpdateClientPlanned",
         "type": "object"
       },
       "UsePointsRequest": {
@@ -11107,6 +12136,267 @@
         "summary": "Unarchive Visit",
         "tags": [
           "archiving"
+        ]
+      }
+    },
+    "/assistant/execute": {
+      "post": {
+        "operationId": "execute_plan_assistant_execute_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecuteOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "plan_not_found: unknown, someone else's, expired or already run"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Run a saved plan once, as the current user",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
+    "/assistant/plan": {
+      "post": {
+        "operationId": "make_plan_assistant_plan_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Monthly assistant limit used up (code ai_limit_reached), Retry-After = seconds to the next month; or too many requests a minute"
+          },
+          "503": {
+            "description": "ai_busy (all provider slots resting, Retry-After), ai_not_configured or ai_unavailable"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Turn a request into a plan to confirm (nothing is changed yet)",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
+    "/assistant/status": {
+      "get": {
+        "operationId": "get_status_assistant_status_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Is the assistant on, and how much is left",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
+    "/assistant/transcribe": {
+      "post": {
+        "operationId": "transcribe_assistant_transcribe_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_transcribe_assistant_transcribe_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscribeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Monthly assistant limit used up (code ai_limit_reached), Retry-After = seconds to the next month; or too many requests a minute"
+          },
+          "503": {
+            "description": "ai_busy (all provider slots resting, Retry-After), ai_not_configured or ai_unavailable"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Speech to text for the assistant input (not planned automatically)",
+        "tags": [
+          "assistant"
         ]
       }
     },

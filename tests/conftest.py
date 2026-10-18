@@ -16,6 +16,11 @@ os.environ.setdefault("JWT_SECRET", "test-secret-key-minimum-32-characters-long-
 os.environ.setdefault("ENVIRONMENT", "test")
 # the limiter keeps counters in process memory, so it would bleed between tests; test_rate_limit covers it
 os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
+# the assistant never reaches a real model or speech API from tests, whatever a local .env says;
+# tests that need answers plug their own fakes in
+os.environ["LLM_PROVIDER"] = "fake"
+os.environ["LLM_FAKE_PLAN_FILE"] = os.path.join(os.path.dirname(__file__), "data", "assistant_plan.json")
+os.environ["STT_PROVIDER"] = "fake"
 
 from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402
