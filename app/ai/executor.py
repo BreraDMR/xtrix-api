@@ -15,21 +15,19 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 from pydantic import ValidationError
-from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.ai import client_search
 from app.ai import plan as p
 from app.api.core.clock import utcnow
 from app.api.core.logger import get_logger
 from app.api.core.permissions import (
     check_service_access,
     check_specialist_in_scope,
-    get_accessible_client_ids,
 )
 from app.api.core.slots import find_next_available_slot
 from app.api.crud import crud_schedule
-from app.db.models.client import Client
 from app.db.models.service import Service
 from app.db.models.user import User
 from app.db.models.visit import Visit
@@ -159,25 +157,13 @@ class _Run:
 
     # --- actions -------------------------------------------------------------
     def find_client(self, a: p.FindClient) -> dict:
-        ids = get_accessible_client_ids(self.db, self.user) or set()
-        if not ids:
-            raise ActionFailed(404, "client_not_found")
-        q = self.db.query(Client).filter(Client.id.in_(ids), Client.deleted_at.is_(None),
-                                         Client.archived_at.is_(None))
-        if a.name:
-            pattern = a.name.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            q = q.filter(Client.full_name.ilike(f"%{pattern}%", escape="\\"))
-        if a.phone:
-            q = q.filter(Client.contact_phone == a.phone)
-        if a.email:
-            q = q.filter(func.lower(Client.contact_email) == a.email.lower())
-        rows = q.order_by(Client.id).limit(6).all()
+        rows = client_search.find_clients(self.db, self.user, name=a.name, phone=a.phone, email=a.email)
         if not rows:
             raise ActionFailed(404, "client_not_found")
         if len(rows) > 1:
             raise ActionFailed(409, "ambiguous", "more than one client matches",
-                               {"candidates": [{"client_id": c.id, "full_name": c.full_name} for c in rows[:5]]})
-        return {"client_id": rows[0].id, "full_name": rows[0].full_name}
+                               {"candidates": [{"client_id": cid, "full_name": name} for cid, name in rows[:5]]})
+        return {"client_id": rows[0][0], "full_name": rows[0][1]}
 
     def create_client(self, a: p.CreateClient) -> dict:
         from app.api.v1.endpoints import clients as clients_ep

@@ -81,6 +81,35 @@ def test_context_is_minimal_own_data_only_and_never_medical(db, ab):
     assert ctx["timezone"] == "Europe/Prague" and ctx["now"].endswith(("+01:00", "+02:00"))
 
 
+@pytest.mark.parametrize("text, who", [
+    ("Запиши Анну Петрову на стрижку завтра в 10", "Анна Петрова"),
+    ("Елену Кузнецову на окрашивание в пятницу", "Елена Кузнецова"),
+    ("Zapiš Terezu Svobodovou na manikúru zítra v 15:00", "Tereza Svobodová"),
+    ("Pro Ivanu Novákové pedikúru v pátek", "Ivana Nováková"),
+    ("Objednej Novakova na pedikúru", "Ivana Nováková"),
+])
+def test_context_finds_declined_names_first_and_only_own(client, db, ab, text, who):
+    a, b = ab
+    own = {b["client"]["id"]}
+    for t, names in ((a, ["Анна Петрова", "Tereza Svobodová", "Ivana Nováková"]),
+                     (b, ["Анна Петрова", "Анна Петренко", "Елена Кузнецова", "Tereza Svobodová",
+                          "Tereza Svobodná", "Ivana Nováková"])):
+        for name in names:
+            r = client.post("/clients/", json={"full_name": name}, headers=t["headers"])
+            assert r.status_code in (200, 201), r.text
+            if t is b:
+                own.add(r.json()["id"])
+    ctx = build_context(db, fresh(db, b["owner"]), text, locale="ru", tz_name="Europe/Prague")
+    assert ctx["client_matches"][0]["name"] == who
+    assert {c["id"] for c in ctx["client_matches"]} <= own
+
+
+def test_context_short_words_match_nobody(db, ab):
+    _, b = ab
+    ctx = build_context(db, fresh(db, b["owner"]), "на do к в 10", locale="ru", tz_name="Europe/Prague")
+    assert ctx["client_matches"] == []
+
+
 def test_context_uses_the_business_assistant_name(db, ab):
     _, b = ab
     biz = db.query(Business).filter(Business.id == b["business"]["id"]).first()

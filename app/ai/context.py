@@ -2,7 +2,6 @@
 the user's own clients the request might mean. Ids and names only - no phones, e-mails, birth dates,
 notes or anything medical, ever. Everything here is read through the same permission helpers as the API.
 """
-import re
 from datetime import datetime, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -10,17 +9,16 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.ai.client_search import clients_in_text
 from app.ai.persona import effective_assistant
 from app.api.core.clock import utcnow
 from app.api.core.permissions import (
     check_service_access,
     check_specialist_in_scope,
-    get_accessible_client_ids,
     get_staff_record,
     get_user_business_id,
 )
 from app.api.crud import crud_business
-from app.db.models.client import Client
 from app.db.models.employee import Employee
 from app.db.models.service import Service
 from app.db.models.user import User
@@ -28,7 +26,6 @@ from app.db.models.user import User
 MAX_SPECIALISTS = 30
 MAX_SERVICES = 60
 MAX_CLIENT_MATCHES = 10
-_WORD = re.compile(r"[^\W\d_]{3,}", re.UNICODE)
 
 
 def _specialists(db: Session, user: User, business_id: Optional[int]) -> list[dict]:
@@ -60,17 +57,6 @@ def _services(db: Session, user: User, business_id: Optional[int], specialist_id
             for s in rows if check_service_access(db, user, s)][:MAX_SERVICES]
 
 
-def _client_matches(db: Session, user: User, text: str) -> list[dict]:
-    words = list(dict.fromkeys(w.lower() for w in _WORD.findall(text)))[:8]
-    ids = get_accessible_client_ids(db, user) or set()
-    if not words or not ids:
-        return []
-    like = [Client.full_name.ilike(f"%{w}%") for w in words]
-    rows = db.query(Client).filter(Client.id.in_(ids), Client.deleted_at.is_(None), Client.archived_at.is_(None),
-                                   or_(*like)).order_by(Client.id).limit(MAX_CLIENT_MATCHES).all()
-    return [{"id": c.id, "name": c.full_name} for c in rows]
-
-
 def build_context(db: Session, user: User, text: str, *, locale: str, tz_name: str,
                   now: Optional[datetime] = None) -> dict:
     try:
@@ -91,5 +77,5 @@ def build_context(db: Session, user: User, text: str, *, locale: str, tz_name: s
         "current_user": {"id": user.id, "name": user.full_name},
         "specialists": specialists,
         "services": _services(db, user, business_id, [s["id"] for s in specialists]),
-        "client_matches": _client_matches(db, user, text),
+        "client_matches": clients_in_text(db, user, text, limit=MAX_CLIENT_MATCHES),
     }
