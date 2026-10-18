@@ -38,6 +38,9 @@ def billing(client, db, make_user, headers_for, monkeypatch):
         raise AssertionError("Unexpected Stripe request")
 
     monkeypatch.setattr(stripe.Subscription, "retrieve", retrieve)
+    for target in (stripe.Subscription, stripe.checkout.Session):
+        monkeypatch.setattr(target, "list", lambda **_: stripe.StripeObject.construct_from(
+            {"data": [], "has_more": False}, "sk_test_mock"))
     for target, method in [(stripe.Subscription, "modify"), (stripe.Subscription, "cancel"),
                            (stripe.Customer, "list"), (stripe.Customer, "create"),
                            (stripe.checkout.Session, "create")]:
@@ -82,7 +85,7 @@ def test_checkout_copies_metadata_to_subscription_and_keeps_exact_cents(client, 
     plan.price = 19.99
     db.commit()
     monkeypatch.setattr(stripe.Customer, "list", lambda **_: stripe.StripeObject.construct_from(
-        {"data": [{"id": "cus_test"}]}, "sk_test_mock"))
+        {"data": [{"id": "cus_test", "metadata": {"user_id": str(billing["owner"].id)}}]}, "sk_test_mock"))
     captured = {}
 
     def create(**kwargs):
@@ -92,7 +95,8 @@ def test_checkout_copies_metadata_to_subscription_and_keeps_exact_cents(client, 
     monkeypatch.setattr(stripe.checkout.Session, "create", create)
     r = client.post(f"/subscriptions/checkout/create-session?plan_id={plan.id}", headers=billing["headers"])
     assert r.status_code == 200, r.text
-    assert captured["metadata"] == captured["subscription_data"]["metadata"] == billing["remote"]["metadata"]
+    assert captured["metadata"] == captured["subscription_data"]["metadata"]
+    assert {k: captured["metadata"][k] for k in ("user_id", "plan_id")} == billing["remote"]["metadata"]
     assert captured["line_items"][0]["price_data"]["unit_amount"] == 1999
 
 
@@ -170,6 +174,22 @@ def test_invoice_before_subscription_creation_recovers_metadata_and_payment(db, 
     assert db.query(Transaction).filter_by(provider="stripe").count() == 1
 
 
+def test_paid_subscription_replaces_longer_trial_and_past_due_cannot_restore_trial_access(db, billing):
+    trial = crud_subscription.get_active_subscription(db, billing["owner"].id)
+    trial.current_period_end = trial.trial_end = utcnow() + timedelta(days=90)
+    db.commit()
+    assert billing["send"]("customer.subscription.created").status_code == 200
+    db.expire_all()
+    paid = crud_subscription.get_active_subscription(db, billing["owner"].id)
+    assert paid.provider == "stripe" and not paid.is_trial
+    db.refresh(trial)
+    assert trial.status == "expired" and trial.current_period_end <= utcnow()
+    billing["remote"]["status"] = "past_due"
+    assert billing["send"]("invoice.payment_failed", invoice()).status_code == 200
+    db.expire_all()
+    assert not crud_subscription.check_subscription_access(db, billing["owner"].id)[0]
+
+
 def test_concurrent_first_invoice_deliveries_create_one_subscription_and_payment(db, billing):
     with ThreadPoolExecutor(max_workers=2) as pool:
         responses = list(pool.map(lambda _: billing["send"]("invoice.payment_succeeded", invoice()), range(2)))
@@ -210,6 +230,7 @@ def test_stripe_failure_is_retryable_and_does_not_acknowledge_or_create_a_subscr
 
 
 def test_webhook_rolls_back_subscription_when_recording_payment_fails(db, billing, monkeypatch):
+    trial = crud_subscription.get_active_subscription(db, billing["owner"].id)
     def broken(*args, **kwargs):
         raise RuntimeError("mock database failure")
 
@@ -219,6 +240,8 @@ def test_webhook_rolls_back_subscription_when_recording_payment_fails(db, billin
     db.expire_all()
     assert db.query(Subscription).filter_by(provider="stripe").count() == 0
     assert db.query(Transaction).filter_by(provider="stripe").count() == 0
+    db.refresh(trial)
+    assert trial.status == "active"
 
 
 def test_missing_item_period_cannot_fabricate_free_access(db, billing):

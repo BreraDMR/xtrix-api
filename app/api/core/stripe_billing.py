@@ -81,6 +81,14 @@ def sync_subscription(db: Session, remote, metadata=None):
         sub.cancelled_at = sub.cancelled_at or utcnow()
     else:
         sub.cancelled_at = None
+    if status == "active" and sub.current_period_end > utcnow():
+        # A paid plan replaces the signup trial. Keeping a longer trial active
+        # would hide this subscription and could bring access back after past_due.
+        db.query(Subscription).filter(
+            Subscription.user_id == sub.user_id, Subscription.is_trial.is_(True),
+            Subscription.status.in_(["active", "pending_cancellation"]),
+        ).update({Subscription.status: "expired", Subscription.current_period_end: utcnow()},
+                 synchronize_session="fetch")
     db.flush()
     return sub
 
