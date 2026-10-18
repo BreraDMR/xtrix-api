@@ -32,3 +32,4 @@ from app.db.models.loyalty_program import (
 from app.db.models.user_preferences import UserPreferences
 from app.db.models.notification_log import NotificationLog
 
+from app.db.models.ai_usage import AIUsage
