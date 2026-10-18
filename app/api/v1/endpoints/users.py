@@ -125,24 +125,27 @@ def refresh_token(
     if not payload:
         logger.warning("Invalid refresh token provided")
         raise HTTPException(status_code=401, detail=_("invalid_refresh_token", locale))
-    db_token = crud_refresh_token.get_refresh_token(db, token_data.refresh_token)
-    if not db_token:
-        logger.warning("Refresh token not found in database or revoked")
-        raise HTTPException(status_code=401, detail=_("invalid_refresh_token", locale))
     user_id = int(payload.get("sub"))
-    user = crud_user.get_active_user(db, user_id)
+    # Refresh and logout-all take the same lock, then check the token again under it.
+    user = crud_user.get_active_user(db, user_id, for_update=True)
     if not user:
         logger.warning(f"User not found for refresh token: user_id={user_id}")
         raise HTTPException(status_code=401, detail=_("user_not_found", locale))
+    db_token = crud_refresh_token.get_refresh_token(db, token_data.refresh_token)
+    if not db_token or db_token.user_id != user.id:
+        logger.warning("Refresh token not found in database or revoked")
+        raise HTTPException(status_code=401, detail=_("invalid_refresh_token", locale))
     new_access_token = create_access_token({"sub": str(user.id), "role": user.role})
     new_refresh_token_str, expires_at = create_refresh_token({"sub": str(user.id), "role": user.role})
-    crud_refresh_token.revoke_refresh_token(db, token_data.refresh_token)
+    db_token.is_revoked = True
+    db_token.revoked_at = utcnow()
     new_token_data = RefreshTokenCreate(
         token=new_refresh_token_str,
         user_id=user.id,
         expires_at=expires_at,
     )
-    crud_refresh_token.create_refresh_token(db, new_token_data)
+    crud_refresh_token.create_refresh_token(db, new_token_data, commit=False)
+    db.commit()
     logger.info(f"Token refreshed successfully for user_id={user_id}")
     return TokenResponse(
         access_token=new_access_token,
@@ -178,7 +181,10 @@ def logout_all(
     locale: str = Depends(deps.get_locale),
 ):
     logger.info(f"Logout all devices for user_id={current_user.id}")
-    count = crud_refresh_token.revoke_all_user_tokens(db, current_user.id)
+    current_user = crud_user.get_active_user(db, current_user.id, for_update=True)
+    if current_user is None:
+        raise HTTPException(status_code=401, detail=_("user_not_found", locale))
+    count = crud_refresh_token.revoke_all_user_tokens(db, current_user.id, commit=False)
     # refresh tokens are gone, now the access tokens already out there too
     current_user.tokens_valid_after = utcnow()
     db.commit()

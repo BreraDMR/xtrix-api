@@ -57,3 +57,47 @@ def test_access_issue_time_preserves_submillisecond_precision(monkeypatch):
     payload = jwt.decode(token, config.settings.jwt_secret,
                          algorithms=[config.settings.jwt_algorithm])
     assert payload["iat_ms"] == 1893456000000.5
+
+
+def test_refresh_cannot_escape_concurrent_logout_all(client, make_user, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    from app.api.crud import crud_user
+
+    user = make_user(role="specialist")
+    tokens = _login(client, user)
+    entered, resume = Event(), Event()
+    original = crud_user.get_active_user
+
+    def pause_refresh(db, user_id, **kwargs):
+        # Hold refresh before its user lookup while logout-all finishes on another connection.
+        if not entered.is_set():
+            entered.set()
+            assert resume.wait(10)
+        return original(db, user_id, **kwargs)
+
+    monkeypatch.setattr(crud_user, "get_active_user", pause_refresh)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pending = pool.submit(client.post, "/users/refresh",
+                              json={"refresh_token": tokens["refresh_token"]})
+        try:
+            assert entered.wait(10)
+            logout = client.post("/users/logout-all", headers={
+                "Authorization": f"Bearer {tokens['access_token']}"})
+            assert logout.status_code == 200, logout.text
+        finally:
+            resume.set()
+        response = pending.result(timeout=10)
+    assert response.status_code == 401, response.text
+
+
+def test_only_one_concurrent_refresh_can_rotate_a_token(client, make_user):
+    from concurrent.futures import ThreadPoolExecutor
+
+    tokens = _login(client, make_user(role="specialist"))
+    def refresh():
+        return client.post("/users/refresh", json={"refresh_token": tokens["refresh_token"]})
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(lambda _: refresh(), range(2)))
+    assert sorted(r.status_code for r in responses) == [200, 401]

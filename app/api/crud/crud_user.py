@@ -115,9 +115,12 @@ def unlock_account(db: Session, user_id: int) -> bool:
     return True
 def get_user(db: Session, user_id: int) -> User | None:
     return db.query(User).filter(User.id == user_id).first()
-def get_active_user(db: Session, user_id: int) -> User | None:
+def get_active_user(db: Session, user_id: int, *, for_update: bool = False) -> User | None:
     # soft-deleted accounts must not authenticate, even with tokens issued before the delete
-    return db.query(User).filter(User.id == user_id, User.deleted_at.is_(None)).first()
+    query = db.query(User).filter(User.id == user_id, User.deleted_at.is_(None))
+    if for_update:
+        query = query.populate_existing().with_for_update()
+    return query.first()
 def get_by_phone_or_email(db: Session, phone: str | None, email: str | None) -> User | None:
     q = db.query(User)
     if phone:
