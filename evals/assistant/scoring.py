@@ -27,7 +27,6 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime
-from itertools import permutations
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
@@ -218,7 +217,7 @@ def _match_actions(ctx: _Ctx, matchers: list, actions: list, any_order: bool) ->
     """Indices of actions the matchers took (in matcher order), or None plus reasons."""
     ok = [[j for j, a in enumerate(actions) if _mismatch(ctx, a, m) is None] for m in matchers]
     reasons = []
-    for m, cands in zip(matchers, ok):
+    for m, cands in zip(matchers, ok, strict=True):
         if not cands:
             same = [a for a in actions if a.get("action") == m["action"]]
             reasons.append(_mismatch(ctx, same[0], m) if same else f"no {m['action']} action")
