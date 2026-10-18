@@ -99,7 +99,7 @@ async def validation_exception_handler(
             # code + params is what the web app translates, the message is only an english fallback
             "code": error.get("type"),
             "params": _json_params(error.get("ctx")),
-            "input": error.get("input"),
+            # Raw input can contain credentials, bytes, or an entire rejected body.
         }
         if error.get("type") == "value_error.missing":
             error_detail["hint"] = f"Field '{field_path}' is required"
@@ -113,10 +113,6 @@ async def validation_exception_handler(
         f"Errors: {len(errors)} - "
         f"Client: {request.client.host if request.client else 'unknown'}"
     )
-    traceback_str = None
-    detailed_mode = settings.environment == "development" or getattr(settings, 'detailed_errors', True)
-    if detailed_mode:
-        traceback_str = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
     return create_error_response(
         status_code=422,
         message=f"Validation error: {len(errors)} field(s) failed validation",
@@ -126,7 +122,8 @@ async def validation_exception_handler(
             "hint": "Check the 'validation_errors' array for details about each field",
         },
         error_type="ValidationError",
-        traceback_str=traceback_str,
+        # Pydantic's exception text includes raw field values, even passwords.
+        traceback_str=None,
         request=request,
     )
 def _constraint_name(exc: IntegrityError) -> Optional[str]:
