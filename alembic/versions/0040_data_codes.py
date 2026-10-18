@@ -1,13 +1,13 @@
 """data_codes
 Revision ID: 0040_data_codes
-Revises: 0039_visit_no_overlap
+Revises: 0038_tokens_valid_after
 Create Date: 2026-10-18 03:00:00
 """
 from alembic import op
 import sqlalchemy as sa
 # revision identifiers, used by Alembic.
 revision = "0040_data_codes"
-down_revision = "0039_visit_no_overlap"
+down_revision = "0038_tokens_valid_after"
 branch_labels = None
 depends_on = None
 
