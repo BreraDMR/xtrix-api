@@ -2,6 +2,7 @@ import hmac
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from sqlalchemy.orm import Session
 from datetime import datetime
+from decimal import Decimal
 import stripe
 from app.api import deps
 from app.api.core.i18n import _
@@ -119,6 +120,15 @@ def create_checkout_session(
     plan = crud_subscription.get_plan(db, plan_id)
     if not plan or not plan.is_active:
         raise HTTPException(status_code=404, detail=_("plan_not_found", locale))
+    amount = Decimal(str(plan.price))
+    if plan.is_trial or not amount.is_finite() or amount < Decimal("0.01"):
+        raise HTTPException(status_code=400, detail="Choose a paid plan for checkout")
+    existing = db.query(Subscription).filter(
+        Subscription.user_id == current_user.id, Subscription.provider == "stripe",
+        Subscription.status.notin_(["cancelled", "canceled", "expired", "incomplete_expired"]),
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Manage the existing Stripe subscription before starting another")
     stripe.api_key = settings.stripe_api_key
     try:
         customer_email = current_user.email
@@ -143,7 +153,7 @@ def create_checkout_session(
                         "name": plan.name,
                         "description": plan.features or "",
                     },
-                    "unit_amount": int(plan.price * 100),  
+                    "unit_amount": int((amount * 100).quantize(Decimal("1"))),
                     "recurring": {
                         "interval": "month" if plan.period_days == 30 else "year" if plan.period_days >= 365 else "month",
                     },
@@ -153,18 +163,17 @@ def create_checkout_session(
             mode="subscription",
             success_url=f"{settings.frontend_url}/subscription?success=true&session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{settings.frontend_url}/subscription?canceled=true",
-            metadata={
-                "user_id": current_user.id,
-                "plan_id": plan_id,
-            },
+            metadata={"user_id": str(current_user.id), "plan_id": str(plan_id)},
+            subscription_data={"metadata": {"user_id": str(current_user.id), "plan_id": str(plan_id)}},
         )
         return {
             "session_id": checkout_session.id,
             "url": checkout_session.url,
         }
-    except stripe.error.StripeError as e:
-        logger.error(f"Stripe error: {e}")
-        raise HTTPException(status_code=400, detail=f"Payment error: {str(e)}")
+    except HTTPException:
+        raise
+    except stripe.StripeError:
+        raise HTTPException(status_code=503, detail="Stripe is temporarily unavailable")
     except Exception as e:
         logger.error(f"Error creating checkout session: {e}")
         raise HTTPException(status_code=500, detail="Failed to create checkout session")

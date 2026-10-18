@@ -37,9 +37,11 @@ def test_owner_gets_trial_and_manages_billing(client, db, make_user, headers_for
         return SimpleNamespace(id="cs_owner", url="https://example.com/checkout")
 
     monkeypatch.setattr(stripe.checkout.Session, "create", checkout)
-    response = client.post(f"/subscriptions/checkout/create-session?plan_id={sub.plan_id}", headers=headers)
+    paid_plan = crud_subscription.get_plan_by_code(db, "admin_up_to_3_employees")
+    response = client.post(f"/subscriptions/checkout/create-session?plan_id={paid_plan.id}", headers=headers)
     assert response.status_code == 200
-    assert captured["metadata"]["user_id"] == owner.id
+    assert captured["metadata"]["user_id"] == str(owner.id)
+    assert captured["subscription_data"]["metadata"] == captured["metadata"]
     monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda _: SimpleNamespace(
         id="cs_owner", payment_status="paid", subscription="sub_owner", metadata={"user_id": str(owner.id)}))
     assert client.get("/subscriptions/checkout/session/cs_owner", headers=headers).status_code == 200
