@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
+from app.schemas.datetimes import UtcDatetime
 from app.api.core.i18n import _
 from app.api.core.pagination import MAX_PAGE, PaginatedResponse
 from app.db.models.user import User
@@ -376,8 +377,8 @@ def use_points(
         raise HTTPException(status_code=400, detail=str(e))
 @router.get("/analytics/statistics", response_model=LoyaltyStatisticsResponse)
 def get_loyalty_statistics(
-    date_from: Optional[datetime] = Query(None),
-    date_to: Optional[datetime] = Query(None),
+    date_from: Optional[UtcDatetime] = Query(None),
+    date_to: Optional[UtcDatetime] = Query(None),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
@@ -409,8 +410,8 @@ def get_top_clients(
     return TopClientsResponse(clients=clients)
 @router.get("/analytics/promotion-effectiveness", response_model=PromotionEffectivenessResponse)
 def get_promotion_effectiveness(
-    date_from: Optional[datetime] = Query(None),
-    date_to: Optional[datetime] = Query(None),
+    date_from: Optional[UtcDatetime] = Query(None),
+    date_to: Optional[UtcDatetime] = Query(None),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
@@ -421,8 +422,8 @@ def get_promotion_effectiveness(
     return PromotionEffectivenessResponse(promotions=promotions)
 @router.get("/analytics/trends", response_model=PointsUsageTrendsResponse)
 def get_points_usage_trends(
-    date_from: Optional[datetime] = Query(None),
-    date_to: Optional[datetime] = Query(None),
+    date_from: Optional[UtcDatetime] = Query(None),
+    date_to: Optional[UtcDatetime] = Query(None),
     group_by: str = Query("day", pattern="^(day|week|month)$"),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),

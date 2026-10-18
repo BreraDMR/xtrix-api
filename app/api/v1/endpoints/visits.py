@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from app.api import deps
+from app.schemas.datetimes import UtcDatetime
 from app.api.core.i18n import _
 from app.api.core.logger import get_logger
 from app.api.core.notify import send_notifications
@@ -116,8 +117,8 @@ def create_visit(
 def visits_list(
     client_id: Optional[int] = None,
     specialist_id: Optional[int] = None,
-    date_from: Optional[datetime] = None,
-    date_to: Optional[datetime] = None,
+    date_from: Optional[UtcDatetime] = None,
+    date_to: Optional[UtcDatetime] = None,
     page: int = Query(1, ge=1, le=MAX_PAGE),
     per_page: int = Query(20, ge=1, le=100),
     include_deleted: bool = Query(False, description="Include soft-deleted visits"),
@@ -260,8 +261,8 @@ def export_visits_csv(
     request: Request,
     client_id: Optional[int] = None,
     specialist_id: Optional[int] = None,
-    date_from: Optional[datetime] = None,
-    date_to: Optional[datetime] = None,
+    date_from: Optional[UtcDatetime] = None,
+    date_to: Optional[UtcDatetime] = None,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
 ):
@@ -285,8 +286,8 @@ def export_visits_excel(
     request: Request,
     client_id: Optional[int] = None,
     specialist_id: Optional[int] = None,
-    date_from: Optional[datetime] = None,
-    date_to: Optional[datetime] = None,
+    date_from: Optional[UtcDatetime] = None,
+    date_to: Optional[UtcDatetime] = None,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
 ):

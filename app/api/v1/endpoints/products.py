@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
+from app.schemas.datetimes import UtcDatetime
 from app.api.core.i18n import _
 from app.api.core.pagination import MAX_PAGE, PaginatedResponse
 from app.db.models.user import User
@@ -113,8 +114,8 @@ def list_product_usages(
     product_id: Optional[int] = Query(None),
     visit_id: Optional[int] = Query(None),
     client_id: Optional[int] = Query(None),
-    date_from: Optional[datetime] = Query(None),
-    date_to: Optional[datetime] = Query(None),
+    date_from: Optional[UtcDatetime] = Query(None),
+    date_to: Optional[UtcDatetime] = Query(None),
     page: int = Query(1, ge=1, le=MAX_PAGE),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(deps.get_db),

@@ -1,8 +1,8 @@
 from typing import Optional, List
-from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
+from app.schemas.datetimes import UtcDatetime
 from app.api.core.i18n import _
 from app.api.core.pagination import MAX_PAGE, PaginatedResponse
 from app.db.models.user import User
@@ -117,8 +117,8 @@ def create_expense(
 @router.get("/", response_model=PaginatedResponse[ExpenseOut])
 def list_expenses(
     category_id: Optional[int] = Query(None),
-    date_from: Optional[datetime] = Query(None),
-    date_to: Optional[datetime] = Query(None),
+    date_from: Optional[UtcDatetime] = Query(None),
+    date_to: Optional[UtcDatetime] = Query(None),
     payment_method: Optional[str] = Query(None),
     min_amount: Optional[float] = Query(None),
     max_amount: Optional[float] = Query(None),
@@ -196,8 +196,8 @@ def delete_expense(
     return {"message": _("expense_deleted", locale)}
 @router.get("/reports/profit")
 def get_profit_report(
-    date_from: Optional[datetime] = Query(None),
-    date_to: Optional[datetime] = Query(None),
+    date_from: Optional[UtcDatetime] = Query(None),
+    date_to: Optional[UtcDatetime] = Query(None),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
@@ -282,8 +282,8 @@ def get_profit_report(
     }
 @router.get("/reports/expenses-by-category")
 def get_expenses_by_category(
-    date_from: Optional[datetime] = Query(None),
-    date_to: Optional[datetime] = Query(None),
+    date_from: Optional[UtcDatetime] = Query(None),
+    date_to: Optional[UtcDatetime] = Query(None),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),

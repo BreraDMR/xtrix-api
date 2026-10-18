@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from app.api import deps
+from app.schemas.datetimes import UtcDatetime
 from app.api.core.i18n import _
 from app.api.core.analytics import (
     get_visit_statistics,
@@ -65,8 +66,8 @@ def _scope(current_user: User, db: Session, requested_specialist_id: Optional[in
 def get_visits_statistics(
     specialist_id: Optional[int] = Query(None),
     client_id: Optional[int] = Query(None),
-    date_from: Optional[datetime] = Query(None),
-    date_to: Optional[datetime] = Query(None),
+    date_from: Optional[UtcDatetime] = Query(None),
+    date_to: Optional[UtcDatetime] = Query(None),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
@@ -95,8 +96,8 @@ def get_visits_statistics(
 @router.get("/financial/report", response_model=FinancialReportResponse)
 def get_financial_report_endpoint(
     specialist_id: Optional[int] = Query(None),
-    date_from: Optional[datetime] = Query(None),
-    date_to: Optional[datetime] = Query(None),
+    date_from: Optional[UtcDatetime] = Query(None),
+    date_to: Optional[UtcDatetime] = Query(None),
     group_by: str = Query("month", pattern="^(day|week|month|year)$"),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
@@ -129,8 +130,8 @@ def get_financial_report_endpoint(
 @router.get("/services/popular", response_model=PopularServicesResponse)
 def get_popular_services_endpoint(
     specialist_id: Optional[int] = Query(None),
-    date_from: Optional[datetime] = Query(None),
-    date_to: Optional[datetime] = Query(None),
+    date_from: Optional[UtcDatetime] = Query(None),
+    date_to: Optional[UtcDatetime] = Query(None),
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
@@ -165,8 +166,8 @@ def get_clients_statistics(
 @router.get("/payments/statistics", response_model=PaymentStatisticsResponse)
 def get_payments_statistics(
     specialist_id: Optional[int] = Query(None),
-    date_from: Optional[datetime] = Query(None),
-    date_to: Optional[datetime] = Query(None),
+    date_from: Optional[UtcDatetime] = Query(None),
+    date_to: Optional[UtcDatetime] = Query(None),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
@@ -279,8 +280,8 @@ def export_report(
         return export_to_excel(export_data, filename=f"{filename}.xlsx", sheet_name=sheet_name)
 @router.get("/retention/metrics", response_model=RetentionMetricsResponse)
 def get_retention_metrics_endpoint(
-    date_from: Optional[datetime] = Query(None),
-    date_to: Optional[datetime] = Query(None),
+    date_from: Optional[UtcDatetime] = Query(None),
+    date_to: Optional[UtcDatetime] = Query(None),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
@@ -290,8 +291,8 @@ def get_retention_metrics_endpoint(
     return RetentionMetricsResponse(**metrics)
 @router.get("/retention/cohorts", response_model=CohortTableResponse)
 def get_cohorts_endpoint(
-    date_from: Optional[datetime] = Query(None),
-    date_to: Optional[datetime] = Query(None),
+    date_from: Optional[UtcDatetime] = Query(None),
+    date_to: Optional[UtcDatetime] = Query(None),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
@@ -323,8 +324,8 @@ def get_forecast_endpoint(
     return ForecastResponse(**forecast)
 @router.get("/services-specialists", response_model=ServiceAndSpecialistAnalyticsResponse)
 def get_service_and_specialist_analytics_endpoint(
-    date_from: Optional[datetime] = Query(None),
-    date_to: Optional[datetime] = Query(None),
+    date_from: Optional[UtcDatetime] = Query(None),
+    date_to: Optional[UtcDatetime] = Query(None),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 from app.api import deps
+from app.schemas.datetimes import UtcDatetime
 from app.api.core.monitoring import metrics_collector, get_health_status
 from app.db.models.visit import Visit
 router = APIRouter()
@@ -114,8 +115,8 @@ def prometheus_metrics(_=Depends(deps.role_required("admin"))):
     return Response(content="\n".join(lines), media_type="text/plain")
 @router.get("/revenue")
 def revenue(
-    start: datetime,
-    end: datetime,
+    start: UtcDatetime,
+    end: UtcDatetime,
     db: Session = Depends(deps.get_db),
     _=Depends(deps.role_required("admin", "specialist")),
 ):
