@@ -100,7 +100,8 @@ def test_access_client_history_invalid_password(db: Session, test_client_with_qr
             "password": "9999",  
         },
     )
-    assert response.status_code == 401
+    # a wrong PIN is not an expired session, the frontend must not log anyone out
+    assert response.status_code == 403
 def test_qr_code_generation_permissions(db: Session, auth_headers, make_user, headers_for):
     client_obj = _create_client(auth_headers, "Test Client")
     response = test_client.post(
@@ -125,10 +126,10 @@ def test_qr_pin_guessing_locks_the_qr(db: Session, test_client_with_qr, auth_hea
     wrong = "0000" if password != "0000" else "1111"
     access = lambda pin: test_client.post("/clients/qr-code/access", json={"qr_code_data": qr_data, "password": pin})
     for _ in range(4):
-        assert access(wrong).status_code == 401
+        assert access(wrong).status_code == 403
     assert access(password).status_code == 200  # a right PIN resets the counter
     for _ in range(5):
-        assert access(wrong).status_code == 401
+        assert access(wrong).status_code == 403
     r = access(password)
     assert r.status_code == 429  # locked now, even with the right PIN
     # issuing a new QR unlocks
