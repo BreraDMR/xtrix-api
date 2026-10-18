@@ -103,6 +103,40 @@ def test_surname_change_does_not_join_different_people():
     assert not word_match("novakova", "novak")
 
 
+@pytest.mark.parametrize("query, who", [
+    ("Марина Петрова", "Марина Петрова"),
+    ("Марину Петрову", "Марина Петрова"),
+    ("Марины Петровой", "Марина Петрова"),
+    ("Марией Петровой", "Мария Петрова"),
+    ("Марию Петрову", "Мария Петрова"),
+])
+def test_similar_names_are_distinct_with_and_without_the_intended_client(query, who):
+    rows = [(1, "Мария Петрова"), (2, "Марина Петрова")]
+    assert found(query, rows) == [who]
+    assert found(query, [r for r in rows if r[1] != who]) == []
+
+
+@pytest.mark.parametrize("query", ["Наталью", "Наталье", "Натальей", "Натальи"])
+def test_soft_sign_name_cases_do_not_need_fuzzy_matching(query):
+    assert found(query, [(1, "Наталья Белова")]) == ["Наталья Белова"]
+
+
+def test_declined_name_wins_over_a_partial_different_name():
+    assert found("Анну", [(1, "Анна Петрова"), (2, "Аннушка Иванова")]) == ["Анна Петрова"]
+
+
+@pytest.mark.parametrize("query", ["Клиент 456", "Клиент 12", "Клиент 2"])
+def test_numbers_in_names_are_not_discarded_or_partially_matched(query):
+    assert found(query, [(1, "Клиент 123")]) == []
+
+
+def test_numeric_name_parts_disambiguate_clients():
+    rows = [(1, "Клиент 123"), (2, "Клиент 456")]
+    assert found("Клиент 456", rows) == ["Клиент 456"]
+    assert found("Клиент 123", rows) == ["Клиент 123"]
+    assert rank_in_text("123 456", rows, limit=10) == []
+
+
 def test_text_ranking_puts_the_named_client_first():
     ids = rank_in_text("Запиши Анну Петрову на стрижку завтра в 10", CLIENTS, limit=10)
     assert ids[0] == 1 and 2 in ids  # Петренко is an Анна too, just lower

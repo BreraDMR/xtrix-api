@@ -19,10 +19,10 @@ from app.db.models.client import Client
 
 MIN_WORD = 3  # shorter words ("на", "do", "к") only ever match a whole word
 MAX_TEXT_WORDS = 24
-_WORD = re.compile(r"[^\W\d_]+", re.UNICODE)
+_WORD = re.compile(r"[^\W_]+", re.UNICODE)
 
 # endings cut off when comparing; written the usual way and folded below (й -> и, ý -> y and so on)
-_RU = ("иями ями ами иях ях ах ией ого его ому ему ыми ими ой ою ею ый ий ым им ом ем ую юю ая яя ые ие ых их "
+_RU = ("иями ями ами иях ях ах ией ого его ому ему ыми ими ой ою ею ей ый ий ым им ом ем ую юю ая яя ые ие ых их "
        "ия ию ии ам ям а я у ю ы и е о ь").split()
 _CZ = "ovi ech ami emi iho eho imu emu ých ými ou ým ím em um ie ii a u y e i o".split()
 
@@ -54,24 +54,14 @@ def _stems(word: str) -> frozenset:
     return frozenset(out)
 
 
-def _near(a: frozenset, b: frozenset) -> bool:
-    # one letter apart at the end, e.g. "наталье" / "наталь" (Натальей / Наталья)
-    for x in a:
-        for y in b:
-            short, long_ = (x, y) if len(x) <= len(y) else (y, x)
-            if len(short) >= 4 and len(long_) - len(short) <= 1 and long_.startswith(short):
-                return True
-    return False
-
-
 def word_match(q: str, n: str) -> int:
     """How well a folded query word fits a folded name word: EXACT, STEM, PREFIX or 0."""
     if q == n:
         return EXACT
-    if len(q) < MIN_WORD or len(n) < MIN_WORD:
+    if len(q) < MIN_WORD or len(n) < MIN_WORD or q.isdecimal() or n.isdecimal():
         return 0
     a, b = _stems(q), _stems(n)
-    if a & b or _near(a, b):
+    if a & b:
         return STEM
     if len(q) >= 4 and n.startswith(q):
         return PREFIX
@@ -82,9 +72,10 @@ def resolve_name(query: str, clients: Iterable[Row]) -> list[Row]:
     """Clients a find_client name means, best group only: one row = found, several = ambiguous.
 
     1. the exact full name (folded), if anybody has it
-    2. otherwise the old plain substring of the full name, now without accents - whatever it found
-       alone before, it still finds alone ("Clarke" is Emma Clarke, not Emily Clark too)
-    3. otherwise every word of the query fits a word of the name, case endings allowed
+    2. a plain substring when one of its candidates also contains every whole query word
+       ("Clarke" is Emma Clarke, while "Clark" still finds both Clark and Clarke)
+    3. otherwise every query word fits a name word with only case endings removed
+    4. finally a plain substring or partial name, if there is no stronger match
     A query that only fits some of the words finds nobody - that would be guessing.
     """
     qw = name_words(query)
@@ -95,10 +86,17 @@ def resolve_name(query: str, clients: Iterable[Row]) -> list[Row]:
     if exact:
         return _rows(exact)
     flat = " ".join(qw)
+    plain = []
     if len(flat) >= MIN_WORD:
-        plain = [r for r in rows if flat in " ".join(r[2])]
-        if plain:
+        plain = [r for r in rows if flat in " ".join(r[2]) and
+                 all(q in r[2] for q in qw if q.isdecimal())]
+        if any(all(q in r[2] for q in qw) for r in plain):
             return _rows(plain)
+    stemmed = [r for r in rows if r[2] and all(any(word_match(q, n) >= STEM for n in r[2]) for q in qw)]
+    if stemmed:
+        return _rows(stemmed)
+    if plain:
+        return _rows(plain)
     return _rows([r for r in rows if r[2] and all(any(word_match(q, n) for n in r[2]) for q in qw)])
 
 
@@ -115,7 +113,7 @@ def rank_in_text(text: str, clients: Iterable[Row], *, limit: int) -> list[int]:
     """Ids of clients a free-text request may mean, best first: the full name in the text, then
     every word of the name found, then more exact words, then more words; ties by id."""
     all_words = name_words(text)
-    tw = list(dict.fromkeys(w for w in all_words if len(w) >= MIN_WORD))[:MAX_TEXT_WORDS]
+    tw = list(dict.fromkeys(w for w in all_words if len(w) >= MIN_WORD and not w.isdecimal()))[:MAX_TEXT_WORDS]
     if not tw:
         return []
     scored = []

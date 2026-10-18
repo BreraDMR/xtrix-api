@@ -72,3 +72,6 @@ Missing info should be an `expect: {questions: true, read_only: true}` case - th
 A `client` matcher takes the client's id, or a `find_client` the executor would resolve to exactly that client.
 The scorer calls the executor's own name search (`app/ai/client_search.py`), so "Анну Петрову" or "Svobodovou"
 count, and "Анна" doesn't (it finds both Annas).
+Exact full names take priority, numeric name parts stay significant, and a declined name takes priority
+over a partial different name: "Анну" finds "Анна", rather than "Аннушка". Similar spellings such as
+"Мария" and "Марина" are distinct.
