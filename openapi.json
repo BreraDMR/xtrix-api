@@ -1289,12 +1289,161 @@
         "title": "ClientUpdate",
         "type": "object"
       },
+      "CohortData": {
+        "properties": {
+          "cohort_month": {
+            "title": "Cohort Month",
+            "type": "string"
+          },
+          "month_0": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month 0"
+          },
+          "month_1": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month 1"
+          },
+          "month_10": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month 10"
+          },
+          "month_11": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month 11"
+          },
+          "month_2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month 2"
+          },
+          "month_3": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month 3"
+          },
+          "month_4": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month 4"
+          },
+          "month_5": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month 5"
+          },
+          "month_6": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month 6"
+          },
+          "month_7": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month 7"
+          },
+          "month_8": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month 8"
+          },
+          "month_9": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month 9"
+          },
+          "total_clients": {
+            "title": "Total Clients",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cohort_month",
+          "total_clients"
+        ],
+        "title": "CohortData",
+        "type": "object"
+      },
       "CohortTableResponse": {
         "properties": {
           "cohort_table": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/CohortData"
             },
             "title": "Cohort Table",
             "type": "array"
@@ -2031,6 +2180,51 @@
           "created_at"
         ],
         "title": "ExpenseCategoryOut",
+        "type": "object"
+      },
+      "ExpenseCategoryTotal": {
+        "properties": {
+          "category_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Code"
+          },
+          "category_id": {
+            "title": "Category Id",
+            "type": "integer"
+          },
+          "category_name": {
+            "title": "Category Name",
+            "type": "string"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "total": {
+            "title": "Total",
+            "type": "number"
+          }
+        },
+        "required": [
+          "category_id",
+          "category_name",
+          "total"
+        ],
+        "title": "ExpenseCategoryTotal",
         "type": "object"
       },
       "ExpenseCategoryUpdate": {
@@ -5170,6 +5364,104 @@
           "created_at"
         ],
         "title": "ProductUsageOut",
+        "type": "object"
+      },
+      "ProfitDay": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "expenses": {
+            "title": "Expenses",
+            "type": "number"
+          },
+          "profit": {
+            "title": "Profit",
+            "type": "number"
+          },
+          "revenue": {
+            "title": "Revenue",
+            "type": "number"
+          }
+        },
+        "required": [
+          "date",
+          "revenue",
+          "expenses",
+          "profit"
+        ],
+        "title": "ProfitDay",
+        "type": "object"
+      },
+      "ProfitReportPeriod": {
+        "properties": {
+          "from": {
+            "format": "date-time",
+            "title": "From",
+            "type": "string"
+          },
+          "to": {
+            "format": "date-time",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "title": "ProfitReportPeriod",
+        "type": "object"
+      },
+      "ProfitReportResponse": {
+        "properties": {
+          "daily": {
+            "items": {
+              "$ref": "#/components/schemas/ProfitDay"
+            },
+            "title": "Daily",
+            "type": "array"
+          },
+          "expenses": {
+            "title": "Expenses",
+            "type": "number"
+          },
+          "expenses_by_category": {
+            "items": {
+              "$ref": "#/components/schemas/ExpenseCategoryTotal"
+            },
+            "title": "Expenses By Category",
+            "type": "array"
+          },
+          "period": {
+            "$ref": "#/components/schemas/ProfitReportPeriod"
+          },
+          "profit": {
+            "title": "Profit",
+            "type": "number"
+          },
+          "profit_margin": {
+            "description": "Profit as a percent of revenue, 0 when there is no revenue",
+            "title": "Profit Margin",
+            "type": "number"
+          },
+          "revenue": {
+            "title": "Revenue",
+            "type": "number"
+          }
+        },
+        "required": [
+          "period",
+          "revenue",
+          "expenses",
+          "profit",
+          "profit_margin",
+          "expenses_by_category",
+          "daily"
+        ],
+        "title": "ProfitReportResponse",
         "type": "object"
       },
       "PromotionEffectivenessItem": {
@@ -14745,7 +15037,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ExpenseCategoryTotal"
+                  },
+                  "title": "Response Get Expenses By Category Expenses Reports Expenses By Category Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -14831,7 +15129,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ProfitReportResponse"
+                }
               }
             },
             "description": "Successful Response"

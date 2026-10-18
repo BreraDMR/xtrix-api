@@ -76,7 +76,7 @@ class CohortData(BaseModel):
     month_10: Optional[float] = None
     month_11: Optional[float] = None
 class CohortTableResponse(BaseModel):
-    cohort_table: List[Dict[str, Any]]
+    cohort_table: List[CohortData]
     total_cohorts: int
 class TrendsAnalysisResponse(BaseModel):
     metric: str

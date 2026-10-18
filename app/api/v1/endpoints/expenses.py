@@ -7,7 +7,7 @@ from app.api.core.i18n import _
 from app.api.core.pagination import MAX_PAGE, PaginatedResponse
 from app.db.models.user import User
 from app.db.models.expense import Expense
-from app.schemas.expense import ExpenseCreate, ExpenseUpdate, ExpenseOut
+from app.schemas.expense import ExpenseCategoryTotal, ExpenseCreate, ExpenseUpdate, ExpenseOut, ProfitReportResponse
 from app.schemas.expense_category import ExpenseCategoryCreate, ExpenseCategoryUpdate, ExpenseCategoryOut
 from app.api.crud import crud_expense, crud_expense_category
 from app.api.core.logger import logger
@@ -194,7 +194,7 @@ def delete_expense(
         raise HTTPException(status_code=404, detail=_("expense_not_found", locale))
     logger.info(f"Deleted expense {expense_id} by user {current_user.id}")
     return {"message": _("expense_deleted", locale)}
-@router.get("/reports/profit")
+@router.get("/reports/profit", response_model=ProfitReportResponse)
 def get_profit_report(
     date_from: Optional[UtcDatetime] = Query(None),
     date_to: Optional[UtcDatetime] = Query(None),
@@ -269,10 +269,7 @@ def get_profit_report(
             "profit": revenue_dict.get(date, 0.0) - expense_dict.get(date, 0.0),
         })
     return {
-        "period": {
-            "from": date_from.isoformat(),
-            "to": date_to.isoformat(),
-        },
+        "period": {"from": date_from, "to": date_to},
         "revenue": revenue,
         "expenses": expenses,
         "profit": profit,
@@ -280,7 +277,7 @@ def get_profit_report(
         "expenses_by_category": expenses_by_category,
         "daily": profit_daily,
     }
-@router.get("/reports/expenses-by-category")
+@router.get("/reports/expenses-by-category", response_model=List[ExpenseCategoryTotal])
 def get_expenses_by_category(
     date_from: Optional[UtcDatetime] = Query(None),
     date_to: Optional[UtcDatetime] = Query(None),
