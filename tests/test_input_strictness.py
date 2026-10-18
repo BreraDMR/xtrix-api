@@ -123,3 +123,25 @@ def test_null_into_not_null_column_is_a_422_with_the_field(client, make_user, he
     assert err["field"] == "body -> name" and err["code"] == "null_not_allowed"
     assert client.get(f"/businesses/{biz['id']}", headers=h).json()["name"] == "Salon"
 
+
+PAGING = {"page": [0, 10**20], "per_page": [0, 10**6], "skip": [-1, 10**20], "limit": [0, 10**6], "offset": [-1, 10**20]}
+
+
+def test_paging_params_are_bounded(make_user, headers_for):
+    client = TestClient(app, raise_server_exceptions=False)
+    a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
+    ids = _ids(a)
+    bad = []
+    for path, ops in SPEC["paths"].items():
+        op = ops.get("get")
+        if not op:
+            continue
+        url = re.sub(r"\{(\w+)\}", lambda m: str(ids.get(m.group(1), 1)), path)
+        for p in op.get("parameters", []):
+            for junk in PAGING.get(p["name"], []) if p["in"] == "query" else []:
+                for headers in (a["headers"], {}):
+                    r = client.get(url, params={**_params(op, ids), p["name"]: junk}, headers=headers)
+                    # 401/403 is fine too: the role check runs before the query is looked at
+                    if r.status_code not in (422, 401, 403):
+                        bad.append(f"GET {path} {p['name']}={junk}: {r.status_code}")
+    assert not bad, "\n".join(bad)

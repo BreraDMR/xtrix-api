@@ -1,7 +1,9 @@
 from typing import Generic, TypeVar
 from pydantic import BaseModel
 T = TypeVar('T')
+# past this a page or offset is junk, and (page - 1) * per_page would overflow bigint
 MAX_PAGE = 100_000
+MAX_OFFSET = 10_000_000
 class PaginationParams(BaseModel):
     page: int = 1
     per_page: int = 20

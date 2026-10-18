@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.audit import get_audit_logs
-from app.api.core.pagination import PaginationParams, PaginatedResponse
+from app.api.core.pagination import MAX_PAGE, PaginationParams, PaginatedResponse
 from app.db.models.user import User
 from app.schemas.analytics import AuditLogOut
 from app.api.middleware.rate_limit import limiter, EXPORT_LIMIT
@@ -14,7 +14,7 @@ def list_audit_logs(
     entity_id: Optional[int] = Query(None),
     user_id: Optional[int] = Query(None),
     action: Optional[str] = Query(None),
-    page: int = Query(1, ge=1, le=100_000),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin")),

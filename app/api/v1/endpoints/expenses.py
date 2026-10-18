@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _
-from app.api.core.pagination import PaginatedResponse
+from app.api.core.pagination import MAX_PAGE, PaginatedResponse
 from app.db.models.user import User
 from app.db.models.expense import Expense
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate, ExpenseOut
@@ -122,7 +122,7 @@ def list_expenses(
     payment_method: Optional[str] = Query(None),
     min_amount: Optional[float] = Query(None),
     max_amount: Optional[float] = Query(None),
-    page: int = Query(1, ge=1, le=100_000),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),

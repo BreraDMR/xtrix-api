@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _
 from app.api.core.logger import get_logger
-from app.api.core.pagination import PaginationParams, PaginatedResponse
+from app.api.core.pagination import MAX_PAGE, PaginationParams, PaginatedResponse
 from app.api.core.qr_code import generate_qr_code_base64, parse_qr_code_data, verify_qr_code_hash
 from app.api.crud import crud_client, crud_visit
 from app.db.models.user import User
@@ -124,7 +124,7 @@ def list_clients(
     owner_id: Optional[int] = None,
     phone: Optional[str] = None,
     name: Optional[str] = None,
-    page: int = Query(1, ge=1, le=100_000),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     per_page: int = Query(20, ge=1, le=100),
     include_deleted: bool = Query(False, description="Include soft-deleted clients"),
     include_archived: bool = Query(False, description="Include archived clients"),

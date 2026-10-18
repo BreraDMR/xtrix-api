@@ -5,7 +5,7 @@ from app.api.core.i18n import _
 from app.api.core.clock import utcnow
 from app.api.core.logger import get_logger, mask_email, mask_phone
 from app.api.core.security import verify_refresh_token, create_access_token, create_refresh_token
-from app.api.core.pagination import PaginationParams, PaginatedResponse
+from app.api.core.pagination import MAX_PAGE, PaginationParams, PaginatedResponse
 from fastapi.responses import JSONResponse
 from app.api.core.login_guard import LoginThrottled
 from app.api.middleware.rate_limit import client_ip, limiter, LOGIN_LIMIT, SIGNUP_LIMIT, SENSITIVE_LIMIT
@@ -205,7 +205,7 @@ def unlock_user_account(
     return {"message": _("account_unlocked", locale)}
 @router.get("/pending", response_model=PaginatedResponse[UserOut], summary="List users pending moderation")
 def list_pending_users(
-    page: int = Query(1, ge=1, le=100_000),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin")),
@@ -252,7 +252,7 @@ def moderate_user(
 @router.get("/", response_model=PaginatedResponse[UserOut])
 def users_list(
     role: str | None = None,
-    page: int = Query(1, ge=1, le=100_000),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner")),

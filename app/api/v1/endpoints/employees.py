@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _
 from app.api.core.logger import get_logger
-from app.api.core.pagination import PaginationParams
+from app.api.core.pagination import MAX_PAGE, PaginationParams
 from app.api.crud import crud_employee, crud_salary
 from app.db.models.user import User
 from app.db.models.employee import Employee
@@ -269,7 +269,7 @@ def create_employee_with_user(
 def list_employees(
     business_owner_id: Optional[int] = Query(None, description="Filter by business owner (admin only)"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
-    page: int = Query(1, ge=1, le=100_000),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
@@ -681,7 +681,7 @@ def get_employee_current_salary(
 def get_employee_salary_history(
     employee_id: int,
     is_paid: Optional[bool] = Query(None, description="Filter by paid status"),
-    page: int = Query(1, ge=1, le=100_000),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),

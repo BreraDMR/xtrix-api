@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _
-from app.api.core.pagination import PaginatedResponse
+from app.api.core.pagination import MAX_PAGE, PaginatedResponse
 from app.db.models.user import User
 from app.db.models.product import Product
 from app.schemas.product import ProductCreate, ProductUpdate, ProductOut, ProductStockOut
@@ -36,7 +36,7 @@ def list_products(
     is_active: Optional[bool] = Query(True, description="Filter by active flag"),
     search: Optional[str] = Query(None, description="Search by name, description, barcode"),
     low_stock_only: bool = Query(False, description="Only low-stock products"),
-    page: int = Query(1, ge=1, le=100_000),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
@@ -115,7 +115,7 @@ def list_product_usages(
     client_id: Optional[int] = Query(None),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
-    page: int = Query(1, ge=1, le=100_000),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),

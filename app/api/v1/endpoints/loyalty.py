@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _
-from app.api.core.pagination import PaginatedResponse
+from app.api.core.pagination import MAX_PAGE, PaginatedResponse
 from app.db.models.user import User
 from app.schemas.loyalty import (
     LoyaltyProgramCreate,
@@ -302,7 +302,7 @@ def get_client_loyalty_balance(
 def list_client_transactions(
     client_id: int,
     transaction_type: Optional[str] = Query(None),
-    page: int = Query(1, ge=1, le=100_000),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),

@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _
-from app.api.core.pagination import PaginationParams, PaginatedResponse
+from app.api.core.pagination import MAX_PAGE, PaginationParams, PaginatedResponse
 from app.api.core.soft_delete import hard_delete, restore_soft_deleted, soft_delete
 from app.api.crud import crud_service
 from app.db.models.service import Service
@@ -47,7 +47,7 @@ def create_service(
 def list_services(
     specialist_id: Optional[int] = None,
     active_only: bool = False,
-    page: int = Query(1, ge=1, le=100_000),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),

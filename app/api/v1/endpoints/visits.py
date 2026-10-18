@@ -6,7 +6,7 @@ from app.api import deps
 from app.api.core.i18n import _
 from app.api.core.logger import get_logger
 from app.api.core.notify import send_notifications
-from app.api.core.pagination import PaginationParams, PaginatedResponse
+from app.api.core.pagination import MAX_PAGE, PaginationParams, PaginatedResponse
 from app.api.core.soft_delete import hard_delete, restore_soft_deleted, soft_delete
 from app.db.models.client import Client
 from app.api.core.slots import find_next_available_slot
@@ -118,7 +118,7 @@ def visits_list(
     specialist_id: Optional[int] = None,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
-    page: int = Query(1, ge=1, le=100_000),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     per_page: int = Query(20, ge=1, le=100),
     include_deleted: bool = Query(False, description="Include soft-deleted visits"),
     include_archived: bool = Query(False, description="Include archived visits"),

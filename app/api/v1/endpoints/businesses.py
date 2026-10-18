@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _
+from app.api.core.pagination import MAX_OFFSET
 from app.api.crud import crud_business
 from app.db.models.user import User
 from app.schemas.business import BusinessCreate, BusinessOut, BusinessUpdate
@@ -30,8 +31,8 @@ def create_business(
 @router.get("/", response_model=List[BusinessOut], summary="List businesses")
 def list_businesses(
     search: Optional[str] = None,
-    skip: int = Query(0, ge=0, le=1_000_000),
-    limit: int = Query(100, ge=1, le=200),
+    skip: int = Query(0, ge=0, le=MAX_OFFSET),
+    limit: int = Query(100, ge=1, le=100),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
