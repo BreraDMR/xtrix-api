@@ -176,7 +176,8 @@ def user_timezone(db: Session, user: User, config: AIConfig) -> str:
 
 def make_plan(db: Session, user: User, text: str, *, locale: str, tz: Optional[str] = None,
               role: Role = "fast", router: Optional[LLMRouter] = None, store: Optional[Store] = None,
-              config: Optional[AIConfig] = None) -> PlanDraft:
+              config: Optional[AIConfig] = None, now: Optional[datetime] = None) -> PlanDraft:
+    # now: naive UTC, only the evals pin it so relative dates in their phrases stay put
     text = (text or "").strip()
     if not text:
         raise ValueError("empty request")
@@ -190,7 +191,7 @@ def make_plan(db: Session, user: User, text: str, *, locale: str, tz: Optional[s
     usage = reserve_request(db, user, config, role=role)
     try:
         tz = tz or user_timezone(db, user, config)
-        context = build_context(db, user, text, locale=locale, tz_name=tz)
+        context = build_context(db, user, text, locale=locale, tz_name=tz, now=now)
         messages = build_messages(text, context)
         result = router.generate(messages, AssistantPlan, role=role)
     except AIError as err:
