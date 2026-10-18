@@ -2,6 +2,7 @@ from app.schemas.datetimes import UtcDatetime
 from typing import Optional
 from pydantic import ConfigDict, BaseModel, Field
 from app.schemas.limits import Currency, LongText, PositiveMoney
+from app.schemas.base import InputModel
 class ExpenseBase(BaseModel):
     category_id: Optional[int] = None
     amount: PositiveMoney
@@ -9,9 +10,9 @@ class ExpenseBase(BaseModel):
     description: Optional[LongText] = None
     expense_date: UtcDatetime
     payment_method: str = Field(default="other", pattern="^(cash|card|transfer|other)$")
-class ExpenseCreate(ExpenseBase):
+class ExpenseCreate(InputModel, ExpenseBase):
     business_id: int
-class ExpenseUpdate(BaseModel):
+class ExpenseUpdate(InputModel):
     category_id: Optional[int] = None
     amount: Optional[PositiveMoney] = None
     currency: Optional[Currency] = None
@@ -20,6 +21,7 @@ class ExpenseUpdate(BaseModel):
     payment_method: Optional[str] = Field(None, pattern="^(cash|card|transfer|other)$")
 class ExpenseOut(ExpenseBase):
     id: int
+    currency: str  # whatever is stored, older rows predate the ISO check
     business_id: int
     created_by_id: Optional[int] = None
     source: Optional[str] = Field(None, description="null for manual expenses, salary_payment for automatic ones")

@@ -1,13 +1,14 @@
 from typing import Optional
 from pydantic import ConfigDict, BaseModel, Field
 from app.schemas.datetimes import UtcDatetime
+from app.schemas.base import InputModel
 class ProductUsageBase(BaseModel):
     product_id: int
     quantity: float = Field(..., gt=0)
     visit_id: Optional[int] = None
     client_id: Optional[int] = None
     notes: Optional[str] = Field(None, max_length=5000)
-class ProductUsageCreate(ProductUsageBase):
+class ProductUsageCreate(InputModel, ProductUsageBase):
     # the business is always the caller's own, a business_id in the body is ignored
     used_by_id: Optional[int] = None
 class ProductUsageOut(ProductUsageBase):

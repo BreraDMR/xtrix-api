@@ -1,5 +1,6 @@
 from typing import Optional
 from pydantic import ConfigDict, BaseModel, Field
+from app.schemas.base import InputModel
 class SubscriptionPlanBase(BaseModel):
     code: str = Field(..., max_length=50)
     name: str = Field(..., max_length=255)
@@ -10,9 +11,9 @@ class SubscriptionPlanBase(BaseModel):
     is_active: bool = True
     is_trial: bool = Field(default=False, description="Is this a trial plan")
     trial_days: Optional[int] = Field(None, ge=1, le=30, description="Trial length in days (7-14 for solo, 3-5 for admin)")
-class SubscriptionPlanCreate(SubscriptionPlanBase):
+class SubscriptionPlanCreate(InputModel, SubscriptionPlanBase):
     pass
-class SubscriptionPlanUpdate(BaseModel):
+class SubscriptionPlanUpdate(InputModel):
     name: Optional[str] = None
     period_days: Optional[int] = None
     price: Optional[float] = None

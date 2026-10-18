@@ -2,6 +2,7 @@ from typing import Optional
 from app.schemas.limits import MAX_MONEY, LongText, PaymentMethod, PaymentStatus, PositiveMoney
 from pydantic import ConfigDict, BaseModel, Field
 from app.schemas.datetimes import UtcDatetime
+from app.schemas.base import InputModel
 class SalaryCalculationBase(BaseModel):
     employee_id: int = Field(..., description="Employee ID")
     period_start: UtcDatetime = Field(..., description="Period start")
@@ -9,7 +10,7 @@ class SalaryCalculationBase(BaseModel):
     notes: Optional[LongText] = Field(None, description="Calculation notes")
 class SalaryCalculationCreate(SalaryCalculationBase):
     pass
-class SalaryCalculationUpdate(BaseModel):
+class SalaryCalculationUpdate(InputModel):
     is_paid: Optional[bool] = Field(None, description="Mark as paid")
     notes: Optional[LongText] = Field(None, description="Calculation notes")
 class SalaryCalculationOut(SalaryCalculationBase):
@@ -35,7 +36,7 @@ class SalaryCalculationOut(SalaryCalculationBase):
     model_config = ConfigDict(from_attributes=True)
 class SalaryCalculationWithEmployee(SalaryCalculationOut):
     employee: Optional[dict] = Field(None, description="Employee info")
-class CalculateSalaryRequest(BaseModel):
+class CalculateSalaryRequest(InputModel):
     period_start: UtcDatetime = Field(..., description="Period start")
     period_end: UtcDatetime = Field(..., description="Period end")
     notes: Optional[LongText] = Field(None, description="Calculation notes")
@@ -43,7 +44,7 @@ class SalaryAdjustmentBase(BaseModel):
     type: str = Field(..., description="bonus, penalty, overtime, allowance, deduction")
     amount: float = Field(..., ge=-MAX_MONEY, le=MAX_MONEY, description="Can be negative (penalty)")
     description: Optional[LongText] = Field(None, description="Description")
-class SalaryAdjustmentCreate(SalaryAdjustmentBase):
+class SalaryAdjustmentCreate(InputModel, SalaryAdjustmentBase):
     pass
 class SalaryAdjustmentOut(SalaryAdjustmentBase):
     id: int
@@ -57,9 +58,9 @@ class SalaryPaymentBase(BaseModel):
     payment_method: PaymentMethod = Field(default="other")
     status: PaymentStatus = Field(default="completed")
     notes: Optional[LongText] = Field(None, description="Notes")
-class SalaryPaymentCreate(SalaryPaymentBase):
+class SalaryPaymentCreate(InputModel, SalaryPaymentBase):
     pass
-class SalaryPaymentUpdate(BaseModel):
+class SalaryPaymentUpdate(InputModel):
     amount: Optional[PositiveMoney] = None
     payment_date: Optional[UtcDatetime] = None
     payment_method: Optional[PaymentMethod] = None

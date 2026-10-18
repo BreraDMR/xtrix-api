@@ -4,6 +4,7 @@ from app.schemas.limits import ClientLanguage
 from pydantic import ConfigDict, BaseModel, Field, EmailStr, field_validator
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.errors import invalid, invalid_choice
+from app.schemas.base import InputModel
 class ClientBase(BaseModel):
     full_name: str = Field(..., max_length=255, min_length=1)
     birth_date: Optional[date] = None
@@ -46,9 +47,9 @@ class ClientBase(BaseModel):
             if not is_valid:
                 raise invalid("invalid_birth_date", error_msg)
         return v
-class ClientCreate(ClientBase):
+class ClientCreate(InputModel, ClientBase):
     owner_id: Optional[int] = None  
-class ClientUpdate(BaseModel):
+class ClientUpdate(InputModel):
     full_name: Optional[str] = Field(None, max_length=255, min_length=1)
     birth_date: Optional[date] = None
     gender: Optional[str] = Field(None, description="male|female|other")

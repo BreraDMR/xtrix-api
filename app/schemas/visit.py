@@ -4,6 +4,7 @@ from pydantic import ConfigDict, BaseModel, Field, field_validator
 from app.api.core.clock import utcnow
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.errors import invalid, invalid_choice
+from app.schemas.base import InputModel
 class UsedProduct(BaseModel):
     product_id: int
     quantity: float = Field(..., gt=0)
@@ -55,7 +56,7 @@ class VisitBase(BaseModel):
         if v is not None and v not in ['card', 'cash', 'other']:
             raise invalid_choice(['card', 'cash', 'other'], "Payment method")
         return v
-class VisitCreate(VisitBase):
+class VisitCreate(InputModel, VisitBase):
     @field_validator('date_start')
     @classmethod
     def validate_date_start(cls, v):
@@ -73,7 +74,7 @@ class VisitCreate(VisitBase):
             if v_utc < now - timedelta(days=365):
                 pass
         return v
-class VisitUpdate(BaseModel):
+class VisitUpdate(InputModel):
     date_start: Optional[UtcDatetime] = None
     date_end: Optional[UtcDatetime] = None
     service_id: Optional[int] = None

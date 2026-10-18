@@ -1,0 +1,103 @@
+"""Sweep over every POST/PUT body: values JSON clients send by mistake must get a clean 4xx.
+
+- "   " where a real text is required (names) - used to be saved as an empty name
+- true instead of a number - used to be read as 1
+- a number instead of a date (read as unix time) and dates centuries off
+"""
+import re
+from datetime import datetime, timedelta
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.main import app
+from tests.tenant_world import build_tenant
+from tests.test_tenant_isolation import SPEC, _ids, _params, _resolve, _value
+
+NAME_FIELDS = {"name", "full_name"}
+
+
+def _cases():
+    for path, ops in SPEC["paths"].items():
+        if "webhooks" in path:
+            continue
+        for method, op in ops.items():
+            content = op.get("requestBody", {}).get("content", {}).get("application/json")
+            if method not in ("post", "put") or not content:
+                continue
+            schema = _resolve(content["schema"])
+            yield method.upper(), path, op, schema
+
+
+def _sweep(make_user, headers_for, make_values):
+    client = TestClient(app, raise_server_exceptions=False)
+    a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
+    ids = _ids(a)
+    ids.update(ws_id=a["work"]["id"], block_id=a["block"]["id"])
+    results = []
+    n = 0
+    for method, path, op, schema in _cases():
+        props = schema.get("properties", {})
+        base = {k: _value(k, v, ids) for k, v in props.items()}
+        if "duration_minutes" in base:
+            # under 15 minutes, POST /visits without date_end answers 500 - a separate bug, keep it out of here
+            base["duration_minutes"] = 60
+        url = re.sub(r"\{(\w+)\}", lambda m: str(ids.get(m.group(1), 1)), path)
+        # schedules belong to the solo specialist in the tenant world
+        headers = a["specialist_headers"] if path.startswith("/schedules") else a["headers"]
+        for field, field_schema in props.items():
+            for value in make_values(field, _resolve(field_schema), field in schema.get("required", [])):
+                n += 1
+                unique = {k: v for k, v in (("email", f"s{n}@example.com"), ("phone", f"+42075{n:07d}"),
+                                            ("contact_phone", f"+42076{n:07d}"), ("barcode", f"BC{n}"))
+                          if k in props and k != field}
+                # a fresh time slot every time, so a double booking can't pass for the error under test
+                for k, v in props.items():
+                    if k != field and _resolve(v).get("format") == "date-time" and isinstance(base.get(k), str):
+                        unique[k] = (datetime.fromisoformat(base[k]) + timedelta(days=n)).isoformat()
+                body = {**base, **unique, field: value}
+                r = client.request(method, url, json=body, params=_params(op, ids), headers=headers)
+                results.append((f"{method} {path} {field}={value!r}", r))
+    return results
+
+
+def _ok(status):
+    return 200 <= status < 300
+
+
+def test_blank_required_text_is_rejected(make_user, headers_for):
+    def values(field, s, required):
+        if s.get("type") == "string" and not field.endswith("_id") and "format" not in s and "pattern" not in s \
+                and "enum" not in s and (required or s.get("minLength", 0) >= 1 or field in NAME_FIELDS):
+            yield "   "
+    bad = [case for case, r in _sweep(make_user, headers_for, values) if _ok(r.status_code)]
+    assert not bad, "\n".join(bad)
+
+
+def test_true_is_not_a_number(make_user, headers_for):
+    def values(field, s, required):
+        if s.get("type") in ("number", "integer") and not field.endswith("_id"):
+            yield True
+    bad = [case for case, r in _sweep(make_user, headers_for, values) if _ok(r.status_code)]
+    assert not bad, "\n".join(bad)
+
+
+def test_dates_are_iso_strings_in_a_sane_window(make_user, headers_for):
+    def values(field, s, required):
+        if s.get("format") == "date":
+            yield from (12345, "1800-01-01", "9999-12-31")
+        elif s.get("format") == "date-time":
+            yield from (12345, "1800-01-01T10:00:00", "9999-12-31T10:00:00")
+    bad = [case for case, r in _sweep(make_user, headers_for, values) if _ok(r.status_code)]
+    assert not bad, "\n".join(bad)
+
+
+@pytest.mark.parametrize("value, status", [("NaN", 422), ("XYZ", 422), ("czk", 200), ("CZK", 200)])
+def test_currency_is_iso_4217(client, make_user, headers_for, value, status):
+    owner = make_user("business_owner")
+    r = client.post("/businesses/", json={"name": "Salon", "business_type": "salon", "currency": value},
+                    headers=headers_for(owner))
+    assert r.status_code == status, r.text
+    if status == 200:
+        assert r.json()["currency"] == "CZK"
+

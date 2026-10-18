@@ -3,6 +3,7 @@ from app.schemas.limits import MAX_MONEY
 from pydantic import ConfigDict, BaseModel, Field, field_validator
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.errors import invalid
+from app.schemas.base import InputModel
 class EmployeePermissions(BaseModel):
     can_create_visits: bool = Field(default=True, description="Can create visits")
     can_edit_clients: bool = Field(default=True, description="Can edit clients")
@@ -29,9 +30,9 @@ class EmployeeBase(BaseModel):
         if v is not None and not isinstance(v, dict):
             raise invalid("invalid_permissions", "permissions must be a dictionary")
         return v
-class EmployeeCreate(EmployeeBase):
+class EmployeeCreate(InputModel, EmployeeBase):
     business_owner_id: Optional[int] = Field(None, description="Business owner ID (optional, admin only)")
-class EmployeeCreateWithUser(BaseModel):
+class EmployeeCreateWithUser(InputModel):
     full_name: str = Field(..., min_length=1, max_length=255, description="Employee's full name")
     phone: Optional[str] = Field(None, max_length=50, description="Employee phone")
     email: Optional[str] = Field(None, max_length=255, description="Employee email")
@@ -42,7 +43,7 @@ class EmployeeCreateWithUser(BaseModel):
     commission_percentage: Optional[float] = Field(0.0, ge=0.0, le=100.0)
     base_salary: Optional[float] = Field(0.0, ge=0.0, le=MAX_MONEY)
     notes: Optional[str] = Field(None, max_length=5000, description="Notes")
-class EmployeeUpdate(BaseModel):
+class EmployeeUpdate(InputModel):
     position: Optional[str] = Field(None, max_length=100)
     permissions: Optional[Dict[str, Any]] = Field(None)
     commission_percentage: Optional[float] = Field(None, ge=0.0, le=100.0)

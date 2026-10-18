@@ -2,6 +2,7 @@ from typing import Optional
 from app.schemas.limits import MAX_MONEY
 from pydantic import ConfigDict, BaseModel, Field
 from app.schemas.datetimes import UtcDatetime
+from app.schemas.base import InputModel
 class ProductBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=5000)
@@ -14,9 +15,9 @@ class ProductBase(BaseModel):
     supplier: Optional[str] = Field(None, max_length=255)
     location: Optional[str] = Field(None, max_length=255)
     is_active: bool = Field(default=True)
-class ProductCreate(ProductBase):
+class ProductCreate(InputModel, ProductBase):
     business_id: int
-class ProductUpdate(BaseModel):
+class ProductUpdate(InputModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=5000)
     unit: Optional[str] = Field(None, max_length=50)

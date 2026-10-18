@@ -1,6 +1,7 @@
 from datetime import time
 from pydantic import ConfigDict, BaseModel, Field, field_validator
 from app.schemas.errors import invalid
+from app.schemas.base import InputModel
 class WorkScheduleBase(BaseModel):
     weekday: int = Field(..., ge=0, le=6, description="0=Monday, 6=Sunday")
     start_time: time
@@ -17,9 +18,9 @@ class WorkScheduleBase(BaseModel):
             if not is_valid:
                 raise invalid("invalid_time_range", error_msg)
         return v
-class WorkScheduleCreate(WorkScheduleBase):
+class WorkScheduleCreate(InputModel, WorkScheduleBase):
     specialist_id: int
-class WorkScheduleUpdate(BaseModel):
+class WorkScheduleUpdate(InputModel):
     start_time: time | None = None
     end_time: time | None = None
 class WorkScheduleOut(WorkScheduleBase):

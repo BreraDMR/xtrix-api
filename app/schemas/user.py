@@ -2,6 +2,7 @@ from typing import Optional
 from pydantic import ConfigDict, BaseModel, EmailStr, Field, field_validator
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.errors import invalid, invalid_choice
+from app.schemas.base import InputModel
 class UserBase(BaseModel):
     full_name: str = Field(..., max_length=255, min_length=1)
     phone: Optional[str] = Field(None, max_length=50)
@@ -37,7 +38,7 @@ class UserBase(BaseModel):
     @classmethod
     def validate_specialist_type(cls, v):
         return v
-class UserCreate(UserBase):
+class UserCreate(InputModel, UserBase):
     password: str = Field(..., min_length=8)
     business_id: Optional[int] = Field(
         None, 
@@ -76,7 +77,7 @@ class LoginResponse(BaseModel):
     access_token: str | None = None
     refresh_token: str | None = None
     token_type: str = "bearer"
-class ModerationRequest(BaseModel):
+class ModerationRequest(InputModel):
     status: str = Field(..., description="Moderation status: approved or rejected")
     notes: Optional[str] = Field(None, max_length=1000, description="Moderator's comment")
     @field_validator('status')

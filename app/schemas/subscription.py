@@ -1,6 +1,7 @@
 from typing import Optional
 from pydantic import ConfigDict, BaseModel, Field
 from app.schemas.datetimes import UtcDatetime
+from app.schemas.base import InputModel
 class SubscriptionBase(BaseModel):
     user_id: int
     plan_id: int
@@ -15,7 +16,7 @@ class SubscriptionBase(BaseModel):
     cancelled_at: Optional[UtcDatetime] = None
     reactivated_at: Optional[UtcDatetime] = None
     last_transaction_id: Optional[int] = None
-class SubscriptionCreate(SubscriptionBase):
+class SubscriptionCreate(InputModel, SubscriptionBase):
     pass
 class SubscriptionUpdate(BaseModel):
     status: Optional[str] = None
@@ -29,7 +30,7 @@ class SubscriptionOut(SubscriptionBase):
     id: int
     created_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)
-class SubscriptionCancelRequest(BaseModel):
+class SubscriptionCancelRequest(InputModel):
     cancel_at_period_end: bool = Field(default=True, description="Cancel at end of current period (true) or immediately (false)")
-class SubscriptionReactivateRequest(BaseModel):
+class SubscriptionReactivateRequest(InputModel):
     plan_id: Optional[int] = Field(None, description="Optional: change plan when reactivating")

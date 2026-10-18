@@ -4,6 +4,7 @@ from app.schemas.limits import HexColor, PromotionType, LongText, LoyaltyProgram
 from pydantic import ConfigDict, BaseModel, Field, model_validator
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.errors import invalid
+from app.schemas.base import InputModel
 class LoyaltyProgramBase(BaseModel):
     program_type: LoyaltyProgramType
     points_per_currency: Points = Field(1.0, description="Points per currency unit")
@@ -17,9 +18,9 @@ class LoyaltyProgramBase(BaseModel):
     birthday_bonus_percent: Optional[Percent] = Field(None, description="Birthday bonus cashback percent")
     is_active: bool = Field(True, description="Is program active")
     max_bonus_payment_percent: Optional[float] = Field(100.0, ge=0, le=100, description="Max % of check that can be paid with bonuses")
-class LoyaltyProgramCreate(LoyaltyProgramBase):
+class LoyaltyProgramCreate(InputModel, LoyaltyProgramBase):
     business_id: int
-class LoyaltyProgramUpdate(BaseModel):
+class LoyaltyProgramUpdate(InputModel):
     program_type: Optional[LoyaltyProgramType] = None
     points_per_currency: Optional[Points] = None
     points_name: Optional[ShortText] = None
@@ -46,9 +47,9 @@ class LoyaltyLevelBase(BaseModel):
     cashback_multiplier: Optional[Multiplier] = Field(1.0, description="Cashback multiplier")
     benefits: Optional[LongText] = Field(None, description="Benefits description (JSON)")
     color: Optional[HexColor] = Field(None, description="Color for UI, #rrggbb")
-class LoyaltyLevelCreate(LoyaltyLevelBase):
+class LoyaltyLevelCreate(InputModel, LoyaltyLevelBase):
     program_id: int
-class LoyaltyLevelUpdate(BaseModel):
+class LoyaltyLevelUpdate(InputModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     level_number: Optional[int] = Field(None, ge=1)
     min_spending: Optional[Money] = None
@@ -75,14 +76,14 @@ class LoyaltyPromotionBase(BaseModel):
     end_date: date = Field(..., description="Promotion end date")
     client_id: Optional[int] = Field(None, description="Client ID (null = for all clients)")
     is_active: bool = Field(True, description="Is promotion active")
-class LoyaltyPromotionCreate(LoyaltyPromotionBase):
+class LoyaltyPromotionCreate(InputModel, LoyaltyPromotionBase):
     program_id: int
     @model_validator(mode="after")
     def ends_after_start(self):
         if self.end_date < self.start_date:
             raise invalid("end_before_start", "end_date must not be before start_date")
         return self
-class LoyaltyPromotionUpdate(BaseModel):
+class LoyaltyPromotionUpdate(InputModel):
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[LongText] = None
     promotion_type: Optional[PromotionType] = None
@@ -125,7 +126,7 @@ class ClientLoyaltyBalance(BaseModel):
     cashback: float
     level: Optional[LoyaltyLevelOut] = None
     level_id: Optional[int] = None
-class UsePointsRequest(BaseModel):
+class UsePointsRequest(InputModel):
     points_to_use: Optional[float] = Field(None, ge=0, description="Points to use")
     cashback_to_use: Optional[float] = Field(None, ge=0, description="Cashback to use")
     visit_id: Optional[int] = Field(None, description="Visit ID if applicable")

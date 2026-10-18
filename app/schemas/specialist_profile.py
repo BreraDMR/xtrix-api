@@ -2,6 +2,7 @@ from typing import Optional
 from pydantic import ConfigDict, BaseModel, Field, field_validator
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.errors import invalid_choice
+from app.schemas.base import InputModel
 class SpecialistProfileBase(BaseModel):
     specialist_type: Optional[str] = Field(None, description="Type of specialist (e.g., 'massage', 'cosmetologist', 'dentist')")
     specialist_category: Optional[str] = Field(None, description="Category: 'beauty', 'wellness', or 'healthcare'")
@@ -26,9 +27,9 @@ class SpecialistProfileBase(BaseModel):
         if v is not None and v not in ['beauty', 'wellness', 'healthcare']:
             raise invalid_choice(['beauty', 'wellness', 'healthcare'], "specialist_category")
         return v
-class SpecialistProfileCreate(SpecialistProfileBase):
+class SpecialistProfileCreate(InputModel, SpecialistProfileBase):
     user_id: int
-class SpecialistProfileUpdate(BaseModel):
+class SpecialistProfileUpdate(InputModel):
     specialist_type: Optional[str] = None
     specialist_category: Optional[str] = None
     specialization: Optional[str] = None

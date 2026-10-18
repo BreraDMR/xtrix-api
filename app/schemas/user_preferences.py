@@ -3,6 +3,7 @@ from pydantic import ConfigDict, BaseModel, EmailStr, Field, field_validator
 from typing import Literal
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.errors import invalid
+from app.schemas.base import InputModel
 class UserPreferencesBase(BaseModel):
     timezone: Optional[str] = Field(None, description="Time zone, e.g. Europe/Prague")
     date_format: Optional[str] = Field("DD/MM/YYYY", description="Date format: DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD")
@@ -15,7 +16,7 @@ class UserPreferencesBase(BaseModel):
     auto_save_interval: int = Field(30, ge=5, le=300, description="Autosave interval, seconds")
     export_format: Optional[str] = Field("csv", description="Export format: csv, excel, json")
     language: Optional[str] = Field(None, description="UI language (en, ru, cz) - e-mails to this user use it")
-class UserPreferencesUpdate(BaseModel):
+class UserPreferencesUpdate(InputModel):
     # same values the Out model accepts - otherwise garbage got saved and then blew up the response
     timezone: Optional[str] = Field(None, max_length=64)
     date_format: Optional[Literal["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD"]] = None

@@ -466,9 +466,6 @@
             "type": "string"
           },
           "currency": {
-            "default": "EUR",
-            "description": "ISO code: EUR, USD, CZK...",
-            "pattern": "^[A-Za-z]{3}$",
             "title": "Currency",
             "type": "string"
           },
@@ -522,6 +519,7 @@
         "required": [
           "name",
           "business_type",
+          "currency",
           "id",
           "created_at"
         ],
@@ -2200,8 +2198,6 @@
             "title": "Created By Id"
           },
           "currency": {
-            "default": "EUR",
-            "pattern": "^[A-Za-z]{3}$",
             "title": "Currency",
             "type": "string"
           },
@@ -2264,6 +2260,7 @@
         },
         "required": [
           "amount",
+          "currency",
           "expense_date",
           "id",
           "business_id",
