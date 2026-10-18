@@ -1,13 +1,13 @@
 """add_users_tokens_valid_after
 Revision ID: 0038_tokens_valid_after
-Revises: 0036_notification_log
+Revises: 0039_visit_no_overlap
 Create Date: 2026-10-18 01:30:00
 """
 from alembic import op
 import sqlalchemy as sa
 # revision identifiers, used by Alembic.
 revision = "0038_tokens_valid_after"
-down_revision = "0036_notification_log"
+down_revision = "0039_visit_no_overlap"
 branch_labels = None
 depends_on = None
 def upgrade():
