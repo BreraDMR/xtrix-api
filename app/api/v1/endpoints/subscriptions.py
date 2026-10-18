@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from sqlalchemy.orm import Session
 from datetime import datetime
 from decimal import Decimal
+from app.api.core import stripe_billing
 import stripe
 from app.api import deps
 from app.api.core.i18n import _
@@ -189,16 +190,15 @@ def get_checkout_session(
     stripe.api_key = settings.stripe_api_key
     try:
         session = stripe.checkout.Session.retrieve(session_id)
-        if session.metadata.get("user_id") != str(current_user.id):
+        if stripe_billing.as_dict(session.metadata).get("user_id") != str(current_user.id):
             raise HTTPException(status_code=403, detail="Not allowed")
         return {
             "id": session.id,
             "status": session.payment_status,
             "subscription_id": session.subscription,
         }
-    except stripe.error.StripeError as e:
-        logger.error(f"Stripe error: {e}")
-        raise HTTPException(status_code=400, detail=f"Stripe error: {str(e)}")
+    except stripe.StripeError:
+        raise HTTPException(status_code=503, detail="Stripe is temporarily unavailable")
     return None
 @router.get("/trial/status")
 def get_trial_status(
@@ -220,159 +220,26 @@ def get_trial_status(
     }
 @router.post("/webhooks/stripe")
 async def stripe_webhook(request: Request, db: Session = Depends(deps.get_db)):
-    from app.api.crud import crud_transaction
-    from app.schemas.transaction import TransactionCreate
+    if not settings.stripe_webhook_secret:
+        raise HTTPException(status_code=503, detail="Stripe webhook secret not configured")
     payload = await request.body()
-    sig_header = request.headers.get("Stripe-Signature", "")
-    secret = settings.stripe_webhook_secret
-    if not secret:
-        raise HTTPException(status_code=400, detail="Stripe webhook secret not configured")
     try:
-        event = stripe.Webhook.construct_event(payload, sig_header, secret)
-    except Exception:
+        event = stripe.Webhook.construct_event(payload, request.headers.get("Stripe-Signature", ""),
+                                               settings.stripe_webhook_secret)
+    except (ValueError, stripe.SignatureVerificationError):
         raise HTTPException(status_code=400, detail="Invalid stripe signature")
-    event_type = event.get("type", "")
-    obj = event.get("data", {}).get("object", {})
-    if event_type == "checkout.session.completed":
-        payment_status = obj.get("payment_status", "")
-        if payment_status == "paid":
-            subscription_id = obj.get("subscription")
-            if subscription_id:
-                metadata = obj.get("metadata", {})
-                user_id = int(metadata.get("user_id", 0))
-                plan_id = int(metadata.get("plan_id", 0))
-                if user_id and plan_id:
-                    existing_sub = crud_subscription.get_by_external(db, "stripe", str(subscription_id))
-                    if not existing_sub:
-                        plan = crud_subscription.get_plan(db, plan_id)
-                        if plan:
-                            if not settings.stripe_api_key:
-                                logger.error("Stripe API key not configured, skipping subscription creation")
-                            else:
-                                stripe.api_key = settings.stripe_api_key
-                                try:
-                                    stripe_sub = stripe.Subscription.retrieve(subscription_id)
-                                    period_end = datetime.fromtimestamp(stripe_sub.current_period_end) if stripe_sub.current_period_end else None
-                                    sub_data = SubscriptionCreate(
-                                        user_id=user_id,
-                                        plan_id=plan_id,
-                                        provider="stripe",
-                                        external_id=str(subscription_id),
-                                        status="active",
-                                        current_period_end=period_end,
-                                    )
-                                    created_sub = crud_subscription.create_subscription(db, sub_data)
-                                    amount_total = obj.get("amount_total", 0) / 100.0  
-                                    currency = obj.get("currency", "eur").upper()
-                                    try:
-                                        transaction_data = TransactionCreate(
-                                            subscription_id=created_sub.id,
-                                            amount=amount_total,
-                                            currency=currency,
-                                            payment_method="card",
-                                            status="succeeded",
-                                            description=f"Subscription payment via Stripe Checkout",
-                                            provider="stripe",
-                                            external_transaction_id=str(obj.get("payment_intent", "")),
-                                        )
-                                        crud_transaction.create_transaction(db, transaction_data)
-                                    except Exception as e:
-                                        logger.warning(f"Failed to log checkout transaction: {e}")
-                                    logger.info(f"Subscription created via checkout.session.completed: user_id={user_id}, plan_id={plan_id}, subscription_id={subscription_id}")
-                                except stripe.error.StripeError as e:
-                                    logger.error(f"Failed to retrieve Stripe subscription {subscription_id}: {e}")
-    elif event_type == "customer.subscription.created":
-        external_id = str(obj.get("id", ""))
-        status = obj.get("status", "active")
-        sub = crud_subscription.get_by_external(db, "stripe", external_id)
-        if sub:
-            crud_subscription.update_subscription(db, sub, SubscriptionUpdate(status=status))
-            try:
-                transaction_data = TransactionCreate(
-                    subscription_id=sub.id,
-                    amount=0.0,
-                    currency="eur",
-                    payment_method="stripe",
-                    status="succeeded",
-                    description=f"Subscription created via Stripe",
-                    provider="stripe",
-                    external_transaction_id=external_id,
-                )
-                crud_transaction.create_transaction(db, transaction_data)
-            except Exception as e:
-                logger.warning(f"Failed to log subscription creation: {e}")
-    elif event_type == "customer.subscription.updated":
-        external_id = str(obj.get("id", ""))
-        status = obj.get("status", "active")
-        cancel_at_period_end = obj.get("cancel_at_period_end", False)
-        sub = crud_subscription.get_by_external(db, "stripe", external_id)
-        if sub:
-            update_data = SubscriptionUpdate(status=status)
-            if cancel_at_period_end:
-                update_data.cancel_at_period_end = True
-                update_data.status = "pending_cancellation" if status == "active" else status
-            crud_subscription.update_subscription(db, sub, update_data)
-    elif event_type == "customer.subscription.deleted":
-        external_id = str(obj.get("id", ""))
-        sub = crud_subscription.get_by_external(db, "stripe", external_id)
-        if sub:
-            crud_subscription.update_subscription(db, sub, SubscriptionUpdate(status="cancelled"))
-    elif event_type == "invoice.payment_succeeded":
-        subscription_id = obj.get("subscription", "")
-        amount_paid = obj.get("amount_paid", 0) / 100.0  
-        currency = obj.get("currency", "eur")
-        invoice_id = str(obj.get("id", ""))
-        sub = crud_subscription.get_by_external(db, "stripe", subscription_id)
-        if sub:
-            period_end = obj.get("period_end")
-            if period_end:
-                update_data = SubscriptionUpdate(
-                    current_period_end=datetime.fromtimestamp(period_end)
-                )
-                crud_subscription.update_subscription(db, sub, update_data)
-            try:
-                transaction_data = TransactionCreate(
-                    subscription_id=sub.id,
-                    amount=amount_paid,
-                    currency=currency,
-                    payment_method="card",
-                    status="succeeded",
-                    description=f"Payment succeeded via Stripe",
-                    provider="stripe",
-                    external_transaction_id=invoice_id,
-                )
-                crud_transaction.create_transaction(db, transaction_data)
-            except Exception as e:
-                logger.warning(f"Failed to log payment transaction: {e}")
-    elif event_type == "invoice.payment_failed":
-        subscription_id = obj.get("subscription", "")
-        amount_due = obj.get("amount_due", 0) / 100.0
-        currency = obj.get("currency", "eur")
-        invoice_id = str(obj.get("id", ""))
-        sub = crud_subscription.get_by_external(db, "stripe", subscription_id)
-        if sub:
-            try:
-                transaction_data = TransactionCreate(
-                    subscription_id=sub.id,
-                    amount=amount_due,
-                    currency=currency,
-                    payment_method="card",
-                    status="failed",
-                    description=f"Payment failed via Stripe",
-                    provider="stripe",
-                    external_transaction_id=invoice_id,
-                )
-                crud_transaction.create_transaction(db, transaction_data)
-            except Exception as e:
-                logger.warning(f"Failed to log failed payment: {e}")
-    else:
-        external_id = str(obj.get("id", "") or obj.get("subscription", ""))
-        if external_id:
-            status = obj.get("status", "active")
-            sub = crud_subscription.get_by_external(db, "stripe", external_id)
-            if sub:
-                crud_subscription.update_subscription(db, sub, SubscriptionUpdate(status=status))
+    try:
+        stripe_billing.handle_event(db, event)
+        db.commit()
+    except stripe.StripeError:
+        db.rollback()
+        raise HTTPException(status_code=503, detail="Stripe is temporarily unavailable")
+    except Exception:
+        db.rollback()
+        raise
     return {"received": True}
+
+
 def _check_webhook_token(expected: str, given: str, provider: str) -> None:
     # fail closed: an unset token used to mean "accept anything from anyone"
     if not expected:
@@ -532,6 +399,12 @@ def cancel_subscription(
     locale: str = Depends(deps.get_locale),
 ):
     sub = _own_subscription(db, current_user, subscription_id, locale)
+    if sub.provider == "stripe":
+        try:
+            return stripe_billing.cancel(db, sub, at_period_end=cancel_request.cancel_at_period_end)
+        except stripe.StripeError:
+            db.rollback()
+            raise HTTPException(status_code=503, detail="Stripe is temporarily unavailable")
     cancelled_sub = crud_subscription.cancel_subscription(
         db, 
         subscription_id, 
@@ -550,10 +423,16 @@ def reactivate_subscription(
     locale: str = Depends(deps.get_locale),
 ):
     sub = _own_subscription(db, current_user, subscription_id, locale)
+    if sub.provider == "stripe":
+        try:
+            return stripe_billing.reactivate(db, sub, plan_id=reactivate_request.plan_id)
+        except stripe.StripeError:
+            db.rollback()
+            raise HTTPException(status_code=503, detail="Stripe is temporarily unavailable")
+    stripe_billing.validate_reactivation(sub, plan_id=reactivate_request.plan_id)
     reactivated_sub = crud_subscription.reactivate_subscription(
         db,
         subscription_id,
-        plan_id=reactivate_request.plan_id,
         user_id=current_user.id
     )
     if not reactivated_sub:
