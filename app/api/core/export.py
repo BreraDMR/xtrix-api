@@ -10,6 +10,28 @@ try:
     EXCEL_AVAILABLE = True
 except ImportError:
     EXCEL_AVAILABLE = False
+
+_FORMULA_START = ("=", "+", "-", "@")
+
+
+def _csv_text(value: Any) -> Any:
+    # Excel/Sheets run a cell starting with = + - @ (or tab/CR) as a formula, and they skip
+    # leading whitespace before looking. A leading ' makes it plain text. Numbers stay numbers.
+    if not isinstance(value, str):
+        return value
+    if value.startswith(("\t", "\r")) or value.lstrip().startswith(_FORMULA_START):
+        return "'" + value
+    return value
+
+
+def _excel_text_row(ws, values):
+    ws.append(values)
+    # User text beginning with '=' must stay text, including column headings.
+    for cell in ws[ws.max_row]:
+        if isinstance(cell.value, str):
+            cell.data_type = "s"
+
+
 def export_to_csv(
     data: List[Dict[str, Any]],
     filename: str = "export.csv",
@@ -18,12 +40,12 @@ def export_to_csv(
     output = io.StringIO()
     if not data:
         writer = csv.DictWriter(output, fieldnames=fieldnames or [])
-        writer.writeheader()
+        writer.writerow({key: _csv_text(key) for key in writer.fieldnames})
     else:
         if fieldnames is None:
             fieldnames = list(data[0].keys())
         writer = csv.DictWriter(output, fieldnames=fieldnames)
-        writer.writeheader()
+        writer.writerow({key: _csv_text(key) for key in writer.fieldnames})
         for row in data:
             flat_row = {}
             for key in fieldnames:
@@ -36,7 +58,7 @@ def export_to_csv(
                     flat_row[key] = ""
                 else:
                     flat_row[key] = value
-            writer.writerow(flat_row)
+            writer.writerow({key: _csv_text(value) for key, value in flat_row.items()})
     return Response(
         content=output.getvalue(),
         media_type="text/csv",
@@ -59,11 +81,11 @@ def export_to_excel(
     ws.title = sheet_name
     if not data:
         if fieldnames:
-            ws.append(fieldnames)
+            _excel_text_row(ws, fieldnames)
     else:
         if fieldnames is None:
             fieldnames = list(data[0].keys())
-        ws.append(fieldnames)
+        _excel_text_row(ws, fieldnames)
         # ws.append returns None, style the row it just wrote instead
         for cell in ws[1]:
             cell.font = Font(bold=True)
@@ -80,7 +102,7 @@ def export_to_excel(
                     row_data.append("")
                 else:
                     row_data.append(value)
-            ws.append(row_data)
+            _excel_text_row(ws, row_data)
         for column in ws.columns:
             max_length = 0
             column_letter = column[0].column_letter
