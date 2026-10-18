@@ -1,0 +1,267 @@
+# Russian phrase set. "now" is Monday 19.10.2026 09:15 in Prague unless a case says otherwise.
+# Prague leaves summer time on 25.10.2026, so anything from the 26th on is +01:00.
+defaults:
+  locale: ru
+  now: "2026-10-19T09:15"
+  tz: Europe/Prague
+
+cases:
+  - id: ru-plan-example
+    tags: [new-client, earliest, medical]
+    text: "Запиши Иванова Ивана Ивановича, 19.10.2006, аллергия на димедрол, в четверг 22 октября к стоматологу Виталько на самое раннее время"
+    expect:
+      any_order: true
+      actions:
+        - {action: create_client, full_name_has: [Иванов, Иван, Иванович], birth_date: "2006-10-19"}
+        - {action: find_free_slot, specialist: "@spec.vitalko", not_before_on: "2026-10-22"}
+        - {action: create_visit, client_ref_set: true, uses_slot: true}
+      forbid_in_actions: [димедрол]
+    plan:
+      summary: "Создам клиента Иванова Ивана Ивановича и запишу к Виталько на самое раннее время 22.10. Аллергию внесите в медкарту вручную."
+      actions:
+        - {action: create_client, ref: c, full_name: "Иванов Иван Иванович", birth_date: "2006-10-19"}
+        - {action: find_free_slot, ref: s, specialist_id: "@spec.vitalko", not_before: "2026-10-22T00:00:00+02:00", days_ahead: 1}
+        - {action: create_visit, client_ref: c, slot_ref: s}
+
+  - id: ru-existing-haircut
+    tags: [existing-client, relative-date]
+    text: "Запиши Анну Петрову на стрижку завтра в 10:00"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.anna_petrova", service: "@service.haircut", start_at: "2026-10-20T10:00"}
+    plan:
+      summary: "Запишу Анну Петрову на женскую стрижку 20.10 в 10:00."
+      actions:
+        - {action: create_visit, client_id: "@client.anna_petrova", specialist_id: "@spec.olga", service_id: "@service.haircut", start: "2026-10-20T10:00:00+02:00"}
+
+  - id: ru-existing-coloring-friday
+    tags: [existing-client, relative-date]
+    text: "Елену Кузнецову на окрашивание в пятницу в 15:30"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.elena_kuznetsova", service: "@service.coloring", start_at: "2026-10-23T15:30"}
+    plan:
+      summary: "Запишу Елену Кузнецову на окрашивание в пятницу 23.10 в 15:30."
+      actions:
+        - {action: create_visit, client_id: "@client.elena_kuznetsova", service_id: "@service.coloring", start: "2026-10-23T15:30:00+02:00"}
+
+  - id: ru-earliest-cleaning
+    tags: [existing-client, earliest]
+    text: "Дмитрия Орлова на чистку зубов на ближайшее свободное время"
+    expect:
+      actions:
+        - {action: find_free_slot, specialist: "@spec.vitalko"}
+        - {action: create_visit, client: "@client.dmitry_orlov", uses_slot: true}
+    plan:
+      summary: "Найду ближайшее окно на чистку зубов и запишу Дмитрия Орлова."
+      actions:
+        - {action: find_free_slot, ref: s, specialist_id: "@spec.vitalko", service_id: "@service.teeth_cleaning"}
+        - {action: create_visit, client_id: "@client.dmitry_orlov", service_id: "@service.teeth_cleaning", slot_ref: s}
+
+  - id: ru-new-client-phone
+    tags: [new-client, relative-date]
+    text: "Новая клиентка Мария Соколова, телефон +420 605 111 222, запиши на маникюр в среду в 12"
+    expect:
+      actions:
+        - {action: create_client, full_name_has: [Мария, Соколова], contact_phone_set: true}
+        - {action: create_visit, client_ref_set: true, service: "@service.manicure", start_at: "2026-10-21T12:00"}
+    plan:
+      summary: "Создам клиентку Марию Соколову и запишу на маникюр в среду 21.10 в 12:00."
+      actions:
+        - {action: create_client, ref: c, full_name: "Мария Соколова", contact_phone: "+420605111222"}
+        - {action: create_visit, client_ref: c, service_id: "@service.manicure", start: "2026-10-21T12:00:00+02:00"}
+
+  - id: ru-ambiguous-anna
+    tags: [ambiguous]
+    text: "Запиши Анну на стрижку в четверг в 11"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "Есть две Анны, уточните, какую записать."
+      questions: ["Какую Анну записать: Анну Петрову или Анну Петренко?"]
+
+  - id: ru-ambiguous-petr
+    tags: [ambiguous, typo]
+    text: "Запиши Петрову или Петренко, не помню точно, на окрашивание завтра в 9"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "Нужно уточнить клиентку."
+      questions: ["Кого записать: Анну Петрову или Анну Петренко?"]
+
+  - id: ru-missing-date
+    tags: [missing-info]
+    text: "Запиши Дмитрия Орлова на чистку зубов"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "Не указано, когда записать."
+      questions: ["На какой день и время записать Дмитрия Орлова?"]
+
+  - id: ru-missing-service
+    tags: [missing-info, relative-date]
+    text: "Запиши Елену Кузнецову на завтра в 14:00"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "Не указана услуга."
+      questions: ["На какую услугу записать Елену Кузнецову?"]
+
+  - id: ru-reschedule-id
+    tags: [reschedule, relative-date]
+    text: "Перенеси визит №{visit.orlov_cleaning} на четверг на 11:00"
+    expect:
+      actions:
+        - {action: reschedule_visit, visit: "@visit.orlov_cleaning", start_at: "2026-10-22T11:00"}
+    plan:
+      summary: "Перенесу визит на четверг 22.10 в 11:00."
+      actions:
+        - {action: reschedule_visit, visit_id: "@visit.orlov_cleaning", start: "2026-10-22T11:00:00+02:00"}
+
+  - id: ru-reschedule-no-id
+    tags: [reschedule, missing-info]
+    text: "Перенеси визит Дмитрия Орлова со вторника на четверг на то же время"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "Не вижу, какой это визит."
+      questions: ["Какой визит Дмитрия Орлова перенести? Укажите номер визита."]
+
+  - id: ru-cancel-id
+    tags: [cancel]
+    text: "Отмени визит №{visit.petrova_haircut}, клиентка не сможет прийти"
+    expect:
+      actions:
+        - {action: cancel_visit, visit: "@visit.petrova_haircut"}
+    plan:
+      summary: "Отменю визит."
+      actions:
+        - {action: cancel_visit, visit_id: "@visit.petrova_haircut"}
+
+  - id: ru-cancel-no-id
+    tags: [cancel, missing-info]
+    text: "Отмени завтрашнюю запись Орлова"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "Не вижу номер визита."
+      questions: ["Какой визит отменить? Укажите номер."]
+
+  - id: ru-note-id
+    tags: [note]
+    text: "Добавь заметку к визиту №{visit.petrova_haircut}: хочет каре покороче"
+    expect:
+      actions:
+        - {action: add_note, visit: "@visit.petrova_haircut", text_has: каре}
+    plan:
+      summary: "Добавлю заметку к визиту."
+      actions:
+        - {action: add_note, visit_id: "@visit.petrova_haircut", text: "Хочет каре покороче"}
+
+  - id: ru-mens-haircut-tomorrow
+    tags: [existing-client, relative-date]
+    text: "Завтра в 16:30 мужская стрижка для Мартина Новака"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.martin_novak", service: "@service.mens_haircut", start_at: "2026-10-20T16:30"}
+    plan:
+      summary: "Запишу Мартина Новака на мужскую стрижку 20.10 в 16:30."
+      actions:
+        - {action: create_visit, client_id: "@client.martin_novak", service_id: "@service.mens_haircut", start: "2026-10-20T16:30:00+02:00"}
+
+  - id: ru-next-tuesday-dst
+    tags: [existing-client, relative-date, dst]
+    now: "2026-10-22T10:00"
+    text: "Запиши Emily Clark на массаж в следующий вторник в 10 утра"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.emily_clark", service: "@service.massage", start_at: "2026-10-27T10:00"}
+    plan:
+      summary: "Запишу Emily Clark на массаж во вторник 27.10 в 10:00."
+      actions:
+        - {action: create_visit, client_id: "@client.emily_clark", service_id: "@service.massage", start: "2026-10-27T10:00:00+01:00"}
+
+  - id: ru-medical-update
+    tags: [existing-client, medical]
+    text: "У Елены Кузнецовой новый телефон +420 777 555 444, и запиши, что у неё аллергия на латекс"
+    expect:
+      actions:
+        - {action: update_client, client: "@client.elena_kuznetsova", contact_phone_set: true}
+      forbid_in_actions: [латекс]
+    plan:
+      summary: "Обновлю телефон Елены Кузнецовой. Аллергию внесите в медкарту вручную."
+      actions:
+        - {action: update_client, client_id: "@client.elena_kuznetsova", contact_phone: "+420777555444"}
+
+  - id: ru-medical-only
+    tags: [medical]
+    text: "Отметь у Дмитрия Орлова диабет второго типа"
+    expect: {read_only: true}
+    plan:
+      summary: "Медицинские данные помощник не вносит, добавьте их в медкарту вручную."
+
+  - id: ru-typo-wednesday
+    tags: [existing-client, typo, relative-date]
+    text: "Запеши Анну Петрову на стришку в сриду в 12"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.anna_petrova", service: "@service.haircut", start_at: "2026-10-21T12:00"}
+    plan:
+      summary: "Запишу Анну Петрову на стрижку в среду 21.10 в 12:00."
+      actions:
+        - {action: create_visit, client_id: "@client.anna_petrova", service_id: "@service.haircut", start: "2026-10-21T12:00:00+02:00"}
+
+  - id: ru-typo-lowercase
+    tags: [existing-client, typo, relative-date]
+    text: "запиш орлова на чиску зубов послезавтра в 9"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.dmitry_orlov", service: "@service.teeth_cleaning", start_at: "2026-10-21T09:00"}
+    plan:
+      summary: "Запишу Дмитрия Орлова на чистку зубов 21.10 в 9:00."
+      actions:
+        - {action: create_visit, client_id: "@client.dmitry_orlov", service_id: "@service.teeth_cleaning", start: "2026-10-21T09:00:00+02:00"}
+
+  - id: ru-free-time-question
+    tags: [earliest, relative-date]
+    text: "Когда у Ольги ближайшее свободное время в четверг на стрижку?"
+    expect:
+      read_only: true
+      actions:
+        - {action: find_free_slot, specialist: "@spec.olga", not_before_on: "2026-10-22"}
+    plan:
+      summary: "Поищу свободное время у Ольги в четверг."
+      actions:
+        - {action: find_free_slot, specialist_id: "@spec.olga", service_id: "@service.haircut", not_before: "2026-10-22T08:00:00+02:00", days_ahead: 1}
+
+  - id: ru-small-talk
+    tags: [no-action]
+    text: "Привет! Как дела?"
+    expect: {no_actions: true}
+    plan:
+      summary: "Привет! Чем помочь с записью?"
+
+  - id: ru-price-question
+    tags: [no-action]
+    text: "Сколько стоит окрашивание?"
+    expect: {no_actions: true}
+    plan:
+      summary: "Цены я не показываю, посмотрите в списке услуг."
+
+  - id: ru-birthdate-update
+    tags: [existing-client, ambiguous]
+    text: "Измени дату рождения Анны Петренко на 03.05.1990"
+    expect:
+      actions:
+        - {action: update_client, client: "@client.anna_petrenko", birth_date: "1990-05-03"}
+    plan:
+      summary: "Поменяю дату рождения Анны Петренко на 03.05.1990."
+      actions:
+        - {action: update_client, client_id: "@client.anna_petrenko", birth_date: "1990-05-03"}
+
+  - id: ru-two-visits
+    tags: [existing-client, relative-date]
+    text: "Запиши Анну Петренко в субботу на маникюр в 10:00 и сразу после него, в 11:00, на педикюр"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.anna_petrenko", service: "@service.manicure", start_at: "2026-10-24T10:00"}
+        - {action: create_visit, client: "@client.anna_petrenko", service: "@service.pedicure", start_at: "2026-10-24T11:00"}
+    plan:
+      summary: "Запишу Анну Петренко в субботу 24.10: маникюр в 10:00 и педикюр в 11:00."
+      actions:
+        - {action: create_visit, client_id: "@client.anna_petrenko", service_id: "@service.manicure", start: "2026-10-24T10:00:00+02:00"}
+        - {action: create_visit, client_id: "@client.anna_petrenko", service_id: "@service.pedicure", start: "2026-10-24T11:00:00+02:00"}

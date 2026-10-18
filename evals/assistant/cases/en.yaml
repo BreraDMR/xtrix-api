@@ -1,0 +1,234 @@
+# English phrase set. "now" is Monday 19.10.2026 09:15 in Prague unless a case says otherwise.
+# Prague leaves summer time on 25.10.2026, so anything from the 26th on is +01:00.
+defaults:
+  locale: en
+  now: "2026-10-19T09:15"
+  tz: Europe/Prague
+
+cases:
+  - id: en-new-client-earliest
+    tags: [new-client, earliest]
+    text: "New client Sarah Miller, born 2 March 1999, book her for a classic massage at the earliest free time"
+    expect:
+      any_order: true
+      actions:
+        - {action: create_client, full_name_has: [Sarah, Miller], birth_date: "1999-03-02"}
+        - {action: find_free_slot, specialist: "@spec.mark"}
+        - {action: create_visit, client_ref_set: true, uses_slot: true}
+    plan:
+      summary: "I'll add Sarah Miller and book her a classic massage at the earliest free time."
+      actions:
+        - {action: create_client, ref: c, full_name: "Sarah Miller", birth_date: "1999-03-02"}
+        - {action: find_free_slot, ref: s, specialist_id: "@spec.mark", service_id: "@service.massage"}
+        - {action: create_visit, client_ref: c, service_id: "@service.massage", slot_ref: s}
+
+  - id: en-existing-tomorrow
+    tags: [existing-client, relative-date]
+    text: "Book John Smith for a men's haircut tomorrow at 2pm"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.john_smith", service: "@service.mens_haircut", start_at: "2026-10-20T14:00"}
+    plan:
+      summary: "I'll book John Smith for a men's haircut on 20 Oct at 14:00."
+      actions:
+        - {action: create_visit, client_id: "@client.john_smith", service_id: "@service.mens_haircut", start: "2026-10-20T14:00:00+02:00"}
+
+  - id: en-next-monday-dst
+    tags: [existing-client, relative-date, dst]
+    text: "Book Emily Clark for a massage next Monday at 9:30"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.emily_clark", service: "@service.massage", start_at: "2026-10-26T09:30"}
+    plan:
+      summary: "I'll book Emily Clark for a massage on Monday 26 Oct at 9:30."
+      actions:
+        - {action: create_visit, client_id: "@client.emily_clark", service_id: "@service.massage", start: "2026-10-26T09:30:00+01:00"}
+
+  - id: en-friday-gel-nails
+    tags: [existing-client, relative-date]
+    text: "Put Lucie Černá down for gel nails on Friday at 3 pm"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.lucie_cerna", service: "@service.gel_nails", start_at: "2026-10-23T15:00"}
+    plan:
+      summary: "I'll book Lucie Černá for gel nails on Friday 23 Oct at 15:00."
+      actions:
+        - {action: create_visit, client_id: "@client.lucie_cerna", service_id: "@service.gel_nails", start: "2026-10-23T15:00:00+02:00"}
+
+  - id: en-ambiguous-clark
+    tags: [ambiguous]
+    text: "Book Clark for a massage on Thursday at 11"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "There are two clients with that name."
+      questions: ["Do you mean Emily Clark or Emma Clarke?"]
+
+  - id: en-missing-time
+    tags: [missing-info, relative-date]
+    text: "Book Martin Novák for a men's haircut on Wednesday"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "I need a time for Wednesday."
+      questions: ["What time on Wednesday should I book Martin Novák?"]
+
+  - id: en-missing-service
+    tags: [missing-info, relative-date]
+    text: "Book Emily Clark for Friday at 10"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "The service is missing."
+      questions: ["Which service should I book for Emily Clark?"]
+
+  - id: en-reschedule-id
+    tags: [reschedule, relative-date]
+    text: "Move appointment #{visit.clark_massage} to Friday at 4 pm"
+    expect:
+      actions:
+        - {action: reschedule_visit, visit: "@visit.clark_massage", start_at: "2026-10-23T16:00"}
+    plan:
+      summary: "I'll move the appointment to Friday 23 Oct at 16:00."
+      actions:
+        - {action: reschedule_visit, visit_id: "@visit.clark_massage", start: "2026-10-23T16:00:00+02:00"}
+
+  - id: en-reschedule-unknown-time
+    tags: [reschedule, missing-info]
+    text: "Push visit {visit.petrova_haircut} back by one hour"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "I can't see when that visit is."
+      questions: ["What new start time should the visit have?"]
+
+  - id: en-cancel-id
+    tags: [cancel]
+    text: "Cancel booking {visit.svobodova_manicure}"
+    expect:
+      actions:
+        - {action: cancel_visit, visit: "@visit.svobodova_manicure"}
+    plan:
+      summary: "I'll cancel the booking."
+      actions:
+        - {action: cancel_visit, visit_id: "@visit.svobodova_manicure"}
+
+  - id: en-cancel-no-id
+    tags: [cancel, missing-info]
+    text: "Cancel Emily's massage this week"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "I need the visit number."
+      questions: ["Which visit should I cancel? Please give its number."]
+
+  - id: en-note-id
+    tags: [note]
+    text: "Add a note to visit {visit.clark_massage}: prefers firm pressure"
+    expect:
+      actions:
+        - {action: add_note, visit: "@visit.clark_massage", text_has: firm}
+    plan:
+      summary: "I'll add the note."
+      actions:
+        - {action: add_note, visit_id: "@visit.clark_massage", text: "Prefers firm pressure"}
+
+  - id: en-new-client-medical
+    tags: [new-client, medical, relative-date]
+    text: "New client Tom Baker, 0777 123 456, he's diabetic and takes insulin - book a pedicure tomorrow at 11"
+    expect:
+      actions:
+        - {action: create_client, full_name_has: [Tom, Baker], contact_phone_set: true}
+        - {action: create_visit, client_ref_set: true, service: "@service.pedicure", start_at: "2026-10-20T11:00"}
+    plan:
+      summary: "I'll add Tom Baker and book a pedicure on 20 Oct at 11:00. Please enter the health details in the medical card yourself."
+      actions:
+        - {action: create_client, ref: c, full_name: "Tom Baker", contact_phone: "0777123456"}
+        - {action: create_visit, client_ref: c, service_id: "@service.pedicure", start: "2026-10-20T11:00:00+02:00"}
+
+  - id: en-medical-note
+    tags: [medical, note]
+    text: "Note on visit {visit.clark_massage}: client has high blood pressure"
+    expect: {read_only: true}
+    plan:
+      summary: "I don't put health details into notes - please add it to the medical card yourself."
+
+  - id: en-update-email
+    tags: [existing-client]
+    text: "Change John Smith's email to john.smith@example.com"
+    expect:
+      actions:
+        - {action: update_client, client: "@client.john_smith", contact_email: john.smith@example.com}
+    plan:
+      summary: "I'll change John Smith's e-mail."
+      actions:
+        - {action: update_client, client_id: "@client.john_smith", contact_email: john.smith@example.com}
+
+  - id: en-free-time-question
+    tags: [earliest]
+    text: "When is the first free slot for a manicure?"
+    expect:
+      read_only: true
+      actions:
+        - {action: find_free_slot, specialist: "@spec.jana"}
+    plan:
+      summary: "I'll look up the first free manicure slot."
+      actions:
+        - {action: find_free_slot, specialist_id: "@spec.jana", service_id: "@service.manicure"}
+
+  - id: en-small-talk
+    tags: [no-action]
+    text: "Thanks, that's all for today"
+    expect: {no_actions: true}
+    plan:
+      summary: "You're welcome!"
+
+  - id: en-typos
+    tags: [existing-client, typo, relative-date]
+    text: "bok jhon smth for mens hair cut on tuesday at 4pm"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.john_smith", service: "@service.mens_haircut", start_at: "2026-10-20T16:00"}
+    plan:
+      summary: "I'll book John Smith for a men's haircut on Tuesday 20 Oct at 16:00."
+      actions:
+        - {action: create_visit, client_id: "@client.john_smith", service_id: "@service.mens_haircut", start: "2026-10-20T16:00:00+02:00"}
+
+  - id: en-two-weeks
+    tags: [existing-client, relative-date, dst, ambiguous]
+    text: "Book Emma Clarke for a massage two weeks from today at 10am"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.emma_clarke", service: "@service.massage", start_at: "2026-11-02T10:00"}
+    plan:
+      summary: "I'll book Emma Clarke for a massage on 2 Nov at 10:00."
+      actions:
+        - {action: create_visit, client_id: "@client.emma_clarke", service_id: "@service.massage", start: "2026-11-02T10:00:00+01:00"}
+
+  - id: en-two-services
+    tags: [existing-client, relative-date]
+    text: "Book Lucie Černá for a manicure and then a pedicure on Saturday, starting at 9"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.lucie_cerna", service: "@service.manicure", start_at: "2026-10-24T09:00"}
+        - {action: create_visit, client: "@client.lucie_cerna", service: "@service.pedicure", start_at: "2026-10-24T10:00"}
+    plan:
+      summary: "I'll book Lucie Černá on Saturday 24 Oct: manicure at 9:00, pedicure at 10:00."
+      actions:
+        - {action: create_visit, client_id: "@client.lucie_cerna", service_id: "@service.manicure", start: "2026-10-24T09:00:00+02:00"}
+        - {action: create_visit, client_id: "@client.lucie_cerna", service_id: "@service.pedicure", start: "2026-10-24T10:00:00+02:00"}
+
+  - id: en-monday-from-wednesday
+    tags: [existing-client, relative-date, dst]
+    now: "2026-10-21T15:00"
+    text: "Book John Smith for a men's haircut on Monday at 10"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.john_smith", service: "@service.mens_haircut", start_at: "2026-10-26T10:00"}
+    plan:
+      summary: "I'll book John Smith for a men's haircut on Monday 26 Oct at 10:00."
+      actions:
+        - {action: create_visit, client_id: "@client.john_smith", service_id: "@service.mens_haircut", start: "2026-10-26T10:00:00+01:00"}
+
+  - id: en-time-already-passed
+    tags: [missing-info]
+    text: "Book Emily Clark for a massage today at 8am"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "8:00 today has already passed."
+      questions: ["Today at 8:00 is already over - which day or time should I use instead?"]

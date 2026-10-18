@@ -1,0 +1,238 @@
+# Czech phrase set. "now" is Monday 19.10.2026 09:15 in Prague unless a case says otherwise.
+# Prague leaves summer time on 25.10.2026, so anything from the 26th on is +01:00.
+defaults:
+  locale: cz
+  now: "2026-10-19T09:15"
+  tz: Europe/Prague
+
+cases:
+  - id: cz-new-client-earliest
+    tags: [new-client, earliest]
+    text: "Objednej novou klientku Petru Malou na gelové nehty na nejbližší volný termín"
+    expect:
+      any_order: true
+      actions:
+        - {action: create_client, full_name_has: [Petr, Mal]}
+        - {action: find_free_slot, specialist: "@spec.jana"}
+        - {action: create_visit, client_ref_set: true, uses_slot: true}
+    plan:
+      summary: "Založím klientku Petru Malou a objednám ji na gelové nehty na nejbližší volný termín."
+      actions:
+        - {action: create_client, ref: c, full_name: "Petra Malá"}
+        - {action: find_free_slot, ref: s, specialist_id: "@spec.jana", service_id: "@service.gel_nails"}
+        - {action: create_visit, client_ref: c, service_id: "@service.gel_nails", slot_ref: s}
+
+  - id: cz-existing-manicure
+    tags: [existing-client, relative-date]
+    text: "Zapiš Terezu Svobodovou na manikúru zítra v 15:00"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.tereza_svobodova", service: "@service.manicure", start_at: "2026-10-20T15:00"}
+    plan:
+      summary: "Objednám Terezu Svobodovou na manikúru 20. 10. v 15:00."
+      actions:
+        - {action: create_visit, client_id: "@client.tereza_svobodova", service_id: "@service.manicure", start: "2026-10-20T15:00:00+02:00"}
+
+  - id: cz-ambiguous-tereza
+    tags: [ambiguous]
+    text: "Objednej Terezu na pedikúru ve čtvrtek v 9"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "Máme dvě Terezy, upřesněte prosím."
+      questions: ["Kterou Terezu objednat: Svobodovou, nebo Svobodnou?"]
+
+  - id: cz-next-tuesday-dst
+    tags: [existing-client, relative-date, dst]
+    now: "2026-10-22T10:00"
+    text: "Objednej Lucii Černou na manikúru příští úterý v 9:30"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.lucie_cerna", service: "@service.manicure", start_at: "2026-10-27T09:30"}
+    plan:
+      summary: "Objednám Lucii Černou na manikúru v úterý 27. 10. v 9:30."
+      actions:
+        - {action: create_visit, client_id: "@client.lucie_cerna", service_id: "@service.manicure", start: "2026-10-27T09:30:00+01:00"}
+
+  - id: cz-friday-haircut
+    tags: [existing-client, relative-date]
+    text: "V pátek v 17 hodin pánský střih pro Martina Nováka"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.martin_novak", service: "@service.mens_haircut", start_at: "2026-10-23T17:00"}
+    plan:
+      summary: "Objednám Martina Nováka na pánský střih v pátek 23. 10. v 17:00."
+      actions:
+        - {action: create_visit, client_id: "@client.martin_novak", service_id: "@service.mens_haircut", start: "2026-10-23T17:00:00+02:00"}
+
+  - id: cz-missing-date
+    tags: [missing-info]
+    text: "Objednej Martina Nováka na pánský střih"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "Chybí termín."
+      questions: ["Na který den a čas mám Martina Nováka objednat?"]
+
+  - id: cz-missing-client
+    tags: [missing-info, relative-date]
+    text: "Zapiš na zítra v 10 manikúru"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "Chybí klient."
+      questions: ["Pro kterou klientku je manikúra?"]
+
+  - id: cz-reschedule-id
+    tags: [reschedule, dst]
+    text: "Přesuň návštěvu č. {visit.svobodova_manicure} na pondělí 26. 10. v 10:00"
+    expect:
+      actions:
+        - {action: reschedule_visit, visit: "@visit.svobodova_manicure", start_at: "2026-10-26T10:00"}
+    plan:
+      summary: "Přesunu návštěvu na pondělí 26. 10. v 10:00."
+      actions:
+        - {action: reschedule_visit, visit_id: "@visit.svobodova_manicure", start: "2026-10-26T10:00:00+01:00"}
+
+  - id: cz-reschedule-earliest
+    tags: [reschedule, earliest]
+    text: "Návštěvu č. {visit.orlov_cleaning} přesuň na nejbližší volný termín"
+    expect:
+      actions:
+        - {action: find_free_slot, specialist: "@spec.vitalko"}
+        - {action: reschedule_visit, visit: "@visit.orlov_cleaning", uses_slot: true}
+    plan:
+      summary: "Najdu nejbližší volný termín a návštěvu přesunu."
+      actions:
+        - {action: find_free_slot, ref: s, specialist_id: "@spec.vitalko", service_id: "@service.teeth_cleaning"}
+        - {action: reschedule_visit, visit_id: "@visit.orlov_cleaning", slot_ref: s}
+
+  - id: cz-cancel-id
+    tags: [cancel]
+    text: "Zruš návštěvu číslo {visit.clark_massage}"
+    expect:
+      actions:
+        - {action: cancel_visit, visit: "@visit.clark_massage"}
+    plan:
+      summary: "Zruším návštěvu."
+      actions:
+        - {action: cancel_visit, visit_id: "@visit.clark_massage"}
+
+  - id: cz-cancel-no-id
+    tags: [cancel, missing-info]
+    text: "Zruš zítřejší termín pana Orlova"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "Nevím, o kterou návštěvu jde."
+      questions: ["Kterou návštěvu mám zrušit? Uveďte prosím její číslo."]
+
+  - id: cz-note-id
+    tags: [note]
+    text: "K návštěvě {visit.svobodova_manicure} připiš poznámku: chce francouzskou manikúru"
+    expect:
+      actions:
+        - {action: add_note, visit: "@visit.svobodova_manicure", text_has: francouzsk}
+    plan:
+      summary: "Připíšu poznámku k návštěvě."
+      actions:
+        - {action: add_note, visit_id: "@visit.svobodova_manicure", text: "Chce francouzskou manikúru"}
+
+  - id: cz-new-client-medical
+    tags: [new-client, medical, relative-date]
+    text: "Nová klientka Eva Králová, narozena 4. 3. 1995, je těhotná a má alergii na ořechy, objednej ji na masáž v úterý ve 13:00"
+    expect:
+      actions:
+        - {action: create_client, full_name_has: [Eva, Králov], birth_date: "1995-03-04"}
+        - {action: create_visit, client_ref_set: true, service: "@service.massage", start_at: "2026-10-20T13:00"}
+      forbid_in_actions: [ořech]
+    plan:
+      summary: "Založím klientku Evu Královou a objednám ji na masáž v úterý 20. 10. ve 13:00. Zdravotní údaje zapište do karty ručně."
+      actions:
+        - {action: create_client, ref: c, full_name: "Eva Králová", birth_date: "1995-03-04"}
+        - {action: create_visit, client_ref: c, service_id: "@service.massage", start: "2026-10-20T13:00:00+02:00"}
+
+  - id: cz-update-phone
+    tags: [existing-client]
+    text: "Lucie Černá má nové číslo 731 222 333"
+    expect:
+      actions:
+        - {action: update_client, client: "@client.lucie_cerna", contact_phone_set: true}
+    plan:
+      summary: "Změním telefon Lucie Černé."
+      actions:
+        - {action: update_client, client_id: "@client.lucie_cerna", contact_phone: "731222333"}
+
+  - id: cz-typos
+    tags: [existing-client, typo, ambiguous, relative-date]
+    text: "objednej terezu svobodnou na pedykuru v patek v 11"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.tereza_svobodna", service: "@service.pedicure", start_at: "2026-10-23T11:00"}
+    plan:
+      summary: "Objednám Terezu Svobodnou na pedikúru v pátek 23. 10. v 11:00."
+      actions:
+        - {action: create_visit, client_id: "@client.tereza_svobodna", service_id: "@service.pedicure", start: "2026-10-23T11:00:00+02:00"}
+
+  - id: cz-free-time-question
+    tags: [earliest]
+    text: "Kdy má Jana nejbližší volno na gelové nehty?"
+    expect:
+      read_only: true
+      actions:
+        - {action: find_free_slot, specialist: "@spec.jana"}
+    plan:
+      summary: "Podívám se na nejbližší volný termín u Jany."
+      actions:
+        - {action: find_free_slot, specialist_id: "@spec.jana", service_id: "@service.gel_nails"}
+
+  - id: cz-small-talk
+    tags: [no-action]
+    text: "Dobrý den, jak se máte?"
+    expect: {no_actions: true}
+    plan:
+      summary: "Dobrý den! S čím vám mohu pomoct?"
+
+  - id: cz-price-question
+    tags: [no-action]
+    text: "Kolik stojí pánský střih?"
+    expect: {no_actions: true}
+    plan:
+      summary: "Ceny najdete v seznamu služeb."
+
+  - id: cz-day-after-tomorrow
+    tags: [existing-client, relative-date]
+    text: "Pozítří v 8:30 čištění zubů pro Martina Nováka"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.martin_novak", service: "@service.teeth_cleaning", start_at: "2026-10-21T08:30"}
+    plan:
+      summary: "Objednám Martina Nováka na čištění zubů ve středu 21. 10. v 8:30."
+      actions:
+        - {action: create_visit, client_id: "@client.martin_novak", service_id: "@service.teeth_cleaning", start: "2026-10-21T08:30:00+02:00"}
+
+  - id: cz-today-evening
+    tags: [existing-client, ambiguous]
+    text: "Dnes v 18:00 klasická masáž pro Emily Clark"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.emily_clark", service: "@service.massage", start_at: "2026-10-19T18:00"}
+    plan:
+      summary: "Objednám Emily Clark na klasickou masáž dnes v 18:00."
+      actions:
+        - {action: create_visit, client_id: "@client.emily_clark", service_id: "@service.massage", start: "2026-10-19T18:00:00+02:00"}
+
+  - id: cz-ambiguous-clark
+    tags: [ambiguous]
+    text: "Objednej paní Clarkovou na masáž ve středu v 10"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "Máme Emily Clark a Emmu Clarke, upřesněte prosím."
+      questions: ["Myslíte Emily Clark, nebo Emmu Clarke?"]
+
+  - id: cz-birthdate-update
+    tags: [existing-client]
+    text: "Opravte datum narození Martina Nováka na 12. 7. 1988"
+    expect:
+      actions:
+        - {action: update_client, client: "@client.martin_novak", birth_date: "1988-07-12"}
+    plan:
+      summary: "Opravím datum narození Martina Nováka na 12. 7. 1988."
+      actions:
+        - {action: update_client, client_id: "@client.martin_novak", birth_date: "1988-07-12"}

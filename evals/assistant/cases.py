@@ -123,6 +123,8 @@ def case_from_dict(raw: dict, defaults: Optional[dict] = None, source: str = "in
     if parsed.tzinfo is not None:
         raise CaseError(f"{cid}: now is local time without an offset, tz says where")
     expect = raw["expect"] if isinstance(raw["expect"], list) else [raw["expect"]]
+    if not expect:
+        raise CaseError(f"{cid}: expect is empty")
     for alt in expect:
         if not isinstance(alt, dict) or not alt:
             raise CaseError(f"{cid}: expect must be a mapping or a list of them")

@@ -40,7 +40,7 @@ ID_FIELDS = {"client_id": "client", "specialist_id": "spec", "service_id": "serv
 # stems, matched at the start of a word after folding (lowercase, no accents, ё -> е)
 MEDICAL_STEMS = (
     "аллерг", "alerg", "allerg", "димедрол", "dimedrol", "diphenhydram", "пеницил", "penicil", "астм", "astma",
-    "asthma", "диабет", "diabet", "cukrovk", "беремен", "tehoten", "pregnan", "латекс", "диагноз", "diagno",
+    "asthma", "диабет", "diabet", "cukrovk", "беремен", "tehot", "pregnan", "insulin", "инсулин", "inzulin", "латекс", "диагноз", "diagno",
     "гепатит", "hepatit", "эпилеп", "epilep", "лекарств", "медикамент", "medikament", "medication",
     "антибиотик", "antibiot", "давлени", "hypertenz", "hyperten",
 )
