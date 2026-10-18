@@ -136,7 +136,8 @@ def test_paging_params_are_bounded(make_user, headers_for):
         url = re.sub(r"\{(\w+)\}", lambda m: str(ids.get(m.group(1), 1)), path)
         for p in op.get("parameters", []):
             for junk in PAGING.get(p["name"], []) if p["in"] == "query" else []:
-                for headers in (a["headers"], {}):
+                # the solo specialist too - some lists (specialist profiles) aren't open to owners
+                for headers in (a["headers"], a["specialist_headers"], {}):
                     r = client.get(url, params={**_params(op, ids), p["name"]: junk}, headers=headers)
                     # 401/403 is fine too: the role check runs before the query is looked at
                     if r.status_code not in (422, 401, 403):

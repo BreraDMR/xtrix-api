@@ -2,6 +2,7 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
+from app.api.core.pagination import MAX_OFFSET
 from app.api.core.i18n import _
 from app.api.core.logger import get_logger
 from app.api.crud import crud_specialist_profile
@@ -105,7 +106,7 @@ def list_specialist_profiles(
     specialist_type: Optional[str] = Query(None, description="Filter by specialist type"),
     specialist_category: Optional[str] = Query(None, description="Filter by category: beauty, wellness, healthcare"),
     is_verified: Optional[str] = Query(None, description="Filter by verification status: pending, verified, rejected"),
-    skip: int = Query(0, ge=0),
+    skip: int = Query(0, ge=0, le=MAX_OFFSET),
     limit: int = Query(100, ge=1, le=100),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "specialist", "client")),
