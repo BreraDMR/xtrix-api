@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 from app.api.core.clock import utcnow
@@ -9,6 +9,7 @@ class Service(Base):
     business_id = Column(Integer, ForeignKey("businesses.id"), nullable=True, index=True)  
     name = Column(String, nullable=False, index=True)
     category = Column(String, nullable=True, index=True)  
+    description = Column(Text, nullable=True)
     duration_minutes = Column(Integer, nullable=True)
     price = Column(Float, nullable=True, index=True)
     is_active = Column(Boolean, default=True, index=True)

@@ -6504,6 +6504,18 @@
             "description": "Category of service: beauty, wellness, healthcare. If not provided, will be determined from specialist type.",
             "title": "Category"
           },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
           "duration_minutes": {
             "anyOf": [
               {
@@ -6589,6 +6601,18 @@
             ],
             "description": "Category of service: beauty, wellness, healthcare. If not provided, will be determined from specialist type.",
             "title": "Category"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
           },
           "duration_minutes": {
             "anyOf": [
@@ -6745,6 +6769,18 @@
               }
             ],
             "title": "Category"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
           },
           "duration_minutes": {
             "anyOf": [

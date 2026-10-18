@@ -1,10 +1,11 @@
 from typing import Optional, List
 from pydantic import ConfigDict, BaseModel, Field
-from app.schemas.limits import Minutes, Money, Name, ShortText
+from app.schemas.limits import LongText, Minutes, Money, Name, ShortText
 from app.schemas.base import InputModel
 class ServiceBase(BaseModel):
     name: Name
     category: Optional[ShortText] = Field(None, description="Category of service: beauty, wellness, healthcare. If not provided, will be determined from specialist type.")
+    description: Optional[LongText] = None
     duration_minutes: Optional[Minutes] = None
     price: Optional[Money] = None
     is_active: Optional[bool] = True
@@ -14,6 +15,7 @@ class ServiceCreate(InputModel, ServiceBase):
 class ServiceUpdate(InputModel):
     name: Optional[Name] = None
     category: Optional[ShortText] = None
+    description: Optional[LongText] = None
     duration_minutes: Optional[Minutes] = None
     price: Optional[Money] = None
     is_active: Optional[bool] = None

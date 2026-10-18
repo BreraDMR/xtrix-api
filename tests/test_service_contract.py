@@ -35,3 +35,36 @@ def test_specialist_of_an_employees_service_is_the_employee(client, db, make_use
     assert r.json()["specialist"] == {"id": emp.id, "full_name": emp.full_name}
     # nothing beyond id and name in the brief object
     assert "email" not in r.json()["specialist"]
+
+
+def test_description_goes_all_the_way_through(client, make_user, headers_for):
+    a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
+    h, owner = a["headers"], a["owner"]
+    assert a["service"]["description"] is None
+
+    r = client.post("/services/", json={"name": "Alpha Peel", "specialist_id": owner.id,
+                                        "description": "  Gentle peel, 30 min  "}, headers=h)
+    assert r.status_code == 200, r.text
+    sid = r.json()["id"]
+    assert r.json()["description"] == "Gentle peel, 30 min"
+    assert client.get(f"/services/{sid}", headers=h).json()["description"] == "Gentle peel, 30 min"
+    listed = [s for s in client.get("/services/", headers=h).json()["items"] if s["id"] == sid][0]
+    assert listed["description"] == "Gentle peel, 30 min"
+
+    r = client.put(f"/services/{sid}", json={"description": "Deep peel"}, headers=h)
+    assert r.status_code == 200 and r.json()["description"] == "Deep peel"
+    # updating something else leaves it alone, null clears it
+    assert client.put(f"/services/{sid}", json={"price": 5}, headers=h).json()["description"] == "Deep peel"
+    assert client.put(f"/services/{sid}", json={"description": None}, headers=h).json()["description"] is None
+
+
+def test_description_has_a_length_limit(client, make_user, headers_for):
+    a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
+    h, owner = a["headers"], a["owner"]
+    too_long = "x" * 5001
+    r = client.post("/services/", json={"name": "Alpha Peel", "specialist_id": owner.id, "description": too_long}, headers=h)
+    assert r.status_code == 422
+    r = client.put(f"/services/{a['service']['id']}", json={"description": too_long}, headers=h)
+    assert r.status_code == 422
+    r = client.post("/services/", json={"name": "Alpha Peel", "specialist_id": owner.id, "description": "x" * 5000}, headers=h)
+    assert r.status_code == 200
