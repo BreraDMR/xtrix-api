@@ -266,7 +266,12 @@ async def http_exception_handler(
         hint = "Bad request. Check that all required parameters are provided correctly."
     elif status_code == 429:
         hint = "Rate limit exceeded. Please wait before making more requests."
+    message = detail if isinstance(detail, str) else "HTTP error occurred"
     response_detail = detail if not isinstance(detail, str) else None
+    if isinstance(detail, dict) and isinstance(detail.get("message"), str):
+        # structured errors carry their own text plus machine-readable fields next to it
+        response_detail = {k: v for k, v in detail.items() if k != "message"}
+        message = detail["message"]
     detailed_mode = settings.environment == "development" or getattr(settings, 'detailed_errors', True)
     if detailed_mode and hint:
         if response_detail is None:
@@ -275,7 +280,7 @@ async def http_exception_handler(
             response_detail["hint"] = hint
     return create_error_response(
         status_code=status_code,
-        message=detail if isinstance(detail, str) else "HTTP error occurred",
+        message=message,
         detail=response_detail,
         error_type=exc.__class__.__name__,
         request=request,

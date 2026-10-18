@@ -36,6 +36,11 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Сначала создайте бизнес",
         "cz": "Nejprve vytvořte firmu",
     },
+    "client_exists": {
+        "en": "This client is already in your list",
+        "ru": "Этот клиент уже есть в вашем списке",
+        "cz": "Tento klient už ve vašem seznamu je",
+    },
     "business_not_found": {
         "en": "Business not found",
         "ru": "Бизнес не найден",

@@ -41,6 +41,8 @@ logger = get_logger("clients")
             }
         },
         403: {"description": "Insufficient permissions"},
+        409: {"description": "A client with this phone, email or name + birth date already exists; "
+                             "error.detail.existing_client_id points at it"},
         422: {"description": "Validation error"},
     }
 )
@@ -53,7 +55,7 @@ def create_client(
     from app.api.core.permissions import can_edit_clients
     if not can_edit_clients(current_user, db):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    logger.info("Creating/finding client")
+    logger.info("Creating client")
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     if current_user.role in ["admin", "business_owner"] and not business_id:
         raise HTTPException(
@@ -61,14 +63,29 @@ def create_client(
             detail=_("business_id_required_for_client_creation", locale)
         )
     from app.api.core.permissions import get_accessible_client_ids
-    # match an existing card only among the caller's own clients - a phone number must not
-    # pull in (and expose) a client of another business
-    result, was_created = crud_client.find_or_create_client(
+    # same phone/email among the caller's own clients means it's the same person - say so instead of
+    # quietly handing back the old card. Other businesses' clients are never matched (or exposed).
+    duplicate = crud_client.find_duplicate_client(
+        db,
+        contact_phone=client.contact_phone,
+        contact_email=client.contact_email,
+        full_name=client.full_name,
+        birth_date=client.birth_date,
+        within_ids=get_accessible_client_ids(db, current_user) or set(),
+    )
+    if duplicate:
+        existing, matched_by = duplicate
+        raise HTTPException(status_code=409, detail={
+            "message": _("client_exists", locale),
+            "code": "client_exists",
+            "existing_client_id": existing.id,
+            "matched_by": matched_by,
+        })
+    result = crud_client.create_client_for(
         db=db,
         client_in=client,
         business_id=business_id,
         specialist_id=current_user.id,
-        within_ids=get_accessible_client_ids(db, current_user) or set(),
     )
     if business_id:
         from app.db.models.client_specialist_relation import ClientSpecialistRelation
@@ -100,8 +117,7 @@ def create_client(
             )
             db.add(business_relation)
             db.commit()
-    action = "created" if was_created else "found existing"
-    logger.info(f"Client {action}: id={result.id}")
+    logger.info(f"Client created: id={result.id}")
     return result.model_dump() if hasattr(result, 'model_dump') else result
 @router.get("/", response_model=PaginatedResponse[ClientOut])
 def list_clients(

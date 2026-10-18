@@ -11748,6 +11748,9 @@
           "403": {
             "description": "Insufficient permissions"
           },
+          "409": {
+            "description": "A client with this phone, email or name + birth date already exists; error.detail.existing_client_id points at it"
+          },
           "422": {
             "description": "Validation error"
           }

@@ -72,3 +72,46 @@ def test_schedules_only_for_yourself(client, make_user, headers_for):
     assert client.post("/schedules/blocks", json=block, headers=headers_for(bob)).status_code == 403
     assert client.get("/schedules/work", params={"specialist_id": alice.id}, headers=headers_for(bob)).status_code == 403
     assert client.post("/schedules/work", json=work, headers=headers_for(alice)).status_code == 200
+
+
+def test_same_phone_in_own_business_is_a_conflict_not_a_silent_match(client, make_user, headers_for):
+    from tests.tenant_world import build_tenant
+
+    a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
+    existing = a["client"]
+
+    r = client.post("/clients/", json={"full_name": "Dup", "contact_phone": existing["contact_phone"]},
+                    headers={**a["headers"], "Accept-Language": "en"})
+    assert r.status_code == 409, r.text
+    err = r.json()["error"]
+    assert err["message"] == "This client is already in your list"
+    assert err["detail"]["code"] == "client_exists"
+    assert err["detail"]["existing_client_id"] == existing["id"]
+    assert err["detail"]["matched_by"] == "contact_phone"
+    assert "Dup" not in r.text
+
+    # nothing got renamed or duplicated
+    assert client.get(f"/clients/{existing['id']}", headers=a["headers"]).json()["full_name"] == existing["full_name"]
+    names = [c["full_name"] for c in client.get("/clients/", headers=a["headers"]).json()["items"]]
+    assert "Dup" not in names
+
+
+def test_same_email_in_own_business_is_a_conflict_too(client, make_user, headers_for):
+    from tests.tenant_world import build_tenant
+
+    a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
+    existing = a["client"]
+
+    r = client.post("/clients/", json={"full_name": "Dup", "contact_email": existing["contact_email"].upper()},
+                    headers=a["headers"])
+    assert r.status_code == 409, r.text
+    assert r.json()["error"]["detail"]["existing_client_id"] == existing["id"]
+    assert r.json()["error"]["detail"]["matched_by"] == "contact_email"
+
+
+def test_solo_specialist_duplicate_phone_is_a_conflict(client, auth_headers):
+    first = _create_client(client, auth_headers)
+    r = client.post("/clients/", json={"full_name": "Someone else", "contact_phone": first["contact_phone"]},
+                    headers=auth_headers)
+    assert r.status_code == 409, r.text
+    assert r.json()["error"]["detail"]["existing_client_id"] == first["id"]

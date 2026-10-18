@@ -16,14 +16,15 @@ from sqlalchemy import or_
 from app.db.models.client import Client
 from app.db.models.client_specialist_relation import ClientSpecialistRelation
 from app.schemas.client import ClientCreate, ClientUpdate, ClientOut
-def find_client_by_identifiers(
+def find_duplicate_client(
     db: Session,
     contact_phone: Optional[str] = None,
     contact_email: Optional[str] = None,
     full_name: Optional[str] = None,
     birth_date: Optional[date] = None,
     within_ids: Optional[Set[int]] = None,
-) -> Optional[Client]:
+) -> Optional[Tuple[Client, str]]:
+    """The existing client these identifiers point at, plus which field matched."""
     query = db.query(Client)
     query = filter_active(query)  
     if within_ids is not None:
@@ -35,12 +36,12 @@ def find_client_by_identifiers(
         phone_cleaned = contact_phone.strip()
         client = query.filter(Client.contact_phone == phone_cleaned).first()
         if client:
-            return client
+            return client, "contact_phone"
     if contact_email:
         email_cleaned = contact_email.strip().lower()
         client = query.filter(func.lower(Client.contact_email) == email_cleaned).first()
         if client:
-            return client
+            return client, "contact_email"
     if full_name and birth_date:
         name_cleaned = full_name.strip()
         client = query.filter(
@@ -50,8 +51,18 @@ def find_client_by_identifiers(
             )
         ).first()
         if client:
-            return client
+            return client, "full_name+birth_date"
     return None
+def find_client_by_identifiers(
+    db: Session,
+    contact_phone: Optional[str] = None,
+    contact_email: Optional[str] = None,
+    full_name: Optional[str] = None,
+    birth_date: Optional[date] = None,
+    within_ids: Optional[Set[int]] = None,
+) -> Optional[Client]:
+    found = find_duplicate_client(db, contact_phone, contact_email, full_name, birth_date, within_ids)
+    return found[0] if found else None
 def validate_healthcare_required_fields(
     db: Session,
     client_id: int,
@@ -96,30 +107,12 @@ def validate_healthcare_required_fields(
         if "healthcare" in str(e).lower() or "required" in str(e).lower():
             raise
         pass
-def find_or_create_client(
+def create_client_for(
     db: Session,
     client_in: ClientCreate,
     business_id: Optional[int] = None,
     specialist_id: Optional[int] = None,
-    within_ids: Optional[Set[int]] = None,
-) -> Tuple[Client, bool]:
-    existing_client = find_client_by_identifiers(
-        db=db,
-        contact_phone=client_in.contact_phone,
-        contact_email=client_in.contact_email,
-        full_name=client_in.full_name,
-        birth_date=client_in.birth_date,
-        within_ids=within_ids,
-    )
-    if existing_client:
-        if specialist_id:
-            try:
-                validate_healthcare_required_fields(db, existing_client.id, specialist_id)
-            except ValueError as e:
-                from app.api.core.logger import get_logger
-                logger = get_logger("clients")
-                logger.warning(f"Healthcare validation failed for existing client {existing_client.id}: {str(e)}")
-        return existing_client, False
+) -> Client:
     client_data = client_in.model_dump()
     client_data.pop('owner_id', None)  
     client = Client(**client_data)
@@ -152,7 +145,7 @@ def find_or_create_client(
         invalidate_client_list()
     except Exception:
         pass
-    return client, True
+    return client
 def create_client(db: Session, client_in: ClientCreate, specialist_id: Optional[int] = None) -> Client:
     client_data = client_in.model_dump()
     client_data.pop('owner_id', None)  
