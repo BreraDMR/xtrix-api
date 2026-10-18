@@ -1,6 +1,7 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy.exc import SQLAlchemyError
 import time
@@ -23,7 +24,8 @@ app = FastAPI(
 )
 app.add_exception_handler(RequestValidationError, error_handlers.validation_exception_handler)
 app.add_exception_handler(SQLAlchemyError, error_handlers.database_exception_handler)
-app.add_exception_handler(HTTPException, error_handlers.http_exception_handler)
+# starlette's class, so the router's own 404/405 come out in our format too (FastAPI's is a subclass)
+app.add_exception_handler(StarletteHTTPException, error_handlers.http_exception_handler)
 app.add_exception_handler(Exception, error_handlers.general_exception_handler)
 DOCS_PATHS = ("/docs", "/openapi.json")
 @app.middleware("http")

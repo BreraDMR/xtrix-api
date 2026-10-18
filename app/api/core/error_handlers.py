@@ -25,6 +25,7 @@ def create_error_response(
     error_type: Optional[str] = None,
     traceback_str: Optional[str] = None,
     request: Optional[Request] = None,
+    headers: Optional[Dict[str, str]] = None,
 ) -> JSONResponse:
     response_data: Dict[str, Any] = {
         "error": {
@@ -74,6 +75,7 @@ def create_error_response(
     return JSONResponse(
         status_code=status_code,
         content=response_data,
+        headers=headers,
     )
 async def validation_exception_handler(
     request: Request,
@@ -284,4 +286,5 @@ async def http_exception_handler(
         detail=response_detail,
         error_type=exc.__class__.__name__,
         request=request,
+        headers=getattr(exc, "headers", None),  # Allow on 405, WWW-Authenticate on 401
     )
