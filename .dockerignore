@@ -10,7 +10,8 @@ dist
 build
 .git
 .gitignore
-.env
+.env*
+!.env.example
 .venv
 venv/
 ENV/

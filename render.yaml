@@ -5,6 +5,8 @@ services:
     name: xtrix-api
     runtime: docker
     plan: free
+    region: frankfurt
+    branch: develop
     healthCheckPath: /metrics/health/ready
     envVars:
       - key: ENVIRONMENT
@@ -17,6 +19,10 @@ services:
         generateValue: true
       - key: CORS_ORIGINS
         sync: false  # web client origin(s), comma-separated
+      - key: FRONTEND_URL
+        sync: false
+      - key: REDIS_URL
+        value: redis://localhost:1/0  # one demo worker; plans and limits fall back to memory
       - key: DOCS_USERNAME
         sync: false
       - key: DOCS_PASSWORD

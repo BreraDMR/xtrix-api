@@ -23,7 +23,7 @@ origins) - nothing about the hosting is hardcoded.
 
 ## Deploying for free (test environment)
 
-- **Database:** [Neon](https://neon.com) free plan (permanent, 1 GB, sleeps after 5 min idle). Copy the
+- **Database:** [Neon](https://neon.com) free plan (limits and sleep policy: see the Neon console). Copy the
   connection string, keep `?sslmode=require`.
 - **API:** [Render](https://render.com) - "New Blueprint" on this repo picks up `render.yaml` (free Docker
   web service; sleeps after 15 min idle, ~1 min to wake). Fill in `DATABASE_URL`, `CORS_ORIGINS` and,
@@ -33,6 +33,14 @@ origins) - nothing about the hosting is hardcoded.
   `JOBS_DATABASE_URL` and `JOBS_JWT_SECRET` (plus `SMTP_*` for e-mail) are set.
 
 Render's own free Postgres is deleted after 30 days, so it isn't used.
+
+The demo frontend runs on Vercel. Set `VITE_API_URL` to the Render HTTPS origin, then set both
+`FRONTEND_URL` and `CORS_ORIGINS` on the API to the Vercel HTTPS origin. Use the same European region
+for Render and Neon. The free demo uses one API worker and in-memory fallback for Redis; unconfirmed
+assistant plans are temporary and do not survive a restart. Add shared Redis before scaling workers.
+
+Use Stripe test keys for the demo. Keep all credentials in hosting environment variables; `.env*`
+files are excluded from Docker builds.
 
 ## Scheduled jobs
 
