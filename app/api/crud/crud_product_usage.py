@@ -10,16 +10,17 @@ from app.api.core.clock import utcnow
 def create_product_usage(
     db: Session,
     usage_in: ProductUsageCreate,
+    business_id: int,
     auto_reduce_stock: bool = True,
 ) -> ProductUsage:
     product = db.query(Product).filter(Product.id == usage_in.product_id).first()
     if not product:
         raise ValueError(f"Product {usage_in.product_id} not found")
-    if product.business_id != usage_in.business_id:
+    if product.business_id != business_id:
         raise ValueError("Product doesn't belong to this business")
     if auto_reduce_stock:
-        reduce_product_quantity(db, usage_in.product_id, usage_in.quantity, usage_in.business_id)
-    usage = ProductUsage(**usage_in.model_dump())
+        reduce_product_quantity(db, usage_in.product_id, usage_in.quantity, business_id)
+    usage = ProductUsage(**usage_in.model_dump(), business_id=business_id)
     db.add(usage)
     db.commit()
     db.refresh(usage)

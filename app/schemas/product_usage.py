@@ -8,7 +8,7 @@ class ProductUsageBase(BaseModel):
     client_id: Optional[int] = None
     notes: Optional[str] = Field(None, max_length=5000)
 class ProductUsageCreate(ProductUsageBase):
-    business_id: int
+    # the business is always the caller's own, a business_id in the body is ignored
     used_by_id: Optional[int] = None
 class ProductUsageOut(ProductUsageBase):
     id: int

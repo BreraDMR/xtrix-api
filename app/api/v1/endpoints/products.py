@@ -89,8 +89,6 @@ def create_product_usage(
     locale: str = Depends(deps.get_locale),
 ):
     business_id = require_business_id(current_user, db, locale)
-    if usage.business_id != business_id:
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     if not usage.used_by_id:
         usage.used_by_id = current_user.id
     # whoever, whomever and on which visit - all of it has to be ours
@@ -105,7 +103,7 @@ def create_product_usage(
         if not visit or not check_visit_access(db, current_user, visit):
             raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     try:
-        result = crud_product_usage.create_product_usage(db, usage, auto_reduce_stock=auto_reduce_stock)
+        result = crud_product_usage.create_product_usage(db, usage, business_id, auto_reduce_stock=auto_reduce_stock)
         logger.info(f"Created product usage {result.id} by user {current_user.id}")
         return result
     except ValueError as e:

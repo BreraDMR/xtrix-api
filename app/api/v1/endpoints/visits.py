@@ -104,12 +104,11 @@ def create_visit(
                     product_id=used_product.product_id,
                     quantity=used_product.quantity,
                     visit_id=result.id,
-                    business_id=business_id,
                     client_id=visit.client_id,
                     used_by_id=current_user.id,
                     notes=f"Автоматическое списание при визите #{result.id}",
                 )
-                crud_product_usage.create_product_usage(db, usage, auto_reduce_stock=True)
+                crud_product_usage.create_product_usage(db, usage, business_id, auto_reduce_stock=True)
                 logger.info(f"Auto-usage: product {used_product.product_id}, quantity {used_product.quantity}, visit {result.id}")
             except Exception as e:
                 logger.error(f"Failed to auto-usage product {used_product.product_id} for visit {result.id}: {e}")

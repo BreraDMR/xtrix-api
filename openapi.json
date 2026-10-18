@@ -4977,10 +4977,6 @@
       },
       "ProductUsageCreate": {
         "properties": {
-          "business_id": {
-            "title": "Business Id",
-            "type": "integer"
-          },
           "client_id": {
             "anyOf": [
               {
@@ -5038,8 +5034,7 @@
         },
         "required": [
           "product_id",
-          "quantity",
-          "business_id"
+          "quantity"
         ],
         "title": "ProductUsageCreate",
         "type": "object"
