@@ -1,6 +1,7 @@
 """Sweep over every POST/PUT body: values JSON clients send by mistake must get a clean 4xx.
 
 - "   " where a real text is required (names) - used to be saved as an empty name
+- null into a field the database needs - used to come back as 409 "duplicate value?"
 - true instead of a number - used to be read as 1
 - a number instead of a date (read as unix time) and dates centuries off
 """
@@ -74,6 +75,16 @@ def test_blank_required_text_is_rejected(make_user, headers_for):
     assert not bad, "\n".join(bad)
 
 
+def test_null_never_turns_into_409_or_500(make_user, headers_for):
+    def values(field, s, required):
+        if not field.endswith("_id"):
+            yield None
+    # a 409 for a taken time slot is fine, a 409 from a NOT NULL column is not
+    bad = [f"{case}: {r.status_code}" for case, r in _sweep(make_user, headers_for, values)
+           if r.status_code >= 500 or (r.status_code == 409 and r.json()["error"].get("type") == "IntegrityError")]
+    assert not bad, "\n".join(bad)
+
+
 def test_true_is_not_a_number(make_user, headers_for):
     def values(field, s, required):
         if s.get("type") in ("number", "integer") and not field.endswith("_id"):
@@ -100,4 +111,15 @@ def test_currency_is_iso_4217(client, make_user, headers_for, value, status):
     assert r.status_code == status, r.text
     if status == 200:
         assert r.json()["currency"] == "CZK"
+
+
+def test_null_into_not_null_column_is_a_422_with_the_field(client, make_user, headers_for):
+    owner = make_user("business_owner")
+    h = headers_for(owner)
+    biz = client.post("/businesses/", json={"name": "Salon", "business_type": "salon"}, headers=h).json()
+    r = client.put(f"/businesses/{biz['id']}", json={"name": None}, headers=h)
+    assert r.status_code == 422, r.text
+    [err] = r.json()["error"]["detail"]["validation_errors"]
+    assert err["field"] == "body -> name" and err["code"] == "null_not_allowed"
+    assert client.get(f"/businesses/{biz['id']}", headers=h).json()["name"] == "Salon"
 

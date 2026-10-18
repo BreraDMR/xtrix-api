@@ -147,6 +147,25 @@ async def database_exception_handler(
             error_type="HTTPException",
             request=request,
         )
+    if isinstance(exc, IntegrityError) and getattr(getattr(exc, "orig", None), "pgcode", None) == "23502":
+        # null sent into a NOT NULL column (PUT {"name": null}) - that's bad input, not a conflict
+        column = getattr(getattr(exc.orig, "diag", None), "column_name", None) or "unknown"
+        return create_error_response(
+            status_code=422,
+            message="Validation error: 1 field(s) failed validation",
+            detail={
+                "validation_errors": [{
+                    "field": f"body -> {column}",
+                    "message": "This field can't be empty",
+                    "type": "null_not_allowed",
+                    "code": "null_not_allowed",
+                    "params": {},
+                }],
+                "total_errors": 1,
+            },
+            error_type="ValidationError",
+            request=request,
+        )
     if isinstance(exc, IntegrityError):
         # duplicate barcode, email etc. - the client's fault, but keep constraint names and SQL to ourselves
         logger.warning(f"Integrity error: {request.method} {request.url.path} - {exc.orig}")
