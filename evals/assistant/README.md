@@ -69,3 +69,5 @@ inside the prompt's data block.
 
 Fixture things are named by key, never by id: `"@client.key"` in `expect`/`plan`, `{visit.key}` inside `text`.
 Missing info should be an `expect: {questions: true, read_only: true}` case - the model must ask, not guess.
+A `client` matcher takes the client's id, or a `find_client` the executor would resolve to exactly that client
+(its search is a plain substring of the full name, so "Анну Петрову" or "Анна" don't count).

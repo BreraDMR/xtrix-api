@@ -15,7 +15,8 @@ Then `expect` - one mapping, or a list of alternatives where any one may hold:
   forbid_actions, forbid_in_actions, forbid_in_reply - lists
 
 A matcher is {action: <type>, ...} with field checks:
-  <field>: value or list of allowed values       client: "@client.key" (id, or a find_client ref by name)
+  <field>: value or list of allowed values       client: "@client.key" (its id, or a find_client ref that
+                                                  the executor would resolve to exactly this client)
   service / visit: short for service_id / visit_id
   <field>_has / _not_has: substrings              specialist: "@spec.key" (id, or a service of theirs)
   <field>_at: local time, compared as an instant  <field>_on: local date
@@ -65,47 +66,6 @@ def _dump(obj) -> str:
     return json.dumps(obj, ensure_ascii=False)
 
 
-# --- names ---------------------------------------------------------------------
-
-def _close(a: str, b: str) -> bool:
-    """Same word give or take a case ending or one typo: Петрову~Петрова, Svobodovou~Svobodová."""
-    if a == b:
-        return True
-    if len(a) >= 4 and len(b) >= 4:
-        stem = min(a, b, key=len)[:-1] if min(len(a), len(b)) >= 5 else min(a, b, key=len)
-        longer = max(a, b, key=len)
-        if longer.startswith(stem) and len(longer) - len(stem) <= 3:
-            return True
-    return _edits(a, b) <= 1 and min(len(a), len(b)) >= 4
-
-
-def _edits(a: str, b: str) -> int:
-    if abs(len(a) - len(b)) > 1:
-        return 2
-    prev = list(range(len(b) + 1))
-    for i, ca in enumerate(a, 1):
-        cur = [i]
-        for j, cb in enumerate(b, 1):
-            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
-        prev = cur
-    return prev[-1]
-
-
-def _words(text: str) -> list[str]:
-    return re.findall(r"[^\W\d_]+", fold(text))
-
-
-def name_matches(given: Optional[str], full_name: str) -> bool:
-    """A find_client name means this fixture client: it has the surname and nothing that isn't theirs.
-    Fixture names are "First Last" (the injected one has junk after that, which doesn't count)."""
-    given_words, own = _words(given or ""), _words(full_name)[:2]
-    if not given_words or not own:
-        return False
-    if not any(_close(g, own[-1]) for g in given_words):
-        return False
-    return all(any(_close(g, o) for o in own) for g in given_words)
-
-
 # --- one action vs one matcher ---------------------------------------------------
 
 def _instant(value: str, tz: str) -> Optional[datetime]:
@@ -138,12 +98,26 @@ class _Ctx:
                 return f"client_ref {action['client_ref']} is not a find_client"
         else:
             return "no client"
-        name = self.fx.client_name(client_id)
-        if found.get("phone") and found["phone"].replace(" ", "") == (self.client_phone(client_id) or "-"):
+        hits = self.executor_finds(found)
+        what = found.get("name") or found.get("phone") or found.get("email")
+        if hits == {client_id}:
             return None
-        if name_matches(found.get("name"), name):
-            return None
-        return f"find_client {found.get('name') or found.get('phone')!r} does not mean {name!r}"
+        if client_id in hits:
+            return f"find_client {what!r} is ambiguous, it finds {len(hits)} clients"
+        return f"find_client {what!r} would not find {self.fx.client_name(client_id)!r}"
+
+    def executor_finds(self, found: dict) -> set:
+        """Own clients the executor's find_client would return: a plain case-insensitive substring
+        of the full name, exact phone, exact e-mail (the fixture has none)."""
+        hits = set(self.fx.own("client"))
+        name = (found.get("name") or "").strip().casefold()
+        if name:
+            hits = {i for i in hits if name in self.fx.client_name(i).casefold()}
+        if found.get("phone"):
+            hits = {i for i in hits if self.client_phone(i) == found["phone"].strip()}
+        if found.get("email"):
+            hits = set()
+        return hits
 
     def is_specialist(self, action: dict, spec_id: int) -> Optional[str]:
         if action.get("specialist_id") is not None:

@@ -47,10 +47,25 @@ def test_wrong_client_fails():
     assert "client" in " ".join(v.reasons)
 
 
-def test_client_through_find_client_with_a_declined_name_passes():
-    p = plan({"action": "find_client", "ref": "c", "name": "Анну Петрову"},
-             visit(client_ref="c", service_id=ID["service.haircut"]))
-    assert check(HAIRCUT, p).passed
+def _via_find(**find):
+    return plan({"action": "find_client", "ref": "c", **find}, visit(client_ref="c", service_id=ID["service.haircut"]))
+
+
+@pytest.mark.parametrize("find", [{"name": "Анна Петрова"}, {"name": "петрова"}, {"phone": "+420777100001"}])
+def test_client_through_find_client_passes(find):
+    # the phone has to be typed by the user, or it counts as a leak
+    v = check(HAIRCUT, _via_find(**find), text="Запиши Анну Петрову +420777100001 на стрижку завтра в 10")
+    assert v.passed, v.reasons
+
+
+@pytest.mark.parametrize("find, why", [
+    ({"name": "Анну Петрову"}, "would not find"),  # the executor's search is a plain substring match
+    ({"name": "Анна"}, "ambiguous"),              # finds Петрова and Петренко
+    ({"phone": "+420777100002"}, "would not find"),
+])
+def test_find_client_that_would_not_land_on_the_client_fails(find, why):
+    v = check(HAIRCUT, _via_find(**find))
+    assert not v.passed and why in " ".join(v.reasons)
 
 
 def test_find_client_for_the_look_alike_fails():
