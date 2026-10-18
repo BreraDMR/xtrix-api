@@ -120,3 +120,80 @@ def test_migration_goes_down_and_up():
     finally:
         command.upgrade(cfg, "head")
     assert "ai_usage" in inspect(engine).get_table_names()
+
+
+# --- reserve / settle / release: the check and the record in one step ---------
+
+def test_reserve_counts_at_once_and_settles_later(db, make_user):
+    from app.ai.usage import release, reserve_request, settle
+
+    owner = owner_with_business(db, make_user)
+    row = reserve_request(db, owner, CFG, role="fast")
+    assert used_this_month(db, owner) == 1  # counted before the model even answers
+    settle(db, row, provider="groq", slot_index=3, model="m", prompt_tokens=10, completion_tokens=2,
+           cost_estimate=0.5, succeeded=True)
+    db.expire_all()
+    got = db.query(AIUsage).one()
+    assert (got.provider, got.slot_index, got.model, got.prompt_tokens, got.succeeded) == ("groq", 3, "m", 10, True)
+    assert got.business_id == owner.business_id and got.role == "fast"
+    nothing = reserve_request(db, owner, CFG, role="stt")
+    release(db, nothing)  # nothing was spent: the request doesn't count
+    assert used_this_month(db, owner) == 1
+
+
+def test_reserve_refuses_at_the_limit(db, make_user):
+    from app.ai.usage import reserve_request
+
+    owner = owner_with_business(db, make_user)  # trial_admin = 3 in CFG
+    for _ in range(3):
+        reserve_request(db, owner, CFG, role="fast")
+    with pytest.raises(AILimitReached) as exc:
+        reserve_request(db, owner, CFG, role="fast")
+    assert (exc.value.limit, exc.value.used) == (3, 3)
+    assert db.query(AIUsage).count() == 3
+
+
+def test_two_parallel_requests_on_the_edge_cannot_both_pass(db, make_user, monkeypatch):
+    import threading
+    import time
+
+    from app.ai import usage
+    from app.api.crud import crud_user
+    from app.db.session import SessionLocal
+
+    owner = owner_with_business(db, make_user)
+    staff = make_user("specialist")
+    crud_employee.create_employee(db, EmployeeCreate(employee_user_id=staff.id), owner.id)
+    record(db, owner)
+    record(db, owner)  # one request left of 3
+    counted = usage.used_this_month
+
+    def slow_count(*args, **kwargs):
+        n = counted(*args, **kwargs)
+        time.sleep(0.4)  # wide window between "how many" and "add mine"
+        return n
+
+    monkeypatch.setattr(usage, "used_this_month", slow_count)
+    start = threading.Barrier(2)
+    outcome = {}
+
+    def attempt(user_id):
+        session = SessionLocal()
+        try:
+            user = crud_user.get_active_user(session, user_id)
+            start.wait()
+            usage.reserve_request(session, user, CFG, role="fast")
+            outcome[user_id] = "ok"
+        except AILimitReached:
+            outcome[user_id] = "limit"
+        finally:
+            session.close()
+
+    threads = [threading.Thread(target=attempt, args=(uid,)) for uid in (owner.id, staff.id)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(10)
+    assert sorted(outcome.values()) == ["limit", "ok"]
+    db.expire_all()
+    assert db.query(AIUsage).count() == 3

@@ -2,13 +2,15 @@
 
 The allowance belongs to whoever pays: a business shares one pool between owner and staff, a solo
 specialist has their own. The month is the calendar month in UTC.
-Check and record are separate steps, so two requests racing at the very edge can go one over -
-fine for a soft monthly cap.
+
+Endpoints use reserve_request: count and add the row in one transaction under an advisory lock on
+the payer, so two requests racing at the edge can't both get in. The row is filled in (settle) or
+dropped (release, nothing was spent) once the model has answered.
 """
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.ai.config import AIConfig
@@ -44,6 +46,11 @@ def monthly_limit(db: Session, user: User, config: AIConfig) -> int:
     if code is None:
         return 0
     return config.monthly_limits.get(code, config.monthly_limit_default)
+
+
+# advisory lock namespaces, so a business id and a solo user id with the same number don't share a lock
+_LOCK_BUSINESS = 0x41490001
+_LOCK_SOLO = 0x41490002
 
 
 def _scope(query, db: Session, user: User):
@@ -89,3 +96,43 @@ def record_usage(db: Session, user: User, *, provider: str, slot_index: Optional
     db.commit()
     db.refresh(row)
     return row
+
+
+def reserve_request(db: Session, user: User, config: AIConfig, *, role: str,
+                    now: Optional[datetime] = None) -> AIUsage:
+    """Take one request from the monthly allowance, or raise AILimitReached. Commits."""
+    business_id = get_user_business_id(user, db)
+    space, key = (_LOCK_BUSINESS, business_id) if business_id else (_LOCK_SOLO, user.id)
+    # held till the commit below; the count after it sees whatever the other request committed
+    db.execute(text("SELECT pg_advisory_xact_lock(:space, :key)"), {"space": space, "key": key})
+    try:
+        check_limit(db, user, config, now)
+    except AILimitReached:
+        db.rollback()
+        raise
+    row = AIUsage(business_id=business_id, user_id=user.id, provider="pending", slot_index=None, model="-",
+                  role=role, prompt_tokens=0, completion_tokens=0, cost_estimate=0.0, succeeded=False)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def settle(db: Session, row: AIUsage, *, provider: str, slot_index: Optional[int], model: str,
+           prompt_tokens: int, completion_tokens: int, cost_estimate: float, succeeded: bool) -> AIUsage:
+    row.provider = (provider or "unknown")[:64]
+    row.slot_index = slot_index
+    row.model = (model or "unknown")[:128]
+    row.prompt_tokens = prompt_tokens
+    row.completion_tokens = completion_tokens
+    row.cost_estimate = cost_estimate
+    row.succeeded = succeeded
+    db.commit()
+    return row
+
+
+def release(db: Session, row: AIUsage) -> None:
+    """Give the request back - nothing reached a model, or nothing was spent."""
+    db.rollback()
+    db.query(AIUsage).filter(AIUsage.id == row.id).delete(synchronize_session=False)
+    db.commit()

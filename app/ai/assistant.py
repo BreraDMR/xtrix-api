@@ -19,13 +19,13 @@ from sqlalchemy.orm import Session
 from app.ai.config import AIConfig, load_ai_config
 from app.ai.context import build_context
 from app.ai.cooldown import utc_now
-from app.ai.errors import AIError
+from app.ai.errors import AIError, AINotConfigured
 from app.ai.executor import ExecutionResult, execute_plan
 from app.ai.persona import AssistantPersona, effective_assistant
 from app.ai.plan import AssistantPlan
 from app.ai.prompt import build_messages
 from app.ai.router import LLMRouter, Role, get_router
-from app.ai.usage import check_limit, record_usage
+from app.ai.usage import release, reserve_request, settle
 from app.api.core.logger import get_logger
 from app.api.core.permissions import get_user_business_id
 from app.api.crud import crud_business
@@ -115,22 +115,29 @@ def make_plan(db: Session, user: User, text: str, *, locale: str, tz: Optional[s
     config = config or (router.config if router else load_ai_config())
     router = router or get_router()
     store = store or _default_store
-    check_limit(db, user, config)
-    tz = tz or user_timezone(db, user, config)
-    context = build_context(db, user, text, locale=locale, tz_name=tz)
-    messages = build_messages(text, context)
+    if not router.slots:
+        raise AINotConfigured("no model slot is configured")
+    usage = reserve_request(db, user, config, role=role)
     try:
+        tz = tz or user_timezone(db, user, config)
+        context = build_context(db, user, text, locale=locale, tz_name=tz)
+        messages = build_messages(text, context)
         result = router.generate(messages, AssistantPlan, role=role)
     except AIError as err:
         if err.prompt_tokens or err.completion_tokens:
-            record_usage(db, user, provider="pool", slot_index=None, model="-", role=role,
-                         prompt_tokens=err.prompt_tokens, completion_tokens=err.completion_tokens,
-                         cost_estimate=0.0, succeeded=False)
+            # the tokens were burnt, so the request counts
+            settle(db, usage, provider="pool", slot_index=None, model="-", prompt_tokens=err.prompt_tokens,
+                   completion_tokens=err.completion_tokens, cost_estimate=0.0, succeeded=False)
+        else:
+            release(db, usage)
         logger.warning("ai plan failed: user=%s code=%s chars=%s", user.id, err.code, len(text))
         raise
-    record_usage(db, user, provider=result.provider, slot_index=result.slot_index, model=result.model,
-                 role=role, prompt_tokens=result.prompt_tokens, completion_tokens=result.completion_tokens,
-                 cost_estimate=result.cost_estimate, succeeded=True)
+    except Exception:
+        release(db, usage)
+        raise
+    settle(db, usage, provider=result.provider, slot_index=result.slot_index, model=result.model,
+           prompt_tokens=result.prompt_tokens, completion_tokens=result.completion_tokens,
+           cost_estimate=result.cost_estimate, succeeded=True)
     plan_id, expires_at = store.save(user_id=user.id, plan=result.value)
     business_id = get_user_business_id(user, db)
     business = crud_business.get_business(db, business_id) if business_id else None

@@ -234,3 +234,26 @@ def test_no_request_text_or_names_in_logs(db, ab, caplog):
     assert "ai plan" in caplog.text
     for secret in ("Jana", "Tajna", "777123456", "Beta Klientka"):
         assert secret not in caplog.text
+
+
+def test_nothing_configured_is_its_own_error_and_costs_nothing(db, ab):
+    from app.ai.errors import AINotConfigured
+
+    _, b = ab
+    kit = setup(Model(), env={"LLM_PROVIDER": "pool"})
+    with pytest.raises(AINotConfigured):
+        assistant.make_plan(db, fresh(db, b["owner"]), "hi", locale="en", **kit)
+    assert db.query(AIUsage).count() == 0
+
+
+def test_a_crash_before_the_model_gives_the_request_back(db, ab, monkeypatch):
+    _, b = ab
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("bug")
+
+    monkeypatch.setattr(assistant, "build_context", boom)
+    with pytest.raises(RuntimeError):
+        assistant.make_plan(db, fresh(db, b["owner"]), "hi", locale="en", **setup(Model()))
+    db.expire_all()
+    assert db.query(AIUsage).count() == 0
