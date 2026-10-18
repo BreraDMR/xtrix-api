@@ -41,3 +41,11 @@ def test_passwords_hash_and_verify_without_passlib():
     long_pw = "пароль" * 20
     assert verify_password(long_pw, get_password_hash(long_pw))
     assert not verify_password("anything", "not-a-hash")
+
+
+def test_settings_ignore_keys_they_dont_know_in_env_file(tmp_path):
+    # the AI layer reads LLM_* / ANTHROPIC_* from the same .env - the app must still start
+    env = tmp_path / ".env"
+    env.write_text("LLM_1_MODEL=some-model\nANTHROPIC_API_KEY=\n")
+    s = config.Settings(_env_file=str(env))
+    assert not hasattr(s, "llm_1_model")

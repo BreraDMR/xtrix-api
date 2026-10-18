@@ -133,5 +133,6 @@ class Settings(BaseSettings):
         if self.environment == "production" and self.jwt_secret in PLACEHOLDER_JWT_SECRETS:
             raise ValueError("JWT_SECRET is a public placeholder, set a real random secret in production")
         return self
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, populate_by_name=True)
+    # .env also holds keys read elsewhere (LLM_* for app/ai) - ignore them instead of refusing to start
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, populate_by_name=True, extra="ignore")
 settings = Settings()
