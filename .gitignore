@@ -67,3 +67,6 @@ htmlcov/
 
 
 
+
+# Assistant eval runs (prompts and model replies)
+evals/reports/
