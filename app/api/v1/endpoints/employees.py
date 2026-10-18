@@ -207,7 +207,7 @@ def create_employee_with_user(
             detail=f"Validation error: {'; '.join(errors)}"
         )
     try:
-        new_user = crud_user.create_user(db, user_create, moderation_status="approved")
+        new_user = crud_user.create_user(db, user_create, moderation_status="approved", with_trial=False)
     except Exception as e:
         error_msg = str(e)
         if "already exists" in error_msg.lower() or "unique" in error_msg.lower():

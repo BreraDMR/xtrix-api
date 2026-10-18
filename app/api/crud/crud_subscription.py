@@ -58,8 +58,11 @@ def create_trial_subscription(db: Session, user_id: int, role: str) -> Optional[
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return None
-    if user.employer_id:
+    if user.employer_id or user.business_id:
         return None
+    # Owners use the existing business trial; solo specialists keep their trial.
+    if role == "business_owner":
+        role = "admin"
     if role == "admin":
         trial_days = 5  
     elif role == "specialist":
@@ -103,21 +106,31 @@ def is_trial_active(db: Session, user_id: int) -> bool:
     if not sub.trial_end:
         return False
     return utcnow() < sub.trial_end
+def subscription_payer_id(db: Session, user) -> Optional[int]:
+    from app.api.core.permissions import get_staff_record
+    from app.db.models.user import User
+    staff = get_staff_record(db, user)
+    owner_id = staff.business_owner_id if staff else user.employer_id
+    if owner_id:
+        owner = db.query(User).filter(
+            User.id == owner_id,
+            User.deleted_at.is_(None),
+            User.role.in_(["business_owner", "admin"]),
+        ).first()
+        return owner.id if owner else None
+    if user.role == "employee":
+        return None
+    return user.id
+
 def check_subscription_access(db: Session, user_id: int, require_paid: bool = False) -> tuple[bool, Optional[str]]:
     from app.db.models.user import User
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return False, "User not found"
-    if user.employer_id:
-        admin_sub = get_active_subscription(db, user.employer_id)
-        if admin_sub and admin_sub.status in ["active", "pending_cancellation"]:
-            if require_paid:
-                if admin_sub.is_trial and not is_trial_active(db, user.employer_id):
-                    return False, "Admin trial expired"
-                elif admin_sub.is_trial:
-                    return False, "Trial access not allowed for this feature"
-            return True, None
-        return False, "Admin subscription not active"
+    payer_id = subscription_payer_id(db, user)
+    if payer_id is None:
+        return False, "No subscription owner"
+    user_id = payer_id
     sub = get_active_subscription(db, user_id)
     if not sub:
         return False, "No active subscription"

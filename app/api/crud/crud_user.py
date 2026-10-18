@@ -9,7 +9,8 @@ from app.db.models.user import User
 from app.schemas.user import UserCreate, UserLogin
 from app.schemas.refresh_token import RefreshTokenCreate
 from app.api.core.clock import utcnow
-def create_user(db: Session, user_in: UserCreate, moderation_status: Optional[str] = None) -> User:
+def create_user(db: Session, user_in: UserCreate, moderation_status: Optional[str] = None,
+                with_trial: bool = True) -> User:
     if user_in.password:
         is_valid, error_msg = validate_password_strength(user_in.password)
         if not is_valid:
@@ -39,7 +40,8 @@ def create_user(db: Session, user_in: UserCreate, moderation_status: Optional[st
     db.add(user)
     db.commit()
     db.refresh(user)
-    if not business_id and user_in.role in ["admin", "specialist"]:
+    # staff made by an owner live on the owner's plan, no trial of their own
+    if with_trial and not business_id and user_in.role in ["admin", "business_owner", "specialist"]:
         try:
             from app.api.crud import crud_subscription
             crud_subscription.create_trial_subscription(db, user.id, user_in.role)

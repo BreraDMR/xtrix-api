@@ -24,6 +24,21 @@ from app.schemas.subscription_plan import (
     SubscriptionPlanUpdate,
 )
 router = APIRouter()
+_billing_roles = deps.role_required("admin", "business_owner", "specialist")
+
+
+def _payer(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(_billing_roles),
+    locale: str = Depends(deps.get_locale),
+):
+    # the owner pays for the whole team, staff ride on that and never buy a plan themselves
+    from app.api.core.permissions import get_staff_record
+    if current_user.employer_id or get_staff_record(db, current_user):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    return current_user
+
+
 def _own_subscription(db: Session, current_user: User, subscription_id: int, locale: str):
     sub = crud_subscription.get_subscription(db, subscription_id)
     if not sub:
@@ -86,7 +101,7 @@ def create_subscription(
 @router.get("/me", response_model=SubscriptionOut | None)
 def my_subscription(
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(_billing_roles),
     locale: str = Depends(deps.get_locale),
 ):
     sub = crud_subscription.get_active_subscription(db, current_user.id)
@@ -96,7 +111,7 @@ def my_subscription(
 def create_checkout_session(
     plan_id: int,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(_payer),
     locale: str = Depends(deps.get_locale),
 ):
     if not settings.stripe_api_key:
@@ -157,7 +172,7 @@ def create_checkout_session(
 def get_checkout_session(
     session_id: str,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(_billing_roles),
     locale: str = Depends(deps.get_locale),
 ):
     if not settings.stripe_api_key:
@@ -183,15 +198,16 @@ def get_trial_status(
     locale: str = Depends(deps.get_locale),
 ):
     from app.api.crud import crud_subscription
-    user_id = current_user.employer_id if current_user.employer_id else current_user.id
-    is_active = crud_subscription.is_trial_active(db, user_id)
-    sub = crud_subscription.get_active_subscription(db, user_id)
+    user_id = crud_subscription.subscription_payer_id(db, current_user)
+    # fired staff have nobody paying for them
+    is_active = crud_subscription.is_trial_active(db, user_id) if user_id else False
+    sub = crud_subscription.get_active_subscription(db, user_id) if user_id else None
     return {
         "is_trial_active": is_active,
         "is_trial": sub.is_trial if sub else False,
         "trial_start": sub.trial_start if sub else None,
         "trial_end": sub.trial_end if sub else None,
-        "has_access": True if sub and sub.status == "active" else False,
+        "has_access": crud_subscription.check_subscription_access(db, current_user.id)[0],
     }
 @router.post("/webhooks/stripe")
 async def stripe_webhook(request: Request, db: Session = Depends(deps.get_db)):
@@ -503,7 +519,7 @@ def cancel_subscription(
     subscription_id: int,
     cancel_request: SubscriptionCancelRequest,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(_billing_roles),
     locale: str = Depends(deps.get_locale),
 ):
     sub = _own_subscription(db, current_user, subscription_id, locale)
@@ -521,7 +537,7 @@ def reactivate_subscription(
     subscription_id: int,
     reactivate_request: SubscriptionReactivateRequest,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(_payer),
     locale: str = Depends(deps.get_locale),
 ):
     sub = _own_subscription(db, current_user, subscription_id, locale)
@@ -538,7 +554,7 @@ def reactivate_subscription(
 def get_subscription_transactions(
     subscription_id: int,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(_billing_roles),
     locale: str = Depends(deps.get_locale),
 ):
     sub = _own_subscription(db, current_user, subscription_id, locale)
@@ -548,7 +564,7 @@ def get_subscription_transactions(
 @router.get("/history", response_model=list[SubscriptionOut])
 def get_subscription_history(
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "specialist")),
+    current_user: User = Depends(_billing_roles),
     locale: str = Depends(deps.get_locale),
 ):
     subscriptions = (
