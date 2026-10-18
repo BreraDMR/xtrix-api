@@ -55,6 +55,10 @@ def _looks_like(ext: str, data: bytes) -> bool:
     return False
 
 
+def too_large() -> AudioRejected:
+    return AudioRejected("audio_too_large", f"the recording is larger than {MAX_AUDIO_BYTES // (1024 * 1024)} MB")
+
+
 def check_audio(data: bytes, content_type: Optional[str]) -> str:
     """The file extension to send it as, or AudioRejected."""
     base = (content_type or "").split(";")[0].strip().lower()
@@ -64,7 +68,7 @@ def check_audio(data: bytes, content_type: Optional[str]) -> str:
     if not data:
         raise AudioRejected("audio_empty", "the recording is empty")
     if len(data) > MAX_AUDIO_BYTES:
-        raise AudioRejected("audio_too_large", f"the recording is larger than {MAX_AUDIO_BYTES // (1024 * 1024)} MB")
+        raise too_large()
     if not _looks_like(ext, data):
         raise AudioRejected("audio_type_not_supported", "the file is not the audio type it says it is")
     return ext

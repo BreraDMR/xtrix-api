@@ -7,6 +7,7 @@ and edits it before asking for a plan.
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.routing import APIRoute
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.orm import Session
 
@@ -186,8 +187,27 @@ def execute_plan(
     return result.to_dict()
 
 
-@router.post("/transcribe", response_model=TranscribeOut, responses=AI_ERRORS,
-             summary="Speech to text for the assistant input (not planned automatically)")
+# the multipart wrapping around the file is a boundary and a few headers - 64 KB is plenty
+MAX_TRANSCRIBE_BODY = stt.MAX_AUDIO_BYTES + 64 * 1024
+
+
+class _SizeCheckedRoute(APIRoute):
+    """Turns an upload away by its Content-Length, before Starlette spools the whole multipart.
+    Chunked uploads have no length - the check after parsing still catches those."""
+
+    def get_route_handler(self):
+        handler = super().get_route_handler()
+
+        async def guarded(request: Request):
+            declared = request.headers.get("content-length", "")
+            if declared.isdigit() and int(declared) > MAX_TRANSCRIBE_BODY:
+                err = stt.too_large()
+                raise _bad_input("file", err.code, str(err))
+            return await handler(request)
+
+        return guarded
+
+
 @limiter.limit(ASSISTANT_TRANSCRIBE_LIMIT, key_func=user_or_ip)
 def transcribe(
     request: Request,
@@ -210,3 +230,8 @@ def transcribe(
     except AIError as err:
         raise ai_http_error(err, locale)
     return {"text": text}
+
+
+router.add_api_route("/transcribe", transcribe, methods=["POST"], response_model=TranscribeOut, responses=AI_ERRORS,
+                     summary="Speech to text for the assistant input (not planned automatically)",
+                     route_class_override=_SizeCheckedRoute)

@@ -1,4 +1,5 @@
 """/assistant/* over HTTP with fake models and fake speech - no real provider is ever called."""
+import asyncio
 import json
 from datetime import datetime, timedelta, timezone
 
@@ -337,6 +338,60 @@ def test_transcribe_checks_type_and_size(client, ab, fakes, data, ctype, code):
     assert r.status_code == 422, r.text
     [err] = error(r)["detail"]["validation_errors"]
     assert (err["code"], err["field"]) == (code, "body -> file")
+    assert fakes.stt_calls == 0
+
+
+def _raw_post(path, headers):
+    """Calls the app straight over ASGI and counts how often it reads the body."""
+    reads, sent = [], []
+
+    async def receive():
+        reads.append(1)
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message):
+        sent.append(message)
+
+    scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": "POST", "scheme": "http",
+             "path": path, "raw_path": path.encode(), "root_path": "", "query_string": b"",
+             "headers": [(k.lower().encode(), v.encode()) for k, v in headers.items()],
+             "server": ("testserver", 80), "client": ("127.0.0.1", 50000)}
+    asyncio.run(app(scope, receive, send))
+    start = next(m for m in sent if m["type"] == "http.response.start")
+    body = b"".join(m.get("body", b"") for m in sent if m["type"] == "http.response.body")
+    return start["status"], json.loads(body), len(reads)
+
+
+def test_transcribe_turns_away_a_too_big_upload_before_reading_it(ab, fakes):
+    _, b = ab
+    status, body, reads = _raw_post("/assistant/transcribe", {
+        **b["headers"], "Content-Type": "multipart/form-data; boundary=x",
+        "Content-Length": str(stt.MAX_AUDIO_BYTES + 1024 * 1024)})
+    assert status == 422 and reads == 0
+    [err] = body["error"]["detail"]["validation_errors"]
+    assert (err["code"], err["field"]) == ("audio_too_large", "body -> file")
+    assert fakes.stt_calls == 0
+
+
+def test_transcribe_chunked_upload_without_a_length_is_still_checked(client, ab, fakes):
+    _, b = ab
+    boundary = "xtrixtest"
+    head = (f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="rec.webm"\r\n'
+            "Content-Type: audio/webm\r\n\r\n").encode()
+    audio = WEBM[:4] + b"\x00" * (stt.MAX_AUDIO_BYTES + 10)
+
+    def chunks():
+        yield head
+        for i in range(0, len(audio), 1024 * 1024):
+            yield audio[i:i + 1024 * 1024]
+        yield f"\r\n--{boundary}--\r\n".encode()
+
+    r = client.post("/assistant/transcribe", content=chunks(),
+                    headers={**b["headers"], "Content-Type": f"multipart/form-data; boundary={boundary}"})
+    assert "content-length" not in r.request.headers
+    assert r.status_code == 422, r.text
+    [err] = error(r)["detail"]["validation_errors"]
+    assert (err["code"], err["field"]) == ("audio_too_large", "body -> file")
     assert fakes.stt_calls == 0
 
 
