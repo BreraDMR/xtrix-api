@@ -225,12 +225,27 @@ def test_smart_role_uses_smart_model():
     assert json.loads(fake.calls[0].content)["model"] == "big-model"
 
 
-def test_openrouter_requests_deny_data_collection():
-    env = {"LLM_1_BASE_URL": "https://openrouter.ai/api/v1", "LLM_1_API_KEY": "k", "LLM_1_MODEL": "m:free"}
+OPENROUTER = {"LLM_1_BASE_URL": "https://openrouter.ai/api/v1", "LLM_1_API_KEY": "k", "LLM_1_MODEL": "m:free"}
+
+
+def test_openrouter_allows_data_collection_by_default():
+    # most free models sit behind providers that keep prompts, deny would cut them off
     fake = Fake({})
-    result = router_for(fake, env).generate(MSGS, Answer)
-    assert json.loads(fake.calls[0].content)["provider"] == {"data_collection": "deny"}
+    result = router_for(fake, dict(OPENROUTER)).generate(MSGS, Answer)
+    assert "provider" not in json.loads(fake.calls[0].content)
     assert result.provider == "openrouter"
+
+
+def test_openrouter_can_deny_data_collection():
+    env = dict(OPENROUTER, LLM_1_DATA_COLLECTION="deny")
+    fake = Fake({})
+    router_for(fake, env).generate(MSGS, Answer)
+    assert json.loads(fake.calls[0].content)["provider"] == {"data_collection": "deny"}
+
+
+def test_bad_data_collection_value_is_refused():
+    with pytest.raises(ValueError):
+        load_ai_config(dict(OPENROUTER, LLM_1_DATA_COLLECTION="maybe"))
 
 
 def test_other_providers_get_no_openrouter_fields():

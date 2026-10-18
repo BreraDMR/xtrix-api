@@ -15,6 +15,7 @@ MAX_SLOTS = 30
 KEYLESS = "none"
 PROVIDERS = ("pool", "anthropic", "cli", "fake")
 JSON_MODES = ("json_object", "json_schema", "none")
+DATA_COLLECTION = ("allow", "deny")
 
 # requests per calendar month (UTC) by subscription plan code
 DEFAULT_MONTHLY_LIMITS = {
@@ -40,6 +41,7 @@ class SlotConfig:
     model_smart: str
     name: str  # provider label for logs and usage rows - never the key
     json_mode: str = "json_object"
+    data_collection: str = "allow"  # OpenRouter only: "deny" skips providers that keep prompts
     price_in: float = 0.0  # USD per 1M tokens, for the cost estimate
     price_out: float = 0.0
 
@@ -111,6 +113,9 @@ def _pool_slots(env: Mapping[str, str]) -> list[SlotConfig]:
         json_mode = _get(env, p + "JSON_MODE", "json_object").lower()
         if json_mode not in JSON_MODES:
             raise ValueError(f"{p}JSON_MODE must be one of {', '.join(JSON_MODES)}")
+        data_collection = _get(env, p + "DATA_COLLECTION", "allow").lower()
+        if data_collection not in DATA_COLLECTION:
+            raise ValueError(f"{p}DATA_COLLECTION must be allow or deny")
         slots.append(SlotConfig(
             index=i,
             kind=kind,
@@ -120,6 +125,7 @@ def _pool_slots(env: Mapping[str, str]) -> list[SlotConfig]:
             model_smart=_get(env, p + "MODEL_SMART") or model,
             name=_get(env, p + "NAME") or _provider_name(base_url),
             json_mode=json_mode,
+            data_collection=data_collection,
             price_in=_num(env, p + "PRICE_IN", 0.0),
             price_out=_num(env, p + "PRICE_OUT", 0.0),
         ))

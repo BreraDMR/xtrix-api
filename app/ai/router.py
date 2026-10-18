@@ -180,7 +180,8 @@ def _adapter_for(cfg: SlotConfig, http: Optional[httpx.Client]) -> ModelAdapter:
         from app.ai.providers.anthropic import AnthropicAdapter
         return AnthropicAdapter(cfg.api_key or "", base_url=cfg.base_url, http=http)
     from app.ai.providers.openai_compat import OpenAICompatAdapter
-    return OpenAICompatAdapter(cfg.base_url, cfg.api_key, json_mode=cfg.json_mode, http=http)
+    return OpenAICompatAdapter(cfg.base_url, cfg.api_key, json_mode=cfg.json_mode,
+                              data_collection=cfg.data_collection, http=http)
 
 
 def build_router(config: Optional[AIConfig] = None, *, http: Optional[httpx.Client] = None,

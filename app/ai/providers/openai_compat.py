@@ -10,10 +10,11 @@ from app.ai.providers.base import Completion, Message, ProviderError, as_int, po
 
 class OpenAICompatAdapter:
     def __init__(self, base_url: str, api_key: Optional[str], *, json_mode: str = "json_object",
-                 http: Optional[httpx.Client] = None):
+                 data_collection: str = "allow", http: Optional[httpx.Client] = None):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.json_mode = json_mode
+        self.data_collection = data_collection
         self.http = http or httpx.Client()
         self.is_openrouter = (urlparse(self.base_url).hostname or "").endswith("openrouter.ai")
 
@@ -28,7 +29,7 @@ class OpenAICompatAdapter:
         elif self.json_mode == "json_schema" and json_schema:
             body["response_format"] = {"type": "json_schema",
                                        "json_schema": {"name": "plan", "schema": json_schema, "strict": False}}
-        if self.is_openrouter:
+        if self.is_openrouter and self.data_collection == "deny":
             # only route to providers that don't keep or train on what we send
             body["provider"] = {"data_collection": "deny"}
         return body
