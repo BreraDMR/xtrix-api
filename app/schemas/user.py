@@ -64,6 +64,8 @@ class UserOut(UserBase):
     moderation_notes: Optional[str] = None
     moderated_at: Optional[UtcDatetime] = None
     moderated_by_id: Optional[int] = None
+    business_id: Optional[int] = Field(None, description="Business the user works in: their own, or the employer's for staff")
+    employer_id: Optional[int] = Field(None, description="User id of the owner who employs this user; null for owners and solo specialists")
     model_config = ConfigDict(from_attributes=True)
 class TwoFactorSetup(BaseModel):
     secret: str

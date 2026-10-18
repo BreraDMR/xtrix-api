@@ -8035,6 +8035,18 @@
       },
       "UserOut": {
         "properties": {
+          "business_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Business the user works in: their own, or the employer's for staff",
+            "title": "Business Id"
+          },
           "email": {
             "anyOf": [
               {
@@ -8046,6 +8058,18 @@
               }
             ],
             "title": "Email"
+          },
+          "employer_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User id of the owner who employs this user; null for owners and solo specialists",
+            "title": "Employer Id"
           },
           "full_name": {
             "maxLength": 255,

@@ -104,14 +104,17 @@ def login(
 @router.get("/me", response_model=UserOut)
 def get_current_user_info(
     current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
     locale: str = Depends(deps.get_locale),
 ):
-    result = current_user
-    if hasattr(result, 'model_dump'):
-        return result.model_dump()
-    elif hasattr(result, 'model_dump'):
-        return result.model_dump()
-    return result
+    from app.api.core.permissions import get_staff_record, get_user_business_id
+    # the job is the source of truth here: staff hired before the owner made the salon
+    # have no business_id on their own row
+    staff = get_staff_record(db, current_user)
+    me = UserOut.model_validate(current_user)
+    me.business_id = get_user_business_id(current_user, db)
+    me.employer_id = staff.business_owner_id if staff else None
+    return me
 @router.post("/refresh", response_model=TokenResponse)
 @limiter.limit(SENSITIVE_LIMIT)
 def refresh_token(
