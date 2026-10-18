@@ -19,6 +19,8 @@ def _service_out(service: Service) -> dict:
         people = [service.specialist]
     data['specialist_ids'] = [p.id for p in people] or [service.specialist_id]
     data['specialists'] = [{'id': p.id, 'full_name': p.full_name, 'email': p.email, 'phone': p.phone} for p in people]
+    owner = getattr(service, 'specialist', None)
+    data['specialist'] = {'id': owner.id, 'full_name': owner.full_name} if owner else None
     return data
 def _check_specialists(db: Session, user: User, specialist_ids, locale: str) -> None:
     # owners used to be able to put any user on the platform down as the specialist

@@ -19,9 +19,17 @@ class ServiceUpdate(InputModel):
     is_active: Optional[bool] = None
     specialist_id: Optional[int] = None
     specialist_ids: Optional[List[int]] = Field(None, description="IDs of specialists who provide this service")
+class SpecialistBrief(BaseModel):
+    id: int
+    full_name: str
+    model_config = ConfigDict(from_attributes=True)
+class ServiceSpecialistOut(SpecialistBrief):
+    email: Optional[str] = None
+    phone: Optional[str] = None
 class ServiceOut(ServiceBase):
     id: int
     specialist_id: int
+    specialist: Optional[SpecialistBrief] = Field(None, description="The specialist the service belongs to (specialist_id), just id and name")
     specialist_ids: Optional[List[int]] = Field(None, description="IDs of all specialists who provide this service")
-    specialists: Optional[List[dict]] = Field(None, description="Specialists' info")
+    specialists: Optional[List[ServiceSpecialistOut]] = Field(None, description="Specialists' info")
     model_config = ConfigDict(from_attributes=True)

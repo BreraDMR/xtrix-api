@@ -6346,6 +6346,17 @@
             ],
             "title": "Price"
           },
+          "specialist": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpecialistBrief"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The specialist the service belongs to (specialist_id), just id and name"
+          },
           "specialist_id": {
             "title": "Specialist Id",
             "type": "integer"
@@ -6369,8 +6380,7 @@
             "anyOf": [
               {
                 "items": {
-                  "additionalProperties": true,
-                  "type": "object"
+                  "$ref": "#/components/schemas/ServiceSpecialistOut"
                 },
                 "type": "array"
               },
@@ -6388,6 +6398,46 @@
           "specialist_id"
         ],
         "title": "ServiceOut",
+        "type": "object"
+      },
+      "ServiceSpecialistOut": {
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          }
+        },
+        "required": [
+          "id",
+          "full_name"
+        ],
+        "title": "ServiceSpecialistOut",
         "type": "object"
       },
       "ServiceUpdate": {
@@ -6541,6 +6591,24 @@
           "revenue_per_client"
         ],
         "title": "SpecialistAnalytics",
+        "type": "object"
+      },
+      "SpecialistBrief": {
+        "properties": {
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "full_name"
+        ],
+        "title": "SpecialistBrief",
         "type": "object"
       },
       "SpecialistProfileCreate": {
