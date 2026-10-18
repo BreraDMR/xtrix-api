@@ -143,3 +143,16 @@ def test_paging_params_are_bounded(make_user, headers_for):
                     if r.status_code not in (422, 401, 403):
                         bad.append(f"GET {path} {p['name']}={junk}: {r.status_code}")
     assert not bad, "\n".join(bad)
+
+
+def test_true_is_not_a_quantity_inside_used_products(make_user, headers_for):
+    client = TestClient(app, raise_server_exceptions=False)
+    a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
+    start = (datetime.utcnow() + timedelta(days=5)).replace(hour=12, minute=0, second=0, microsecond=0)
+    r = client.post("/visits/", json={
+        "client_id": a["client"]["id"], "specialist_id": a["owner"].id, "service_id": a["service"]["id"],
+        "date_start": start.isoformat(), "used_products": [{"product_id": a["product"]["id"], "quantity": True}],
+    }, headers=a["headers"])
+    assert r.status_code == 422, r.text
+    err = r.json()["error"]["detail"]["validation_errors"][0]
+    assert err["field"] == "body -> used_products -> 0 -> quantity" and err["code"] == "number_type"

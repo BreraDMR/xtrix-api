@@ -6,7 +6,7 @@ from app.api.core.clock import utcnow
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.errors import invalid, invalid_choice
 from app.schemas.base import InputModel
-class UsedProduct(BaseModel):
+class UsedProduct(InputModel):
     product_id: int
     quantity: float = Field(..., gt=0)
 class VisitBase(BaseModel):
