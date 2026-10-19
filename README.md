@@ -87,3 +87,11 @@ script.
 ## License
 
 Proprietary. All rights reserved.
+
+## Release branches
+
+Work in `feature/*` branches, integrate into `develop`, then promote checked commits to `staging`.
+The public demo (Render API, Neon database and Vercel web client) follows `staging` and uses Stripe sandbox.
+`main` holds reviewed releases; no production service is connected to it yet. Promote the API first,
+then the web client, so each web branch can validate against the API contract on the same branch.
+Never share the staging database or Stripe sandbox with a future production environment.

@@ -6,7 +6,7 @@ services:
     runtime: docker
     plan: free
     region: frankfurt
-    branch: develop
+    branch: staging
     healthCheckPath: /metrics/health/ready
     envVars:
       - key: ENVIRONMENT
