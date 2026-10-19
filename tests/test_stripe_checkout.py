@@ -49,6 +49,7 @@ def checkout(client, db, make_user, headers_for, monkeypatch):
         return sdk({"data": rows})
 
     def sessions_create(**params):
+        assert "payment_method_types" not in params, "Checkout methods come from Stripe Dashboard"
         key = params.pop("idempotency_key")
         if key in remote["keys"]:
             old_params, sid = remote["keys"][key]

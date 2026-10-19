@@ -126,7 +126,6 @@ def create_checkout_session(
         raise HTTPException(status_code=400, detail="Choose a paid plan for checkout")
     try:
         payload = dict(
-            payment_method_types=["card"],
             line_items=[{
                 "price_data": {
                     "currency": plan.currency.lower(),
