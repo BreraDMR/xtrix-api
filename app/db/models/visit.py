@@ -16,6 +16,7 @@ class Visit(Base):
     photo_url = Column(String, nullable=True)
     price = Column(Float, nullable=True, index=True)
     status = Column(String, default="planned", index=True)
+    client_confirmed_at = Column(DateTime, nullable=True)
     payment_method = Column(String, nullable=True, index=True)  
     created_at = Column(DateTime, default=utcnow, index=True)
     deleted_at = Column(DateTime, nullable=True, index=True)  

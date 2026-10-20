@@ -192,3 +192,4 @@ class PublicBookingManageOut(BaseModel):
     price: Optional[float] = None
     currency: str
     token_expires_at: UtcDatetime
+    confirmed_at: Optional[UtcDatetime] = None

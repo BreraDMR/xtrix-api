@@ -102,4 +102,5 @@ class VisitUpdate(InputModel):
 class VisitOut(VisitBase):
     id: int
     created_at: UtcDatetime
+    client_confirmed_at: Optional[UtcDatetime] = None
     model_config = ConfigDict(from_attributes=True)

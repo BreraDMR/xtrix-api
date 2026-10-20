@@ -38,3 +38,23 @@ def ensure_cancellation_allowed(visit: Visit, now: Optional[datetime] = None) ->
     reason = cancellation_block_reason(visit, now)
     if reason:
         raise BookingActionNotAllowed(reason)
+
+
+def confirmation_block_reason(visit: Visit, now: Optional[datetime] = None) -> Optional[str]:
+    if visit.status == "completed":
+        return "booking_confirm_completed"
+    if visit.status == "in_progress":
+        return "booking_confirm_in_progress"
+    if visit.status == "cancelled":
+        return "booking_confirm_cancelled"
+    if visit.status != "planned":
+        return "booking_confirm_unavailable"
+    if visit.date_start <= (now or utcnow()):
+        return "booking_confirm_started"
+    return None
+
+
+def ensure_confirmation_allowed(visit: Visit, now: Optional[datetime] = None) -> None:
+    reason = confirmation_block_reason(visit, now)
+    if reason:
+        raise BookingActionNotAllowed(reason)

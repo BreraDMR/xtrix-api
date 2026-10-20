@@ -241,6 +241,31 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Эту запись нельзя отменить",
         "cz": "Tuto rezervaci nelze zrušit",
     },
+    "booking_confirm_completed": {
+        "en": "A completed visit can't be confirmed",
+        "ru": "Завершённый визит нельзя подтвердить",
+        "cz": "Dokončenou návštěvu nelze potvrdit",
+    },
+    "booking_confirm_in_progress": {
+        "en": "A visit that has already started can't be confirmed",
+        "ru": "Начавшийся визит нельзя подтвердить",
+        "cz": "Zahájenou návštěvu nelze potvrdit",
+    },
+    "booking_confirm_cancelled": {
+        "en": "This booking is already cancelled",
+        "ru": "Эта запись уже отменена",
+        "cz": "Tato rezervace je již zrušena",
+    },
+    "booking_confirm_unavailable": {
+        "en": "This booking can't be confirmed",
+        "ru": "Эту запись нельзя подтвердить",
+        "cz": "Tuto rezervaci nelze potvrdit",
+    },
+    "booking_confirm_started": {
+        "en": "This visit has already started",
+        "ru": "Этот визит уже начался",
+        "cz": "Tato návštěva již začala",
+    },
     "cannot_cancel_subscription": {
         "en": "This subscription can't be cancelled",
         "ru": "Эту подписку нельзя отменить",
