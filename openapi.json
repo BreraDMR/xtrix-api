@@ -5600,6 +5600,218 @@
         "title": "OfferOut",
         "type": "object"
       },
+      "OnboardingStateOut": {
+        "properties": {
+          "checklist_dismissed": {
+            "title": "Checklist Dismissed",
+            "type": "boolean"
+          },
+          "completed_steps": {
+            "minimum": 0.0,
+            "title": "Completed Steps",
+            "type": "integer"
+          },
+          "dismissed_hints": {
+            "items": {
+              "enum": [
+                "clients",
+                "services",
+                "calendar"
+              ],
+              "type": "string"
+            },
+            "title": "Dismissed Hints",
+            "type": "array"
+          },
+          "next_step": {
+            "anyOf": [
+              {
+                "enum": [
+                  "business",
+                  "service",
+                  "staff",
+                  "schedule",
+                  "booking"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Step"
+          },
+          "onboarding_version": {
+            "title": "Onboarding Version",
+            "type": "integer"
+          },
+          "persona": {
+            "enum": [
+              "owner",
+              "solo",
+              "staff"
+            ],
+            "title": "Persona",
+            "type": "string"
+          },
+          "progress_percent": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Progress Percent",
+            "type": "integer"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/OnboardingStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "total_steps": {
+            "minimum": 0.0,
+            "title": "Total Steps",
+            "type": "integer"
+          },
+          "tour_completed": {
+            "title": "Tour Completed",
+            "type": "boolean"
+          },
+          "tour_dismissed": {
+            "title": "Tour Dismissed",
+            "type": "boolean"
+          },
+          "tour_version": {
+            "title": "Tour Version",
+            "type": "integer"
+          },
+          "welcome_dismissed": {
+            "title": "Welcome Dismissed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "persona",
+          "steps",
+          "completed_steps",
+          "total_steps",
+          "progress_percent",
+          "onboarding_version",
+          "tour_version",
+          "tour_completed",
+          "tour_dismissed",
+          "welcome_dismissed",
+          "checklist_dismissed",
+          "dismissed_hints"
+        ],
+        "title": "OnboardingStateOut",
+        "type": "object"
+      },
+      "OnboardingStep": {
+        "properties": {
+          "available": {
+            "default": true,
+            "description": "False while the screen behind the step is not released yet",
+            "title": "Available",
+            "type": "boolean"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "boolean"
+          },
+          "key": {
+            "enum": [
+              "business",
+              "service",
+              "staff",
+              "schedule",
+              "booking"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "required": {
+            "default": true,
+            "description": "Only required steps count towards progress",
+            "title": "Required",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "completed"
+        ],
+        "title": "OnboardingStep",
+        "type": "object"
+      },
+      "OnboardingUpdate": {
+        "properties": {
+          "checklist_dismissed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checklist Dismissed"
+          },
+          "dismissed_hints": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "clients",
+                    "services",
+                    "calendar"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dismissed Hints"
+          },
+          "tour_completed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tour Completed"
+          },
+          "tour_dismissed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tour Dismissed"
+          },
+          "welcome_dismissed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Welcome Dismissed"
+          }
+        },
+        "title": "OnboardingUpdate",
+        "type": "object"
+      },
       "PaginatedResponse_AuditLogOut_": {
         "properties": {
           "items": {
@@ -19498,6 +19710,76 @@
         "summary": "Get single approved offer by code",
         "tags": [
           "offers"
+        ]
+      }
+    },
+    "/onboarding/me": {
+      "get": {
+        "operationId": "get_my_onboarding_onboarding_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingStateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get my first-run checklist",
+        "tags": [
+          "onboarding"
+        ]
+      },
+      "patch": {
+        "operationId": "update_my_onboarding_onboarding_me_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingStateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Save my first-run choices",
+        "tags": [
+          "onboarding"
         ]
       }
     },
