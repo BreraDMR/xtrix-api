@@ -1895,6 +1895,22 @@
         "title": "ConversationPage",
         "type": "object"
       },
+      "ConversationRename": {
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "ConversationRename",
+        "type": "object"
+      },
       "CreateClientPlanned": {
         "additionalProperties": false,
         "properties": {
@@ -12501,6 +12517,80 @@
           }
         ],
         "summary": "Create a private conversation; a repeated request key returns the same chat",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
+    "/assistant/conversations/{conversation_id}": {
+      "patch": {
+        "operationId": "rename_conversation_assistant_conversations__conversation_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversationRename"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Rename a private conversation",
         "tags": [
           "assistant"
         ]

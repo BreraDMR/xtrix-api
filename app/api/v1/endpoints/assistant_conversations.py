@@ -24,6 +24,7 @@ from app.schemas.assistant_conversation import (
     ConversationCreate,
     ConversationOut,
     ConversationPage,
+    ConversationRename,
     MessagePage,
 )
 
@@ -70,6 +71,23 @@ def list_messages(
     if len(messages) == limit and messages[-1].ordinal > 1:
         next_before = messages[-1].ordinal
     return MessagePage(items=items, next_before=next_before)
+
+
+@router.patch('/{conversation_id}', response_model=ConversationOut,
+              summary='Rename a private conversation')
+def rename_conversation(
+    conversation_id: UUID,
+    body: ConversationRename,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(staff_user),
+    locale: str = Depends(deps.get_locale),
+):
+    row = resolve_conversation(db, current_user, conversation_id, locale=locale, lock=True)
+    row.title = body.title
+    row.updated_at = utcnow()
+    db.commit()
+    db.refresh(row)
+    return row
 
 
 @router.post('', response_model=ConversationOut, status_code=201,

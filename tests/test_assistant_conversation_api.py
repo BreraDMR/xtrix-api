@@ -162,3 +162,33 @@ def test_list_messages_stranger_cannot_access(client, make_user, headers_for):
     assert resp.json()['detail']['code'] == 'conversation_not_found'
 
 
+def test_rename_conversation(client, db, make_user, headers_for):
+    owner = make_user()
+    headers = headers_for(owner)
+    chat = create(client, headers, title='Old Name').json()
+    chat_id = chat['id']
+
+    # Successful rename with whitespace stripping
+    resp = client.patch(f'{URL}/{chat_id}', json={'title': '  New Clean Name  '}, headers=headers)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data['title'] == 'New Clean Name'
+    assert data['id'] == chat_id
+
+    # Empty or whitespace only title -> 422
+    err_resp = client.patch(f'{URL}/{chat_id}', json={'title': '   '}, headers=headers)
+    assert err_resp.status_code == 422
+
+    # Stranger cannot rename -> 404
+    stranger = make_user()
+    stranger_resp = client.patch(f'{URL}/{chat_id}', json={'title': 'Hacked'}, headers=headers_for(stranger))
+    assert stranger_resp.status_code == 404
+
+    # Archived conversation cannot be renamed -> 404
+    db.query(AssistantConversation).filter(AssistantConversation.id == chat_id).update({'archived_at': AssistantConversation.created_at})
+    db.commit()
+    archived_resp = client.patch(f'{URL}/{chat_id}', json={'title': 'Archived Title'}, headers=headers)
+    assert archived_resp.status_code == 404
+
+
+
