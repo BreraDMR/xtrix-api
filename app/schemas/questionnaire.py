@@ -4,7 +4,7 @@ A template is plain data: a bounded list of typed fields with plain-text labels.
 There is no HTML, no regular expressions and no executable validation rules. Published
 versions freeze this field list, so answers always keep the wording they were given.
 """
-from typing import Annotated, Literal, Optional, Union
+from typing import Annotated, Any, Literal, Optional, Union
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -239,3 +239,34 @@ class QuestionnaireTokenOut(BaseModel):
     visit_id: int
     version: int
     expires_at: UtcDatetime
+
+
+class QuestionnaireAnswersIn(InputModel):
+    model_config = ConfigDict(extra="forbid")
+
+    answers: dict[Annotated[str, Field(max_length=64)], Any] = Field(
+        ..., max_length=MAX_FIELDS
+    )
+
+
+class QuestionnaireFormOut(BaseModel):
+    version: int
+    name: str
+    description: Optional[str] = None
+    fields: QuestionnaireFieldList
+    expires_at: UtcDatetime
+    submitted_at: Optional[UtcDatetime] = None
+
+
+class QuestionnaireSubmittedOut(BaseModel):
+    version: int
+    submitted_at: UtcDatetime
+
+
+class QuestionnaireAnswersOut(BaseModel):
+    version: int
+    name: str
+    description: Optional[str] = None
+    fields: QuestionnaireFieldList
+    answers: dict[str, Any]
+    submitted_at: UtcDatetime

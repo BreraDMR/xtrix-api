@@ -121,6 +121,26 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "У услуги этой записи нет опубликованной анкеты",
         "cz": "Služba této návštěvy nemá publikovaný dotazník",
     },
+    "questionnaire_link_unavailable": {
+        "en": "This questionnaire link is unavailable",
+        "ru": "Эта ссылка на анкету недоступна",
+        "cz": "Tento odkaz na dotazník není dostupný",
+    },
+    "questionnaire_answers_invalid": {
+        "en": "Some answers are invalid; check the marked fields",
+        "ru": "Некоторые ответы некорректны; проверьте отмеченные поля",
+        "cz": "Některé odpovědi jsou neplatné; zkontrolujte označená pole",
+    },
+    "questionnaire_already_submitted": {
+        "en": "This questionnaire was already submitted with different answers",
+        "ru": "Эта анкета уже отправлена с другими ответами",
+        "cz": "Tento dotazník již byl odeslán s jinými odpověďmi",
+    },
+    "questionnaire_response_not_found": {
+        "en": "No questionnaire answers for this visit",
+        "ru": "Для этой записи нет ответов на анкету",
+        "cz": "Pro tuto návštěvu nejsou odpovědi z dotazníku",
+    },
     "public_slug_taken": {
         "en": "This booking link is already taken, choose another one",
         "ru": "Эта ссылка для записи уже занята, выберите другую",
