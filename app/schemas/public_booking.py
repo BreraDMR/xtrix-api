@@ -193,3 +193,9 @@ class PublicBookingManageOut(BaseModel):
     currency: str
     token_expires_at: UtcDatetime
     confirmed_at: Optional[UtcDatetime] = None
+
+
+class PublicBookingRescheduleIn(InputModel):
+    model_config = ConfigDict(extra="forbid")
+
+    start: UtcDatetime

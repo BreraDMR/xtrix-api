@@ -293,6 +293,7 @@ def availability_sources(
     date_from: date,
     date_to: date,
     timezone_name: str,
+    exclude_visit_id: Optional[int] = None,
 ):
     """Load what the availability calculation needs for a short date window.
 
@@ -349,7 +350,7 @@ def availability_sources(
     ):
         blocks.setdefault(row.specialist_id, []).append((row.start, row.end))
 
-    visits = (
+    visits_query = (
         db.query(Visit)
         .options(joinedload(Visit.service))
         .filter(
@@ -366,8 +367,11 @@ def availability_sources(
                 ),
             ),
         )
-        .all()
     )
+    if exclude_visit_id is not None:
+        # a guest rescheduling their own visit must not treat its current time as someone else's
+        visits_query = visits_query.filter(Visit.id != exclude_visit_id)
+    visits = visits_query.all()
     for visit in visits:
         end = visit.date_end or visit.date_start + timedelta(minutes=60)
         service = visit.service

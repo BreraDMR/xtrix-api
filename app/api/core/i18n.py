@@ -266,6 +266,36 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Этот визит уже начался",
         "cz": "Tato návštěva již začala",
     },
+    "booking_reschedule_too_late": {
+        "en": "This booking can no longer be rescheduled online; contact the business",
+        "ru": "Эту запись уже нельзя перенести онлайн; свяжитесь с салоном",
+        "cz": "Tuto rezervaci už nelze online přeložit; kontaktujte firmu",
+    },
+    "booking_reschedule_completed": {
+        "en": "A completed visit can't be rescheduled",
+        "ru": "Завершённый визит нельзя перенести",
+        "cz": "Dokončenou návštěvu nelze přeložit",
+    },
+    "booking_reschedule_in_progress": {
+        "en": "A visit that has already started can't be rescheduled online",
+        "ru": "Начавшийся визит нельзя перенести онлайн",
+        "cz": "Zahájenou návštěvu nelze online přeložit",
+    },
+    "booking_reschedule_cancelled": {
+        "en": "A cancelled booking can't be rescheduled",
+        "ru": "Отменённую запись нельзя перенести",
+        "cz": "Zrušenou rezervaci nelze přeložit",
+    },
+    "booking_reschedule_unavailable": {
+        "en": "This booking can't be rescheduled; contact the business",
+        "ru": "Эту запись нельзя перенести; свяжитесь с салоном",
+        "cz": "Tuto rezervaci nelze přeložit; kontaktujte firmu",
+    },
+    "booking_reschedule_started": {
+        "en": "This visit has already started",
+        "ru": "Этот визит уже начался",
+        "cz": "Tato návštěva již začala",
+    },
     "cannot_cancel_subscription": {
         "en": "This subscription can't be cancelled",
         "ru": "Эту подписку нельзя отменить",

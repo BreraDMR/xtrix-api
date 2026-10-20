@@ -60,7 +60,14 @@ def _replay(db: Session, row: PublicBookingRequest, digest: str) -> Visit:
     return visit
 
 
-def _slot_is_free(db: Session, business, service, staff_id: int, start) -> bool:
+def _slot_is_free(
+    db: Session,
+    business,
+    service,
+    staff_id: int,
+    start,
+    exclude_visit_id: int | None = None,
+) -> bool:
     zone = salon_zone(business.timezone)
     day: date = start.replace(tzinfo=timezone.utc).astimezone(zone).date()
     first, last, _today = booking_window(
@@ -69,7 +76,7 @@ def _slot_is_free(db: Session, business, service, staff_id: int, start) -> bool:
     if last < first:
         return False
     schedules, exceptions, blocks, busy = crud_public_booking.availability_sources(
-        db, [staff_id], first, last, business.timezone
+        db, [staff_id], first, last, business.timezone, exclude_visit_id=exclude_visit_id
     )
     slots = collect_slots(
         date_from=first,

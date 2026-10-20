@@ -7524,6 +7524,21 @@
         "title": "PublicBookingOut",
         "type": "object"
       },
+      "PublicBookingRescheduleIn": {
+        "additionalProperties": false,
+        "properties": {
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start"
+        ],
+        "title": "PublicBookingRescheduleIn",
+        "type": "object"
+      },
       "PublicBookingSettingsOut": {
         "properties": {
           "has_bookable_service": {
@@ -23108,6 +23123,82 @@
           }
         },
         "summary": "Confirm a booking by its guest token",
+        "tags": [
+          "public-booking"
+        ]
+      }
+    },
+    "/public/booking-management/reschedule": {
+      "post": {
+        "description": "The visit keeps its service and master. The target is checked against the same availability rules as public booking while both rows are locked; on a conflict the old time stays unchanged. Repeating the request for the time already stored returns the booking without a second move or event.",
+        "operationId": "reschedule_managed_booking_public_booking_management_reschedule_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Booking-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Booking-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicBookingRescheduleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicBookingManageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move a booking to another available slot",
         "tags": [
           "public-booking"
         ]

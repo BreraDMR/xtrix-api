@@ -58,3 +58,27 @@ def ensure_confirmation_allowed(visit: Visit, now: Optional[datetime] = None) ->
     reason = confirmation_block_reason(visit, now)
     if reason:
         raise BookingActionNotAllowed(reason)
+
+
+def reschedule_block_reason(visit: Visit, now: Optional[datetime] = None) -> Optional[str]:
+    if visit.status == "completed":
+        return "booking_reschedule_completed"
+    if visit.status == "in_progress":
+        return "booking_reschedule_in_progress"
+    if visit.status == "cancelled":
+        return "booking_reschedule_cancelled"
+    if visit.status != "planned":
+        return "booking_reschedule_unavailable"
+    current = now or utcnow()
+    if visit.date_start <= current:
+        return "booking_reschedule_started"
+    # moving a late booking would otherwise bypass the cancellation cutoff
+    if visit.date_start - current < CANCELLATION_CUTOFF:
+        return "booking_reschedule_too_late"
+    return None
+
+
+def ensure_reschedule_allowed(visit: Visit, now: Optional[datetime] = None) -> None:
+    reason = reschedule_block_reason(visit, now)
+    if reason:
+        raise BookingActionNotAllowed(reason)
