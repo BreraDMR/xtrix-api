@@ -4,12 +4,14 @@ Everything here is anonymous: the slug is the only tenant key, and every field i
 explicit allowlist entry. Internal ids, staff contacts, buffers and billing stay out.
 """
 import re
+from datetime import date
 from typing import Annotated, Optional
 
 from pydantic import AfterValidator, BeforeValidator, BaseModel, ConfigDict, field_validator
 
 from app.api.core.booking_slug import normalize_slug
 from app.schemas.base import InputModel
+from app.schemas.datetimes import UtcDatetime
 from app.schemas.errors import invalid
 from app.schemas.limits import LongText, ShortText
 
@@ -69,3 +71,18 @@ class PublicStaffOut(BaseModel):
     id: int
     full_name: str
     position: Optional[str] = None
+
+
+class PublicSlotOut(BaseModel):
+    start: UtcDatetime
+    staff_id: int
+
+
+class PublicDaySlotsOut(BaseModel):
+    date: date
+    slots: list[PublicSlotOut]
+
+
+class PublicSlotsOut(BaseModel):
+    timezone: str
+    days: list[PublicDaySlotsOut]

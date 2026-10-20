@@ -7390,6 +7390,28 @@
         "title": "PublicBusinessOut",
         "type": "object"
       },
+      "PublicDaySlotsOut": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/PublicSlotOut"
+            },
+            "title": "Slots",
+            "type": "array"
+          }
+        },
+        "required": [
+          "date",
+          "slots"
+        ],
+        "title": "PublicDaySlotsOut",
+        "type": "object"
+      },
       "PublicServiceOut": {
         "properties": {
           "description": {
@@ -7433,6 +7455,46 @@
           "duration_minutes"
         ],
         "title": "PublicServiceOut",
+        "type": "object"
+      },
+      "PublicSlotOut": {
+        "properties": {
+          "staff_id": {
+            "title": "Staff Id",
+            "type": "integer"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "staff_id"
+        ],
+        "title": "PublicSlotOut",
+        "type": "object"
+      },
+      "PublicSlotsOut": {
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/PublicDaySlotsOut"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timezone",
+          "days"
+        ],
+        "title": "PublicSlotsOut",
         "type": "object"
       },
       "PublicStaffOut": {
@@ -21377,6 +21439,118 @@
           }
         },
         "summary": "Services open for online booking",
+        "tags": [
+          "public-booking"
+        ]
+      }
+    },
+    "/public/booking/{slug}/slots": {
+      "get": {
+        "operationId": "list_public_slots_public_booking__slug__slots_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "service_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Service Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "staff_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Staff Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Date From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicSlotsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Free slots by salon-local day",
         "tags": [
           "public-booking"
         ]

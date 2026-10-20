@@ -1,16 +1,23 @@
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 
+from sqlalchemy import and_, or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
+from app.api.core.availability import salon_zone
 from app.api.core.booking_slug import slugify_business_name
 from app.api.core.clock import utcnow
+from app.db.models.block_slot import BlockSlot
 from app.db.models.business import Business
 from app.db.models.employee import Employee
 from app.db.models.public_booking import PublicBookingSettings
+from app.db.models.schedule_exception import ScheduleException
 from app.db.models.service import Service
 from app.db.models.service_specialist import ServiceSpecialist
 from app.db.models.user import User
+from app.db.models.visit import Visit
+from app.db.models.work_schedule import WorkSchedule
 from app.schemas.public_booking import PublicBookingSettingsUpdate
 
 
@@ -114,9 +121,8 @@ def update_settings(
     return settings
 
 
-def business_specialist_ids(db: Session, business_id: int) -> set[int]:
-    """Active people a guest may be booked with: the owner-side users and live employees."""
-    owner_ids = {
+def business_owner_ids(db: Session, business_id: int) -> set[int]:
+    return {
         row[0]
         for row in db.query(User.id)
         .filter(
@@ -127,6 +133,11 @@ def business_specialist_ids(db: Session, business_id: int) -> set[int]:
         )
         .all()
     }
+
+
+def business_specialist_ids(db: Session, business_id: int) -> set[int]:
+    """Active people a guest may be booked with: the owner-side users and live employees."""
+    owner_ids = business_owner_ids(db, business_id)
     if not owner_ids:
         return set()
     staff_ids = {
@@ -166,10 +177,14 @@ def list_public_services(db: Session, business_id: int) -> list[Service]:
     staff_ids = business_specialist_ids(db, business_id)
     if not staff_ids:
         return []
+    owner_ids = business_owner_ids(db, business_id)
     services = (
         db.query(Service)
         .filter(
-            Service.business_id == business_id,
+            or_(
+                Service.business_id == business_id,
+                and_(Service.business_id.is_(None), Service.specialist_id.in_(owner_ids)),
+            ),
             Service.is_active.is_(True),
             Service.deleted_at.is_(None),
             Service.archived_at.is_(None),
@@ -186,11 +201,15 @@ def get_public_service(db: Session, business_id: int, service_id: int) -> Option
     staff_ids = business_specialist_ids(db, business_id)
     if not staff_ids:
         return None
+    owner_ids = business_owner_ids(db, business_id)
     service = (
         db.query(Service)
         .filter(
             Service.id == service_id,
-            Service.business_id == business_id,
+            or_(
+                Service.business_id == business_id,
+                and_(Service.business_id.is_(None), Service.specialist_id.in_(owner_ids)),
+            ),
             Service.is_active.is_(True),
             Service.deleted_at.is_(None),
             Service.archived_at.is_(None),
@@ -238,3 +257,99 @@ def staff_positions(db: Session, staff_ids: list[int]) -> dict[int, str]:
         .all()
     )
     return {user_id: position for user_id, position in rows if position}
+
+
+def availability_sources(
+    db: Session,
+    master_ids: list[int],
+    date_from: date,
+    date_to: date,
+    timezone_name: str,
+):
+    """Load what the availability calculation needs for a short date window.
+
+    Visits intentionally aren't filtered by business: one person can't be in two salons
+    at once. Their service buffers stretch the occupied range as well.
+    """
+    schedules: dict[int, list[tuple[int, time, time]]] = {}
+    exceptions: dict[int, dict[date, tuple[Optional[time], Optional[time]]]] = {}
+    blocks: dict[int, list[tuple[datetime, datetime]]] = {}
+    busy: dict[int, list[tuple[datetime, datetime]]] = {}
+    if not master_ids:
+        return schedules, exceptions, blocks, busy
+
+    zone = salon_zone(timezone_name)
+    local_start = datetime.combine(date_from, time.min).replace(tzinfo=zone)
+    local_end = datetime.combine(date_to + timedelta(days=1), time.min).replace(tzinfo=zone)
+    window_start = local_start.astimezone(timezone.utc).replace(tzinfo=None)
+    window_end = local_end.astimezone(timezone.utc).replace(tzinfo=None)
+    margin = timedelta(days=2)
+    query_start = window_start - margin
+    query_end = window_end + margin
+
+    for row in (
+        db.query(WorkSchedule)
+        .filter(WorkSchedule.specialist_id.in_(master_ids))
+        .all()
+    ):
+        schedules.setdefault(row.specialist_id, []).append(
+            (row.weekday, row.start_time, row.end_time)
+        )
+
+    for row in (
+        db.query(ScheduleException)
+        .filter(
+            ScheduleException.specialist_id.in_(master_ids),
+            ScheduleException.exception_date >= date_from,
+            ScheduleException.exception_date <= date_to,
+        )
+        .all()
+    ):
+        exceptions.setdefault(row.specialist_id, {})[row.exception_date] = (
+            row.start_time,
+            row.end_time,
+        )
+
+    for row in (
+        db.query(BlockSlot)
+        .filter(
+            BlockSlot.specialist_id.in_(master_ids),
+            BlockSlot.start < query_end,
+            BlockSlot.end > query_start,
+        )
+        .all()
+    ):
+        blocks.setdefault(row.specialist_id, []).append((row.start, row.end))
+
+    visits = (
+        db.query(Visit)
+        .options(joinedload(Visit.service))
+        .filter(
+            Visit.specialist_id.in_(master_ids),
+            Visit.deleted_at.is_(None),
+            Visit.archived_at.is_(None),
+            or_(Visit.status.is_(None), Visit.status != "cancelled"),
+            Visit.date_start < query_end,
+            or_(
+                Visit.date_end > query_start,
+                and_(
+                    Visit.date_end.is_(None),
+                    Visit.date_start > query_start - timedelta(hours=1),
+                ),
+            ),
+        )
+        .all()
+    )
+    for visit in visits:
+        end = visit.date_end or visit.date_start + timedelta(minutes=60)
+        service = visit.service
+        before = getattr(service, "buffer_before_minutes", 0) or 0
+        after = getattr(service, "buffer_after_minutes", 0) or 0
+        busy.setdefault(visit.specialist_id, []).append(
+            (
+                visit.date_start - timedelta(minutes=before),
+                end + timedelta(minutes=after),
+            )
+        )
+
+    return schedules, exceptions, blocks, busy

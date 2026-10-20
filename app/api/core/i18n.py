@@ -111,6 +111,16 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Эта услуга недоступна для онлайн-записи",
         "cz": "Tato služba není dostupná pro online rezervaci",
     },
+    "public_staff_unavailable": {
+        "en": "This specialist is not available for the selected service",
+        "ru": "Этот мастер недоступен для выбранной услуги",
+        "cz": "Tento specialista není pro vybranou službu dostupný",
+    },
+    "public_invalid_date_range": {
+        "en": "Choose a date range of at most 14 days",
+        "ru": "Выберите диапазон не больше 14 дней",
+        "cz": "Vyberte rozsah nejvýše 14 dní",
+    },
     "cannot_cancel_subscription": {
         "en": "This subscription can't be cancelled",
         "ru": "Эту подписку нельзя отменить",

@@ -3,11 +3,15 @@
 The public side never takes a business id: the slug is resolved to one published business,
 and every lookup below it is scoped to that business.
 """
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api import deps
+from app.api.core.availability import booking_window, collect_slots
 from app.api.core.booking_slug import normalize_slug
+from app.api.core.clock import utcnow
 from app.api.core.i18n import _
 from app.api.core.public_booking_access import manage_public_booking_business_id
 from app.api.crud import crud_public_booking
@@ -18,7 +22,10 @@ from app.schemas.public_booking import (
     PublicBookingSettingsOut,
     PublicBookingSettingsUpdate,
     PublicBusinessOut,
+    PublicDaySlotsOut,
     PublicServiceOut,
+    PublicSlotOut,
+    PublicSlotsOut,
     PublicStaffOut,
 )
 
@@ -129,3 +136,69 @@ def list_public_staff(
         )
         for person in people
     ]
+
+
+@router.get("/{slug}/slots", response_model=PublicSlotsOut, summary="Free slots by salon-local day")
+def list_public_slots(
+    slug: str,
+    service_id: int = Query(..., gt=0),
+    staff_id: int | None = Query(None, gt=0),
+    date_from: date = Query(...),
+    date_to: date | None = Query(None),
+    db: Session = Depends(deps.get_db),
+    locale: str = Depends(deps.get_locale),
+):
+    _settings, business = _resolve_published(db, slug, locale)
+    service = crud_public_booking.get_public_service(db, business.id, service_id)
+    if not service:
+        raise HTTPException(status_code=404, detail=_("public_service_unavailable", locale))
+
+    last_requested = date_to or date_from
+    if last_requested < date_from or (last_requested - date_from).days > 13:
+        raise HTTPException(status_code=422, detail=_("public_invalid_date_range", locale))
+
+    people = crud_public_booking.list_public_staff(db, business.id, service)
+    if staff_id is not None:
+        people = [person for person in people if person.id == staff_id]
+        if not people:
+            raise HTTPException(status_code=404, detail=_("public_staff_unavailable", locale))
+    master_ids = [person.id for person in people]
+
+    now = utcnow()
+    first, last, _today = booking_window(
+        date_from,
+        last_requested,
+        business.timezone,
+        business.booking_horizon_days,
+        now=now,
+    )
+    if last < first or not master_ids:
+        return PublicSlotsOut(timezone=business.timezone, days=[])
+
+    schedules, exceptions, blocks, busy = crud_public_booking.availability_sources(
+        db, master_ids, first, last, business.timezone
+    )
+    slots = collect_slots(
+        date_from=first,
+        date_to=last,
+        timezone_name=business.timezone,
+        horizon_days=business.booking_horizon_days,
+        lead_time_minutes=business.booking_lead_time_minutes,
+        duration_minutes=service.duration_minutes,
+        buffer_before_minutes=service.buffer_before_minutes or 0,
+        buffer_after_minutes=service.buffer_after_minutes or 0,
+        master_ids=master_ids,
+        schedules=schedules,
+        exceptions=exceptions,
+        blocks=blocks,
+        busy=busy,
+        now=now,
+    )
+
+    by_day: dict[date, list[PublicSlotOut]] = {first + timedelta(days=offset): [] for offset in range((last - first).days + 1)}
+    for slot in slots:
+        by_day[slot.day].append(PublicSlotOut(start=slot.start, staff_id=slot.staff_id))
+    return PublicSlotsOut(
+        timezone=business.timezone,
+        days=[PublicDaySlotsOut(date=day, slots=by_day[day]) for day in sorted(by_day)],
+    )
