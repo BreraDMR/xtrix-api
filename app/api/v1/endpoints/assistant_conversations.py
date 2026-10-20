@@ -90,6 +90,23 @@ def rename_conversation(
     return row
 
 
+@router.post('/{conversation_id}/archive', response_model=ConversationOut,
+             summary='Archive a private conversation reversibly')
+def archive_conversation(
+    conversation_id: UUID,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(staff_user),
+    locale: str = Depends(deps.get_locale),
+):
+    row = resolve_conversation(db, current_user, conversation_id, locale=locale, allow_archived=True, lock=True)
+    if row.archived_at is None:
+        row.archived_at = utcnow()
+        row.updated_at = utcnow()
+        db.commit()
+        db.refresh(row)
+    return row
+
+
 @router.post('', response_model=ConversationOut, status_code=201,
              summary='Create a private conversation; a repeated request key returns the same chat')
 @limiter.limit(ASSISTANT_PLAN_LIMIT, key_func=user_or_ip)

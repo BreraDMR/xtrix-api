@@ -191,4 +191,49 @@ def test_rename_conversation(client, db, make_user, headers_for):
     assert archived_resp.status_code == 404
 
 
+def test_archive_conversation_is_idempotent_and_isolated(client, db, make_user, headers_for):
+    owner = make_user()
+    headers = headers_for(owner)
+    chat = create(client, headers, title='To Archive').json()
+    chat_id = chat['id']
+
+    # Add a message to verify it is not cascade deleted
+    db.add(AssistantMessage(
+        conversation_id=chat_id,
+        ordinal=1,
+        request_id=uuid4(),
+        request_hash='dummy',
+        role='user',
+        text='Preserved message',
+        status='succeeded',
+    ))
+    db.commit()
+
+    # First archive call
+    resp1 = client.post(f'{URL}/{chat_id}/archive', headers=headers)
+    assert resp1.status_code == 200, resp1.text
+    data1 = resp1.json()
+    assert data1['archived_at'] is not None
+    archived_at = data1['archived_at']
+
+    # Repeated archive call (idempotent retry)
+    resp2 = client.post(f'{URL}/{chat_id}/archive', headers=headers)
+    assert resp2.status_code == 200
+    data2 = resp2.json()
+    assert data2['archived_at'] == archived_at
+
+    # Excluded from active conversations list
+    list_resp = client.get(URL, headers=headers).json()
+    assert all(c['id'] != chat_id for c in list_resp['items'])
+
+    # Messages are still intact in DB
+    assert db.query(AssistantMessage).filter(AssistantMessage.conversation_id == chat_id).count() == 1
+
+    # Stranger cannot archive -> 404
+    stranger = make_user()
+    stranger_resp = client.post(f'{URL}/{chat_id}/archive', headers=headers_for(stranger))
+    assert stranger_resp.status_code == 404
+
+
+
 
