@@ -20,6 +20,10 @@ class Business(Base):
     # the assistant's name in this business; empty = the default for the interface language
     assistant_name = Column(String(30), nullable=True)
     assistant_gender = Column(String(10), nullable=False, default="female", server_default="female")
+    # scheduling policy; visits stay in UTC and are shown in this zone
+    timezone = Column(String(64), nullable=False, default="UTC", server_default="UTC")
+    booking_horizon_days = Column(Integer, nullable=False, default=30, server_default="30")
+    booking_lead_time_minutes = Column(Integer, nullable=False, default=0, server_default="0")
     created_at = Column(DateTime, default=utcnow, index=True)
     deleted_at = Column(DateTime, nullable=True, index=True)  
     users = relationship("User", back_populates="business", lazy="dynamic")

@@ -663,6 +663,22 @@
             ],
             "title": "Address"
           },
+          "booking_horizon_days": {
+            "default": 30,
+            "description": "How many days ahead clients can book",
+            "maximum": 365.0,
+            "minimum": 1.0,
+            "title": "Booking Horizon Days",
+            "type": "integer"
+          },
+          "booking_lead_time_minutes": {
+            "default": 0,
+            "description": "Minimum notice before a booking, minutes",
+            "maximum": 10080.0,
+            "minimum": 0.0,
+            "title": "Booking Lead Time Minutes",
+            "type": "integer"
+          },
           "business_type": {
             "enum": [
               "salon",
@@ -723,6 +739,13 @@
               }
             ],
             "title": "Phone"
+          },
+          "timezone": {
+            "default": "UTC",
+            "description": "IANA timezone, e.g. Europe/Prague",
+            "maxLength": 64,
+            "title": "Timezone",
+            "type": "string"
           }
         },
         "required": [
@@ -761,6 +784,22 @@
               }
             ],
             "title": "Assistant Name"
+          },
+          "booking_horizon_days": {
+            "default": 30,
+            "description": "How many days ahead clients can book",
+            "maximum": 365.0,
+            "minimum": 1.0,
+            "title": "Booking Horizon Days",
+            "type": "integer"
+          },
+          "booking_lead_time_minutes": {
+            "default": 0,
+            "description": "Minimum notice before a booking, minutes",
+            "maximum": 10080.0,
+            "minimum": 0.0,
+            "title": "Booking Lead Time Minutes",
+            "type": "integer"
           },
           "business_type": {
             "enum": [
@@ -828,6 +867,13 @@
               }
             ],
             "title": "Phone"
+          },
+          "timezone": {
+            "default": "UTC",
+            "description": "IANA timezone, e.g. Europe/Prague",
+            "maxLength": 64,
+            "title": "Timezone",
+            "type": "string"
           }
         },
         "required": [
@@ -883,6 +929,32 @@
             ],
             "description": "Empty = default name for the interface language",
             "title": "Assistant Name"
+          },
+          "booking_horizon_days": {
+            "anyOf": [
+              {
+                "maximum": 365.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booking Horizon Days"
+          },
+          "booking_lead_time_minutes": {
+            "anyOf": [
+              {
+                "maximum": 10080.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booking Lead Time Minutes"
           },
           "business_type": {
             "anyOf": [
@@ -963,6 +1035,19 @@
               }
             ],
             "title": "Phone"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "IANA timezone",
+            "title": "Timezone"
           }
         },
         "title": "BusinessUpdate",

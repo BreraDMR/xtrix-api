@@ -12,6 +12,9 @@ def create_business(db: Session, business_in: BusinessCreate) -> Business:
         email=business_in.email,
         description=business_in.description,
         currency=business_in.currency,
+        timezone=business_in.timezone,
+        booking_horizon_days=business_in.booking_horizon_days,
+        booking_lead_time_minutes=business_in.booking_lead_time_minutes,
     )
     db.add(business)
     db.commit()
