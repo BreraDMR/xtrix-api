@@ -53,6 +53,8 @@ class PublicBusinessOut(BaseModel):
 class PublicBookingSettingsOut(BaseModel):
     slug: str
     is_enabled: bool
+    has_bookable_service: bool
+    has_schedule: bool
     model_config = ConfigDict(from_attributes=True)
 
 

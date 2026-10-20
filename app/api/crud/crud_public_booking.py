@@ -232,6 +232,29 @@ def public_service_master_ids(db: Session, business_id: int, service: Service) -
     return _service_master_ids(db, [service], staff_ids).get(service.id, set())
 
 
+def public_booking_readiness(db: Session, business_id: int) -> tuple[bool, bool]:
+    """Whether the published link can actually offer a visit.
+
+    The service must already pass the public allowlist, and one of its masters must have
+    a weekly schedule. Anything else would show a guest an empty page or an empty day strip.
+    """
+    services = list_public_services(db, business_id)
+    if not services:
+        return False, False
+    staff_ids = business_specialist_ids(db, business_id)
+    masters = _service_master_ids(db, services, staff_ids)
+    master_ids = set().union(*masters.values()) if masters else set()
+    if not master_ids:
+        return True, False
+    has_schedule = (
+        db.query(WorkSchedule.id)
+        .filter(WorkSchedule.specialist_id.in_(master_ids))
+        .first()
+        is not None
+    )
+    return True, has_schedule
+
+
 def list_public_staff(db: Session, business_id: int, service: Service) -> list[User]:
     master_ids = public_service_master_ids(db, business_id, service)
     if not master_ids:

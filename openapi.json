@@ -7408,6 +7408,14 @@
       },
       "PublicBookingSettingsOut": {
         "properties": {
+          "has_bookable_service": {
+            "title": "Has Bookable Service",
+            "type": "boolean"
+          },
+          "has_schedule": {
+            "title": "Has Schedule",
+            "type": "boolean"
+          },
           "is_enabled": {
             "title": "Is Enabled",
             "type": "boolean"
@@ -7419,7 +7427,9 @@
         },
         "required": [
           "slug",
-          "is_enabled"
+          "is_enabled",
+          "has_bookable_service",
+          "has_schedule"
         ],
         "title": "PublicBookingSettingsOut",
         "type": "object"

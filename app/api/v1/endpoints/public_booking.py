@@ -51,6 +51,16 @@ def _resolve_published(db: Session, slug: str, locale: str) -> tuple[PublicBooki
     return settings, business
 
 
+def _settings_out(db: Session, settings: PublicBookingSettings) -> PublicBookingSettingsOut:
+    has_service, has_schedule = crud_public_booking.public_booking_readiness(db, settings.business_id)
+    return PublicBookingSettingsOut(
+        slug=settings.slug,
+        is_enabled=settings.is_enabled,
+        has_bookable_service=has_service,
+        has_schedule=has_schedule,
+    )
+
+
 def _public_business(settings: PublicBookingSettings, business: Business) -> PublicBusinessOut:
     return PublicBusinessOut(
         slug=settings.slug,
@@ -75,7 +85,7 @@ def get_public_booking_settings(
     settings = crud_public_booking.get_or_create_settings(db, business_id)
     if not settings:
         raise HTTPException(status_code=404, detail=_("business_not_found", locale))
-    return settings
+    return _settings_out(db, settings)
 
 
 @settings_router.put("", response_model=PublicBookingSettingsOut, summary="Change the public booking link")
@@ -90,9 +100,10 @@ def update_public_booking_settings(
     if not settings:
         raise HTTPException(status_code=404, detail=_("business_not_found", locale))
     try:
-        return crud_public_booking.update_settings(db, settings, payload)
+        updated = crud_public_booking.update_settings(db, settings, payload)
     except crud_public_booking.PublicSlugConflict:
         raise HTTPException(status_code=409, detail=_("public_slug_taken", locale))
+    return _settings_out(db, updated)
 
 
 @router.get("/{slug}", response_model=PublicBusinessOut, summary="Published salon card")
