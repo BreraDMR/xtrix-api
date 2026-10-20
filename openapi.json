@@ -11186,6 +11186,7 @@
             "type": "string"
           },
           "specialist_id": {
+            "exclusiveMinimum": 0.0,
             "title": "Specialist Id",
             "type": "integer"
           },
