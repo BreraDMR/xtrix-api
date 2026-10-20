@@ -13,7 +13,7 @@ from app.api.v1.endpoints import (
     analytics, audit, archiving, specialist_profiles, client_relations, employees, businesses, products, expenses, loyalty, user_preferences,
     assistant, assistant_conversations, offers, onboarding, public_booking, questionnaires,
     questionnaire_answers, questionnaire_attachments, public_booking_manage,
-    notification_settings, notification_deliveries,
+    notification_settings, notification_deliveries, password_reset,
 )
 from app.api.core import error_handlers
 from app.api.middleware.rate_limit import DefaultRateLimitMiddleware, limiter, rate_limit_exceeded_handler
@@ -165,6 +165,7 @@ async def root():
         "health": "/metrics/health"
     }
 app.include_router(users.router, prefix="/users", tags=["users"])
+app.include_router(password_reset.router, prefix="/auth", tags=["auth"])
 app.include_router(clients.router, prefix="/clients", tags=["clients"])
 app.include_router(services.router, prefix="/services", tags=["services"])
 app.include_router(visits.router, prefix="/visits", tags=["visits"])

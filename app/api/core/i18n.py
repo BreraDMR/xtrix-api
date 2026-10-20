@@ -211,6 +211,11 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Сначала добавьте email в профиль или в данные бизнеса",
         "cz": "Nejprve přidejte e-mail do profilu nebo do údajů podniku",
     },
+    "password_reset_requested": {
+        "en": "If an account with this email exists, a reset link has been sent",
+        "ru": "Если аккаунт с таким email существует, ссылка для сброса отправлена",
+        "cz": "Pokud účet s tímto e-mailem existuje, odkaz pro obnovení byl odeslán",
+    },
     "public_service_unavailable": {
         "en": "This service is not available for online booking",
         "ru": "Эта услуга недоступна для онлайн-записи",
