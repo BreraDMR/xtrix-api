@@ -7740,6 +7740,535 @@
         "title": "QRCodeGenerateResponse",
         "type": "object"
       },
+      "QuestionnaireBooleanField": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "key": {
+            "description": "Stable key used in answers; lowercase letters, digits and underscores",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "required": {
+            "default": false,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "type": {
+            "const": "boolean",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "type"
+        ],
+        "title": "QuestionnaireBooleanField",
+        "type": "object"
+      },
+      "QuestionnaireLongTextField": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "key": {
+            "description": "Stable key used in answers; lowercase letters, digits and underscores",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "max_length": {
+            "default": 2000,
+            "maximum": 5000.0,
+            "minimum": 1.0,
+            "title": "Max Length",
+            "type": "integer"
+          },
+          "required": {
+            "default": false,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "type": {
+            "const": "long_text",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "type"
+        ],
+        "title": "QuestionnaireLongTextField",
+        "type": "object"
+      },
+      "QuestionnaireMultiChoiceField": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "key": {
+            "description": "Stable key used in answers; lowercase letters, digits and underscores",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "max_selected": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Selected"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionnaireOption"
+            },
+            "maxItems": 20,
+            "minItems": 2,
+            "title": "Options",
+            "type": "array"
+          },
+          "required": {
+            "default": false,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "type": {
+            "const": "multi_choice",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "options",
+          "type"
+        ],
+        "title": "QuestionnaireMultiChoiceField",
+        "type": "object"
+      },
+      "QuestionnaireOption": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "description": "Stable option value used in answers",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "QuestionnaireOption",
+        "type": "object"
+      },
+      "QuestionnaireSingleChoiceField": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "key": {
+            "description": "Stable key used in answers; lowercase letters, digits and underscores",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionnaireOption"
+            },
+            "maxItems": 20,
+            "minItems": 2,
+            "title": "Options",
+            "type": "array"
+          },
+          "required": {
+            "default": false,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "type": {
+            "const": "single_choice",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "options",
+          "type"
+        ],
+        "title": "QuestionnaireSingleChoiceField",
+        "type": "object"
+      },
+      "QuestionnaireTemplateCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "fields": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "boolean": "#/components/schemas/QuestionnaireBooleanField",
+                  "long_text": "#/components/schemas/QuestionnaireLongTextField",
+                  "multi_choice": "#/components/schemas/QuestionnaireMultiChoiceField",
+                  "single_choice": "#/components/schemas/QuestionnaireSingleChoiceField",
+                  "text": "#/components/schemas/QuestionnaireTextField"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/QuestionnaireTextField"
+                },
+                {
+                  "$ref": "#/components/schemas/QuestionnaireLongTextField"
+                },
+                {
+                  "$ref": "#/components/schemas/QuestionnaireSingleChoiceField"
+                },
+                {
+                  "$ref": "#/components/schemas/QuestionnaireMultiChoiceField"
+                },
+                {
+                  "$ref": "#/components/schemas/QuestionnaireBooleanField"
+                }
+              ]
+            },
+            "maxItems": 50,
+            "title": "Fields",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "fields"
+        ],
+        "title": "QuestionnaireTemplateCreate",
+        "type": "object"
+      },
+      "QuestionnaireTemplateOut": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "fields": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "boolean": "#/components/schemas/QuestionnaireBooleanField",
+                  "long_text": "#/components/schemas/QuestionnaireLongTextField",
+                  "multi_choice": "#/components/schemas/QuestionnaireMultiChoiceField",
+                  "single_choice": "#/components/schemas/QuestionnaireSingleChoiceField",
+                  "text": "#/components/schemas/QuestionnaireTextField"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/QuestionnaireTextField"
+                },
+                {
+                  "$ref": "#/components/schemas/QuestionnaireLongTextField"
+                },
+                {
+                  "$ref": "#/components/schemas/QuestionnaireSingleChoiceField"
+                },
+                {
+                  "$ref": "#/components/schemas/QuestionnaireMultiChoiceField"
+                },
+                {
+                  "$ref": "#/components/schemas/QuestionnaireBooleanField"
+                }
+              ]
+            },
+            "maxItems": 50,
+            "title": "Fields",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "published_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Latest published version; the draft may differ from it",
+            "title": "Published Version"
+          },
+          "service_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Id"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "fields",
+          "updated_at"
+        ],
+        "title": "QuestionnaireTemplateOut",
+        "type": "object"
+      },
+      "QuestionnaireTemplateUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "fields": {
+            "anyOf": [
+              {
+                "items": {
+                  "discriminator": {
+                    "mapping": {
+                      "boolean": "#/components/schemas/QuestionnaireBooleanField",
+                      "long_text": "#/components/schemas/QuestionnaireLongTextField",
+                      "multi_choice": "#/components/schemas/QuestionnaireMultiChoiceField",
+                      "single_choice": "#/components/schemas/QuestionnaireSingleChoiceField",
+                      "text": "#/components/schemas/QuestionnaireTextField"
+                    },
+                    "propertyName": "type"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/QuestionnaireTextField"
+                    },
+                    {
+                      "$ref": "#/components/schemas/QuestionnaireLongTextField"
+                    },
+                    {
+                      "$ref": "#/components/schemas/QuestionnaireSingleChoiceField"
+                    },
+                    {
+                      "$ref": "#/components/schemas/QuestionnaireMultiChoiceField"
+                    },
+                    {
+                      "$ref": "#/components/schemas/QuestionnaireBooleanField"
+                    }
+                  ]
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fields"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "QuestionnaireTemplateUpdate",
+        "type": "object"
+      },
+      "QuestionnaireTextField": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "key": {
+            "description": "Stable key used in answers; lowercase letters, digits and underscores",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "max_length": {
+            "default": 255,
+            "maximum": 255.0,
+            "minimum": 1.0,
+            "title": "Max Length",
+            "type": "integer"
+          },
+          "required": {
+            "default": false,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "type": {
+            "const": "text",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "type"
+        ],
+        "title": "QuestionnaireTextField",
+        "type": "object"
+      },
       "ReportExportRequest": {
         "properties": {
           "date_from": {
@@ -14850,6 +15379,260 @@
         "summary": "Change the public booking link",
         "tags": [
           "businesses"
+        ]
+      }
+    },
+    "/businesses/me/questionnaires/": {
+      "get": {
+        "operationId": "list_questionnaires_businesses_me_questionnaires__get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/QuestionnaireTemplateOut"
+                  },
+                  "title": "Response List Questionnaires Businesses Me Questionnaires  Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List questionnaire drafts",
+        "tags": [
+          "questionnaires"
+        ]
+      },
+      "post": {
+        "operationId": "create_questionnaire_businesses_me_questionnaires__post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionnaireTemplateCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionnaireTemplateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create a questionnaire draft",
+        "tags": [
+          "questionnaires"
+        ]
+      }
+    },
+    "/businesses/me/questionnaires/{template_id}": {
+      "get": {
+        "operationId": "get_questionnaire_businesses_me_questionnaires__template_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "title": "Template Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionnaireTemplateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get a questionnaire draft",
+        "tags": [
+          "questionnaires"
+        ]
+      },
+      "patch": {
+        "operationId": "update_questionnaire_businesses_me_questionnaires__template_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "title": "Template Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionnaireTemplateUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionnaireTemplateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Edit a questionnaire draft",
+        "tags": [
+          "questionnaires"
         ]
       }
     },

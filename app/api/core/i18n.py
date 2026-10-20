@@ -96,6 +96,11 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Нужен бизнес — сначала создайте его или присоединитесь",
         "cz": "Je potřeba firma - nejprve ji vytvořte nebo se připojte",
     },
+    "questionnaire_not_found": {
+        "en": "Questionnaire not found",
+        "ru": "Анкета не найдена",
+        "cz": "Dotazník nenalezen",
+    },
     "public_slug_taken": {
         "en": "This booking link is already taken, choose another one",
         "ru": "Эта ссылка для записи уже занята, выберите другую",

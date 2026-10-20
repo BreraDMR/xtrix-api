@@ -11,7 +11,7 @@ from app.api.middleware.security_headers import SecurityHeadersMiddleware
 from app.api.v1.endpoints import (
     clients, metrics, services, users, visits, files, subscriptions, schedules, 
     analytics, audit, archiving, specialist_profiles, client_relations, employees, businesses, products, expenses, loyalty, user_preferences,
-    assistant, assistant_conversations, offers, onboarding, public_booking,
+    assistant, assistant_conversations, offers, onboarding, public_booking, questionnaires,
 )
 from app.api.core import error_handlers
 from app.api.middleware.rate_limit import DefaultRateLimitMiddleware, limiter, rate_limit_exceeded_handler
@@ -187,3 +187,4 @@ app.include_router(offers.router, prefix="/offers", tags=["offers"])
 app.include_router(onboarding.router, prefix="/onboarding", tags=["onboarding"])
 app.include_router(public_booking.router, prefix="/public/booking", tags=["public-booking"])
 app.include_router(public_booking.settings_router, prefix="/businesses/me/public-booking", tags=["businesses"])
+app.include_router(questionnaires.router, prefix="/businesses/me/questionnaires", tags=["questionnaires"])

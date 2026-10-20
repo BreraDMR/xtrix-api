@@ -6,9 +6,10 @@ versions freeze this field list, so answers always keep the wording they were gi
 """
 from typing import Annotated, Literal, Optional, Union
 
-from pydantic import AfterValidator, ConfigDict, Field, field_validator, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.base import InputModel
+from app.schemas.datetimes import UtcDatetime
 from app.schemas.errors import invalid
 
 MAX_FIELDS = 50
@@ -47,8 +48,9 @@ def _plain_text(value: str, *, multiline: bool) -> str:
     return value
 
 
-class QuestionnaireOption(InputModel):
-    model_config = ConfigDict(extra="forbid")
+class QuestionnaireOption(BaseModel):
+    # not InputModel: its wildcard before-validator is forbidden on a discriminated field
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     value: OptionValue
     label: PlainLabel
@@ -59,8 +61,8 @@ class QuestionnaireOption(InputModel):
         return _plain_text(value, multiline=False)
 
 
-class QuestionnaireFieldBase(InputModel):
-    model_config = ConfigDict(extra="forbid")
+class QuestionnaireFieldBase(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     key: FieldKey
     label: PlainLabel
@@ -197,3 +199,15 @@ class QuestionnaireTemplateUpdate(InputModel):
             if name in self.model_fields_set and getattr(self, name) is None:
                 raise invalid(f"{name}_required", f"{name} cannot be null")
         return self
+
+
+class QuestionnaireTemplateOut(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    fields: QuestionnaireFieldList
+    service_id: Optional[int] = None
+    published_version: Optional[int] = Field(
+        None, description="Latest published version; the draft may differ from it"
+    )
+    updated_at: UtcDatetime
