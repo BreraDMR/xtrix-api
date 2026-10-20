@@ -75,6 +75,10 @@ EXPORT_LIMIT = "10/minute"
 ASSISTANT_PLAN_LIMIT = "20/minute"
 ASSISTANT_EXECUTE_LIMIT = "20/minute"
 ASSISTANT_TRANSCRIBE_LIMIT = "10/minute"
+# anonymous surface: catalog reads are cheap, slot scans and bookings are not
+PUBLIC_BOOKING_READ_LIMIT = "60/minute"
+PUBLIC_BOOKING_SLOTS_LIMIT = "30/minute"
+PUBLIC_BOOKING_CREATE_LIMIT = "5/minute"
 
 
 def _retry_after(exc: RateLimitExceeded) -> int:

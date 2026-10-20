@@ -1,4 +1,12 @@
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 
 from app.api.core.clock import utcnow
@@ -27,3 +35,31 @@ class PublicBookingSettings(Base):
     updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
 
     business = relationship("Business", back_populates="public_booking_settings", lazy="select")
+
+
+class PublicBookingRequest(Base):
+    """One row per submitted retry key, so a lost response never creates a second visit."""
+    __tablename__ = "public_booking_requests"
+    __table_args__ = (
+        UniqueConstraint("business_id", "request_id", name="uq_public_booking_request"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    business_id = Column(Integer, ForeignKey("businesses.id"), nullable=False, index=True)
+    client_id = Column(
+        Integer,
+        ForeignKey("clients.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    visit_id = Column(
+        Integer,
+        ForeignKey("visits.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    request_id = Column(String(64), nullable=False)
+    request_hash = Column(String(64), nullable=False)
+    marketing_consent = Column(Boolean, nullable=False, default=False, server_default="false")
+    processing_consent = Column(Boolean, nullable=False, default=True, server_default="true")
+    created_at = Column(DateTime, nullable=False, default=utcnow, index=True)

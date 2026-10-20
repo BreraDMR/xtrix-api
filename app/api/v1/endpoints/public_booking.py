@@ -5,20 +5,29 @@ and every lookup below it is scoped to that business.
 """
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api import deps
+from app.api.core import public_booking_service as booking_service
 from app.api.core.availability import booking_window, collect_slots
 from app.api.core.booking_slug import normalize_slug
 from app.api.core.clock import utcnow
 from app.api.core.i18n import _
 from app.api.core.public_booking_access import manage_public_booking_business_id
 from app.api.crud import crud_public_booking
+from app.api.middleware.rate_limit import (
+    PUBLIC_BOOKING_CREATE_LIMIT,
+    PUBLIC_BOOKING_READ_LIMIT,
+    PUBLIC_BOOKING_SLOTS_LIMIT,
+    limiter,
+)
 from app.db.models.business import Business
 from app.db.models.public_booking import PublicBookingSettings
 from app.db.models.user import User
 from app.schemas.public_booking import (
+    PublicBookingCreate,
+    PublicBookingOut,
     PublicBookingSettingsOut,
     PublicBookingSettingsUpdate,
     PublicBusinessOut,
@@ -87,7 +96,9 @@ def update_public_booking_settings(
 
 
 @router.get("/{slug}", response_model=PublicBusinessOut, summary="Published salon card")
+@limiter.limit(PUBLIC_BOOKING_READ_LIMIT)
 def get_public_business(
+    request: Request,
     slug: str,
     db: Session = Depends(deps.get_db),
     locale: str = Depends(deps.get_locale),
@@ -97,7 +108,9 @@ def get_public_business(
 
 
 @router.get("/{slug}/services", response_model=list[PublicServiceOut], summary="Services open for online booking")
+@limiter.limit(PUBLIC_BOOKING_READ_LIMIT)
 def list_public_services(
+    request: Request,
     slug: str,
     db: Session = Depends(deps.get_db),
     locale: str = Depends(deps.get_locale),
@@ -116,7 +129,9 @@ def list_public_services(
 
 
 @router.get("/{slug}/staff", response_model=list[PublicStaffOut], summary="Masters of the selected service")
+@limiter.limit(PUBLIC_BOOKING_READ_LIMIT)
 def list_public_staff(
+    request: Request,
     slug: str,
     service_id: int = Query(..., gt=0),
     db: Session = Depends(deps.get_db),
@@ -139,7 +154,9 @@ def list_public_staff(
 
 
 @router.get("/{slug}/slots", response_model=PublicSlotsOut, summary="Free slots by salon-local day")
+@limiter.limit(PUBLIC_BOOKING_SLOTS_LIMIT)
 def list_public_slots(
+    request: Request,
     slug: str,
     service_id: int = Query(..., gt=0),
     staff_id: int | None = Query(None, gt=0),
@@ -201,4 +218,50 @@ def list_public_slots(
     return PublicSlotsOut(
         timezone=business.timezone,
         days=[PublicDaySlotsOut(date=day, slots=by_day[day]) for day in sorted(by_day)],
+    )
+
+
+@router.post(
+    "/{slug}/bookings",
+    response_model=PublicBookingOut,
+    summary="Book an available slot",
+    description=(
+        "Stores the visit as planned. No email confirmation is sent until the notification "
+        "relay is connected, so the guest sees only the stored booking."
+    ),
+)
+@limiter.limit(PUBLIC_BOOKING_CREATE_LIMIT)
+def create_public_booking(
+    request: Request,
+    slug: str,
+    payload: PublicBookingCreate,
+    db: Session = Depends(deps.get_db),
+    locale: str = Depends(deps.get_locale),
+):
+    _settings, business = _resolve_published(db, slug, locale)
+    try:
+        visit = booking_service.submit_booking(db, business, payload, locale)
+    except booking_service.ServiceUnavailable:
+        raise HTTPException(status_code=404, detail=_("public_service_unavailable", locale))
+    except booking_service.StaffUnavailable:
+        raise HTTPException(status_code=404, detail=_("public_staff_unavailable", locale))
+    except booking_service.RequestIdConflict:
+        raise HTTPException(status_code=409, detail=_("public_booking_request_conflict", locale))
+    except booking_service.SlotUnavailable:
+        raise HTTPException(status_code=409, detail=_("public_slot_unavailable", locale))
+    except booking_service.RequestInProgress:
+        raise HTTPException(status_code=409, detail=_("public_booking_in_progress", locale))
+
+    staff = visit.specialist
+    return PublicBookingOut(
+        id=visit.id,
+        start=visit.date_start,
+        end=visit.date_end or visit.date_start + timedelta(minutes=60),
+        service_name=visit.service_name or "",
+        staff_id=visit.specialist_id,
+        staff_name=staff.full_name if staff else "",
+        price=visit.price,
+        currency=business.currency,
+        status=visit.status or "planned",
+        timezone=business.timezone,
     )

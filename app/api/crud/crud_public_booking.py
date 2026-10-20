@@ -1,7 +1,8 @@
+import re
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -10,6 +11,9 @@ from app.api.core.booking_slug import slugify_business_name
 from app.api.core.clock import utcnow
 from app.db.models.block_slot import BlockSlot
 from app.db.models.business import Business
+from app.db.models.client import Client
+from app.db.models.client_business_relation import ClientBusinessRelation
+from app.db.models.client_specialist_relation import ClientSpecialistRelation
 from app.db.models.employee import Employee
 from app.db.models.public_booking import PublicBookingSettings
 from app.db.models.schedule_exception import ScheduleException
@@ -18,7 +22,7 @@ from app.db.models.service_specialist import ServiceSpecialist
 from app.db.models.user import User
 from app.db.models.visit import Visit
 from app.db.models.work_schedule import WorkSchedule
-from app.schemas.public_booking import PublicBookingSettingsUpdate
+from app.schemas.public_booking import PublicBookingCreate, PublicBookingSettingsUpdate
 
 
 class PublicSlugConflict(Exception):
@@ -194,7 +198,7 @@ def list_public_services(db: Session, business_id: int) -> list[Service]:
         .all()
     )
     masters = _service_master_ids(db, services, staff_ids)
-    return [service for service in services if masters.get(service.id)]
+    return [service for service in services if masters.get(service.id)][:500]
 
 
 def get_public_service(db: Session, business_id: int, service_id: int) -> Optional[Service]:
@@ -240,6 +244,7 @@ def list_public_staff(db: Session, business_id: int, service: Service) -> list[U
             User.archived_at.is_(None),
         )
         .order_by(User.full_name, User.id)
+        .limit(500)
         .all()
     )
 
@@ -353,3 +358,85 @@ def availability_sources(
         )
 
     return schedules, exceptions, blocks, busy
+
+
+def _business_clients_query(db: Session, business_id: int):
+    return (
+        db.query(Client)
+        .join(ClientBusinessRelation, ClientBusinessRelation.client_id == Client.id)
+        .filter(
+            ClientBusinessRelation.business_id == business_id,
+            Client.deleted_at.is_(None),
+        )
+    )
+
+
+def find_business_client_by_contact(
+    db: Session,
+    business_id: int,
+    phone: Optional[str],
+    email: Optional[str],
+) -> Optional[Client]:
+    """Match only inside this business; a stranger's contact in another salon is invisible here."""
+    query = _business_clients_query(db, business_id)
+    if email:
+        return query.filter(func.lower(Client.contact_email) == email.lower()).first()
+    if not phone:
+        return None
+    digits = re.sub(r"\D", "", phone)
+    expression = Client.contact_phone
+    for character in (" ", "-", "(", ")", ".", "/", "+"):
+        expression = func.replace(expression, character, "")
+    return query.filter(Client.contact_phone.isnot(None), expression == digits).first()
+
+
+def ensure_client_relations(
+    db: Session,
+    client_id: int,
+    business_id: int,
+    specialist_id: int,
+) -> None:
+    if not db.query(ClientBusinessRelation.id).filter(
+        ClientBusinessRelation.client_id == client_id,
+        ClientBusinessRelation.business_id == business_id,
+    ).first():
+        db.add(ClientBusinessRelation(client_id=client_id, business_id=business_id))
+    if not db.query(ClientSpecialistRelation.id).filter(
+        ClientSpecialistRelation.client_id == client_id,
+        ClientSpecialistRelation.specialist_id == specialist_id,
+        ClientSpecialistRelation.business_id == business_id,
+    ).first():
+        db.add(
+            ClientSpecialistRelation(
+                client_id=client_id,
+                specialist_id=specialist_id,
+                business_id=business_id,
+            )
+        )
+
+
+def find_or_create_client(
+    db: Session,
+    business_id: int,
+    specialist_id: int,
+    payload: PublicBookingCreate,
+    language: str,
+) -> Client:
+    client = find_business_client_by_contact(
+        db, business_id, payload.phone, payload.email
+    )
+    if client:
+        ensure_client_relations(db, client.id, business_id, specialist_id)
+        return client
+
+    client = Client(
+        owner_id=None,
+        full_name=payload.full_name,
+        contact_phone=payload.phone,
+        contact_email=payload.email,
+        language=language if language in ("en", "ru", "cz") else "en",
+    )
+    db.add(client)
+    db.flush()
+    ensure_client_relations(db, client.id, business_id, specialist_id)
+    return client

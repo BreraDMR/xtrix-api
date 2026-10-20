@@ -121,6 +121,21 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Выберите диапазон не больше 14 дней",
         "cz": "Vyberte rozsah nejvýše 14 dní",
     },
+    "public_slot_unavailable": {
+        "en": "This time is no longer available, pick another one",
+        "ru": "Это время уже занято, выберите другое",
+        "cz": "Tento čas už není volný, vyberte jiný",
+    },
+    "public_booking_request_conflict": {
+        "en": "This request key was already used with different booking details",
+        "ru": "Этот ключ запроса уже использован с другими данными записи",
+        "cz": "Tento klíč požadavku už byl použit s jinými údaji rezervace",
+    },
+    "public_booking_in_progress": {
+        "en": "This booking is already being processed, try again in a moment",
+        "ru": "Эта запись уже обрабатывается, попробуйте через момент",
+        "cz": "Tato rezervace se již zpracovává, zkuste to za chvíli",
+    },
     "cannot_cancel_subscription": {
         "en": "This subscription can't be cancelled",
         "ru": "Эту подписку нельзя отменить",
