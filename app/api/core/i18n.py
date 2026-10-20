@@ -101,6 +101,21 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Анкета не найдена",
         "cz": "Dotazník nenalezen",
     },
+    "questionnaire_empty": {
+        "en": "Add at least one field before publishing",
+        "ru": "Добавьте хотя бы одно поле перед публикацией",
+        "cz": "Před publikováním přidejte alespoň jedno pole",
+    },
+    "questionnaire_invalid": {
+        "en": "The questionnaire draft is invalid; fix its fields and try again",
+        "ru": "Черновик анкеты некорректен; исправьте поля и попробуйте снова",
+        "cz": "Koncept dotazníku je neplatný; opravte pole a zkuste to znovu",
+    },
+    "questionnaire_service_taken": {
+        "en": "Another questionnaire is already bound to this service",
+        "ru": "К этой услуге уже привязана другая анкета",
+        "cz": "K této službě je již připojen jiný dotazník",
+    },
     "public_slug_taken": {
         "en": "This booking link is already taken, choose another one",
         "ru": "Эта ссылка для записи уже занята, выберите другую",

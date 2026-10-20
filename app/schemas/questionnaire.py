@@ -211,3 +211,24 @@ class QuestionnaireTemplateOut(BaseModel):
         None, description="Latest published version; the draft may differ from it"
     )
     updated_at: UtcDatetime
+
+
+class QuestionnairePublish(InputModel):
+    model_config = ConfigDict(extra="forbid")
+
+    service_id: Optional[int] = Field(
+        None,
+        ge=1,
+        description="Service to bind; omit to keep the current binding, null to unbind",
+    )
+
+
+class QuestionnaireVersionOut(BaseModel):
+    id: int
+    template_id: int
+    version: int
+    name: str
+    description: Optional[str] = None
+    fields: QuestionnaireFieldList
+    service_id: Optional[int] = Field(None, description="Template binding after publishing")
+    published_at: UtcDatetime
