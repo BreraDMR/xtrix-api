@@ -1,6 +1,16 @@
 from typing import Dict, Any
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
+    "request_conflict": {
+        "en": "This request key was already used for different data or another workspace",
+        "ru": "Этот ключ запроса уже использован для других данных или другого бизнеса",
+        "cz": "Tento klíč požadavku byl již použit pro jiná data nebo jiné pracoviště",
+    },
+    "assistant_new_conversation": {
+        "en": "New chat",
+        "ru": "Новый чат",
+        "cz": "Nový chat",
+    },
     "conversation_not_found": {
         "en": "Conversation not found",
         "ru": "Разговор не найден",

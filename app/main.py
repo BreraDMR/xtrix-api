@@ -11,7 +11,7 @@ from app.api.middleware.security_headers import SecurityHeadersMiddleware
 from app.api.v1.endpoints import (
     clients, metrics, services, users, visits, files, subscriptions, schedules, 
     analytics, audit, archiving, specialist_profiles, client_relations, employees, businesses, products, expenses, loyalty, user_preferences,
-    assistant,
+    assistant, assistant_conversations,
 )
 from app.api.core import error_handlers
 from app.api.middleware.rate_limit import DefaultRateLimitMiddleware, limiter, rate_limit_exceeded_handler
@@ -182,3 +182,4 @@ app.include_router(expenses.router, prefix="/expenses", tags=["expenses"])
 app.include_router(loyalty.router, prefix="/loyalty", tags=["loyalty"])
 app.include_router(user_preferences.router, prefix="/user-preferences", tags=["user-preferences"])
 app.include_router(assistant.router, prefix="/assistant", tags=["assistant"])
+app.include_router(assistant_conversations.router, prefix="/assistant", tags=["assistant"])
