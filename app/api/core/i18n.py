@@ -216,6 +216,16 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Если аккаунт с таким email существует, ссылка для сброса отправлена",
         "cz": "Pokud účet s tímto e-mailem existuje, odkaz pro obnovení byl odeslán",
     },
+    "password_reset_invalid_token": {
+        "en": "This reset link is invalid or has expired",
+        "ru": "Эта ссылка для сброса недействительна или истекла",
+        "cz": "Tento odkaz pro obnovení je neplatný nebo vypršel",
+    },
+    "password_reset_success": {
+        "en": "Password changed. Sign in with your new password",
+        "ru": "Пароль изменён. Войдите с новым паролем",
+        "cz": "Heslo bylo změněno. Přihlaste se novým heslem",
+    },
     "public_service_unavailable": {
         "en": "This service is not available for online booking",
         "ru": "Эта услуга недоступна для онлайн-записи",

@@ -65,3 +65,12 @@ def mark_token_as_used(db: Session, token: PasswordResetToken, *, commit: bool =
     token.used_at = utcnow()
     if commit:
         db.commit()
+
+
+def mark_user_tokens_used(db: Session, user_id: int, *, commit: bool = True) -> None:
+    db.query(PasswordResetToken).filter(
+        PasswordResetToken.user_id == user_id,
+        PasswordResetToken.used_at.is_(None),
+    ).update({"used_at": utcnow()}, synchronize_session=False)
+    if commit:
+        db.commit()

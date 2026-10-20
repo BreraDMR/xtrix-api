@@ -17,7 +17,7 @@ from app.schemas.errors import invalid
 MIN_DATE = date(1900, 1, 1)
 MAX_DATE = date(2100, 12, 31)
 # secrets are compared byte for byte, trimming them would quietly change them
-NO_STRIP = {"password", "token", "totp_token", "refresh_token"}
+NO_STRIP = {"password", "new_password", "token", "totp_token", "refresh_token"}
 
 
 def _kinds(annotation: Any) -> set:
