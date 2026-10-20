@@ -22027,10 +22027,33 @@
           {
             "in": "query",
             "name": "plan_id",
-            "required": true,
+            "required": false,
             "schema": {
-              "title": "Plan Id",
-              "type": "integer"
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plan Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offer_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Offer Code"
             }
           },
           {

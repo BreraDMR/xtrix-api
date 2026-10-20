@@ -116,20 +116,34 @@ def my_subscription(
         return sub.model_dump() if hasattr(sub, 'model_dump') else sub
 @router.post("/checkout/create-session")
 def create_checkout_session(
-    plan_id: int,
+    plan_id: int | None = None,
+    offer_code: str | None = None,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(_payer),
     locale: str = Depends(deps.get_locale),
 ):
     if not settings.stripe_api_key:
         raise HTTPException(status_code=503, detail="Stripe not configured")
-    plan = crud_subscription.get_plan(db, plan_id)
-    if not plan or not plan.is_active:
-        raise HTTPException(status_code=404, detail=_("plan_not_found", locale))
-    amount = Decimal(str(plan.price))
-    if plan.is_trial or not amount.is_finite() or amount < Decimal("0.01"):
-        raise HTTPException(status_code=400, detail="Choose a paid plan for checkout")
+    if not plan_id and not offer_code:
+        raise HTTPException(status_code=400, detail="Must provide either plan_id or offer_code")
+
     try:
+        if offer_code:
+            from app.api.core.entitlements_service import (
+                build_checkout_payload_for_offer,
+                resolve_offer_for_checkout,
+            )
+            offer = resolve_offer_for_checkout(offer_code)
+            payload = build_checkout_payload_for_offer(current_user, offer, settings.frontend_url)
+            return stripe_checkout.create_session(db, current_user, plan_id=0, payload=payload)
+
+        plan = crud_subscription.get_plan(db, plan_id)
+        if not plan or not plan.is_active:
+            raise HTTPException(status_code=404, detail=_("plan_not_found", locale))
+        amount = Decimal(str(plan.price))
+        if plan.is_trial or not amount.is_finite() or amount < Decimal("0.01"):
+            raise HTTPException(status_code=400, detail="Choose a paid plan for checkout")
+
         payload = dict(
             line_items=[{
                 "price_data": {

@@ -110,7 +110,11 @@ def create_session(db, user, plan_id, payload):
     for session in opened:
         if (session.get("metadata") or {}).get("user_id") != str(user.id):
             raise HTTPException(409, "An open checkout has conflicting ownership")
-    same = [s for s in opened if (s.get("metadata") or {}).get("plan_id") == str(plan_id)]
+    offer_code = (payload.get("metadata") or {}).get("offer_code")
+    if offer_code:
+        same = [s for s in opened if (s.get("metadata") or {}).get("offer_code") == str(offer_code)]
+    else:
+        same = [s for s in opened if (s.get("metadata") or {}).get("plan_id") == str(plan_id)]
     chosen = next((s for s in same if s["id"] == preferred_id), same[0] if same else None)
     # Expire every other payable session first. If a payment wins that race,
     # Stripe rejects expire and we stop; we must not create another subscription.
