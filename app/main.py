@@ -9,7 +9,7 @@ from app.api.core.config import settings
 from app.api.core.logger import logger
 from app.api.middleware.security_headers import SecurityHeadersMiddleware
 from app.api.v1.endpoints import (
-    clients, metrics, services, users, visits, files, subscriptions, schedules, 
+    clients, client_notes, metrics, services, users, visits, files, subscriptions, schedules, 
     analytics, audit, archiving, specialist_profiles, client_relations, employees, businesses, products, expenses, loyalty, user_preferences,
     assistant, assistant_conversations, offers, onboarding, public_booking, questionnaires,
     questionnaire_answers, questionnaire_attachments, public_booking_manage,
@@ -167,6 +167,7 @@ async def root():
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(password_reset.router, prefix="/auth", tags=["auth"])
 app.include_router(clients.router, prefix="/clients", tags=["clients"])
+app.include_router(client_notes.router, prefix="/clients", tags=["clients"])
 app.include_router(services.router, prefix="/services", tags=["services"])
 app.include_router(visits.router, prefix="/visits", tags=["visits"])
 app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])

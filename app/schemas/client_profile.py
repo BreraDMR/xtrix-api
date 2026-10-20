@@ -56,7 +56,7 @@ class ClientNoteOut(BaseModel):
     id: int
     client_id: int
     business_id: int
-    author_id: int
+    author_id: Optional[int] = None
     author_name: Optional[str] = None
     body: str
     created_at: UtcDatetime

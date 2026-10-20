@@ -541,6 +541,11 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Клиент не найден",
         "cz": "Klient nebyl nalezen",
     },
+    "client_note_not_found": {
+        "en": "Note not found",
+        "ru": "Заметка не найдена",
+        "cz": "Poznámka nebyla nalezena",
+    },
     "visit_not_found": {
         "en": "Visit not found",
         "ru": "Визит не найден",
