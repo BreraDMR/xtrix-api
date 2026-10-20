@@ -216,6 +216,31 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Эта ссылка на запись недоступна",
         "cz": "Tento odkaz na rezervaci není dostupný",
     },
+    "booking_cancel_too_late": {
+        "en": "This booking can no longer be cancelled online; contact the business",
+        "ru": "Эту запись уже нельзя отменить онлайн; свяжитесь с салоном",
+        "cz": "Tuto rezervaci už nelze zrušit online; kontaktujte firmu",
+    },
+    "booking_cancel_completed": {
+        "en": "A completed visit can't be cancelled",
+        "ru": "Завершённый визит нельзя отменить",
+        "cz": "Dokončenou návštěvu nelze zrušit",
+    },
+    "booking_cancel_in_progress": {
+        "en": "A visit that has already started can't be cancelled online",
+        "ru": "Начавшийся визит нельзя отменить онлайн",
+        "cz": "Zahájenou návštěvu nelze zrušit online",
+    },
+    "booking_cancel_already": {
+        "en": "This booking is already cancelled",
+        "ru": "Эта запись уже отменена",
+        "cz": "Tato rezervace je již zrušena",
+    },
+    "booking_cancel_unavailable": {
+        "en": "This booking can't be cancelled",
+        "ru": "Эту запись нельзя отменить",
+        "cz": "Tuto rezervaci nelze zrušit",
+    },
     "cannot_cancel_subscription": {
         "en": "This subscription can't be cancelled",
         "ru": "Эту подписку нельзя отменить",
