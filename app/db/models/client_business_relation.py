@@ -9,6 +9,8 @@ class ClientBusinessRelation(Base):
     business_id = Column(Integer, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
     birthday_discount = Column(Boolean, default=False, index=True)
     personal_notes = Column(Text, nullable=True)  
+    tags = Column(JSON, nullable=True)  
+    preferences = Column(Text, nullable=True)  
     inventory = Column(JSON, nullable=True)  
     loyalty_points = Column(Float, default=0.0, nullable=False, index=True)  
     loyalty_cashback = Column(Float, default=0.0, nullable=False, index=True)  

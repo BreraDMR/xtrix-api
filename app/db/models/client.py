@@ -34,4 +34,5 @@ class Client(Base):
     visits = relationship("Visit", back_populates="client", lazy="dynamic", cascade="all,delete")
     specialist_relations = relationship("ClientSpecialistRelation", back_populates="client", lazy="dynamic", cascade="all,delete")
     business_relations = relationship("ClientBusinessRelation", back_populates="client", lazy="dynamic", cascade="all,delete")
+    notes = relationship("ClientNote", back_populates="client", lazy="dynamic", cascade="all,delete")
     medical_profile = relationship("MedicalProfile", back_populates="client", uselist=False, cascade="all,delete")  

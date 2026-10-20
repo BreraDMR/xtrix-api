@@ -2,6 +2,7 @@ from app.db.models.user import User
 from app.db.models.client import Client
 from app.db.models.client_specialist_relation import ClientSpecialistRelation
 from app.db.models.client_business_relation import ClientBusinessRelation
+from app.db.models.client_note import ClientNote
 from app.db.models.medical_profile import MedicalProfile
 from app.db.models.business import Business
 from app.db.models.public_booking import PublicBookingRequest, PublicBookingSettings
