@@ -1,4 +1,5 @@
 import os
+import re
 
 import pytest
 from sqlalchemy import MetaData, insert, select, text
@@ -6,11 +7,14 @@ from sqlalchemy.engine import make_url
 
 # Settings are read at import time, so the guard has to run before anything from app/ is imported.
 _url = os.environ.get("DATABASE_URL", "")
-_db_name = (make_url(_url).database or "") if _url else ""
-if "test" not in _db_name:
+_parsed_url = make_url(_url) if _url else None
+_db_name = (_parsed_url.database or "") if _parsed_url else ""
+if (_parsed_url is None or _parsed_url.host not in {"localhost", "127.0.0.1", "::1"}
+        or not re.search(r"(^test_|_test$)", _db_name) or _parsed_url.query
+        or any(os.environ.get(key) for key in ("PGHOSTADDR", "PGSERVICE", "PGSERVICEFILE"))):
     raise RuntimeError(
         f"Refusing to run tests against database {_db_name!r}: every test wipes the tables. "
-        "Point DATABASE_URL at a database with 'test' in its name (scripts/check.sh does that)."
+        "Use a local database named test_* or *_test (scripts/check.sh does that)."
     )
 os.environ.setdefault("JWT_SECRET", "test-secret-key-minimum-32-characters-long-for-testing")
 os.environ.setdefault("ENVIRONMENT", "test")
