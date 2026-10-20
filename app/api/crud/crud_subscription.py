@@ -55,6 +55,7 @@ def create_subscription(db: Session, data: SubscriptionCreate) -> Subscription:
     return sub
 def create_trial_subscription(db: Session, user_id: int, role: str) -> Optional[Subscription]:
     from app.db.models.user import User
+    from app.api.core.subscription_policy import calculate_trial_dates, get_crm_trial_days
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return None
@@ -63,29 +64,28 @@ def create_trial_subscription(db: Session, user_id: int, role: str) -> Optional[
     # Owners use the existing business trial; solo specialists keep their trial.
     if role == "business_owner":
         role = "admin"
-    if role == "admin":
-        trial_days = 5  
-    elif role == "specialist":
-        trial_days = 14  
-    else:
-        return None  
-    plan = get_plan_by_code(db, f"trial_{role}")
+    if role not in ("admin", "specialist"):
+        return None
+
+    trial_days = get_crm_trial_days()
+    plan_code = f"trial_{role}_{trial_days}d"
+    plan = get_plan_by_code(db, plan_code)
     if not plan:
         from app.schemas.subscription_plan import SubscriptionPlanCreate
         plan_data = SubscriptionPlanCreate(
-            code=f"trial_{role}",
-            name=f"Trial {role.title()}",
+            code=plan_code,
+            name=f"Trial {role.title()} ({trial_days} Days)",
             period_days=trial_days,
             price=0.0,
-            currency="eur",
-            features=f"Trial plan for {role}",
+            currency="czk",
+            features=f"Trial CRM plan for {role} (D02 policy: {trial_days} days without credit card)",
             is_active=True,
             is_trial=True,
             trial_days=trial_days,
         )
         plan = create_plan(db, plan_data)
-    trial_start = utcnow()
-    trial_end = trial_start + timedelta(days=trial_days)
+
+    trial_start, trial_end = calculate_trial_dates(trial_days)
     from app.schemas.subscription import SubscriptionCreate
     sub_data = SubscriptionCreate(
         user_id=user_id,
