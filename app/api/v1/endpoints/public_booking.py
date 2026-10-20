@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api import deps
+from app.api.core import booking_manage_access
 from app.api.core import public_booking_service as booking_service
 from app.api.core.availability import booking_window, collect_slots
 from app.api.core.booking_slug import normalize_slug
@@ -264,6 +265,7 @@ def create_public_booking(
         raise HTTPException(status_code=409, detail=_("public_booking_in_progress", locale))
 
     staff = visit.specialist
+    manage_token, _token = booking_manage_access.issue_token(db, visit)
     return PublicBookingOut(
         id=visit.id,
         start=visit.date_start,
@@ -275,4 +277,5 @@ def create_public_booking(
         currency=business.currency,
         status=visit.status or "planned",
         timezone=business.timezone,
+        manage_token=manage_token,
     )

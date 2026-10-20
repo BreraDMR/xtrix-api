@@ -172,3 +172,7 @@ class PublicBookingOut(BaseModel):
     currency: str
     status: str
     timezone: str
+    manage_token: Optional[str] = Field(
+        None,
+        description="One-time management token for this booking; put it in a link fragment and never log it",
+    )

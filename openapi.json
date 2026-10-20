@@ -7355,6 +7355,18 @@
             "title": "Id",
             "type": "integer"
           },
+          "manage_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One-time management token for this booking; put it in a link fragment and never log it",
+            "title": "Manage Token"
+          },
           "price": {
             "anyOf": [
               {
