@@ -127,11 +127,15 @@ def visits_list(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    from app.api.core.permissions import get_filtered_specialist_id
-    if current_user.role == "admin":
-        specialist_id = None
-    elif current_user.role == "business_owner":
-        specialist_id = None  
+    from app.api.core.permissions import check_specialist_in_scope, get_filtered_specialist_id
+    if date_from is not None and date_to is not None and date_to < date_from:
+        raise HTTPException(status_code=422, detail=_("date_range_invalid", locale))
+    if current_user.role in ("admin", "business_owner"):
+        if specialist_id is not None and not check_specialist_in_scope(db, current_user, specialist_id):
+            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+        # an owner without a business is a solo worker: no column-wide list for them
+        if specialist_id is None and current_user.role == "business_owner" and not current_user.business_id:
+            specialist_id = current_user.id
     else:
         specialist_id = get_filtered_specialist_id(current_user)
     if client_id:

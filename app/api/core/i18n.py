@@ -531,6 +531,11 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Недостаточно прав",
         "cz": "Nedostatečná oprávnění",
     },
+    "date_range_invalid": {
+        "en": "The end of the range cannot be earlier than its start",
+        "ru": "Конец диапазона не может быть раньше начала",
+        "cz": "Konec rozmezí nemůže být dřívější než začátek",
+    },
     "client_not_found": {
         "en": "Client not found",
         "ru": "Клиент не найден",
