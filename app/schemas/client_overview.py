@@ -5,7 +5,7 @@ financials; the history itself stays visible to the rest of the staff.
 """
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.schemas.datetimes import UtcDatetime
 
@@ -39,6 +39,6 @@ class ClientOverviewOut(BaseModel):
     client_id: int
     stats: ClientOverviewStats
     next_visit: Optional[ClientOverviewVisit] = None
-    upcoming_visits: List[ClientOverviewVisit] = Field(default_factory=list)
-    recent_visits: List[ClientOverviewVisit] = Field(default_factory=list)
+    upcoming_visits: List[ClientOverviewVisit]
+    recent_visits: List[ClientOverviewVisit]
     payments: Optional[ClientOverviewPayments] = None

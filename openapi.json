@@ -1584,7 +1584,9 @@
         },
         "required": [
           "client_id",
-          "stats"
+          "stats",
+          "upcoming_visits",
+          "recent_visits"
         ],
         "title": "ClientOverviewOut",
         "type": "object"
