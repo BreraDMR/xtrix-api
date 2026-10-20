@@ -96,6 +96,16 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Нужен бизнес — сначала создайте его или присоединитесь",
         "cz": "Je potřeba firma - nejprve ji vytvořte nebo se připojte",
     },
+    "public_slug_taken": {
+        "en": "This booking link is already taken, choose another one",
+        "ru": "Эта ссылка для записи уже занята, выберите другую",
+        "cz": "Tento odkaz pro rezervaci je již obsazený, vyberte jiný",
+    },
+    "public_booking_unavailable": {
+        "en": "Online booking is not available at this link",
+        "ru": "Онлайн-запись по этой ссылке недоступна",
+        "cz": "Online rezervace na tomto odkazu není dostupná",
+    },
     "cannot_cancel_subscription": {
         "en": "This subscription can't be cancelled",
         "ru": "Эту подписку нельзя отменить",
