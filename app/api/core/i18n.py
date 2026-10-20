@@ -181,6 +181,16 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Онлайн-запись по этой ссылке недоступна",
         "cz": "Online rezervace na tomto odkazu není dostupná",
     },
+    "notification_channel_unavailable": {
+        "en": "This notification channel is not available",
+        "ru": "Этот канал уведомлений недоступен",
+        "cz": "Tento kanál oznámení není dostupný",
+    },
+    "notification_provider_not_ready": {
+        "en": "The email provider is not configured yet, so notifications cannot be enabled",
+        "ru": "Провайдер email ещё не подключён, поэтому уведомления нельзя включить",
+        "cz": "Poskytovatel e-mailu zatím není nastaven, proto nelze oznámení zapnout",
+    },
     "public_service_unavailable": {
         "en": "This service is not available for online booking",
         "ru": "Эта услуга недоступна для онлайн-записи",

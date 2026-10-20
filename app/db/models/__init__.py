@@ -36,6 +36,7 @@ from app.db.models.loyalty_program import (
 from app.db.models.user_preferences import UserPreferences
 from app.db.models.notification_log import NotificationLog
 from app.db.models.notification_outbox import NotificationOutbox
+from app.db.models.notification_settings import NotificationSettings
 
 from app.db.models.ai_usage import AIUsage
 from app.db.models.stripe_checkout import StripeCheckoutState

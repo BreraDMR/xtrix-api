@@ -4,11 +4,12 @@ enqueue_notification() only adds a row to the session: the caller commits the vi
 and the notification together, so a rollback never leaves a message about a booking that
 does not exist.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from app.api.core import notification_preferences
 from app.api.core.availability import salon_zone
 from app.api.core.clock import utcnow
 from app.api.core.notification_outbox import enqueue_notification
@@ -27,13 +28,18 @@ def reminder_event_key(visit: Visit) -> str:
     return f"visit:{visit.id}:reminder:{visit.date_start.isoformat()}"
 
 
-def reminder_at(visit: Visit, business: Business) -> Optional[datetime]:
-    """Same local time one day before the visit, so a DST change does not move the hour."""
+def reminder_at(
+    visit: Visit, business: Business, at_time: str = notification_preferences.DEFAULT_REMINDER_TIME
+) -> Optional[datetime]:
+    """The business's local reminder time on the day before the visit, as UTC."""
     if not visit.date_start:
         return None
     zone = salon_zone(business.timezone)
     local_start = visit.date_start.replace(tzinfo=timezone.utc).astimezone(zone)
-    local_reminder = local_start - timedelta(days=1)
+    hour, minute = (int(part) for part in at_time.split(":"))
+    local_reminder = datetime.combine(
+        local_start.date() - timedelta(days=1), time(hour, minute), tzinfo=zone
+    )
     return local_reminder.astimezone(timezone.utc).replace(tzinfo=None)
 
 
@@ -78,7 +84,8 @@ def _queue(
     scheduled_at: Optional[datetime] = None,
 ) -> None:
     email = _contact_email(client)
-    if not email:
+    channel = notification_preferences.enabled_channel(db, business.id)
+    if not email or channel is None:
         return
     enqueue_notification(
         db,
@@ -86,6 +93,7 @@ def _queue(
         visit_id=visit.id,
         event_key=event_key,
         kind=kind,
+        channel=channel,
         recipient=email,
         language=client.language,
         payload=_payload(business, visit, client),
@@ -98,7 +106,10 @@ def ensure_reminder(
 ) -> bool:
     """Create or revive the reminder for the visit's current start; returns True if queued."""
     client = client or visit.client
-    when = reminder_at(visit, business)
+    if notification_preferences.enabled_channel(db, business.id) is None:
+        cancel_pending_reminders(db, visit.id)
+        return False
+    when = reminder_at(visit, business, notification_preferences.reminder_time(db, business.id))
     if visit.status != "planned" or not _contact_email(client) or when is None or when <= utcnow():
         cancel_pending_reminders(db, visit.id)
         return False
