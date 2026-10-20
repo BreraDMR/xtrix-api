@@ -8,6 +8,7 @@ from typing import Annotated, Any, Literal, Optional, Union
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.api.core.questionnaire_attachments import MAX_ATTACHMENT_BYTES
 from app.schemas.base import InputModel
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.errors import invalid
@@ -270,3 +271,26 @@ class QuestionnaireAnswersOut(BaseModel):
     fields: QuestionnaireFieldList
     answers: dict[str, Any]
     submitted_at: UtcDatetime
+
+
+class QuestionnaireAttachmentCreate(InputModel):
+    model_config = ConfigDict(extra="forbid")
+
+    filename: Annotated[str, Field(min_length=1, max_length=255)]
+    content_type: Annotated[str, Field(min_length=1, max_length=100)]
+    size_bytes: int = Field(ge=1, le=MAX_ATTACHMENT_BYTES)
+
+
+class QuestionnaireAttachmentUploadOut(BaseModel):
+    attachment_id: int
+    upload_url: str
+    upload_fields: dict[str, str]
+
+
+class QuestionnaireAttachmentOut(BaseModel):
+    id: int
+    filename: str
+    content_type: str
+    size_bytes: int
+    uploaded_at: Optional[UtcDatetime] = None
+    url: Optional[str] = None

@@ -22,3 +22,16 @@ def generate_presigned_url(
 def build_object_key(prefix: str, filename: str) -> str:
     ts = int(time.time())
     return f"{prefix}/{ts}_{filename}"
+
+
+def generate_presigned_post(key: str, content_type: str, max_bytes: int, expires_in=900):
+    return s3.generate_presigned_post(
+        Bucket=settings.aws_bucket,
+        Key=key,
+        Fields={"Content-Type": content_type},
+        Conditions=[
+            {"Content-Type": content_type},
+            ["content-length-range", 1, max_bytes],
+        ],
+        ExpiresIn=expires_in,
+    )

@@ -141,6 +141,36 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Для этой записи нет ответов на анкету",
         "cz": "Pro tuto návštěvu nejsou odpovědi z dotazníku",
     },
+    "questionnaire_uploads_unavailable": {
+        "en": "File uploads are not configured",
+        "ru": "Загрузка файлов не настроена",
+        "cz": "Nahrávání souborů není nastaveno",
+    },
+    "questionnaire_attachment_type": {
+        "en": "Files must be JPEG, PNG, WebP or PDF",
+        "ru": "Файлы должны быть JPEG, PNG, WebP или PDF",
+        "cz": "Soubory musí být JPEG, PNG, WebP nebo PDF",
+    },
+    "questionnaire_attachment_limit": {
+        "en": "Too many files for this questionnaire",
+        "ru": "Слишком много файлов для этой анкеты",
+        "cz": "Příliš mnoho souborů pro tento dotazník",
+    },
+    "questionnaire_attachment_not_found": {
+        "en": "Attachment not found",
+        "ru": "Вложение не найдено",
+        "cz": "Příloha nenalezena",
+    },
+    "questionnaire_attachment_missing": {
+        "en": "The file was not uploaded",
+        "ru": "Файл не был загружен",
+        "cz": "Soubor nebyl nahrán",
+    },
+    "questionnaire_attachment_invalid": {
+        "en": "The uploaded file does not match the declared type or size",
+        "ru": "Загруженный файл не совпадает с заявленным типом или размером",
+        "cz": "Nahraný soubor neodpovídá deklarovanému typu nebo velikosti",
+    },
     "public_slug_taken": {
         "en": "This booking link is already taken, choose another one",
         "ru": "Эта ссылка для записи уже занята, выберите другую",

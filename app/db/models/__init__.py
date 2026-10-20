@@ -42,3 +42,4 @@ from app.db.models.usage_counter import UsageCounter
 from app.db.models.questionnaire import QuestionnaireTemplate, QuestionnaireVersion
 from app.db.models.questionnaire_access import QuestionnaireAccessToken
 from app.db.models.questionnaire_response import QuestionnaireResponse
+from app.db.models.questionnaire_attachment import QuestionnaireAttachment
