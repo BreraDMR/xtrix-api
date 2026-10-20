@@ -31,6 +31,15 @@ from app.api.middleware.rate_limit import (
     limiter,
     user_or_ip,
 )
+from app.api.core.assistant_conversation_service import (
+    get_conversation_context,
+    prepare_user_request,
+    record_assistant_failure,
+    record_assistant_success,
+    validate_generation_scope,
+)
+from app.api.crud.crud_assistant_conversation import resolve_conversation
+from app.db.models.assistant_conversation import AssistantMessage
 from app.db.models.user import User
 from app.schemas.assistant import (
     AssistantStatusOut,
@@ -147,16 +156,43 @@ def make_plan(
     locale = body.locale or locale
     if model is None:
         raise ai_http_error(AINotConfigured(), locale)
+
+    assistant_msg = None
+    if body.conversation_id:
+        if not body.client_request_id:
+            raise _bad_input("client_request_id", "missing_request_id", "client_request_id is required with conversation_id")
+        conv, user_msg, existing_assistant_msg = prepare_user_request(
+            db, current_user, body.conversation_id, body.client_request_id, body.text, locale=locale
+        )
+        if existing_assistant_msg and existing_assistant_msg.status == "succeeded" and existing_assistant_msg.plan_payload:
+            return existing_assistant_msg.plan_payload
+        if existing_assistant_msg and existing_assistant_msg.status == "failed":
+            raise HTTPException(existing_assistant_msg.error_status or 500, detail={"code": existing_assistant_msg.error_code or "ai_unavailable"})
+        assistant_msg = existing_assistant_msg
+    elif body.client_request_id:
+        raise _bad_input("conversation_id", "missing_conversation_id", "conversation_id is required with client_request_id")
+
     tz = assistant.user_timezone(db, current_user, model.config)
     try:
         draft = assistant.make_plan(db, current_user, body.text, locale=locale, tz=tz, router=model, store=store)
     except AIError as err:
+        if assistant_msg:
+            http_err = ai_http_error(err, locale)
+            retry_after = getattr(err, 'retry_after', None)
+            record_assistant_failure(db, body.conversation_id, assistant_msg.id, err.code, http_err.status_code, retry_after)
         raise ai_http_error(err, locale)
     except ValueError as err:
+        if assistant_msg:
+            record_assistant_failure(db, body.conversation_id, assistant_msg.id, "invalid_request", 422)
         raise _bad_input("text", "invalid_request", str(err))
+    except Exception as err:
+        if assistant_msg:
+            record_assistant_failure(db, body.conversation_id, assistant_msg.id, "server_error", 500)
+        raise
+
     shown = describe_plan(db, current_user, draft.plan, tz=tz)
     actions = [{**a.model_dump(mode="json"), "display": d.to_dict()} for a, d in zip(draft.plan.actions, shown)]
-    return {
+    plan_data = {
         "plan_id": draft.plan_id,
         "summary": draft.plan.summary,
         "questions": draft.plan.questions,
@@ -164,6 +200,11 @@ def make_plan(
         "assistant": draft.assistant.__dict__,
         "expires_at": draft.expires_at,
     }
+    if assistant_msg:
+        record_assistant_success(
+            db, body.conversation_id, assistant_msg.id, draft.plan.summary, draft.plan_id, plan_data, draft.expires_at
+        )
+    return plan_data
 
 
 @router.post("/execute", response_model=ExecuteOut,
@@ -179,12 +220,29 @@ def execute_plan(
     model: Optional[LLMRouter] = Depends(llm_router),
     store=Depends(plan_store),
 ):
+    message = db.query(AssistantMessage).filter(
+        AssistantMessage.plan_id == body.plan_id
+    ).populate_existing().with_for_update().first()
+    if message:
+        validate_generation_scope(db, current_user, locale)
+        resolve_conversation(db, current_user, message.conversation_id, locale=locale, allow_archived=True)
+        if message.result_payload:
+            return message.result_payload
+        message.execution_started_at = utcnow()
+        db.commit()
+
     try:
         result = assistant.execute_saved_plan(db, current_user, body.plan_id, locale=locale, store=store,
                                               config=_limits_config(model))
     except assistant.PlanNotFound:
         raise HTTPException(404, detail={"message": _("ai_plan_not_found", locale), "code": "plan_not_found"})
-    return result.to_dict()
+
+    result_dict = result.to_dict()
+    if message:
+        message.result_payload = result_dict
+        message.status = "succeeded" if result.ok else "failed"
+        db.commit()
+    return result_dict
 
 
 # the multipart wrapping around the file is a boundary and a few headers - 64 KB is plenty

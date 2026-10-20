@@ -235,5 +235,75 @@ def test_archive_conversation_is_idempotent_and_isolated(client, db, make_user, 
     assert stranger_resp.status_code == 404
 
 
+def test_prepare_user_request_saves_user_message_and_idempotency(db, make_user):
+    from app.api.core.assistant_conversation_service import prepare_user_request
+    owner = make_user()
+    chat_row = AssistantConversation(
+        owner_user_id=owner.id,
+        business_id=None,
+        client_request_id=uuid4(),
+        request_hash='dummy',
+        title='Plan test chat',
+    )
+    db.add(chat_row)
+    db.commit()
+
+    req_id = uuid4()
+    conv, u_msg, a_msg = prepare_user_request(db, owner, chat_row.id, req_id, 'Book a haircut')
+    assert u_msg.role == 'user'
+    assert u_msg.text == 'Book a haircut'
+    assert u_msg.status == 'succeeded'
+    assert a_msg.role == 'assistant'
+    assert a_msg.status == 'pending'
+
+    # Verify committed rows in DB
+    assert db.query(AssistantMessage).filter(AssistantMessage.conversation_id == chat_row.id).count() == 2
+
+    # Retry with identical text does not duplicate
+    conv2, u_msg2, a_msg2 = prepare_user_request(db, owner, chat_row.id, req_id, 'Book a haircut')
+    assert u_msg2.id == u_msg.id
+    assert db.query(AssistantMessage).filter(AssistantMessage.conversation_id == chat_row.id).count() == 2
+
+
+def test_assistant_record_success_and_failure(db, make_user):
+    from app.api.core.assistant_conversation_service import (
+        prepare_user_request,
+        record_assistant_failure,
+        record_assistant_success,
+    )
+    owner = make_user()
+    chat_row = AssistantConversation(
+        owner_user_id=owner.id,
+        business_id=None,
+        client_request_id=uuid4(),
+        request_hash='dummy',
+        title='Plan outcome chat',
+    )
+    db.add(chat_row)
+    db.commit()
+
+    # Success case
+    req_id = uuid4()
+    conv, u_msg, a_msg = prepare_user_request(db, owner, chat_row.id, req_id, 'Plan haircut')
+    record_assistant_success(db, chat_row.id, a_msg.id, 'Here is your plan', 'plan-123', {'plan_id': 'plan-123'}, None)
+
+    saved_a = db.query(AssistantMessage).filter(AssistantMessage.id == a_msg.id).first()
+    assert saved_a.status == 'succeeded'
+    assert saved_a.plan_id == 'plan-123'
+    assert saved_a.text == 'Here is your plan'
+
+    # Failure case
+    req_id_fail = uuid4()
+    conv, u_msg_f, a_msg_f = prepare_user_request(db, owner, chat_row.id, req_id_fail, 'Failing prompt')
+    record_assistant_failure(db, chat_row.id, a_msg_f.id, 'ai_busy', 503, retry_after=30)
+
+    saved_f = db.query(AssistantMessage).filter(AssistantMessage.id == a_msg_f.id).first()
+    assert saved_f.status == 'failed'
+    assert saved_f.error_code == 'ai_busy'
+    assert saved_f.error_status == 503
+    assert saved_f.error_retry_after == 30
+
+
+
 
 

@@ -5798,6 +5798,32 @@
       "PlanRequest": {
         "additionalProperties": false,
         "properties": {
+          "client_request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Unique client request ID for retry-safety",
+            "title": "Client Request Id"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Active private conversation",
+            "title": "Conversation Id"
+          },
           "locale": {
             "anyOf": [
               {

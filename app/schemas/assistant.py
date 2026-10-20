@@ -1,5 +1,6 @@
 """Request and response shapes of /assistant/*."""
 from typing import Annotated, Literal, Optional, Union
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
@@ -29,6 +30,8 @@ class PlanRequest(BaseModel):
     text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_REQUEST_CHARS)]
     locale: Optional[Literal["ru", "cz", "en"]] = Field(
         None, description="Language of the answer; Accept-Language when left out")
+    conversation_id: Optional[UUID] = Field(None, description="Active private conversation")
+    client_request_id: Optional[UUID] = Field(None, description="Unique client request ID for retry-safety")
 
 
 class ActionDisplay(BaseModel):
