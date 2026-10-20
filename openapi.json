@@ -8456,6 +8456,22 @@
       },
       "ServiceCreate": {
         "properties": {
+          "buffer_after_minutes": {
+            "default": 0,
+            "description": "Reserved time after the visit, minutes",
+            "maximum": 1440.0,
+            "minimum": 0.0,
+            "title": "Buffer After Minutes",
+            "type": "integer"
+          },
+          "buffer_before_minutes": {
+            "default": 0,
+            "description": "Reserved time before the visit, minutes",
+            "maximum": 1440.0,
+            "minimum": 0.0,
+            "title": "Buffer Before Minutes",
+            "type": "integer"
+          },
           "category": {
             "anyOf": [
               {
@@ -8554,6 +8570,22 @@
       },
       "ServiceOut": {
         "properties": {
+          "buffer_after_minutes": {
+            "default": 0,
+            "description": "Reserved time after the visit, minutes",
+            "maximum": 1440.0,
+            "minimum": 0.0,
+            "title": "Buffer After Minutes",
+            "type": "integer"
+          },
+          "buffer_before_minutes": {
+            "default": 0,
+            "description": "Reserved time before the visit, minutes",
+            "maximum": 1440.0,
+            "minimum": 0.0,
+            "title": "Buffer Before Minutes",
+            "type": "integer"
+          },
           "category": {
             "anyOf": [
               {
@@ -8723,6 +8755,20 @@
       },
       "ServiceUpdate": {
         "properties": {
+          "buffer_after_minutes": {
+            "default": 0,
+            "maximum": 1440.0,
+            "minimum": 0.0,
+            "title": "Buffer After Minutes",
+            "type": "integer"
+          },
+          "buffer_before_minutes": {
+            "default": 0,
+            "maximum": 1440.0,
+            "minimum": 0.0,
+            "title": "Buffer Before Minutes",
+            "type": "integer"
+          },
           "category": {
             "anyOf": [
               {
