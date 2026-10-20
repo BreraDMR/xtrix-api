@@ -79,3 +79,39 @@ def test_concurrent_create_with_one_key_returns_one_chat(client, db, make_user, 
     assert [response.status_code for response in responses] == [201, 201]
     assert responses[0].json() == responses[1].json()
     assert db.query(AssistantConversation).count() == 1
+
+
+def test_list_conversations_excludes_archived_and_other_users(client, db, make_user, headers_for):
+    owner = make_user()
+    other_user = make_user()
+    c1 = create(client, headers_for(owner), title='Chat 1').json()
+    c2 = create(client, headers_for(owner), title='Chat 2').json()
+    create(client, headers_for(other_user), title='Stranger Chat')
+
+    # Archive c1 directly in DB to simulate archived conversation
+    db.query(AssistantConversation).filter(AssistantConversation.id == c1['id']).update({'archived_at': AssistantConversation.created_at})
+    db.commit()
+
+    resp = client.get(URL, headers=headers_for(owner))
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data['total'] == 1
+    assert len(data['items']) == 1
+    assert data['items'][0]['id'] == c2['id']
+    assert data['items'][0]['title'] == 'Chat 2'
+
+
+def test_list_conversations_pagination(client, make_user, headers_for):
+    owner = make_user()
+    headers = headers_for(owner)
+    for i in range(5):
+        create(client, headers, title=f'Chat {i}')
+
+    resp = client.get(f'{URL}?limit=2&offset=0', headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data['total'] == 5
+    assert len(data['items']) == 2
+    assert data['limit'] == 2
+    assert data['offset'] == 0
+

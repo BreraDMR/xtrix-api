@@ -2,20 +2,43 @@
 import hashlib
 import json
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api import deps
 from app.api.core.clock import utcnow
 from app.api.core.i18n import _
-from app.api.crud.crud_assistant_conversation import conversation_error, conversation_scope
+from app.api.crud.crud_assistant_conversation import (
+    conversation_error,
+    conversation_scope,
+    scoped_conversations,
+)
 from app.api.middleware.rate_limit import ASSISTANT_PLAN_LIMIT, limiter, user_or_ip
 from app.db.models.assistant_conversation import AssistantConversation
 from app.db.models.user import User
-from app.schemas.assistant_conversation import ConversationCreate, ConversationOut
+from app.schemas.assistant_conversation import ConversationCreate, ConversationOut, ConversationPage
 
 router = APIRouter(prefix='/conversations')
 staff_user = deps.role_required('admin', 'business_owner', 'specialist', 'employee')
+
+
+@router.get('', response_model=ConversationPage,
+            summary='List active private conversations for the signed-in staff member')
+def list_conversations(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(staff_user),
+    locale: str = Depends(deps.get_locale),
+):
+    conversation_scope(db, current_user, locale)
+    query = scoped_conversations(db, current_user).filter(AssistantConversation.archived_at.is_(None))
+    total = query.count()
+    items = query.order_by(
+        AssistantConversation.updated_at.desc(),
+        AssistantConversation.id.desc(),
+    ).offset(offset).limit(limit).all()
+    return ConversationPage(items=items, total=total, limit=limit, offset=offset)
 
 
 @router.post('', response_model=ConversationOut, status_code=201,
