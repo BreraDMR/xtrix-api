@@ -1,6 +1,11 @@
 from typing import Dict, Any
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
+    "conversation_not_found": {
+        "en": "Conversation not found",
+        "ru": "Разговор не найден",
+        "cz": "Konverzace nenalezena",
+    },
     "2fa_disabled": {
         "en": "Two-factor authentication disabled",
         "ru": "Двухфакторная аутентификация отключена",
