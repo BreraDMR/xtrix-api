@@ -197,8 +197,12 @@ def next_available_slot(
         existing.append((v.date_start, end))
     schedules = crud_schedule.list_work_schedules(db, specialist_id)
     blocks = crud_schedule.list_block_slots(db, specialist_id)
+    exceptions = crud_schedule.list_schedule_exceptions(db, specialist_id)
     schedule_tuples = [(s.weekday, s.start_time, s.end_time) for s in schedules] if schedules else None
     block_tuples = [(b.start, b.end) for b in blocks] if blocks else None
+    exception_tuples = (
+        [(e.exception_date, e.start_time, e.end_time) for e in exceptions] if exceptions else None
+    )
     slot = find_next_available_slot(
         existing,
         duration_minutes,
@@ -207,6 +211,7 @@ def next_available_slot(
         breaks=_build_breaks(break_start, break_end),
         schedule=schedule_tuples,
         blocks=block_tuples,
+        exceptions=exception_tuples,
     )
     if not slot:
         raise HTTPException(status_code=404, detail=_("no_slot", locale))

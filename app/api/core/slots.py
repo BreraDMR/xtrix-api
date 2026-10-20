@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, time
+from datetime import date, datetime, timedelta, time
 from typing import List, Tuple, Optional
 from app.api.core.clock import utcnow
 def _overlaps(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime) -> bool:
@@ -14,13 +14,21 @@ def find_next_available_slot(
     breaks: Optional[List[Tuple[time, time]]] = None,
     schedule: Optional[List[Tuple[int, time, time]]] = None,  
     blocks: Optional[List[Tuple[datetime, datetime]]] = None,
+    exceptions: Optional[List[Tuple[date, Optional[time], Optional[time]]]] = None,
 ) -> datetime | None:
     start_search = start_from or utcnow()
     delta = timedelta(minutes=step_minutes)
     duration = timedelta(minutes=duration_minutes)
+    exception_days = {day: (start, end) for day, start, end in exceptions or []}
     for day_offset in range(days_ahead):
         day = (start_search + timedelta(days=day_offset)).date()
-        if schedule:
+        if day in exception_days:
+            # a date exception replaces the weekly windows for that day
+            exc_start, exc_end = exception_days[day]
+            if exc_start is None or exc_end is None:
+                continue
+            day_windows = [(day.weekday(), exc_start, exc_end)]
+        elif schedule:
             day_windows = [s for s in schedule if s[0] == day.weekday()]
             if not day_windows:
                 continue

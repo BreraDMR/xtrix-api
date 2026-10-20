@@ -201,13 +201,15 @@ class _Run:
                   for b in crud_schedule.list_block_slots(self.db, specialist_id)]
         schedule = [(s.weekday, s.start_time, s.end_time)
                     for s in crud_schedule.list_work_schedules(self.db, specialist_id)]
+        exceptions = [(e.exception_date, e.start_time, e.end_time)
+                      for e in crud_schedule.list_schedule_exceptions(self.db, specialist_id)]
         local_start = self.to_local(start_utc).replace(second=0, microsecond=0)
         overshoot = local_start.minute % SLOT_STEP_MINUTES
         if overshoot:
             local_start += timedelta(minutes=SLOT_STEP_MINUTES - overshoot)
         found = find_next_available_slot(existing, minutes, start_from=local_start, days_ahead=a.days_ahead,
                                          step_minutes=SLOT_STEP_MINUTES, schedule=schedule or None,
-                                         blocks=blocks or None)
+                                         blocks=blocks or None, exceptions=exceptions or None)
         if not found:
             raise ActionFailed(404, "no_slot")
         start = self.to_utc(found)

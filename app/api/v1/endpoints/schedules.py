@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.api import deps
@@ -5,6 +7,11 @@ from app.api.core.i18n import _
 from app.api.crud import crud_schedule
 from app.db.models.user import User
 from app.schemas.work_schedule import WorkScheduleCreate, WorkScheduleOut, WorkScheduleUpdate
+from app.schemas.schedule_exception import (
+    ScheduleExceptionCreate,
+    ScheduleExceptionOut,
+    ScheduleExceptionUpdate,
+)
 from app.schemas.block_slot import BlockSlotCreate, BlockSlotOut, BlockSlotUpdate
 router = APIRouter()
 
@@ -83,3 +90,59 @@ def update_block(
     if not _can_manage_schedule(db, current_user, blk.specialist_id):
         raise HTTPException(status_code=403, detail=_("not_allowed"))
     return crud_schedule.update_block_slot(db, blk, payload)
+
+
+@router.post("/exceptions", response_model=ScheduleExceptionOut)
+def create_schedule_exception(
+    payload: ScheduleExceptionCreate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist")),
+):
+    if not _can_manage_schedule(db, current_user, payload.specialist_id):
+        raise HTTPException(status_code=403, detail=_("not_allowed"))
+    return crud_schedule.create_schedule_exception(db, payload)
+
+
+@router.get("/exceptions", response_model=list[ScheduleExceptionOut])
+def list_schedule_exceptions(
+    specialist_id: int,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist")),
+):
+    if not _can_manage_schedule(db, current_user, specialist_id):
+        raise HTTPException(status_code=403, detail=_("not_allowed"))
+    if date_from is not None and date_to is not None and date_to < date_from:
+        raise HTTPException(status_code=422, detail="date_to cannot be earlier than date_from")
+    return crud_schedule.list_schedule_exceptions(db, specialist_id, date_from, date_to)
+
+
+@router.put("/exceptions/{exception_id}", response_model=ScheduleExceptionOut)
+def update_schedule_exception(
+    exception_id: int,
+    payload: ScheduleExceptionUpdate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist")),
+):
+    obj = crud_schedule.get_schedule_exception(db, exception_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Not found")
+    if not _can_manage_schedule(db, current_user, obj.specialist_id):
+        raise HTTPException(status_code=403, detail=_("not_allowed"))
+    return crud_schedule.update_schedule_exception(db, obj, payload)
+
+
+@router.delete("/exceptions/{exception_id}")
+def delete_schedule_exception(
+    exception_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist")),
+):
+    obj = crud_schedule.get_schedule_exception(db, exception_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Not found")
+    if not _can_manage_schedule(db, current_user, obj.specialist_id):
+        raise HTTPException(status_code=403, detail=_("not_allowed"))
+    crud_schedule.delete_schedule_exception(db, obj)
+    return {"ok": True}
