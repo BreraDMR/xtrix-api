@@ -59,6 +59,21 @@ def update_work_schedule(
     if not _can_manage_schedule(db, current_user, ws.specialist_id):
         raise HTTPException(status_code=403, detail=_("not_allowed"))
     return crud_schedule.update_work_schedule(db, ws, payload)
+
+
+@router.delete("/work/{ws_id}")
+def delete_work_schedule(
+    ws_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist")),
+):
+    ws = crud_schedule.get_work_schedule(db, ws_id)
+    if not ws:
+        raise HTTPException(status_code=404, detail="Not found")
+    if not _can_manage_schedule(db, current_user, ws.specialist_id):
+        raise HTTPException(status_code=403, detail=_("not_allowed"))
+    crud_schedule.delete_work_schedule(db, ws)
+    return {"ok": True}
 @router.post("/blocks", response_model=BlockSlotOut)
 def create_block(
     payload: BlockSlotCreate,

@@ -59,6 +59,9 @@ def update_work_schedule(db: Session, obj: WorkSchedule, data: WorkScheduleUpdat
     return obj
 def get_work_schedule(db: Session, ws_id: int) -> Optional[WorkSchedule]:
     return db.query(WorkSchedule).filter(WorkSchedule.id == ws_id).first()
+def delete_work_schedule(db: Session, obj: WorkSchedule) -> None:
+    db.delete(obj)
+    db.commit()
 
 
 def _check_exception_date_conflict(
