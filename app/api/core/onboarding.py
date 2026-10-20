@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.api.core.permissions import get_staff_record, get_user_business_id
 from app.db.models.business import Business
 from app.db.models.employee import Employee
+from app.db.models.public_booking import PublicBookingSettings
 from app.db.models.service import Service
 from app.db.models.user import User
 from app.db.models.work_schedule import WorkSchedule
@@ -21,9 +22,9 @@ from app.schemas.onboarding import OnboardingPersona, OnboardingStep, Onboarding
 ONBOARDING_VERSION = 1
 ONBOARDING_TOUR_VERSION = 1
 
-# ON-14 flips these once the schedule editor and public booking form are routed.
-SCHEDULE_STEP_READY = False
-BOOKING_STEP_READY = False
+# The schedule editor and the public booking form are routed since ON-14.
+SCHEDULE_STEP_READY = True
+BOOKING_STEP_READY = True
 
 STEP_ORDER: tuple[OnboardingStepKey, ...] = (
     "business", "service", "staff", "schedule", "booking",
@@ -107,6 +108,20 @@ def _has_schedule(db: Session, specialist_ids: list[int]) -> bool:
     ).first() is not None
 
 
+def _booking_enabled(db: Session, business_id: Optional[int]) -> bool:
+    if not business_id:
+        return False
+    return (
+        db.query(PublicBookingSettings.id)
+        .filter(
+            PublicBookingSettings.business_id == business_id,
+            PublicBookingSettings.is_enabled.is_(True),
+        )
+        .first()
+        is not None
+    )
+
+
 def _step(key: OnboardingStepKey, completed: bool, available: bool) -> OnboardingStep:
     return OnboardingStep(
         key=key,
@@ -151,7 +166,9 @@ def compute_onboarding(db: Session, user: User) -> OnboardingSnapshot:
 
     schedule_done = staff_done and _has_schedule(db, master_ids)
     steps.append(_step("schedule", schedule_done, SCHEDULE_STEP_READY and staff_done))
-    steps.append(_step("booking", False, BOOKING_STEP_READY and schedule_done))
+    # a solo specialist without a business has no public link to turn on
+    booking_done = business_done and _booking_enabled(db, business_id)
+    steps.append(_step("booking", booking_done, BOOKING_STEP_READY and schedule_done and business_done))
 
     required = [step for step in steps if step.required]
     done = [step for step in required if step.completed]
