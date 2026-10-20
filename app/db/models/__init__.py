@@ -6,6 +6,7 @@ from app.db.models.medical_profile import MedicalProfile
 from app.db.models.business import Business
 from app.db.models.public_booking import PublicBookingRequest, PublicBookingSettings
 from app.db.models.booking_manage_token import BookingManageToken
+from app.db.models.visit_event import VisitEvent
 from app.db.models.service import Service
 from app.db.models.service_specialist import ServiceSpecialist
 from app.db.models.visit import Visit

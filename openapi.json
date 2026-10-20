@@ -22981,6 +22981,72 @@
         ]
       }
     },
+    "/public/booking-management/cancel": {
+      "post": {
+        "description": "Cancelling twice returns the already cancelled booking without a second event; the status change and the visit event are committed together.",
+        "operationId": "cancel_managed_booking_public_booking_management_cancel_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Booking-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Booking-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicBookingManageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel a booking by its guest token",
+        "tags": [
+          "public-booking"
+        ]
+      }
+    },
     "/public/booking-management/confirm": {
       "post": {
         "description": "Repeating the call keeps the first confirmation and returns the same booking.",

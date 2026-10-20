@@ -21,6 +21,7 @@ from app.api.middleware.rate_limit import (
 )
 from app.db.models.booking_manage_token import BookingManageToken
 from app.db.models.visit import Visit
+from app.db.models.visit_event import VisitEvent
 from app.schemas.public_booking import PublicBookingManageOut
 
 router = APIRouter()
@@ -59,6 +60,19 @@ def _summary(token: BookingManageToken, visit: Visit) -> PublicBookingManageOut:
     )
 
 
+def _locked_visit(db: Session, token: BookingManageToken, visit_id: int, locale: str) -> Visit:
+    visit = (
+        db.query(Visit)
+        .filter(Visit.id == visit_id, Visit.deleted_at.is_(None))
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
+    if not visit or visit.business_id != token.business_id:
+        raise HTTPException(status_code=404, detail=_("booking_manage_link_unavailable", locale))
+    return visit
+
+
 @router.get("", response_model=PublicBookingManageOut, summary="Read a booking by its guest token")
 @limiter.limit(PUBLIC_BOOKING_MANAGE_LIMIT)
 def get_managed_booking(
@@ -85,15 +99,7 @@ def confirm_managed_booking(
     locale: str = Depends(deps.get_locale),
 ):
     token, visit = _resolve(db, x_booking_token, locale, action="confirm")
-    visit = (
-        db.query(Visit)
-        .filter(Visit.id == visit.id, Visit.deleted_at.is_(None))
-        .with_for_update()
-        .populate_existing()
-        .first()
-    )
-    if not visit or visit.business_id != token.business_id:
-        raise HTTPException(status_code=404, detail=_("booking_manage_link_unavailable", locale))
+    visit = _locked_visit(db, token, visit.id, locale)
 
     reason = booking_manage_policy.confirmation_block_reason(visit)
     if reason:
@@ -101,6 +107,44 @@ def confirm_managed_booking(
 
     if visit.client_confirmed_at is None:
         visit.client_confirmed_at = utcnow()
+        db.commit()
+        db.refresh(visit)
+    return _summary(token, visit)
+
+
+@router.post(
+    "/cancel",
+    response_model=PublicBookingManageOut,
+    summary="Cancel a booking by its guest token",
+    description=(
+        "Cancelling twice returns the already cancelled booking without a second event; "
+        "the status change and the visit event are committed together."
+    ),
+)
+@limiter.limit(PUBLIC_BOOKING_MANAGE_ACTION_LIMIT)
+def cancel_managed_booking(
+    request: Request,
+    x_booking_token: Optional[str] = Header(None, alias="X-Booking-Token"),
+    db: Session = Depends(deps.get_db),
+    locale: str = Depends(deps.get_locale),
+):
+    token, visit = _resolve(db, x_booking_token, locale, action="cancel")
+    visit = _locked_visit(db, token, visit.id, locale)
+
+    if visit.status != "cancelled":
+        reason = booking_manage_policy.cancellation_block_reason(visit)
+        if reason:
+            raise HTTPException(status_code=409, detail=_(reason, locale))
+        visit.status = "cancelled"
+        db.add(
+            VisitEvent(
+                business_id=visit.business_id,
+                visit_id=visit.id,
+                event_type="cancelled",
+                actor="client",
+                event_key=f"visit:{visit.id}:cancelled",
+            )
+        )
         db.commit()
         db.refresh(visit)
     return _summary(token, visit)
