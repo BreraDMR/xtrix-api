@@ -191,6 +191,21 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Провайдер email ещё не подключён, поэтому уведомления нельзя включить",
         "cz": "Poskytovatel e-mailu zatím není nastaven, proto nelze oznámení zapnout",
     },
+    "notification_delivery_not_found": {
+        "en": "Delivery not found",
+        "ru": "Доставка не найдена",
+        "cz": "Doručení nebylo nalezeno",
+    },
+    "notification_not_retryable": {
+        "en": "This delivery cannot be retried",
+        "ru": "Эту доставку нельзя повторить",
+        "cz": "Toto doručení nelze zopakovat",
+    },
+    "notification_delivery_disabled": {
+        "en": "Notifications are disabled for this business",
+        "ru": "Уведомления для этого бизнеса выключены",
+        "cz": "Oznámení pro tento podnik jsou vypnutá",
+    },
     "public_service_unavailable": {
         "en": "This service is not available for online booking",
         "ru": "Эта услуга недоступна для онлайн-записи",

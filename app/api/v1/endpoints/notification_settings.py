@@ -9,25 +9,12 @@ from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core import notification_preferences, notification_scheduler
 from app.api.core.i18n import _
-from app.api.core.permissions import get_staff_record, get_user_business_id
+from app.api.core.notification_access import notification_business_id
 from app.db.models.notification_settings import NotificationSettings
 from app.db.models.user import User
 from app.schemas.notification_settings import NotificationSettingsOut, NotificationSettingsUpdate
 
 router = APIRouter()
-
-
-def _business_id(db: Session, user: User, locale: str) -> int:
-    """Notifications are an owner-level switch, not a per-employee permission."""
-    allowed = user.role == "admin" or (
-        user.role in ("business_owner", "specialist") and not get_staff_record(db, user)
-    )
-    if not allowed:
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    business_id = get_user_business_id(user, db)
-    if not business_id:
-        raise HTTPException(status_code=404, detail=_("business_not_found", locale))
-    return business_id
 
 
 def _out(row: NotificationSettings) -> NotificationSettingsOut:
@@ -46,7 +33,7 @@ def get_notification_settings(
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = _business_id(db, current_user, locale)
+    business_id = notification_business_id(db, current_user, locale)
     row = notification_preferences.get_or_create_settings(db, business_id)
     return _out(row)
 
@@ -58,7 +45,7 @@ def update_notification_settings(
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    business_id = _business_id(db, current_user, locale)
+    business_id = notification_business_id(db, current_user, locale)
     row = notification_preferences.get_or_create_settings(db, business_id)
     fields = payload.model_dump(exclude_unset=True)
 

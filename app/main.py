@@ -13,7 +13,7 @@ from app.api.v1.endpoints import (
     analytics, audit, archiving, specialist_profiles, client_relations, employees, businesses, products, expenses, loyalty, user_preferences,
     assistant, assistant_conversations, offers, onboarding, public_booking, questionnaires,
     questionnaire_answers, questionnaire_attachments, public_booking_manage,
-    notification_settings,
+    notification_settings, notification_deliveries,
 )
 from app.api.core import error_handlers
 from app.api.middleware.rate_limit import DefaultRateLimitMiddleware, limiter, rate_limit_exceeded_handler
@@ -193,6 +193,11 @@ app.include_router(public_booking.settings_router, prefix="/businesses/me/public
 app.include_router(
     notification_settings.router,
     prefix="/businesses/me/notification-settings",
+    tags=["businesses"],
+)
+app.include_router(
+    notification_deliveries.router,
+    prefix="/businesses/me/notification-deliveries",
     tags=["businesses"],
 )
 app.include_router(questionnaires.router, prefix="/businesses/me/questionnaires", tags=["questionnaires"])

@@ -12,6 +12,7 @@ from typing import Callable, Optional
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
+from app.api.core import notification_preferences
 from app.api.core.clock import utcnow
 from app.api.core.notification_transport import DeliveryResult
 from app.db.models.notification_outbox import NotificationOutbox
@@ -119,6 +120,7 @@ def run_once(
         "retried": 0,
         "failed": 0,
         "skipped": 0,
+        "cancelled": 0,
     }
     for message_id in ids:
         row = db.get(NotificationOutbox, message_id)
@@ -129,6 +131,16 @@ def run_once(
             _finish_sent(row, row.provider or "unknown", row.provider_message_id, now)
             db.commit()
             stats["sent"] += 1
+            continue
+        channel = notification_preferences.enabled_channel(db, row.business_id)
+        if channel is None or row.channel != channel:
+            # the owner turned notifications off after this message was queued
+            row.status = "cancelled"
+            row.locked_until = None
+            row.last_error = "notifications_disabled"
+            row.updated_at = now
+            db.commit()
+            stats["cancelled"] += 1
             continue
         try:
             result = send(row)
