@@ -34,3 +34,5 @@ from app.db.models.notification_log import NotificationLog
 
 from app.db.models.ai_usage import AIUsage
 from app.db.models.stripe_checkout import StripeCheckoutState
+
+from app.db.models.assistant_conversation import AssistantConversation, AssistantMessage
