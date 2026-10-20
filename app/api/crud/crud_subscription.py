@@ -56,6 +56,17 @@ def create_subscription(db: Session, data: SubscriptionCreate) -> Subscription:
 def create_trial_subscription(db: Session, user_id: int, role: str) -> Optional[Subscription]:
     from app.db.models.user import User
     from app.api.core.subscription_policy import calculate_trial_dates, get_crm_trial_days
+
+    # Prevent second trial on retry or multiple business creations: check existing subscription
+    existing_sub = (
+        db.query(Subscription)
+        .filter(Subscription.user_id == user_id)
+        .order_by(Subscription.id.desc())
+        .first()
+    )
+    if existing_sub:
+        return existing_sub
+
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return None
