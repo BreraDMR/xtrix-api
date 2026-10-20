@@ -16,10 +16,11 @@ from app.db.models.notification_outbox import NotificationOutbox
 def enqueue_notification(
     db: Session,
     *,
-    business_id: int,
     event_key: str,
     kind: str,
     recipient: str,
+    business_id: Optional[int] = None,
+    user_id: Optional[int] = None,
     channel: str = "email",
     language: Optional[str] = None,
     payload: Optional[dict[str, Any]] = None,
@@ -28,6 +29,7 @@ def enqueue_notification(
 ) -> NotificationOutbox:
     values = {
         "business_id": business_id,
+        "user_id": user_id,
         "visit_id": visit_id,
         "event_key": event_key,
         "kind": kind,

@@ -132,7 +132,8 @@ def run_once(
             db.commit()
             stats["sent"] += 1
             continue
-        channel = notification_preferences.enabled_channel(db, row.business_id)
+        # account-level messages (password reset) are not controlled by any business switch
+        channel = row.channel if row.business_id is None else notification_preferences.enabled_channel(db, row.business_id)
         if channel is None or row.channel != channel:
             # the owner turned notifications off after this message was queued
             row.status = "cancelled"

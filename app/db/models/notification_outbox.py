@@ -13,9 +13,11 @@ class NotificationOutbox(Base):
     )
 
     id = Column(Integer, primary_key=True)
+    # account-level messages (password reset) have no business and must not be gated by its settings
     business_id = Column(
-        Integer, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=True, index=True
     )
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     visit_id = Column(Integer, ForeignKey("visits.id", ondelete="SET NULL"), nullable=True, index=True)
     event_key = Column(String(160), nullable=False)
     kind = Column(String(50), nullable=False)

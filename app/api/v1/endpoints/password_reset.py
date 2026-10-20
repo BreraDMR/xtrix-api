@@ -8,9 +8,10 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.api import deps
+from app.api.core import password_reset_email
 from app.api.core.i18n import _
 from app.api.core.logger import get_logger, mask_email
-from app.api.crud import crud_password_reset, crud_user
+from app.api.crud import crud_user
 from app.api.middleware.rate_limit import PASSWORD_RESET_LIMIT, limiter
 from app.schemas.password_reset import PasswordResetRequest, PasswordResetRequestOut
 
@@ -29,6 +30,7 @@ def request_password_reset(
     email = str(data.email)
     user = crud_user.get_by_phone_or_email(db, phone=None, email=email)
     if user is not None and user.deleted_at is None:
-        crud_password_reset.issue_token(db, user.id)
+        password_reset_email.queue_password_reset(db, user, locale)
+        db.commit()
     logger.info(f"Password reset requested: email={mask_email(email)}")
     return PasswordResetRequestOut(message=_("password_reset_requested", locale))
