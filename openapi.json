@@ -5711,6 +5711,39 @@
         "title": "NotificationSettingsUpdate",
         "type": "object"
       },
+      "NotificationTestOut": {
+        "properties": {
+          "preview": {
+            "title": "Preview",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "recipient": {
+            "title": "Recipient",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "provider",
+          "recipient",
+          "subject",
+          "preview"
+        ],
+        "title": "NotificationTestOut",
+        "type": "object"
+      },
       "OfferCatalogOut": {
         "properties": {
           "offers": {
@@ -16368,6 +16401,61 @@
           }
         ],
         "summary": "Change notification settings",
+        "tags": [
+          "businesses"
+        ]
+      }
+    },
+    "/businesses/me/notification-settings/test": {
+      "post": {
+        "description": "Always uses the capture transport, so the test can never reach a real inbox.",
+        "operationId": "test_notification_settings_businesses_me_notification_settings_test_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationTestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Preview a notification without sending it",
         "tags": [
           "businesses"
         ]

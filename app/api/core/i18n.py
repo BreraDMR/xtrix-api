@@ -206,6 +206,11 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Уведомления для этого бизнеса выключены",
         "cz": "Oznámení pro tento podnik jsou vypnutá",
     },
+    "notification_test_recipient_missing": {
+        "en": "Add an email address to your profile or business first",
+        "ru": "Сначала добавьте email в профиль или в данные бизнеса",
+        "cz": "Nejprve přidejte e-mail do profilu nebo do údajů podniku",
+    },
     "public_service_unavailable": {
         "en": "This service is not available for online booking",
         "ru": "Эта услуга недоступна для онлайн-записи",

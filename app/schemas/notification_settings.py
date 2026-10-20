@@ -49,3 +49,11 @@ class NotificationSettingsUpdate(InputModel):
         if value is None:
             raise invalid("invalid_choice", "is_enabled cannot be null")
         return value
+
+
+class NotificationTestOut(BaseModel):
+    status: str
+    provider: str
+    recipient: str
+    subject: str
+    preview: str
