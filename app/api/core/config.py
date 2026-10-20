@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     # short on purpose: a leaked access token is good for half an hour, the client refreshes
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 30
+    crm_trial_duration_days: int = Field(
+        default=7,
+        description="Duration in days for new CRM payer trials without credit card (D02 policy)",
+    )
     max_login_attempts: int = Field(
         default=5,
         description="Failed logins per (account, IP) before that pair is refused",
