@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.api.core.availability import booking_window, collect_slots, salon_zone
 from app.api.core.clock import utcnow
+from app.api.core import notification_events
 from app.api.crud import crud_public_booking
 from app.db.models.public_booking import PublicBookingRequest
 from app.db.models.user import User
@@ -173,6 +174,7 @@ def submit_booking(db: Session, business, payload: PublicBookingCreate, language
 
     claim.client_id = client.id
     claim.visit_id = visit.id
+    notification_events.queue_booking_created(db, business, visit, client)
     try:
         db.commit()
     except IntegrityError:

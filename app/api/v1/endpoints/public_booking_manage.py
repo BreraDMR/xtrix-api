@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.api import deps
-from app.api.core import booking_manage_access, booking_manage_policy
+from app.api.core import booking_manage_access, booking_manage_policy, notification_events
 from app.api.core import public_booking_service as booking_service
 from app.api.core.clock import utcnow
 from app.api.core.i18n import _
@@ -196,6 +196,7 @@ def reschedule_managed_booking(
             ),
         )
     )
+    notification_events.queue_booking_changed(db, visit.business, visit)
     db.commit()
     db.refresh(visit)
 
@@ -241,6 +242,7 @@ def cancel_managed_booking(
                 event_key=f"visit:{visit.id}:cancelled",
             )
         )
+        notification_events.queue_booking_cancelled(db, visit.business, visit)
         db.commit()
         db.refresh(visit)
     return _summary(token, visit)
