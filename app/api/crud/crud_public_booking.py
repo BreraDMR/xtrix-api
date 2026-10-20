@@ -6,7 +6,11 @@ from sqlalchemy.orm import Session
 from app.api.core.booking_slug import slugify_business_name
 from app.api.core.clock import utcnow
 from app.db.models.business import Business
+from app.db.models.employee import Employee
 from app.db.models.public_booking import PublicBookingSettings
+from app.db.models.service import Service
+from app.db.models.service_specialist import ServiceSpecialist
+from app.db.models.user import User
 from app.schemas.public_booking import PublicBookingSettingsUpdate
 
 
@@ -108,3 +112,129 @@ def update_settings(
         raise PublicSlugConflict()
     db.refresh(settings)
     return settings
+
+
+def business_specialist_ids(db: Session, business_id: int) -> set[int]:
+    """Active people a guest may be booked with: the owner-side users and live employees."""
+    owner_ids = {
+        row[0]
+        for row in db.query(User.id)
+        .filter(
+            User.business_id == business_id,
+            User.role.in_(("business_owner", "specialist")),
+            User.deleted_at.is_(None),
+            User.archived_at.is_(None),
+        )
+        .all()
+    }
+    if not owner_ids:
+        return set()
+    staff_ids = {
+        row[0]
+        for row in db.query(Employee.employee_user_id)
+        .join(User, Employee.employee_user_id == User.id)
+        .filter(
+            Employee.business_owner_id.in_(owner_ids),
+            Employee.is_active.is_(True),
+            User.deleted_at.is_(None),
+            User.archived_at.is_(None),
+        )
+        .all()
+    }
+    return owner_ids | staff_ids
+
+
+def _service_master_ids(db: Session, services: list[Service], staff_ids: set[int]) -> dict[int, set[int]]:
+    if not services:
+        return {}
+    links: dict[int, set[int]] = {}
+    rows = (
+        db.query(ServiceSpecialist.service_id, ServiceSpecialist.specialist_id)
+        .filter(ServiceSpecialist.service_id.in_([service.id for service in services]))
+        .all()
+    )
+    for service_id, specialist_id in rows:
+        links.setdefault(service_id, set()).add(specialist_id)
+    return {
+        service.id: ({service.specialist_id} | links.get(service.id, set())) & staff_ids
+        for service in services
+    }
+
+
+def list_public_services(db: Session, business_id: int) -> list[Service]:
+    """Active services with a duration and at least one current master. Nothing else is bookable."""
+    staff_ids = business_specialist_ids(db, business_id)
+    if not staff_ids:
+        return []
+    services = (
+        db.query(Service)
+        .filter(
+            Service.business_id == business_id,
+            Service.is_active.is_(True),
+            Service.deleted_at.is_(None),
+            Service.archived_at.is_(None),
+            Service.duration_minutes.isnot(None),
+        )
+        .order_by(Service.name, Service.id)
+        .all()
+    )
+    masters = _service_master_ids(db, services, staff_ids)
+    return [service for service in services if masters.get(service.id)]
+
+
+def get_public_service(db: Session, business_id: int, service_id: int) -> Optional[Service]:
+    staff_ids = business_specialist_ids(db, business_id)
+    if not staff_ids:
+        return None
+    service = (
+        db.query(Service)
+        .filter(
+            Service.id == service_id,
+            Service.business_id == business_id,
+            Service.is_active.is_(True),
+            Service.deleted_at.is_(None),
+            Service.archived_at.is_(None),
+            Service.duration_minutes.isnot(None),
+        )
+        .first()
+    )
+    if not service:
+        return None
+    masters = _service_master_ids(db, [service], staff_ids)
+    return service if masters.get(service.id) else None
+
+
+def public_service_master_ids(db: Session, business_id: int, service: Service) -> set[int]:
+    staff_ids = business_specialist_ids(db, business_id)
+    return _service_master_ids(db, [service], staff_ids).get(service.id, set())
+
+
+def list_public_staff(db: Session, business_id: int, service: Service) -> list[User]:
+    master_ids = public_service_master_ids(db, business_id, service)
+    if not master_ids:
+        return []
+    return (
+        db.query(User)
+        .filter(
+            User.id.in_(master_ids),
+            User.deleted_at.is_(None),
+            User.archived_at.is_(None),
+        )
+        .order_by(User.full_name, User.id)
+        .all()
+    )
+
+
+def staff_positions(db: Session, staff_ids: list[int]) -> dict[int, str]:
+    if not staff_ids:
+        return {}
+    rows = (
+        db.query(Employee.employee_user_id, Employee.position)
+        .filter(
+            Employee.employee_user_id.in_(staff_ids),
+            Employee.is_active.is_(True),
+            Employee.position.isnot(None),
+        )
+        .all()
+    )
+    return {user_id: position for user_id, position in rows if position}

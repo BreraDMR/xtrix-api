@@ -55,3 +55,17 @@ class PublicBookingSettingsUpdate(InputModel):
         if value is None:
             raise invalid("invalid_choice", "is_enabled cannot be null")
         return value
+
+
+class PublicServiceOut(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    duration_minutes: int
+    price: Optional[float] = None
+
+
+class PublicStaffOut(BaseModel):
+    id: int
+    full_name: str
+    position: Optional[str] = None

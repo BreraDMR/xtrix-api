@@ -3,7 +3,7 @@
 The public side never takes a business id: the slug is resolved to one published business,
 and every lookup below it is scoped to that business.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api import deps
@@ -18,6 +18,8 @@ from app.schemas.public_booking import (
     PublicBookingSettingsOut,
     PublicBookingSettingsUpdate,
     PublicBusinessOut,
+    PublicServiceOut,
+    PublicStaffOut,
 )
 
 router = APIRouter()
@@ -85,3 +87,45 @@ def get_public_business(
 ):
     settings, business = _resolve_published(db, slug, locale)
     return _public_business(settings, business)
+
+
+@router.get("/{slug}/services", response_model=list[PublicServiceOut], summary="Services open for online booking")
+def list_public_services(
+    slug: str,
+    db: Session = Depends(deps.get_db),
+    locale: str = Depends(deps.get_locale),
+):
+    _settings, business = _resolve_published(db, slug, locale)
+    return [
+        PublicServiceOut(
+            id=service.id,
+            name=service.name,
+            description=service.description,
+            duration_minutes=service.duration_minutes,
+            price=service.price,
+        )
+        for service in crud_public_booking.list_public_services(db, business.id)
+    ]
+
+
+@router.get("/{slug}/staff", response_model=list[PublicStaffOut], summary="Masters of the selected service")
+def list_public_staff(
+    slug: str,
+    service_id: int = Query(..., gt=0),
+    db: Session = Depends(deps.get_db),
+    locale: str = Depends(deps.get_locale),
+):
+    _settings, business = _resolve_published(db, slug, locale)
+    service = crud_public_booking.get_public_service(db, business.id, service_id)
+    if not service:
+        raise HTTPException(status_code=404, detail=_("public_service_unavailable", locale))
+    people = crud_public_booking.list_public_staff(db, business.id, service)
+    positions = crud_public_booking.staff_positions(db, [person.id for person in people])
+    return [
+        PublicStaffOut(
+            id=person.id,
+            full_name=person.full_name,
+            position=positions.get(person.id),
+        )
+        for person in people
+    ]

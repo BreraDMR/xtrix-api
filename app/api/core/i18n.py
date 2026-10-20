@@ -106,6 +106,11 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Онлайн-запись по этой ссылке недоступна",
         "cz": "Online rezervace na tomto odkazu není dostupná",
     },
+    "public_service_unavailable": {
+        "en": "This service is not available for online booking",
+        "ru": "Эта услуга недоступна для онлайн-записи",
+        "cz": "Tato služba není dostupná pro online rezervaci",
+    },
     "cannot_cancel_subscription": {
         "en": "This subscription can't be cancelled",
         "ru": "Эту подписку нельзя отменить",
