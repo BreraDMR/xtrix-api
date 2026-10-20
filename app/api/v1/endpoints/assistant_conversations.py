@@ -2,6 +2,9 @@
 import hashlib
 import json
 
+from typing import Optional
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
@@ -11,12 +14,18 @@ from app.api.core.i18n import _
 from app.api.crud.crud_assistant_conversation import (
     conversation_error,
     conversation_scope,
+    resolve_conversation,
     scoped_conversations,
 )
 from app.api.middleware.rate_limit import ASSISTANT_PLAN_LIMIT, limiter, user_or_ip
-from app.db.models.assistant_conversation import AssistantConversation
+from app.db.models.assistant_conversation import AssistantConversation, AssistantMessage
 from app.db.models.user import User
-from app.schemas.assistant_conversation import ConversationCreate, ConversationOut, ConversationPage
+from app.schemas.assistant_conversation import (
+    ConversationCreate,
+    ConversationOut,
+    ConversationPage,
+    MessagePage,
+)
 
 router = APIRouter(prefix='/conversations')
 staff_user = deps.role_required('admin', 'business_owner', 'specialist', 'employee')
@@ -39,6 +48,28 @@ def list_conversations(
         AssistantConversation.id.desc(),
     ).offset(offset).limit(limit).all()
     return ConversationPage(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get('/{conversation_id}/messages', response_model=MessagePage,
+            summary='List ordered messages of a private conversation')
+def list_messages(
+    conversation_id: UUID,
+    before: Optional[int] = Query(None, ge=1),
+    limit: int = Query(50, ge=1, le=100),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(staff_user),
+    locale: str = Depends(deps.get_locale),
+):
+    resolve_conversation(db, current_user, conversation_id, locale=locale, allow_archived=True)
+    query = db.query(AssistantMessage).filter(AssistantMessage.conversation_id == conversation_id)
+    if before is not None:
+        query = query.filter(AssistantMessage.ordinal < before)
+    messages = query.order_by(AssistantMessage.ordinal.desc()).limit(limit).all()
+    items = list(reversed(messages))
+    next_before = None
+    if len(messages) == limit and messages[-1].ordinal > 1:
+        next_before = messages[-1].ordinal
+    return MessagePage(items=items, next_before=next_before)
 
 
 @router.post('', response_model=ConversationOut, status_code=201,

@@ -1,7 +1,7 @@
 """Conversation APIs are private and retry-safe; no model or external service is needed."""
 from uuid import uuid4
 
-from app.db.models.assistant_conversation import AssistantConversation
+from app.db.models.assistant_conversation import AssistantConversation, AssistantMessage
 from app.db.models.business import Business
 
 URL = '/assistant/conversations'
@@ -114,4 +114,51 @@ def test_list_conversations_pagination(client, make_user, headers_for):
     assert len(data['items']) == 2
     assert data['limit'] == 2
     assert data['offset'] == 0
+
+
+def test_list_messages_stable_order_and_pagination(client, db, make_user, headers_for):
+    owner = make_user()
+    headers = headers_for(owner)
+    chat = create(client, headers, title='Message chat').json()
+    chat_id = chat['id']
+
+    # Insert 5 messages with explicit ordinals
+    for i in range(1, 6):
+        db.add(AssistantMessage(
+            conversation_id=chat_id,
+            ordinal=i,
+            request_id=uuid4(),
+            request_hash='dummy',
+            role='user' if i % 2 == 1 else 'assistant',
+            text=f'Message {i}',
+            status='succeeded',
+        ))
+    db.commit()
+
+    # First page: limit 3 (most recent messages)
+    resp = client.get(f'{URL}/{chat_id}/messages?limit=3', headers=headers)
+    assert resp.status_code == 200, resp.text
+    page1 = resp.json()
+    assert len(page1['items']) == 3
+    assert [m['ordinal'] for m in page1['items']] == [3, 4, 5]
+    assert page1['next_before'] == 3
+
+    # Next page: before=3
+    resp2 = client.get(f'{URL}/{chat_id}/messages?limit=3&before=3', headers=headers)
+    assert resp2.status_code == 200
+    page2 = resp2.json()
+    assert len(page2['items']) == 2
+    assert [m['ordinal'] for m in page2['items']] == [1, 2]
+    assert page2['next_before'] is None
+
+
+def test_list_messages_stranger_cannot_access(client, make_user, headers_for):
+    owner = make_user()
+    stranger = make_user()
+    chat = create(client, headers_for(owner), title='Secret chat').json()
+
+    resp = client.get(f'{URL}/{chat["id"]}/messages', headers=headers_for(stranger))
+    assert resp.status_code == 404
+    assert resp.json()['detail']['code'] == 'conversation_not_found'
+
 

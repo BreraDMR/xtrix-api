@@ -58,3 +58,11 @@ class AssistantMessage(Base):
     expires_at = Column(DateTime, nullable=True)
     execution_started_at = Column(DateTime, nullable=True)
     result_payload = Column(JSON(none_as_null=True), nullable=True)
+
+    @property
+    def plan(self):
+        return self.plan_payload
+
+    @property
+    def result(self):
+        return self.result_payload
