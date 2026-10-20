@@ -40,3 +40,4 @@ from app.db.models.stripe_checkout import StripeCheckoutState
 from app.db.models.assistant_conversation import AssistantConversation, AssistantMessage
 from app.db.models.usage_counter import UsageCounter
 from app.db.models.questionnaire import QuestionnaireTemplate, QuestionnaireVersion
+from app.db.models.questionnaire_access import QuestionnaireAccessToken

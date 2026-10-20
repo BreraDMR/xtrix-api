@@ -232,3 +232,10 @@ class QuestionnaireVersionOut(BaseModel):
     fields: QuestionnaireFieldList
     service_id: Optional[int] = Field(None, description="Template binding after publishing")
     published_at: UtcDatetime
+
+
+class QuestionnaireTokenOut(BaseModel):
+    token: str = Field(description="Shown once; send it to the guest and never log it")
+    visit_id: int
+    version: int
+    expires_at: UtcDatetime

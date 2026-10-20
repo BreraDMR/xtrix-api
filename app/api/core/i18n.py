@@ -116,6 +116,11 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "К этой услуге уже привязана другая анкета",
         "cz": "K této službě je již připojen jiný dotazník",
     },
+    "questionnaire_not_available": {
+        "en": "This visit's service has no published questionnaire",
+        "ru": "У услуги этой записи нет опубликованной анкеты",
+        "cz": "Služba této návštěvy nemá publikovaný dotazník",
+    },
     "public_slug_taken": {
         "en": "This booking link is already taken, choose another one",
         "ru": "Эта ссылка для записи уже занята, выберите другую",

@@ -11,21 +11,25 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api import deps
+from app.api.core import questionnaire_access
 from app.api.core.i18n import _
-from app.api.core.permissions import get_staff_record, get_user_business_id
+from app.api.core.permissions import check_visit_access, get_staff_record, get_user_business_id
 from app.db.models.questionnaire import QuestionnaireTemplate, QuestionnaireVersion
 from app.db.models.service import Service
 from app.db.models.user import User
+from app.db.models.visit import Visit
 from app.schemas.questionnaire import (
     QuestionnaireFieldList,
     QuestionnairePublish,
     QuestionnaireTemplateCreate,
     QuestionnaireTemplateOut,
     QuestionnaireTemplateUpdate,
+    QuestionnaireTokenOut,
     QuestionnaireVersionOut,
 )
 
 router = APIRouter()
+visit_router = APIRouter()
 _FIELDS = TypeAdapter(QuestionnaireFieldList)
 
 
@@ -240,4 +244,38 @@ def publish_questionnaire(
         fields=version.fields,
         service_id=template.service_id,
         published_at=version.published_at,
+    )
+
+
+@visit_router.post(
+    "/{visit_id}/questionnaire-token",
+    response_model=QuestionnaireTokenOut,
+    summary="Issue a one-visit questionnaire link",
+)
+def create_questionnaire_token(
+    visit_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(
+        deps.role_required("admin", "business_owner", "specialist", "employee")
+    ),
+    locale: str = Depends(deps.get_locale),
+):
+    visit = (
+        db.query(Visit)
+        .filter(Visit.id == visit_id, Visit.deleted_at.is_(None))
+        .first()
+    )
+    if not visit:
+        raise HTTPException(status_code=404, detail=_("visit_not_found", locale))
+    if not check_visit_access(db, current_user, visit):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    issued = questionnaire_access.issue_visit_token(db, visit, current_user.id)
+    if not issued:
+        raise HTTPException(status_code=404, detail=_("questionnaire_not_available", locale))
+    raw, token, version = issued
+    return QuestionnaireTokenOut(
+        token=raw,
+        visit_id=visit.id,
+        version=version.version,
+        expires_at=token.expires_at,
     )
