@@ -163,3 +163,6 @@ def update_block_slot(db: Session, obj: BlockSlot, data: BlockSlotUpdate) -> Blo
     return obj
 def get_block_slot(db: Session, bs_id: int) -> Optional[BlockSlot]:
     return db.query(BlockSlot).filter(BlockSlot.id == bs_id).first()
+def delete_block_slot(db: Session, obj: BlockSlot) -> None:
+    db.delete(obj)
+    db.commit()

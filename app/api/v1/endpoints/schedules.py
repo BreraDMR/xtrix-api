@@ -92,6 +92,21 @@ def update_block(
     return crud_schedule.update_block_slot(db, blk, payload)
 
 
+@router.delete("/blocks/{block_id}")
+def delete_block(
+    block_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist")),
+):
+    blk = crud_schedule.get_block_slot(db, block_id)
+    if not blk:
+        raise HTTPException(status_code=404, detail="Not found")
+    if not _can_manage_schedule(db, current_user, blk.specialist_id):
+        raise HTTPException(status_code=403, detail=_("not_allowed"))
+    crud_schedule.delete_block_slot(db, blk)
+    return {"ok": True}
+
+
 @router.post("/exceptions", response_model=ScheduleExceptionOut)
 def create_schedule_exception(
     payload: ScheduleExceptionCreate,
