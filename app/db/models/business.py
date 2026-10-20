@@ -31,3 +31,9 @@ class Business(Base):
     client_relations = relationship("ClientBusinessRelation", back_populates="business", lazy="dynamic", cascade="all,delete")
     visits = relationship("Visit", back_populates="business", lazy="dynamic")
     services = relationship("Service", back_populates="business", lazy="dynamic")
+    public_booking_settings = relationship(
+        "PublicBookingSettings",
+        back_populates="business",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )

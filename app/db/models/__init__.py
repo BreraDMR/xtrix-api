@@ -4,6 +4,7 @@ from app.db.models.client_specialist_relation import ClientSpecialistRelation
 from app.db.models.client_business_relation import ClientBusinessRelation
 from app.db.models.medical_profile import MedicalProfile
 from app.db.models.business import Business
+from app.db.models.public_booking import PublicBookingSettings
 from app.db.models.service import Service
 from app.db.models.service_specialist import ServiceSpecialist
 from app.db.models.visit import Visit
