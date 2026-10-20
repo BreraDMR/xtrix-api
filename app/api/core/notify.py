@@ -1,68 +1,32 @@
 import logging
-import smtplib
-from email.message import EmailMessage
 from typing import Iterable, Optional
 from datetime import datetime
-import requests
 from app.api.core.client_messages import render
-from app.api.core.config import settings
-from app.api.core.logger import mask_email, mask_phone
+from app.api.core.notification_transport import OutboundMessage, get_notification_transport
 logger = logging.getLogger(__name__)
 # Everything here goes to a business's clients, so the text is rendered in the client's
 # own language (Client.language), not the staff UI language.
 
 
 def _send_email(to: str, subject: str, body: str) -> bool:
-    if not settings.smtp_host or not settings.smtp_from:
-        logger.warning("SMTP not configured, skip email to %s", mask_email(to))
-        return False
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = settings.smtp_from
-    msg["To"] = to
-    msg.set_content(body)
-    try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
-            server.starttls()
-            if settings.smtp_user and settings.smtp_password:
-                server.login(settings.smtp_user, settings.smtp_password)
-            server.send_message(msg)
-        return True
-    except Exception as e:
-        logger.error("Email send failed: %s", e)
-        return False
-
-
-def _send_twilio(sender: str, to: str, body: str) -> bool:
-    url = f"https://api.twilio.com/2010-04-01/Accounts/{settings.twilio_sid}/Messages.json"
-    try:
-        resp = requests.post(url, data={"From": sender, "To": to, "Body": body},
-                             auth=(settings.twilio_sid, settings.twilio_token), timeout=10)
-        if 200 <= resp.status_code < 300:
-            return True
-        logger.error("Twilio send failed: %s %s", resp.status_code, resp.text)
-        return False
-    except Exception as e:
-        logger.error("Twilio send exception: %s", e)
-        return False
+    result = get_notification_transport().send(
+        OutboundMessage(channel="email", recipient=to, subject=subject, text=body)
+    )
+    return result.delivered
 
 
 def _send_sms(phone: str, body: str) -> bool:
-    if not settings.twilio_sid or not settings.twilio_token or not settings.twilio_from:
-        logger.warning("Twilio not configured, skip sms to %s", mask_phone(phone))
-        return False
-    return _send_twilio(settings.twilio_from, phone, body)
+    result = get_notification_transport().send(
+        OutboundMessage(channel="sms", recipient=phone, text=body)
+    )
+    return result.delivered
 
 
 def send_whatsapp_notification(phone: str, message: str) -> bool:
-    if not settings.twilio_sid or not settings.twilio_token or not settings.twilio_whatsapp_from:
-        logger.warning("Twilio WhatsApp not configured, skip WhatsApp to %s", mask_phone(phone))
-        return False
-    if not phone.startswith("whatsapp:"):
-        if not phone.startswith("+"):
-            phone = f"+{phone}"
-        phone = f"whatsapp:{phone}"
-    return _send_twilio(settings.twilio_whatsapp_from, phone, message)
+    result = get_notification_transport().send(
+        OutboundMessage(channel="whatsapp", recipient=phone, text=message)
+    )
+    return result.delivered
 
 
 def _reminder(visit, language: Optional[str], name: str = ""):
@@ -84,8 +48,8 @@ def send_notifications(visits: Iterable, channel: str = "log", contacts: Optiona
             ok = bool(info.get("phone")) and send_whatsapp_notification(
                 info["phone"], _reminder(v, info.get("language"), info.get("name", "")).short)
         else:
-            logger.info("Notify (log): visit_id=%s client_id=%s at %s", v.id, v.client_id, v.date_start)
-            ok = True
+            logger.info("Notify (log only, not delivered): visit_id=%s client_id=%s at %s", v.id, v.client_id, v.date_start)
+            ok = False
         if ok:
             count += 1
     return count

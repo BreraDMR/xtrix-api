@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     smtp_user: str = Field("")
     smtp_password: str = Field("")
     smtp_from: str = Field("")
+    notification_transport: str = Field(
+        "",
+        description="Notification transport: empty/live uses configured providers, capture stores messages in memory without sending",
+    )
     twilio_sid: str = Field("")
     twilio_token: str = Field("")
     twilio_from: str = Field("")
