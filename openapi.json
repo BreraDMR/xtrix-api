@@ -1538,6 +1538,207 @@
         "title": "ClientOut",
         "type": "object"
       },
+      "ClientOverviewOut": {
+        "properties": {
+          "client_id": {
+            "title": "Client Id",
+            "type": "integer"
+          },
+          "next_visit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClientOverviewVisit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "payments": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClientOverviewPayments"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recent_visits": {
+            "items": {
+              "$ref": "#/components/schemas/ClientOverviewVisit"
+            },
+            "title": "Recent Visits",
+            "type": "array"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/ClientOverviewStats"
+          },
+          "upcoming_visits": {
+            "items": {
+              "$ref": "#/components/schemas/ClientOverviewVisit"
+            },
+            "title": "Upcoming Visits",
+            "type": "array"
+          }
+        },
+        "required": [
+          "client_id",
+          "stats"
+        ],
+        "title": "ClientOverviewOut",
+        "type": "object"
+      },
+      "ClientOverviewPayments": {
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "paid_visits": {
+            "title": "Paid Visits",
+            "type": "integer"
+          },
+          "total_paid": {
+            "title": "Total Paid",
+            "type": "number"
+          }
+        },
+        "required": [
+          "currency",
+          "total_paid",
+          "paid_visits"
+        ],
+        "title": "ClientOverviewPayments",
+        "type": "object"
+      },
+      "ClientOverviewStats": {
+        "properties": {
+          "cancelled_visits": {
+            "title": "Cancelled Visits",
+            "type": "integer"
+          },
+          "completed_visits": {
+            "title": "Completed Visits",
+            "type": "integer"
+          },
+          "last_visit_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Visit At"
+          },
+          "next_visit_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Visit At"
+          },
+          "total_visits": {
+            "title": "Total Visits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_visits",
+          "completed_visits",
+          "cancelled_visits"
+        ],
+        "title": "ClientOverviewStats",
+        "type": "object"
+      },
+      "ClientOverviewVisit": {
+        "properties": {
+          "date_end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date End"
+          },
+          "date_start": {
+            "format": "date-time",
+            "title": "Date Start",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "payment_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "service_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Name"
+          },
+          "specialist_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Specialist Name"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "date_start",
+          "status"
+        ],
+        "title": "ClientOverviewVisit",
+        "type": "object"
+      },
       "ClientProfileOut": {
         "properties": {
           "client_id": {
@@ -18773,6 +18974,69 @@
           }
         ],
         "summary": "Update Client Note",
+        "tags": [
+          "clients"
+        ]
+      }
+    },
+    "/clients/{client_id}/overview": {
+      "get": {
+        "operationId": "get_client_overview_clients__client_id__overview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "title": "Client Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientOverviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Client Overview",
         "tags": [
           "clients"
         ]
