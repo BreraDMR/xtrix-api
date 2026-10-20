@@ -7340,6 +7340,100 @@
         "title": "PublicBookingCreate",
         "type": "object"
       },
+      "PublicBookingManageOut": {
+        "properties": {
+          "booking_id": {
+            "title": "Booking Id",
+            "type": "integer"
+          },
+          "business_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Address"
+          },
+          "business_name": {
+            "title": "Business Name",
+            "type": "string"
+          },
+          "business_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Phone"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "service_name": {
+            "title": "Service Name",
+            "type": "string"
+          },
+          "staff_name": {
+            "title": "Staff Name",
+            "type": "string"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "token_expires_at": {
+            "format": "date-time",
+            "title": "Token Expires At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "booking_id",
+          "business_name",
+          "service_name",
+          "staff_name",
+          "start",
+          "end",
+          "timezone",
+          "status",
+          "currency",
+          "token_expires_at"
+        ],
+        "title": "PublicBookingManageOut",
+        "type": "object"
+      },
       "PublicBookingOut": {
         "properties": {
           "currency": {
@@ -22795,6 +22889,71 @@
         "summary": "Reduce Product Quantity Endpoint",
         "tags": [
           "products"
+        ]
+      }
+    },
+    "/public/booking-management": {
+      "get": {
+        "operationId": "get_managed_booking_public_booking_management_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Booking-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Booking-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicBookingManageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read a booking by its guest token",
+        "tags": [
+          "public-booking"
         ]
       }
     },

@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.api.core.clock import utcnow
 from app.db.models.booking_manage_token import BookingManageToken
+from app.db.models.business import Business
 from app.db.models.visit import Visit
 
 POST_VISIT_GRACE = timedelta(days=7)
@@ -89,7 +90,12 @@ def resolve_token(
         .filter(Visit.id == token.visit_id, Visit.deleted_at.is_(None))
         .first()
     )
-    if not visit or visit.business_id != token.business_id:
+    business = (
+        db.query(Business)
+        .filter(Business.id == token.business_id, Business.deleted_at.is_(None))
+        .first()
+    )
+    if not visit or not business or visit.business_id != token.business_id:
         raise BookingManageTokenInvalid
     return token, visit
 

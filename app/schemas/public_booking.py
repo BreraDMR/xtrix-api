@@ -176,3 +176,19 @@ class PublicBookingOut(BaseModel):
         None,
         description="One-time management token for this booking; put it in a link fragment and never log it",
     )
+
+
+class PublicBookingManageOut(BaseModel):
+    booking_id: int
+    business_name: str
+    business_phone: Optional[str] = None
+    business_address: Optional[str] = None
+    service_name: str
+    staff_name: str
+    start: UtcDatetime
+    end: UtcDatetime
+    timezone: str
+    status: str
+    price: Optional[float] = None
+    currency: str
+    token_expires_at: UtcDatetime

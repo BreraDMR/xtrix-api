@@ -211,6 +211,11 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Эта запись уже обрабатывается, попробуйте через момент",
         "cz": "Tato rezervace se již zpracovává, zkuste to za chvíli",
     },
+    "booking_manage_link_unavailable": {
+        "en": "This booking link is unavailable",
+        "ru": "Эта ссылка на запись недоступна",
+        "cz": "Tento odkaz na rezervaci není dostupný",
+    },
     "cannot_cancel_subscription": {
         "en": "This subscription can't be cancelled",
         "ru": "Эту подписку нельзя отменить",
