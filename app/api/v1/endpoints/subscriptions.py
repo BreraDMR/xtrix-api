@@ -25,6 +25,11 @@ from app.schemas.subscription_plan import (
     SubscriptionPlanOut,
     SubscriptionPlanUpdate,
 )
+from app.schemas.offer_catalog import (
+    EntitlementsUsageOut,
+    CrmUsageOut,
+    AiUsageOut,
+)
 router = APIRouter()
 _billing_roles = deps.role_required("admin", "business_owner", "specialist")
 
@@ -194,6 +199,85 @@ def get_trial_status(
         "trial_end": sub.trial_end if sub else None,
         "has_access": crud_subscription.check_subscription_access(db, current_user.id)[0],
     }
+
+
+@router.get("/usage", response_model=EntitlementsUsageOut)
+def get_usage_and_entitlements(
+    period: str | None = None,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    locale: str = Depends(deps.get_locale),
+):
+    """Authenticated endpoint returning CRM and AI usage units and limits.
+
+    Ensures employee cannot view payment credentials or billing details of another business,
+    strictly validates period bounds, and reflects payer entitlements.
+    """
+    import re
+    from app.api.core.crm_metering import count_distinct_active_clients, get_current_period
+    from app.api.core.ai_metering import get_daily_ai_usage, get_current_daily_period
+    from app.api.core.offer_catalog import match_crm_offer_for_clients, get_offer_by_code
+    from app.api.core.permissions import get_staff_record
+
+    period_str = period or get_current_period()
+    if not re.match(r"^\d{4}-(0[1-9]|1[0-2])$", period_str):
+        raise HTTPException(status_code=400, detail="Invalid period format (expected YYYY-MM)")
+    year = int(period_str.split("-")[0])
+    if not (1900 <= year <= 2100):
+        raise HTTPException(status_code=400, detail="Period year out of range")
+
+    payer_id = crud_subscription.subscription_payer_id(db, current_user)
+    payer = db.query(User).filter(User.id == payer_id).first() if payer_id else current_user
+
+    is_staff = bool(current_user.employer_id or get_staff_record(db, current_user))
+    can_manage_billing = not is_staff
+    is_payer = (current_user.id == payer_id) and not is_staff
+
+    biz_id = payer.business_id if payer else None
+    usr_id = payer.id if (payer and not biz_id) else None
+
+    # Calculate active clients
+    active_clients = count_distinct_active_clients(
+        db,
+        business_id=biz_id,
+        period=period_str,
+        user_id=usr_id,
+    )
+    crm_offer = match_crm_offer_for_clients(active_clients, allow_draft=False)
+    crm_limit = crm_offer.entitlements.max_active_clients if crm_offer else 100
+    crm_code = crm_offer.code if crm_offer else None
+    crm_within = (active_clients <= crm_limit) if crm_limit else True
+
+    daily_period = get_current_daily_period()
+    ai_used = get_daily_ai_usage(
+        db,
+        business_id=biz_id,
+        user_id=usr_id,
+        day_str=daily_period,
+    )
+    ai_offer = get_offer_by_code("ai_starter_czk")
+    ai_limit = ai_offer.entitlements.daily_requests_limit if ai_offer else 20
+    ai_code = ai_offer.code if ai_offer else "ai_starter_czk"
+    ai_within = (ai_used <= ai_limit)
+
+    return EntitlementsUsageOut(
+        period=period_str,
+        daily_period=daily_period,
+        is_payer=is_payer,
+        can_manage_billing=can_manage_billing,
+        crm=CrmUsageOut(
+            active_clients=active_clients,
+            limit=crm_limit,
+            offer_code=crm_code,
+            is_within_limit=crm_within,
+        ),
+        ai=AiUsageOut(
+            daily_requests_used=ai_used,
+            daily_requests_limit=ai_limit,
+            offer_code=ai_code,
+            is_within_limit=ai_within,
+        ),
+    )
 @router.post("/webhooks/stripe")
 async def stripe_webhook(request: Request, db: Session = Depends(deps.get_db)):
     if not settings.stripe_webhook_secret:

@@ -47,3 +47,29 @@ class OfferCatalogOut(BaseModel):
     updated_at: Optional[UtcDatetime] = Field(default=None, description="Catalog last update timestamp")
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CrmUsageOut(BaseModel):
+    active_clients: int
+    limit: Optional[int] = None
+    offer_code: Optional[str] = None
+    is_within_limit: bool = True
+
+
+class AiUsageOut(BaseModel):
+    daily_requests_used: int
+    daily_requests_limit: Optional[int] = None
+    offer_code: Optional[str] = None
+    is_within_limit: bool = True
+
+
+class EntitlementsUsageOut(BaseModel):
+    period: str
+    daily_period: str
+    is_payer: bool
+    can_manage_billing: bool
+    crm: CrmUsageOut
+    ai: AiUsageOut
+
+    model_config = ConfigDict(from_attributes=True)
+
