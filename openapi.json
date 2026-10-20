@@ -175,6 +175,46 @@
         "title": "AddNotePlanned",
         "type": "object"
       },
+      "AiUsageOut": {
+        "properties": {
+          "daily_requests_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Requests Limit"
+          },
+          "daily_requests_used": {
+            "title": "Daily Requests Used",
+            "type": "integer"
+          },
+          "is_within_limit": {
+            "default": true,
+            "title": "Is Within Limit",
+            "type": "boolean"
+          },
+          "offer_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer Code"
+          }
+        },
+        "required": [
+          "daily_requests_used"
+        ],
+        "title": "AiUsageOut",
+        "type": "object"
+      },
       "AnonymousBenchmarksResponse": {
         "properties": {
           "available": {
@@ -2140,6 +2180,46 @@
         "title": "CreateVisitPlanned",
         "type": "object"
       },
+      "CrmUsageOut": {
+        "properties": {
+          "active_clients": {
+            "title": "Active Clients",
+            "type": "integer"
+          },
+          "is_within_limit": {
+            "default": true,
+            "title": "Is Within Limit",
+            "type": "boolean"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "offer_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer Code"
+          }
+        },
+        "required": [
+          "active_clients"
+        ],
+        "title": "CrmUsageOut",
+        "type": "object"
+      },
       "EmployeeCreate": {
         "properties": {
           "base_salary": {
@@ -2731,6 +2811,42 @@
           }
         },
         "title": "EmployeeUpdate",
+        "type": "object"
+      },
+      "EntitlementsUsageOut": {
+        "properties": {
+          "ai": {
+            "$ref": "#/components/schemas/AiUsageOut"
+          },
+          "can_manage_billing": {
+            "title": "Can Manage Billing",
+            "type": "boolean"
+          },
+          "crm": {
+            "$ref": "#/components/schemas/CrmUsageOut"
+          },
+          "daily_period": {
+            "title": "Daily Period",
+            "type": "string"
+          },
+          "is_payer": {
+            "title": "Is Payer",
+            "type": "boolean"
+          },
+          "period": {
+            "title": "Period",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period",
+          "daily_period",
+          "is_payer",
+          "can_manage_billing",
+          "crm",
+          "ai"
+        ],
+        "title": "EntitlementsUsageOut",
         "type": "object"
       },
       "ExecuteOut": {
@@ -5326,6 +5442,162 @@
           "moderation_status"
         ],
         "title": "ModerationResponse",
+        "type": "object"
+      },
+      "OfferCatalogOut": {
+        "properties": {
+          "offers": {
+            "description": "List of offers",
+            "items": {
+              "$ref": "#/components/schemas/OfferOut"
+            },
+            "title": "Offers",
+            "type": "array"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Catalog last update timestamp",
+            "title": "Updated At"
+          },
+          "version": {
+            "description": "Offer catalog version string, e.g. 2026-10-v1",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "OfferCatalogOut",
+        "type": "object"
+      },
+      "OfferEntitlements": {
+        "properties": {
+          "daily_requests_limit": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Daily requests limit for AI assistant",
+            "title": "Daily Requests Limit"
+          },
+          "features": {
+            "description": "List of included feature keys",
+            "items": {
+              "type": "string"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "max_active_clients": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Max active clients allowed in period for CRM",
+            "title": "Max Active Clients"
+          }
+        },
+        "title": "OfferEntitlements",
+        "type": "object"
+      },
+      "OfferOut": {
+        "properties": {
+          "code": {
+            "description": "Unique offer code, e.g. crm_starter_czk",
+            "maxLength": 50,
+            "title": "Code",
+            "type": "string"
+          },
+          "currency": {
+            "description": "ISO currency code, e.g. CZK",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "entitlements": {
+            "$ref": "#/components/schemas/OfferEntitlements"
+          },
+          "interval": {
+            "default": "month",
+            "description": "Billing interval: month or year",
+            "enum": [
+              "month",
+              "year"
+            ],
+            "title": "Interval",
+            "type": "string"
+          },
+          "name": {
+            "description": "Display name of offer",
+            "maxLength": 255,
+            "title": "Name",
+            "type": "string"
+          },
+          "price": {
+            "description": "Price in currency units",
+            "title": "Price",
+            "type": "string"
+          },
+          "product": {
+            "description": "Product line: crm or ai",
+            "enum": [
+              "crm",
+              "ai"
+            ],
+            "title": "Product",
+            "type": "string"
+          },
+          "status": {
+            "default": "approved",
+            "description": "Offer status: approved or draft",
+            "enum": [
+              "approved",
+              "draft"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "product",
+          "name",
+          "price",
+          "currency"
+        ],
+        "title": "OfferOut",
         "type": "object"
       },
       "PaginatedResponse_AuditLogOut_": {
@@ -19130,6 +19402,105 @@
         ]
       }
     },
+    "/offers": {
+      "get": {
+        "description": "Public catalog of approved SaaS offers for CRM and AI products.\n\nPer D01 policy:\n1. Only approved tiers are published. Drafts are excluded from anonymous visitors.\n2. Zero business, customer or private tenant data is exposed.",
+        "operationId": "list_offers_offers_get",
+        "parameters": [
+          {
+            "description": "Optional product filter: crm or ai",
+            "in": "query",
+            "name": "product",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "crm",
+                    "ai"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional product filter: crm or ai",
+              "title": "Product"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferCatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get public approved offer catalog",
+        "tags": [
+          "offers"
+        ]
+      }
+    },
+    "/offers/{code}": {
+      "get": {
+        "description": "Fetch single approved offer by code.",
+        "operationId": "get_offer_offers__code__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get single approved offer by code",
+        "tags": [
+          "offers"
+        ]
+      }
+    },
     "/products/": {
       "get": {
         "operationId": "list_products_products__get",
@@ -22136,6 +22507,77 @@
           }
         ],
         "summary": "Get Trial Status",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
+    "/subscriptions/usage": {
+      "get": {
+        "description": "Authenticated endpoint returning CRM and AI usage units and limits.\n\nEnsures employee cannot view payment credentials or billing details of another business,\nstrictly validates period bounds, and reflects payer entitlements.",
+        "operationId": "get_usage_and_entitlements_subscriptions_usage_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Period"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntitlementsUsageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Usage And Entitlements",
         "tags": [
           "subscriptions"
         ]
