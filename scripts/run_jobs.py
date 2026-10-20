@@ -4,11 +4,14 @@ Nothing in the app runs these on its own, so either:
   python scripts/run_jobs.py --loop          # long-running worker (docker-compose "worker" service)
   python scripts/run_jobs.py reminders ...   # one-off, e.g. from cron on the host
 
-Every job is safe to run as often as you like: sent messages are logged (notification_log),
-so nobody gets the same reminder or greeting twice, and a failed send is retried next run.
+Reminders are materialized in the notification outbox and delivered through the configured
+transport; the old direct reminder path is no longer scheduled. Greetings and follow-ups keep
+their own sent log. Every job is safe to run as often as you like: outbox event keys and the
+sent log stop duplicates, and a failed delivery is retried on a later run.
 
-Env: JOBS_CHANNEL (email|sms|whatsapp, default email), JOBS_EVERY_MINUTES (default 15),
-JOBS_DAILY_HOUR (UTC hour from which the daily ones may go out, default 8).
+Env: JOBS_CHANNEL (email|sms|whatsapp, default email) for greetings/follow-ups,
+JOBS_EVERY_MINUTES (default 15), JOBS_DAILY_HOUR (UTC hour from which the daily ones may go
+out, default 8). NOTIFICATION_TRANSPORT=capture keeps outbox messages in memory for local checks.
 """
 import argparse
 import os
@@ -18,14 +21,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.api.core import finance_tasks, notification_tasks, subscription_tasks  # noqa: E402
+from app.api.core import finance_tasks, notification_jobs, notification_tasks, subscription_tasks  # noqa: E402
 from app.api.core.clock import utcnow  # noqa: E402
 from app.api.core.logger import logger  # noqa: E402
 
 CHANNEL = os.environ.get("JOBS_CHANNEL", "email")
 
 FREQUENT = {
-    "reminders": lambda: notification_tasks.send_automatic_reminders(CHANNEL),
+    "reminders": notification_jobs.sync_and_deliver,
     "followups": lambda: notification_tasks.send_visit_followups(CHANNEL),
 }
 DAILY = {
@@ -53,7 +56,7 @@ def run(names) -> bool:
 def loop() -> None:
     every = int(os.environ.get("JOBS_EVERY_MINUTES", "15")) * 60
     daily_hour = int(os.environ.get("JOBS_DAILY_HOUR", "8"))
-    logger.info(f"jobs worker started: every {every // 60} min, daily jobs from {daily_hour}:00 UTC, channel {CHANNEL}")
+    logger.info(f"jobs worker started: every {every // 60} min, daily jobs from {daily_hour}:00 UTC, greeting channel {CHANNEL}")
     while True:
         names = list(FREQUENT)
         # daily ones are idempotent too, the hour just keeps birthday wishes from arriving at 3 a.m.
