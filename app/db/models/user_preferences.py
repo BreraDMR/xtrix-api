@@ -17,6 +17,14 @@ class UserPreferences(Base):
     auto_save_interval = Column(Integer, default=30, nullable=False)  
     export_format = Column(String, nullable=True, default="csv")  
     language = Column(String(2), nullable=True)  # staff UI language, used for e-mails to this user
+    # first-run state is a user preference: progress itself comes from business data
+    onboarding_version = Column(Integer, nullable=False, default=1, server_default="1")
+    onboarding_tour_version = Column(Integer, nullable=True)
+    onboarding_tour_completed = Column(Boolean, nullable=False, default=False, server_default="false")
+    onboarding_tour_dismissed = Column(Boolean, nullable=False, default=False, server_default="false")
+    onboarding_welcome_dismissed = Column(Boolean, nullable=False, default=False, server_default="false")
+    onboarding_checklist_dismissed = Column(Boolean, nullable=False, default=False, server_default="false")
+    onboarding_dismissed_hints = Column(JSON, nullable=True)
     additional_settings = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=utcnow, index=True)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, index=True)
