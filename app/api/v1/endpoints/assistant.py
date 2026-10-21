@@ -199,14 +199,16 @@ def make_plan(
 
     shown = describe_plan(db, current_user, draft.plan, tz=tz)
     actions = [{**a.model_dump(mode="json"), "display": d.to_dict()} for a, d in zip(draft.plan.actions, shown)]
-    plan_data = {
+    # one JSON-safe shape for both the answer and the stored message: the preview carries
+    # naive UTC datetimes, and the response contract writes them as ISO with Z
+    plan_data = PlanOut.model_validate({
         "plan_id": draft.plan_id,
         "summary": draft.plan.summary,
         "questions": draft.plan.questions,
         "actions": actions,
         "assistant": draft.assistant.__dict__,
         "expires_at": draft.expires_at.isoformat(),
-    }
+    }).model_dump(mode="json")
     # A fresh successful generation is the only thing that spends a PRICE unit:
     # replays return earlier, failures never get here, execute is not a generation.
     business_id = get_user_business_id(current_user, db)

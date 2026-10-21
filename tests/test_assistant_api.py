@@ -12,6 +12,7 @@ from app.ai.config import load_ai_config
 from app.ai.cooldown import CooldownBoard
 from app.ai.router import build_router
 from app.api.v1.endpoints import assistant as endpoints
+from app.db.models.assistant_conversation import AssistantMessage
 from app.db.models.medical_profile import MedicalProfile
 from app.db.models.usage_counter import UsageCounter
 from app.db.models.visit import Visit
@@ -206,6 +207,29 @@ def test_plan_then_execute_creates_a_visit(client, db, ab, fakes):
     db.expire_all()
     visit = db.query(Visit).filter(Visit.id == visit_id).one()
     assert (visit.client_id, visit.note, visit.date_start) == (b["client"]["id"], "first time", datetime(2030, 3, 4, 9, 0))
+
+
+def test_a_plan_with_visit_times_is_stored_and_replayed_in_a_conversation(client, db, ab, fakes):
+    _, b = ab
+    chat_id = conversation(client, b)
+    key = str(uuid4())
+    fakes.answers.append(plan_of(
+        {"action": "find_client", "ref": "c", "name": "Beta Klientka"},
+        {"action": "create_visit", "client_ref": "c", "service_id": b["service"]["id"],
+         "start": "2030-03-04T10:00:00+01:00"},
+        summary="Book Beta Klientka"))
+    first = ask(client, b, "book Beta Klientka", conversation_id=chat_id, client_request_id=key)
+    assert first.status_code == 200, first.text
+    body = first.json()
+    assert body["actions"][1]["display"]["start_time"] == "2030-03-04T09:00:00Z"
+    db.expire_all()
+    saved = db.query(AssistantMessage).filter(AssistantMessage.plan_id == body["plan_id"]).one()
+    assert saved.plan_payload["actions"] == body["actions"]
+
+    replay = ask(client, b, "book Beta Klientka", conversation_id=chat_id, client_request_id=key)
+    assert replay.status_code == 200, replay.text
+    assert replay.json()["plan_id"] == body["plan_id"]
+    assert replay.json()["actions"][1]["display"]["start_time"] == "2030-03-04T09:00:00Z"
 
 
 def test_second_execute_of_the_same_plan_is_404(client, ab, fakes):
