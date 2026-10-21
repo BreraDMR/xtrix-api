@@ -11,7 +11,12 @@ from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core import booking_manage_access
 from app.api.core import public_booking_service as booking_service
-from app.api.core.availability import booking_window, collect_slots
+from app.api.core.availability import (
+    ChainTiming,
+    booking_window,
+    collect_chain_slots,
+    collect_slots,
+)
 from app.api.core.booking_slug import normalize_slug
 from app.api.core.clock import utcnow
 from app.api.core.i18n import _
@@ -31,6 +36,7 @@ from app.schemas.public_booking import (
     PublicBookingOut,
     PublicBookingSettingsOut,
     PublicBookingSettingsUpdate,
+    PublicBookingItemOut,
     PublicBusinessOut,
     PublicDaySlotsOut,
     PublicServiceOut,
@@ -233,6 +239,95 @@ def list_public_slots(
     )
 
 
+@router.get(
+    "/{slug}/chain-slots",
+    response_model=PublicSlotsOut,
+    summary="Free slots for a chain of services with one master",
+)
+@limiter.limit(PUBLIC_BOOKING_SLOTS_LIMIT)
+def list_public_chain_slots(
+    request: Request,
+    slug: str,
+    service_ids: list[int] = Query(..., min_length=1, max_length=20),
+    staff_id: int | None = Query(None, gt=0),
+    date_from: date = Query(...),
+    date_to: date | None = Query(None),
+    db: Session = Depends(deps.get_db),
+    locale: str = Depends(deps.get_locale),
+):
+    _settings, business = _resolve_published(db, slug, locale)
+    services = [
+        crud_public_booking.get_public_service(db, business.id, service_id)
+        for service_id in service_ids
+    ]
+    if any(service is None for service in services):
+        raise HTTPException(status_code=404, detail=_("public_service_unavailable", locale))
+
+    last_requested = date_to or date_from
+    if last_requested < date_from or (last_requested - date_from).days > 13:
+        raise HTTPException(status_code=422, detail=_("public_invalid_date_range", locale))
+
+    master_sets = [
+        crud_public_booking.public_service_master_ids(db, business.id, service)
+        for service in services
+    ]
+    master_ids = set.intersection(*master_sets) if master_sets else set()
+    if staff_id is not None:
+        master_ids &= {staff_id}
+        if not master_ids:
+            raise HTTPException(status_code=404, detail=_("public_staff_unavailable", locale))
+    if not master_ids:
+        return PublicSlotsOut(timezone=business.timezone, days=[])
+
+    now = utcnow()
+    first, last, _today = booking_window(
+        date_from,
+        last_requested,
+        business.timezone,
+        business.booking_horizon_days,
+        now=now,
+    )
+    if last < first:
+        return PublicSlotsOut(timezone=business.timezone, days=[])
+
+    schedules, exceptions, blocks, busy = crud_public_booking.availability_sources(
+        db, sorted(master_ids), first, last, business.timezone
+    )
+    timings = [
+        ChainTiming(
+            duration_minutes=service.duration_minutes,
+            buffer_before_minutes=service.buffer_before_minutes or 0,
+            buffer_after_minutes=service.buffer_after_minutes or 0,
+        )
+        for service in services
+    ]
+    slots = collect_chain_slots(
+        date_from=first,
+        date_to=last,
+        timezone_name=business.timezone,
+        horizon_days=business.booking_horizon_days,
+        lead_time_minutes=business.booking_lead_time_minutes,
+        timings=timings,
+        master_ids=sorted(master_ids),
+        schedules=schedules,
+        exceptions=exceptions,
+        blocks=blocks,
+        busy=busy,
+        now=now,
+    )
+
+    by_day: dict[date, list[PublicSlotOut]] = {
+        first + timedelta(days=offset): []
+        for offset in range((last - first).days + 1)
+    }
+    for slot in slots:
+        by_day[slot.day].append(PublicSlotOut(start=slot.start, staff_id=slot.staff_id))
+    return PublicSlotsOut(
+        timezone=business.timezone,
+        days=[PublicDaySlotsOut(date=day, slots=by_day[day]) for day in sorted(by_day)],
+    )
+
+
 @router.post(
     "/{slug}/bookings",
     response_model=PublicBookingOut,
@@ -277,5 +372,16 @@ def create_public_booking(
         currency=business.currency,
         status=visit.status or "planned",
         timezone=business.timezone,
+        items=[
+            PublicBookingItemOut(
+                service_id=item.service_id,
+                service_name=item.service_name,
+                staff_id=item.specialist_id,
+                start=item.date_start,
+                end=item.date_end,
+                price=float(item.price) if item.price is not None else None,
+            )
+            for item in visit.items
+        ],
         manage_token=manage_token,
     )

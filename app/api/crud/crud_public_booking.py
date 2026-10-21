@@ -21,6 +21,7 @@ from app.db.models.service import Service
 from app.db.models.service_specialist import ServiceSpecialist
 from app.db.models.user import User
 from app.db.models.visit import Visit
+from app.db.models.visit_item import VisitItem
 from app.db.models.work_schedule import WorkSchedule
 from app.schemas.public_booking import PublicBookingCreate, PublicBookingSettingsUpdate
 
@@ -350,6 +351,31 @@ def availability_sources(
     ):
         blocks.setdefault(row.specialist_id, []).append((row.start, row.end))
 
+    items_query = (
+        db.query(VisitItem)
+        .join(Visit, VisitItem.visit_id == Visit.id)
+        .filter(
+            VisitItem.specialist_id.in_(master_ids),
+            Visit.deleted_at.is_(None),
+            Visit.archived_at.is_(None),
+            or_(Visit.status.is_(None), Visit.status != "cancelled"),
+            VisitItem.date_start < query_end,
+            VisitItem.date_end > query_start,
+        )
+    )
+    if exclude_visit_id is not None:
+        items_query = items_query.filter(Visit.id != exclude_visit_id)
+    for item in items_query.all():
+        before = getattr(item, "buffer_before_minutes", 0) or 0
+        after = getattr(item, "buffer_after_minutes", 0) or 0
+        busy.setdefault(item.specialist_id, []).append(
+            (
+                item.date_start - timedelta(minutes=before),
+                item.date_end + timedelta(minutes=after),
+            )
+        )
+
+    # only visits without items need the old visit-level fallback
     visits_query = (
         db.query(Visit)
         .options(joinedload(Visit.service))
@@ -358,6 +384,7 @@ def availability_sources(
             Visit.deleted_at.is_(None),
             Visit.archived_at.is_(None),
             or_(Visit.status.is_(None), Visit.status != "cancelled"),
+            ~Visit.items.any(),
             Visit.date_start < query_end,
             or_(
                 Visit.date_end > query_start,

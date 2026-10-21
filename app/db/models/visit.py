@@ -25,3 +25,10 @@ class Visit(Base):
     specialist = relationship("User", back_populates="visits", lazy="select")
     service = relationship("Service", back_populates="visits", lazy="select")
     business = relationship("Business", lazy="select")
+    items = relationship(
+        "VisitItem",
+        back_populates="visit",
+        lazy="select",
+        order_by="VisitItem.position",
+        cascade="all, delete-orphan",
+    )

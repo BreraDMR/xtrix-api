@@ -103,7 +103,11 @@ class PublicBookingCreate(InputModel):
     """Only what a guest may choose. Price, status, payment and tenant ids come from the server."""
     model_config = ConfigDict(extra="forbid")
 
-    service_id: int = Field(..., gt=0)
+    service_id: Optional[int] = Field(None, gt=0)
+    service_ids: Optional[list[int]] = Field(
+        None, min_length=1, max_length=20,
+        description="Ordered services for a chain; use service_id for a single booking",
+    )
     staff_id: int = Field(..., gt=0)
     start: UtcDatetime
     full_name: str = Field(..., min_length=1, max_length=255)
@@ -146,6 +150,13 @@ class PublicBookingCreate(InputModel):
 
     @model_validator(mode="after")
     def contact_and_consents(self):
+        if bool(self.service_id) == bool(self.service_ids):
+            raise invalid(
+                "service_choice",
+                "Provide either service_id or service_ids",
+            )
+        if self.service_ids and any(service_id <= 0 for service_id in self.service_ids):
+            raise invalid("invalid_service", "Service ids must be positive")
         if any(ord(char) < 32 or ord(char) == 127 for char in self.full_name):
             raise invalid("invalid_name", "The name can't contain line breaks or control characters")
         if bool(self.phone) == bool(self.email):
@@ -161,6 +172,15 @@ class PublicBookingCreate(InputModel):
         return self
 
 
+class PublicBookingItemOut(BaseModel):
+    service_id: Optional[int] = None
+    service_name: Optional[str] = None
+    staff_id: Optional[int] = None
+    start: UtcDatetime
+    end: UtcDatetime
+    price: Optional[float] = None
+
+
 class PublicBookingOut(BaseModel):
     id: int
     start: UtcDatetime
@@ -172,6 +192,7 @@ class PublicBookingOut(BaseModel):
     currency: str
     status: str
     timezone: str
+    items: list[PublicBookingItemOut] = Field(default_factory=list)
     manage_token: Optional[str] = Field(
         None,
         description="One-time management token for this booking; put it in a link fragment and never log it",

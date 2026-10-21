@@ -9,6 +9,21 @@ from app.schemas.base import InputModel
 class UsedProduct(InputModel):
     product_id: int
     quantity: float = Field(..., gt=0)
+class VisitItemIn(InputModel):
+    """One service in a chain. Price, duration and time are snapshotted by the server."""
+    service_id: int = Field(..., gt=0)
+    specialist_id: Optional[int] = Field(None, gt=0)
+class VisitItemOut(BaseModel):
+    id: int
+    position: int
+    service_id: Optional[int] = None
+    specialist_id: Optional[int] = None
+    service_name: Optional[str] = None
+    price: Optional[float] = None
+    duration_minutes: int
+    date_start: UtcDatetime
+    date_end: UtcDatetime
+    model_config = ConfigDict(from_attributes=True)
 class VisitBase(BaseModel):
     client_id: int
     specialist_id: int
@@ -35,8 +50,17 @@ class VisitBase(BaseModel):
             raise invalid_choice(['card', 'cash', 'other'], "Payment method")
         return v
 class VisitCreate(InputModel, VisitBase):
+    items: Optional[List[VisitItemIn]] = Field(
+        None, max_length=20, description="Ordered services; price and end are computed"
+    )
     # input only - VisitOut shouldn't re-check stored rows. No 15-minute floor any more: a visit is
     # as long as its service, and services can be 1-1440 minutes
+    @field_validator('items')
+    @classmethod
+    def items_not_empty(cls, value):
+        if value is not None and not value:
+            raise invalid("items_required", "A visit needs at least one service")
+        return value
     @field_validator('date_end')
     @classmethod
     def validate_date_end(cls, v, info):
@@ -67,6 +91,13 @@ class VisitUpdate(InputModel):
     date_start: Optional[UtcDatetime] = None
     date_end: Optional[UtcDatetime] = None
     service_id: Optional[int] = None
+    items: Optional[List[VisitItemIn]] = Field(None, max_length=20)
+    @field_validator('items')
+    @classmethod
+    def items_not_empty(cls, value):
+        if value is not None and not value:
+            raise invalid("items_required", "A visit needs at least one service")
+        return value
     service_name: Optional[ShortText] = None
     note: Optional[LongText] = None
     photo_url: Optional[str] = Field(None, max_length=2048)
@@ -103,4 +134,5 @@ class VisitOut(VisitBase):
     id: int
     created_at: UtcDatetime
     client_confirmed_at: Optional[UtcDatetime] = None
+    items: List[VisitItemOut] = Field(default_factory=list)
     model_config = ConfigDict(from_attributes=True)

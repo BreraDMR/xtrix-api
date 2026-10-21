@@ -11,6 +11,7 @@ from app.db.models.visit_event import VisitEvent
 from app.db.models.service import Service
 from app.db.models.service_specialist import ServiceSpecialist
 from app.db.models.visit import Visit
+from app.db.models.visit_item import VisitItem
 from app.db.models.subscription_plan import SubscriptionPlan
 from app.db.models.subscription import Subscription
 from app.db.models.transaction import Transaction

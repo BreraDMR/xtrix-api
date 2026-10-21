@@ -11,9 +11,16 @@ from datetime import date, timedelta, timezone
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.core.availability import booking_window, collect_slots, salon_zone
+from app.api.core.availability import (
+    ChainTiming,
+    booking_window,
+    chain_start_available,
+    collect_slots,
+    salon_zone,
+)
 from app.api.core.clock import utcnow
 from app.api.core import notification_events
+from app.api.core.visit_chain import apply_chain, service_line, total_minutes
 from app.api.crud import crud_public_booking
 from app.db.models.public_booking import PublicBookingRequest
 from app.db.models.user import User
@@ -97,6 +104,46 @@ def _slot_is_free(
     return any(slot.staff_id == staff_id and slot.start == start for slot in slots)
 
 
+def _chain_is_free(db: Session, business, services, staff_id: int, start) -> bool:
+    """The whole chain must fit one master, item by item, with each service's buffers."""
+    lines = [service_line(service, staff_id) for service in services]
+    timings = [
+        ChainTiming(
+            duration_minutes=line.duration_minutes,
+            buffer_before_minutes=line.buffer_before_minutes,
+            buffer_after_minutes=line.buffer_after_minutes,
+        )
+        for line in lines
+    ]
+    zone = salon_zone(business.timezone)
+    local_start = start.replace(tzinfo=timezone.utc).astimezone(zone)
+    local_end = (
+        start + timedelta(minutes=total_minutes(lines))
+    ).replace(tzinfo=timezone.utc).astimezone(zone)
+    first, last, _today = booking_window(
+        local_start.date(),
+        local_end.date(),
+        business.timezone,
+        business.booking_horizon_days,
+    )
+    if (first, last) != (local_start.date(), local_end.date()):
+        return False
+    schedules, exceptions, blocks, busy = crud_public_booking.availability_sources(
+        db, [staff_id], first, last, business.timezone
+    )
+    return chain_start_available(
+        start=start,
+        timings=timings,
+        timezone_name=business.timezone,
+        schedules=schedules,
+        exceptions=exceptions,
+        blocks=blocks,
+        busy=busy,
+        staff_id=staff_id,
+        lead_time_minutes=business.booking_lead_time_minutes,
+    )
+
+
 def submit_booking(
     db: Session,
     business,
@@ -113,12 +160,19 @@ def submit_booking(
     if existing:
         return _replay(db, existing, digest)
 
-    service = crud_public_booking.get_public_service(db, business.id, payload.service_id)
-    if not service:
+    service_ids = payload.service_ids or [payload.service_id]
+    services = [
+        crud_public_booking.get_public_service(db, business.id, service_id)
+        for service_id in service_ids
+    ]
+    if any(service is None for service in services):
         raise ServiceUnavailable()
-    master_ids = crud_public_booking.public_service_master_ids(db, business.id, service)
-    if payload.staff_id not in master_ids:
-        raise StaffUnavailable()
+    for service in services:
+        if payload.staff_id not in crud_public_booking.public_service_master_ids(
+            db, business.id, service
+        ):
+            raise StaffUnavailable()
+    lines = [service_line(service, payload.staff_id) for service in services]
 
     claim = PublicBookingRequest(
         business_id=business.id,
@@ -158,7 +212,7 @@ def submit_booking(
     start = payload.start
     if start.tzinfo is not None:
         start = start.astimezone(timezone.utc).replace(tzinfo=None)
-    if not _slot_is_free(db, business, service, staff.id, start):
+    if not _chain_is_free(db, business, services, staff.id, start):
         db.rollback()
         raise SlotUnavailable()
 
@@ -168,14 +222,10 @@ def submit_booking(
     visit = Visit(
         client_id=client.id,
         specialist_id=staff.id,
-        service_id=service.id,
         business_id=business.id,
-        date_start=start,
-        date_end=start + timedelta(minutes=service.duration_minutes),
-        service_name=service.name,
-        price=service.price,
         status="planned",
     )
+    apply_chain(visit, lines, start)
     db.add(visit)
     db.flush()
 

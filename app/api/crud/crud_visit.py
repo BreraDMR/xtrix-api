@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import timedelta
 from datetime import datetime
 from typing import Optional, Tuple
@@ -5,97 +6,171 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
 from app.api.core.pagination import PaginationParams
 from app.api.core.soft_delete import filter_active
+from app.api.core.visit_chain import (
+    ChainError,
+    ChainLine,
+    apply_chain,
+    item_intervals,
+    legacy_line,
+    lines_from_items,
+    money,
+    service_line,
+)
+from app.db.models.service import Service
 from app.db.models.visit import Visit
 from app.schemas.visit import VisitCreate, VisitUpdate
+
+
+def existing_lines(visit: Visit) -> list[ChainLine]:
+    if visit.items:
+        return [
+            ChainLine(
+                service_id=item.service_id,
+                specialist_id=item.specialist_id,
+                service_name=item.service_name,
+                price=money(item.price),
+                duration_minutes=max(1, item.duration_minutes or 1),
+                buffer_before_minutes=max(0, item.buffer_before_minutes or 0),
+                buffer_after_minutes=max(0, item.buffer_after_minutes or 0),
+            )
+            for item in sorted(visit.items, key=lambda row: row.position)
+        ]
+    return [
+        legacy_line(
+            visit.service,
+            visit.specialist_id,
+            visit.service_name,
+            visit.price,
+            visit.date_start,
+            visit.date_end,
+        )
+    ]
+
+
+def _business_for_visit(db: Session, specialist_id: int, business_id: Optional[int]) -> Optional[int]:
+    if business_id is not None:
+        return business_id
+    from app.db.models.user import User
+
+    specialist = db.query(User).filter(User.id == specialist_id).first()
+    return specialist.business_id if specialist is not None else None
+
+
+def assert_no_conflict(db: Session, intervals, exclude_id: Optional[int] = None) -> None:
+    for specialist_id, start, end in intervals:
+        if specialist_id is None:
+            continue
+        if find_overlapping_visit(db, specialist_id, start, end, exclude_id):
+            raise ChainError("time_slot_taken", "This time is already booked")
+
+
+def prospective_update_lines(db: Session, visit: Visit, update: VisitUpdate) -> list[ChainLine]:
+    """The chain an update would save, without writing it (also used for the clash check)."""
+    data = update.model_dump(exclude_unset=True)
+    if "items" in data:
+        return lines_from_items(db, update.items, visit.specialist_id)
+    lines = existing_lines(visit)
+    new_service_id = data.get("service_id")
+    if new_service_id is not None and new_service_id != visit.service_id:
+        if len(lines) > 1:
+            raise ChainError(
+                "items_required",
+                "A multi-service visit can only change its services through items",
+            )
+        service = db.query(Service).filter(Service.id == new_service_id).first()
+        if service is None:
+            raise ChainError("service_not_found", "The selected service was not found")
+        lines = [service_line(service, visit.specialist_id)]
+    if "price" in data and data["price"] is not None and len(lines) == 1:
+        lines = [replace(lines[0], price=money(data["price"]))]
+    if "date_end" in data and data["date_end"] is not None and len(lines) == 1:
+        start = data.get("date_start") or visit.date_start
+        duration = max(1, int(round((data["date_end"] - start).total_seconds() / 60)))
+        lines = [replace(lines[0], duration_minutes=duration)]
+    return lines
+
+
 def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] = None) -> Visit:
+    """Create the visit and every item in one transaction: no half-saved chains."""
     from app.api.core.logger import get_logger
+
     logger = get_logger("visits")
-    visit_data = visit_in.model_dump(exclude={'used_products'} if hasattr(visit_in, 'used_products') else None)
-    logger.info(f"create_visit: visit_data keys={list(visit_data.keys())}, service_id={visit_data.get('service_id')}, price={visit_data.get('price')}, date_end={visit_data.get('date_end')}")
-    if visit_data.get('service_id'):
-        from app.db.models.service import Service
-        service = db.query(Service).filter(Service.id == visit_data['service_id']).first()
-        if service:
-            logger.info(f"create_visit: found service id={service.id}, name={service.name}, price={service.price}, duration={service.duration_minutes}")
-            price_in_data = visit_data.get('price')
-            if (price_in_data is None or price_in_data == 0) and service.price is not None:
-                visit_data['price'] = service.price
-                logger.info(f"create_visit: auto-applied price={service.price} from service (was: {price_in_data})")
-            else:
-                logger.info(f"create_visit: price not auto-applied (price_in_data={price_in_data}, service.price={service.price})")
-            date_end_in_data = visit_data.get('date_end')
-            date_start = visit_data.get('date_start')
-            if service.duration_minutes and date_start:
-                from datetime import timedelta, datetime
-                logger.info(f"create_visit: will auto-apply date_end, date_start={date_start}, type={type(date_start)}, duration={service.duration_minutes}, existing date_end={date_end_in_data}")
-                if isinstance(date_start, str):
-                    if date_start.endswith('Z'):
-                        date_start = datetime.fromisoformat(date_start.replace('Z', '+00:00'))
-                    elif '+' in date_start or date_start.count('-') > 2:
-                        date_start = datetime.fromisoformat(date_start)
-                    else:
-                        date_start = datetime.fromisoformat(date_start)
-                    logger.info(f"create_visit: parsed date_start string to datetime: {date_start}, tzinfo={date_start.tzinfo}")
-                elif isinstance(date_start, datetime):
-                    logger.info(f"create_visit: date_start is already datetime: {date_start}, tzinfo={date_start.tzinfo}")
-                date_end = date_start + timedelta(minutes=service.duration_minutes)
-                if date_start.tzinfo is None:
-                    if date_end.tzinfo is not None:
-                        date_end = date_end.replace(tzinfo=None)
-                    visit_data['date_end'] = date_end
-                else:
-                    visit_data['date_end'] = date_end
-                logger.info(f"create_visit: auto-applied date_end={visit_data['date_end']} (type={type(visit_data['date_end'])}, tzinfo={visit_data['date_end'].tzinfo}) from service duration={service.duration_minutes} minutes (was: {date_end_in_data})")
-            else:
-                logger.info(f"create_visit: date_end not auto-applied (service.duration_minutes={service.duration_minutes}, date_start={date_start})")
-            service_name_in_data = visit_data.get('service_name')
-            if not service_name_in_data and service.name:
-                visit_data['service_name'] = service.name
-                logger.info(f"create_visit: auto-applied service_name={service.name} from service")
-            else:
-                logger.info(f"create_visit: service_name not auto-applied (service_name_in_data={service_name_in_data}, service.name={service.name})")
-        else:
-            logger.warning(f"create_visit: service with id={visit_data.get('service_id')} not found")
-    logger.info(f"create_visit: final visit_data before creating Visit: price={visit_data.get('price')}, date_end={visit_data.get('date_end')}, service_name={visit_data.get('service_name')}")
-    from sqlalchemy import inspect
-    inspector = inspect(db.bind)
-    has_business_id_column = False
-    try:
-        columns = [col['name'] for col in inspector.get_columns('visits')]
-        has_business_id_column = 'business_id' in columns
-    except Exception as e:
-        logger.warning(f"create_visit: error checking columns: {str(e)}")
-    if has_business_id_column:
-        if business_id is None:
-            from app.db.models.user import User
-            specialist = db.query(User).filter(User.id == visit_data.get('specialist_id')).first()
-            if specialist and hasattr(specialist, 'business_id') and specialist.business_id:
-                business_id = specialist.business_id
-                logger.info(f"create_visit: got business_id={business_id} from specialist_id={visit_data.get('specialist_id')}")
-        if business_id:
-            visit_data['business_id'] = business_id
-            logger.info(f"create_visit: setting business_id={business_id}")
+    data = visit_in.model_dump(exclude={"used_products", "items"})
+    service = db.query(Service).filter(Service.id == data["service_id"]).first() if data.get("service_id") else None
+    resolved_business_id = _business_for_visit(db, data["specialist_id"], business_id)
+
+    if visit_in.items is not None:
+        lines = lines_from_items(db, visit_in.items, data["specialist_id"])
     else:
-        visit_data.pop('business_id', None)
-        logger.info("create_visit: business_id column not found, removing from visit_data")
+        price = data.get("price")
+        if service is not None and (price is None or price == 0) and service.price is not None:
+            price = service.price
+        lines = [
+            legacy_line(
+                service,
+                data["specialist_id"],
+                data.get("service_name"),
+                price,
+                data["date_start"],
+                data.get("date_end"),
+            )
+        ]
+
+    assert_no_conflict(db, item_intervals(data["date_start"], lines))
+    visit = Visit(
+        client_id=data["client_id"],
+        specialist_id=data["specialist_id"],
+        service_id=data.get("service_id"),
+        business_id=resolved_business_id,
+        date_start=data["date_start"],
+        date_end=data.get("date_end"),
+        service_name=data.get("service_name"),
+        note=data.get("note"),
+        photo_url=data.get("photo_url"),
+        price=data.get("price"),
+        status=data.get("status") or "planned",
+        payment_method=data.get("payment_method"),
+    )
+    apply_chain(visit, lines, data["date_start"])
     try:
-        visit = Visit(**visit_data)
         db.add(visit)
         db.commit()
         db.refresh(visit)
-        logger.info(f"create_visit: created visit id={visit.id}, client_id={visit.client_id}, specialist_id={visit.specialist_id}, service_id={getattr(visit, 'service_id', None)}, price={getattr(visit, 'price', None)}, date_end={getattr(visit, 'date_end', None)}, service_name={getattr(visit, 'service_name', None)}")
+        logger.info(f"create_visit: created visit id={visit.id}, items={len(visit.items)}, price={visit.price}")
         return visit
-    except Exception as e:
-        logger.error(f"create_visit: error creating visit: {str(e)}", exc_info=True)
+    except Exception as exc:
+        logger.error(f"create_visit: error creating visit: {str(exc)}", exc_info=True)
         db.rollback()
         raise
+
+
 def update_visit(db: Session, visit: Visit, update: VisitUpdate) -> Visit:
-    for field, value in update.model_dump(exclude_unset=True).items():
-        setattr(visit, field, value)
-    db.add(visit)
-    db.commit()
-    db.refresh(visit)
-    return visit
+    """Patch the visit. A chain is rebuilt only when its shape, time or price changes."""
+    data = update.model_dump(exclude_unset=True)
+    structural = any(
+        key in data for key in ("items", "service_id", "date_start", "date_end", "price")
+    )
+    try:
+        if structural:
+            lines = prospective_update_lines(db, visit, update)
+            start = data.get("date_start") or visit.date_start
+            assert_no_conflict(
+                db, item_intervals(start, lines), exclude_id=visit.id
+            )
+            apply_chain(visit, lines, start)
+
+        computed = {"items", "service_id", "date_start", "date_end", "price"}
+        for field, value in data.items():
+            if field in computed:
+                continue
+            setattr(visit, field, value)
+        db.add(visit)
+        db.commit()
+        db.refresh(visit)
+        return visit
+    except Exception:
+        db.rollback()
+        raise
 def _no_business_but_ours(business_id: int):
     # visits with no business are a solo specialist's - only count them when that specialist
     # is in this business now (e.g. the owner's own visits from before the business existed)
@@ -330,16 +405,44 @@ def list_visits(
         else:
             raise
     return items, total
-def find_overlapping_visit(db: Session, specialist_id: int, start, end, exclude_id: Optional[int] = None) -> Optional[Visit]:
-    # a specialist can't be in two places at once; cancelled visits don't hold the slot
-    q = db.query(Visit).filter(
+def find_overlapping_visit(db: Session, specialist_id: int, start, end, exclude_id: Optional[int] = None):
+    """A specialist can't be in two places at once.
+
+    Production visits are represented by their items, so a master change inside a chain is
+    checked against that master's own interval. Rows without items (legacy or direct DB
+    writes) still fall back to the visit-level range.
+    """
+    from app.db.models.visit_item import VisitItem
+
+    item_query = (
+        db.query(VisitItem)
+        .join(Visit, VisitItem.visit_id == Visit.id)
+        .filter(
+            VisitItem.specialist_id == specialist_id,
+            Visit.deleted_at.is_(None),
+            or_(Visit.status.is_(None), Visit.status != "cancelled"),
+            # widen by a day in SQL; buffers are applied exactly in Python
+            VisitItem.date_start < end + timedelta(days=1),
+            VisitItem.date_end > start - timedelta(days=1),
+        )
+    )
+    if exclude_id:
+        item_query = item_query.filter(Visit.id != exclude_id)
+    for item in item_query.all():
+        occupied_start = item.date_start - timedelta(minutes=max(0, item.buffer_before_minutes or 0))
+        occupied_end = item.date_end + timedelta(minutes=max(0, item.buffer_after_minutes or 0))
+        if occupied_start < end and start < occupied_end:
+            return item
+
+    legacy_query = db.query(Visit).filter(
         Visit.specialist_id == specialist_id,
         Visit.deleted_at.is_(None),
-        Visit.status != "cancelled",
+        or_(Visit.status.is_(None), Visit.status != "cancelled"),
+        ~Visit.items.any(),
         Visit.date_start < end,
         # old rows may have no end - treat them as one hour long
         or_(Visit.date_end > start, and_(Visit.date_end.is_(None), Visit.date_start > start - timedelta(hours=1))),
     )
     if exclude_id:
-        q = q.filter(Visit.id != exclude_id)
-    return q.first()
+        legacy_query = legacy_query.filter(Visit.id != exclude_id)
+    return legacy_query.first()

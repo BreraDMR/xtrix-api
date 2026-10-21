@@ -571,6 +571,16 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "У специалиста уже есть запись на это время",
         "cz": "Specialista má na tento čas už rezervaci",
     },
+    "items_required": {
+        "en": "A multi-service visit can only change its services through items",
+        "ru": "У визита из нескольких услуг состав меняется только через items",
+        "cz": "U návštěvy s více službami lze služby měnit jen přes položky",
+    },
+    "service_duration_required": {
+        "en": "Every service in the chain needs a duration",
+        "ru": "У каждой услуги в цепочке должна быть длительность",
+        "cz": "Každá služba v řetězci musí mít délku",
+    },
     "phone_exists": {
         "en": "Phone already registered",
         "ru": "Телефон уже зарегистрирован",

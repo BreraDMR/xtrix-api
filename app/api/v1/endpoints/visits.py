@@ -12,6 +12,7 @@ from app.api.core.soft_delete import hard_delete, restore_soft_deleted, soft_del
 from app.db.models.client import Client
 from app.api.core.slots import find_next_available_slot
 from app.api.crud import crud_visit, crud_schedule
+from app.api.core.visit_chain import ChainError
 from app.db.models.service import Service
 from app.db.models.user import User
 from app.schemas.visit import VisitCreate, VisitOut, VisitUpdate
@@ -19,15 +20,34 @@ from app.api.core.clock import utcnow
 from app.api.middleware.rate_limit import limiter, EXPORT_LIMIT
 router = APIRouter()
 logger = get_logger("visits")
-def _check_slot_free(db, specialist_id, start, end, service_id, exclude_id, locale):
-    if start is None:
+
+
+def _chain_error(exc: ChainError, locale: str):
+    status = 409 if exc.code == "time_slot_taken" else 422
+    raise HTTPException(
+        status_code=status,
+        detail={"code": exc.code, "message": _(exc.code, locale)},
+    )
+
+
+def _check_item_access(db, current_user, items, default_specialist_id, locale):
+    from app.api.core.permissions import check_service_access, check_specialist_in_scope
+
+    if items is None:
         return
-    if end is None:
-        service = db.query(Service).filter(Service.id == service_id).first() if service_id else None
-        end = start + timedelta(minutes=(service.duration_minutes if service and service.duration_minutes else 60))
-    clash = crud_visit.find_overlapping_visit(db, specialist_id, start, end, exclude_id)
-    if clash:
-        raise HTTPException(status_code=409, detail=_("time_slot_taken", locale))
+    services = {
+        service.id: service
+        for service in db.query(Service)
+        .filter(Service.id.in_({item.service_id for item in items}))
+        .all()
+    }
+    for item in items:
+        service = services.get(item.service_id)
+        if not service or not check_service_access(db, current_user, service):
+            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+        specialist_id = item.specialist_id or default_specialist_id
+        if not check_specialist_in_scope(db, current_user, specialist_id):
+            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
 @router.post("/", response_model=VisitOut)
 def create_visit(
     visit: VisitCreate,
@@ -51,7 +71,7 @@ def create_visit(
         service = db.query(Service).filter(Service.id == visit.service_id).first()
         if not service or not check_service_access(db, current_user, service):
             raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    _check_slot_free(db, visit.specialist_id, visit.date_start, visit.date_end, visit.service_id, None, locale)
+    _check_item_access(db, current_user, visit.items, visit.specialist_id, locale)
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     specialist_id_for_links = current_user.id
     if current_user.role == "employee":
@@ -95,7 +115,10 @@ def create_visit(
         own = db.query(Product.id).filter(Product.id.in_(product_ids), Product.business_id == business_id).count()
         if not business_id or own != len(product_ids):
             raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    result = crud_visit.create_visit(db, visit, business_id=business_id)
+    try:
+        result = crud_visit.create_visit(db, visit, business_id=business_id)
+    except ChainError as exc:
+        _chain_error(exc, locale)
     if business_id and used_products:
         from app.api.crud import crud_product_usage
         from app.schemas.product_usage import ProductUsageCreate
@@ -353,11 +376,7 @@ def update_visit(
         service = db.query(Service).filter(Service.id == payload.service_id).first()
         if not service or not check_service_access(db, current_user, service):
             raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    if payload.date_start is not None or payload.date_end is not None:
-        # moving the visit: the new time must be free too (the visit itself doesn't count)
-        new_start = payload.date_start or visit.date_start
-        new_end = payload.date_end or (visit.date_end if payload.date_start is None else None)
-        _check_slot_free(db, visit.specialist_id, new_start, new_end, payload.service_id or visit.service_id, visit.id, locale)
+    _check_item_access(db, current_user, payload.items, visit.specialist_id, locale)
     final_status = payload.status if payload.status is not None else visit.status
     final_price = payload.price if payload.price is not None else visit.price
     final_payment_method = payload.payment_method if payload.payment_method is not None else visit.payment_method
@@ -372,7 +391,10 @@ def update_visit(
     old_service_id = visit.service_id
     old_specialist_id = visit.specialist_id
     old_business_id = visit.business_id
-    result = crud_visit.update_visit(db, visit, payload)
+    try:
+        result = crud_visit.update_visit(db, visit, payload)
+    except ChainError as exc:
+        _chain_error(exc, locale)
     if old_status != 'completed' and result.status == 'completed':
         try:
             from app.api.core.loyalty_logic import award_bonus_for_visit
