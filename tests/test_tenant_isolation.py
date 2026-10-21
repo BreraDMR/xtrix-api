@@ -15,8 +15,12 @@ from tests.tenant_world import MARKER, build_tenant
 
 SPEC = app.openapi()
 
-# POSTs that only read (the body is just a query) - checked for leaks like GETs, not as writes
-READ_ONLY_POSTS = {("POST", "/analytics/reports/export")}
+# POSTs that only read (the body is just a query) - checked for leaks like GETs, not as writes.
+# The portal sign-in request is public and enumeration-safe: it never returns tenant data.
+READ_ONLY_POSTS = {
+    ("POST", "/analytics/reports/export"),
+    ("POST", "/public/client-portal/{slug}/request"),
+}
 
 # endpoints where a 2xx with A's id is fine because the resource isn't tenant data
 NOT_TENANT_DATA = {
