@@ -7225,6 +7225,42 @@
         "title": "PaginatedResponse[VisitOut]",
         "type": "object"
       },
+      "PaginatedResponse_WaitlistEntryOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WaitlistEntryOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "pages": {
+            "title": "Pages",
+            "type": "integer"
+          },
+          "per_page": {
+            "title": "Per Page",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "per_page",
+          "pages"
+        ],
+        "title": "PaginatedResponse[WaitlistEntryOut]",
+        "type": "object"
+      },
       "PasswordResetConfirm": {
         "properties": {
           "new_password": {
@@ -14101,6 +14137,468 @@
           }
         },
         "title": "VisitUpdate",
+        "type": "object"
+      },
+      "WaitlistEntryOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "latest_offer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WaitlistOfferSummaryOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "preferred_date_from": {
+            "format": "date",
+            "title": "Preferred Date From",
+            "type": "string"
+          },
+          "preferred_date_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Date To"
+          },
+          "service_id": {
+            "title": "Service Id",
+            "type": "integer"
+          },
+          "service_name": {
+            "title": "Service Name",
+            "type": "string"
+          },
+          "specialist_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Specialist Id"
+          },
+          "specialist_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Specialist Name"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "time_preference": {
+            "title": "Time Preference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "full_name",
+          "email",
+          "language",
+          "service_id",
+          "service_name",
+          "preferred_date_from",
+          "time_preference",
+          "status",
+          "created_at"
+        ],
+        "title": "WaitlistEntryOut",
+        "type": "object"
+      },
+      "WaitlistJoinIn": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Full Name",
+            "type": "string"
+          },
+          "marketing_consent": {
+            "default": false,
+            "title": "Marketing Consent",
+            "type": "boolean"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "preferred_date_from": {
+            "format": "date",
+            "title": "Preferred Date From",
+            "type": "string"
+          },
+          "preferred_date_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Date To"
+          },
+          "processing_consent": {
+            "title": "Processing Consent",
+            "type": "boolean"
+          },
+          "service_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Service Id",
+            "type": "integer"
+          },
+          "staff_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Id"
+          },
+          "time_preference": {
+            "default": "any",
+            "enum": [
+              "any",
+              "morning",
+              "afternoon",
+              "evening"
+            ],
+            "title": "Time Preference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service_id",
+          "preferred_date_from",
+          "full_name",
+          "email",
+          "processing_consent"
+        ],
+        "title": "WaitlistJoinIn",
+        "type": "object"
+      },
+      "WaitlistJoinOut": {
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "boolean"
+          },
+          "manage_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Token for leaving the waitlist; returned once, only when the entry is new",
+            "title": "Manage Token"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "created"
+        ],
+        "title": "WaitlistJoinOut",
+        "type": "object"
+      },
+      "WaitlistMessageOut": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "WaitlistMessageOut",
+        "type": "object"
+      },
+      "WaitlistOfferAcceptOut": {
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "manage_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One-time management token for this booking; put it in a link fragment and never log it",
+            "title": "Manage Token"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "service_name": {
+            "title": "Service Name",
+            "type": "string"
+          },
+          "staff_id": {
+            "title": "Staff Id",
+            "type": "integer"
+          },
+          "staff_name": {
+            "title": "Staff Name",
+            "type": "string"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "start",
+          "end",
+          "service_name",
+          "staff_id",
+          "staff_name",
+          "currency",
+          "status",
+          "timezone"
+        ],
+        "title": "WaitlistOfferAcceptOut",
+        "type": "object"
+      },
+      "WaitlistOfferOut": {
+        "properties": {
+          "business_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Address"
+          },
+          "business_name": {
+            "title": "Business Name",
+            "type": "string"
+          },
+          "business_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Phone"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "service_name": {
+            "title": "Service Name",
+            "type": "string"
+          },
+          "staff_name": {
+            "title": "Staff Name",
+            "type": "string"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "business_name",
+          "service_name",
+          "staff_name",
+          "start",
+          "end",
+          "timezone",
+          "status",
+          "expires_at",
+          "currency"
+        ],
+        "title": "WaitlistOfferOut",
+        "type": "object"
+      },
+      "WaitlistOfferSummaryOut": {
+        "properties": {
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "staff_id": {
+            "title": "Staff Id",
+            "type": "integer"
+          },
+          "staff_name": {
+            "title": "Staff Name",
+            "type": "string"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "start",
+          "end",
+          "staff_id",
+          "staff_name",
+          "status",
+          "expires_at"
+        ],
+        "title": "WaitlistOfferSummaryOut",
         "type": "object"
       },
       "WorkScheduleCreate": {
@@ -26416,6 +26914,336 @@
         ]
       }
     },
+    "/public/waitlist/leave": {
+      "post": {
+        "operationId": "leave_waitlist_public_waitlist_leave_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Waitlist-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Waitlist-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaitlistMessageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Leave the waitlist",
+        "tags": [
+          "waitlist"
+        ]
+      }
+    },
+    "/public/waitlist/offer": {
+      "get": {
+        "operationId": "read_offer_public_waitlist_offer_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Waitlist-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Waitlist-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaitlistOfferOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read a time-limited waitlist offer",
+        "tags": [
+          "waitlist"
+        ]
+      }
+    },
+    "/public/waitlist/offer/accept": {
+      "post": {
+        "description": "The offer is locked and the slot is re-checked. Of two confirmations for the same time only one creates a visit; the other gets a conflict and its entry stays active.",
+        "operationId": "accept_offer_public_waitlist_offer_accept_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Waitlist-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Waitlist-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaitlistOfferAcceptOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Accept an offer with a fresh availability check",
+        "tags": [
+          "waitlist"
+        ]
+      }
+    },
+    "/public/waitlist/offer/decline": {
+      "post": {
+        "operationId": "decline_offer_public_waitlist_offer_decline_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Waitlist-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Waitlist-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaitlistMessageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decline one offer without leaving the waitlist",
+        "tags": [
+          "waitlist"
+        ]
+      }
+    },
+    "/public/waitlist/{slug}/join": {
+      "post": {
+        "description": "Stores preferences and consent only. The response never shows a queue or other clients; repeating the same request returns the existing active entry.",
+        "operationId": "join_waitlist_public_waitlist__slug__join_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WaitlistJoinIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaitlistJoinOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Join the waitlist for a service",
+        "tags": [
+          "waitlist"
+        ]
+      }
+    },
     "/schedules/blocks": {
       "get": {
         "operationId": "list_blocks_schedules_blocks_get",
@@ -31633,6 +32461,236 @@
         "summary": "Restore Visit",
         "tags": [
           "visits"
+        ]
+      }
+    },
+    "/waitlist": {
+      "get": {
+        "operationId": "list_waitlist_waitlist_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "active",
+                    "cancelled",
+                    "fulfilled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "service_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Service Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "specialist_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Specialist Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 100000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Per Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_WaitlistEntryOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List the business's waitlist requests",
+        "tags": [
+          "waitlist"
+        ]
+      }
+    },
+    "/waitlist/{entry_id}/cancel": {
+      "post": {
+        "operationId": "cancel_waitlist_entry_waitlist__entry_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaitlistEntryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Close one waitlist request",
+        "tags": [
+          "waitlist"
         ]
       }
     }

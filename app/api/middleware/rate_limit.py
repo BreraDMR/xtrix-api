@@ -88,6 +88,8 @@ PASSWORD_RESET_LIMIT = "5/minute"
 PASSWORD_RESET_CONFIRM_LIMIT = "10/minute"
 CLIENT_PORTAL_LOGIN_LIMIT = "5/minute"
 CLIENT_PORTAL_VERIFY_LIMIT = "10/minute"
+WAITLIST_JOIN_LIMIT = "5/minute"
+WAITLIST_ACTION_LIMIT = "10/minute"
 
 
 def _retry_after(exc: RateLimitExceeded) -> int:

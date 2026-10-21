@@ -13,7 +13,7 @@ from app.api.v1.endpoints import (
     analytics, audit, archiving, specialist_profiles, client_relations, employees, businesses, products, expenses, loyalty, user_preferences,
     assistant, assistant_conversations, offers, onboarding, public_booking, questionnaires,
     questionnaire_answers, questionnaire_attachments, public_booking_manage,
-    notification_settings, notification_deliveries, password_reset, client_portal,
+    notification_settings, notification_deliveries, password_reset, client_portal, waitlist,
 )
 from app.api.core import error_handlers
 from app.api.middleware.rate_limit import DefaultRateLimitMiddleware, limiter, rate_limit_exceeded_handler
@@ -137,6 +137,7 @@ if settings.environment == "production":
             "X-Booking-Token",
             "X-Questionnaire-Token",
             "X-Portal-Token",
+            "X-Waitlist-Token",
         ],
         expose_headers=["X-Total-Count", "X-Page", "X-Per-Page", "Retry-After"],
         max_age=3600,  
@@ -157,6 +158,7 @@ else:
             "X-Booking-Token",
             "X-Questionnaire-Token",
             "X-Portal-Token",
+            "X-Waitlist-Token",
         ],
         expose_headers=["X-Total-Count", "X-Page", "X-Per-Page", "Retry-After"],
         max_age=3600,  
@@ -216,3 +218,5 @@ app.include_router(questionnaire_answers.staff_router, prefix="/visits", tags=["
 app.include_router(questionnaire_attachments.router, prefix="/public/questionnaires", tags=["public-questionnaires"])
 app.include_router(questionnaire_attachments.staff_router, prefix="/visits", tags=["questionnaires"])
 app.include_router(client_portal.router, prefix="/public/client-portal", tags=["client-portal"])
+app.include_router(waitlist.router, prefix="/public/waitlist", tags=["waitlist"])
+app.include_router(waitlist.staff_router, prefix="/waitlist", tags=["waitlist"])

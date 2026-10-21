@@ -231,6 +231,46 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Визит не найден",
         "cz": "Návštěva nenalezena",
     },
+    "waitlist_joined": {
+        "en": "You are on the waitlist. This is not a booking yet.",
+        "ru": "Вы в листе ожидания. Это пока не запись.",
+        "cz": "Jste v pořadníku. Zatím to není rezervace.",
+    },
+    "waitlist_offer_unavailable": {
+        "en": "This waitlist link is invalid or no longer available",
+        "ru": "Ссылка листа ожидания недействительна или больше недоступна",
+        "cz": "Tento odkaz pořadníku je neplatný nebo už není dostupný",
+    },
+    "waitlist_offer_expired": {
+        "en": "This offer has expired; the time may already be taken",
+        "ru": "Срок предложения истёк; время могло быть занято",
+        "cz": "Platnost nabídky vypršela; čas už může být obsazen",
+    },
+    "waitlist_offer_conflict": {
+        "en": "This time was just taken. Your waitlist request stays active.",
+        "ru": "Это время только что заняли. Заявка в листе ожидания остаётся активной.",
+        "cz": "Tento čas byl právě obsazen. Vaše žádost v pořadníku zůstává aktivní.",
+    },
+    "waitlist_offer_declined": {
+        "en": "Offer declined",
+        "ru": "Предложение отклонено",
+        "cz": "Nabídka odmítnuta",
+    },
+    "waitlist_left": {
+        "en": "You left the waitlist",
+        "ru": "Вы вышли из листа ожидания",
+        "cz": "Odešli jste z pořadníku",
+    },
+    "waitlist_entry_closed": {
+        "en": "This waitlist request is already closed",
+        "ru": "Эта заявка в листе ожидания уже закрыта",
+        "cz": "Tato žádost v pořadníku je již uzavřena",
+    },
+    "waitlist_entry_not_found": {
+        "en": "Waitlist request not found",
+        "ru": "Заявка в листе ожидания не найдена",
+        "cz": "Žádost v pořadníku nebyla nalezena",
+    },
     "password_reset_requested": {
         "en": "If an account with this email exists, a reset link has been sent",
         "ru": "Если аккаунт с таким email существует, ссылка для сброса отправлена",

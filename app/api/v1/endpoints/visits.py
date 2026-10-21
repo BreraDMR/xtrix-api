@@ -368,6 +368,10 @@ def update_visit(
                 detail=_("payment_method_required_for_completed_visits", locale)
             )
     old_status = visit.status
+    old_start = visit.date_start
+    old_service_id = visit.service_id
+    old_specialist_id = visit.specialist_id
+    old_business_id = visit.business_id
     result = crud_visit.update_visit(db, visit, payload)
     if old_status != 'completed' and result.status == 'completed':
         try:
@@ -376,6 +380,15 @@ def update_visit(
         except Exception as e:
             from app.api.core.logger import logger
             logger.error(f"Error awarding loyalty bonus for visit {result.id}: {e}")
+    became_cancelled = old_status != 'cancelled' and result.status == 'cancelled'
+    moved = result.date_start != old_start
+    if became_cancelled or (moved and old_status != 'cancelled'):
+        from app.api.core import waitlist_service
+        from app.db.models.business import Business
+        business = db.get(Business, old_business_id) if old_business_id else None
+        waitlist_service.release_slot_quietly(
+            db, business, old_service_id, old_specialist_id, old_start
+        )
     return result.model_dump() if hasattr(result, 'model_dump') else result
 @router.delete("/{visit_id}")
 def delete_visit(
@@ -391,12 +404,25 @@ def delete_visit(
     from app.api.core.permissions import check_visit_access
     if not check_visit_access(db, current_user, visit):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    old_status = visit.status
+    old_start = visit.date_start
+    old_service_id = visit.service_id
+    old_specialist_id = visit.specialist_id
+    old_business_id = visit.business_id
     if hard_delete_flag and current_user.role == "admin":
         hard_delete(db, visit)
-        return {"message": "Visit permanently deleted"}
+        message = "Visit permanently deleted"
     else:
         soft_delete(db, visit)
-        return {"message": "Visit deleted (soft delete)"}
+        message = "Visit deleted (soft delete)"
+    if old_status != 'cancelled':
+        from app.api.core import waitlist_service
+        from app.db.models.business import Business
+        business = db.get(Business, old_business_id) if old_business_id else None
+        waitlist_service.release_slot_quietly(
+            db, business, old_service_id, old_specialist_id, old_start
+        )
+    return {"message": message}
 @router.post("/{visit_id}/restore")
 def restore_visit(
     visit_id: int,

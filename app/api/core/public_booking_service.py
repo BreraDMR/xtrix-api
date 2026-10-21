@@ -97,7 +97,14 @@ def _slot_is_free(
     return any(slot.staff_id == staff_id and slot.start == start for slot in slots)
 
 
-def submit_booking(db: Session, business, payload: PublicBookingCreate, language: str) -> Visit:
+def submit_booking(
+    db: Session,
+    business,
+    payload: PublicBookingCreate,
+    language: str,
+    *,
+    commit: bool = True,
+) -> Visit:
     digest = request_hash(payload)
     existing = db.query(PublicBookingRequest).filter(
         PublicBookingRequest.business_id == business.id,
@@ -175,6 +182,10 @@ def submit_booking(db: Session, business, payload: PublicBookingCreate, language
     claim.client_id = client.id
     claim.visit_id = visit.id
     notification_events.queue_booking_created(db, business, visit, client)
+    if not commit:
+        # the caller keeps its own row locks (waitlist offer) until its transaction ends
+        db.flush()
+        return visit
     try:
         db.commit()
     except IntegrityError:

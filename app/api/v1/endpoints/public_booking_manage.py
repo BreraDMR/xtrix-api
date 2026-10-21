@@ -199,6 +199,11 @@ def reschedule_managed_booking(
     notification_events.queue_booking_changed(db, visit.business, visit)
     db.commit()
     db.refresh(visit)
+    from app.api.core import waitlist_service
+
+    waitlist_service.release_slot_quietly(
+        db, visit.business, visit.service_id, visit.specialist_id, previous_start
+    )
 
     try:
         from app.api.core.redis_client import invalidate_visit
@@ -245,4 +250,9 @@ def cancel_managed_booking(
         notification_events.queue_booking_cancelled(db, visit.business, visit)
         db.commit()
         db.refresh(visit)
+        from app.api.core import waitlist_service
+
+        waitlist_service.release_slot_quietly(
+            db, visit.business, visit.service_id, visit.specialist_id, visit.date_start
+        )
     return _summary(token, visit)
