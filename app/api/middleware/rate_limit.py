@@ -81,6 +81,8 @@ PUBLIC_BOOKING_SLOTS_LIMIT = "30/minute"
 PUBLIC_BOOKING_CREATE_LIMIT = "5/minute"
 PUBLIC_BOOKING_MANAGE_LIMIT = "60/minute"
 PUBLIC_BOOKING_MANAGE_ACTION_LIMIT = "10/minute"
+SERVICE_PAYMENT_STATUS_LIMIT = "120/minute"
+SERVICE_PAYMENT_ACTION_LIMIT = "10/minute"
 PUBLIC_QUESTIONNAIRE_READ_LIMIT = "60/minute"
 PUBLIC_QUESTIONNAIRE_SUBMIT_LIMIT = "10/minute"
 # no account should be able to trigger reset mail faster than this; also bounds email guessing
@@ -116,7 +118,11 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSO
 
 # health probes come every few seconds from the host, webhooks are checked by their own
 # tokens/signatures and payment providers send them in bursts
-DEFAULT_LIMIT_EXEMPT_PREFIXES = ("/metrics/health", "/subscriptions/webhooks/")
+DEFAULT_LIMIT_EXEMPT_PREFIXES = (
+    "/metrics/health",
+    "/subscriptions/webhooks/",
+    "/public/booking/payments/webhooks/",
+)
 
 
 class DefaultRateLimitMiddleware(BaseHTTPMiddleware):

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core import booking_manage_access
 from app.api.core import public_booking_service as booking_service
+from app.api.core import service_payment_service as payments
 from app.api.core.availability import (
     ChainTiming,
     booking_window,
@@ -21,6 +22,7 @@ from app.api.core.booking_slug import normalize_slug
 from app.api.core.clock import utcnow
 from app.api.core.i18n import _
 from app.api.core.public_booking_access import manage_public_booking_business_id
+from app.api.core.service_payment_provider import get_service_payment_provider
 from app.api.crud import crud_public_booking
 from app.api.middleware.rate_limit import (
     PUBLIC_BOOKING_CREATE_LIMIT,
@@ -36,7 +38,6 @@ from app.schemas.public_booking import (
     PublicBookingOut,
     PublicBookingSettingsOut,
     PublicBookingSettingsUpdate,
-    PublicBookingItemOut,
     PublicBusinessOut,
     PublicDaySlotsOut,
     PublicServiceOut,
@@ -65,10 +66,17 @@ def _settings_out(db: Session, settings: PublicBookingSettings) -> PublicBooking
         is_enabled=settings.is_enabled,
         has_bookable_service=has_service,
         has_schedule=has_schedule,
+        deposit_type=settings.deposit_type or "none",
+        deposit_value=float(settings.deposit_value or 0),
+        deposit_hold_minutes=int(settings.deposit_hold_minutes or 30),
+        payments_available=get_service_payment_provider() is not None,
     )
 
 
 def _public_business(settings: PublicBookingSettings, business: Business) -> PublicBusinessOut:
+    # a policy without a working provider is not shown as a promise to the guest
+    payments_available = get_service_payment_provider() is not None
+    deposit_type = settings.deposit_type if payments_available else "none"
     return PublicBusinessOut(
         slug=settings.slug,
         name=business.name,
@@ -79,6 +87,9 @@ def _public_business(settings: PublicBookingSettings, business: Business) -> Pub
         description=business.description,
         currency=business.currency,
         timezone=business.timezone,
+        deposit_type=deposit_type or "none",
+        deposit_value=float(settings.deposit_value or 0) if deposit_type != "none" else 0,
+        deposit_hold_minutes=int(settings.deposit_hold_minutes or 30),
     )
 
 
@@ -110,6 +121,9 @@ def update_public_booking_settings(
         updated = crud_public_booking.update_settings(db, settings, payload)
     except crud_public_booking.PublicSlugConflict:
         raise HTTPException(status_code=409, detail=_("public_slug_taken", locale))
+    except crud_public_booking.DepositPolicyInvalid:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=_("deposit_invalid", locale))
     return _settings_out(db, updated)
 
 
@@ -184,6 +198,7 @@ def list_public_slots(
     locale: str = Depends(deps.get_locale),
 ):
     _settings, business = _resolve_published(db, slug, locale)
+    payments.expire_stale_holds(db, business_id=business.id)
     service = crud_public_booking.get_public_service(db, business.id, service_id)
     if not service:
         raise HTTPException(status_code=404, detail=_("public_service_unavailable", locale))
@@ -256,6 +271,7 @@ def list_public_chain_slots(
     locale: str = Depends(deps.get_locale),
 ):
     _settings, business = _resolve_published(db, slug, locale)
+    payments.expire_stale_holds(db, business_id=business.id)
     services = [
         crud_public_booking.get_public_service(db, business.id, service_id)
         for service_id in service_ids
@@ -358,30 +374,9 @@ def create_public_booking(
         raise HTTPException(status_code=409, detail=_("public_slot_unavailable", locale))
     except booking_service.RequestInProgress:
         raise HTTPException(status_code=409, detail=_("public_booking_in_progress", locale))
+    except payments.PaymentUnavailable:
+        db.rollback()
+        raise HTTPException(status_code=502, detail=_("public_payment_unavailable", locale))
 
-    staff = visit.specialist
     manage_token, _token = booking_manage_access.issue_token(db, visit)
-    return PublicBookingOut(
-        id=visit.id,
-        start=visit.date_start,
-        end=visit.date_end or visit.date_start + timedelta(minutes=60),
-        service_name=visit.service_name or "",
-        staff_id=visit.specialist_id,
-        staff_name=staff.full_name if staff else "",
-        price=visit.price,
-        currency=business.currency,
-        status=visit.status or "planned",
-        timezone=business.timezone,
-        items=[
-            PublicBookingItemOut(
-                service_id=item.service_id,
-                service_name=item.service_name,
-                staff_id=item.specialist_id,
-                start=item.date_start,
-                end=item.date_end,
-                price=float(item.price) if item.price is not None else None,
-            )
-            for item in visit.items
-        ],
-        manage_token=manage_token,
-    )
+    return booking_service.public_booking_out(db, business, visit, manage_token)

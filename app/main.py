@@ -12,7 +12,7 @@ from app.api.v1.endpoints import (
     clients, client_notes, client_overview, metrics, services, users, visits, files, subscriptions, schedules, 
     analytics, audit, archiving, specialist_profiles, client_relations, employees, businesses, products, expenses, loyalty, user_preferences,
     assistant, assistant_conversations, offers, onboarding, public_booking, questionnaires,
-    questionnaire_answers, questionnaire_attachments, public_booking_manage,
+    questionnaire_answers, questionnaire_attachments, public_booking_manage, service_payments,
     notification_settings, notification_deliveries, password_reset, client_portal, waitlist,
 )
 from app.api.core import error_handlers
@@ -199,7 +199,13 @@ app.include_router(assistant_conversations.router, prefix="/assistant", tags=["a
 app.include_router(offers.router, prefix="/offers", tags=["offers"])
 app.include_router(onboarding.router, prefix="/onboarding", tags=["onboarding"])
 app.include_router(public_booking.router, prefix="/public/booking", tags=["public-booking"])
+app.include_router(service_payments.router, prefix="/public/booking/payments", tags=["public-booking"])
 app.include_router(public_booking_manage.router, prefix="/public/booking-management", tags=["public-booking"])
+app.include_router(
+    service_payments.staff_router,
+    prefix="/businesses/me/service-payments",
+    tags=["businesses"],
+)
 app.include_router(public_booking.settings_router, prefix="/businesses/me/public-booking", tags=["businesses"])
 app.include_router(
     notification_settings.router,

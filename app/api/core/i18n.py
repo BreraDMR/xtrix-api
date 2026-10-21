@@ -316,6 +316,46 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Эта запись уже обрабатывается, попробуйте через момент",
         "cz": "Tato rezervace se již zpracovává, zkuste to za chvíli",
     },
+    "public_payment_unavailable": {
+        "en": "The deposit checkout is temporarily unavailable; the booking was not confirmed",
+        "ru": "Оплата предоплаты временно недоступна; запись не подтверждена",
+        "cz": "Platba zálohy je dočasně nedostupná; rezervace nebyla potvrzena",
+    },
+    "deposit_invalid": {
+        "en": "Choose a positive deposit: a fixed amount or 1-100 percent",
+        "ru": "Укажите положительную предоплату: фиксированную сумму или 1-100 процентов",
+        "cz": "Zadejte kladnou zálohu: pevnou částku nebo 1-100 procent",
+    },
+    "payment_not_found": {
+        "en": "This payment is unavailable",
+        "ru": "Эта оплата недоступна",
+        "cz": "Tato platba není dostupná",
+    },
+    "refund_not_found": {
+        "en": "This payment is unavailable",
+        "ru": "Эта оплата недоступна",
+        "cz": "Tato platba není dostupná",
+    },
+    "refund_unavailable": {
+        "en": "Only a paid deposit can be refunded",
+        "ru": "Вернуть можно только оплаченную предоплату",
+        "cz": "Vrátit lze pouze zaplacenou zálohu",
+    },
+    "refund_amount_invalid": {
+        "en": "The refund amount must be within the unrefunded balance",
+        "ru": "Сумма возврата должна быть в пределах невозвращённого остатка",
+        "cz": "Částka vrácení musí být v rámci nevráceného zůstatku",
+    },
+    "refund_key_conflict": {
+        "en": "This refund key was already used with another amount",
+        "ru": "Этот ключ возврата уже использован с другой суммой",
+        "cz": "Tento klíč vrácení už byl použit s jinou částkou",
+    },
+    "refund_provider_unavailable": {
+        "en": "Refunds are temporarily unavailable",
+        "ru": "Возвраты временно недоступны",
+        "cz": "Vrácení je dočasně nedostupné",
+    },
     "booking_manage_link_unavailable": {
         "en": "This booking link is unavailable",
         "ru": "Эта ссылка на запись недоступна",

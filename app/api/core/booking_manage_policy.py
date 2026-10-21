@@ -27,6 +27,9 @@ def cancellation_block_reason(visit: Visit, now: Optional[datetime] = None) -> O
         return "booking_cancel_in_progress"
     if visit.status == "cancelled":
         return "booking_cancel_already"
+    if visit.status == "awaiting_payment":
+        # an unpaid hold can always be released; the deposit is not taken yet
+        return None
     if visit.status != "planned":
         return "booking_cancel_unavailable"
     if visit.date_start - (now or utcnow()) < CANCELLATION_CUTOFF:

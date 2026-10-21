@@ -30,6 +30,10 @@ class PublicSlugConflict(Exception):
     """The requested slug belongs to another business."""
 
 
+class DepositPolicyInvalid(Exception):
+    """A fixed/percentage deposit that can't charge a positive, sane amount."""
+
+
 def _taken(db: Session, slug: str, exclude_id: Optional[int] = None) -> bool:
     query = db.query(PublicBookingSettings.id).filter(PublicBookingSettings.slug == slug)
     if exclude_id:
@@ -115,6 +119,15 @@ def update_settings(
         settings.slug = slug
     if "is_enabled" in data:
         settings.is_enabled = bool(data["is_enabled"])
+    for field in ("deposit_type", "deposit_value", "deposit_hold_minutes"):
+        if field in data:
+            setattr(settings, field, data[field])
+    deposit_type = settings.deposit_type or "none"
+    deposit_value = float(settings.deposit_value or 0)
+    if deposit_type == "fixed" and deposit_value <= 0:
+        raise DepositPolicyInvalid()
+    if deposit_type == "percentage" and not (0 < deposit_value <= 100):
+        raise DepositPolicyInvalid()
     settings.updated_at = utcnow()
     db.add(settings)
     try:

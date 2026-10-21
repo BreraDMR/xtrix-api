@@ -5,7 +5,7 @@ explicit allowlist entry. Internal ids, staff contacts, buffers and billing stay
 """
 import re
 from datetime import date
-from typing import Annotated, Optional
+from typing import Annotated, Literal, Optional
 
 from pydantic import (
     AfterValidator,
@@ -23,6 +23,7 @@ from app.schemas.base import InputModel
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.errors import invalid
 from app.schemas.limits import LongText, ShortText
+from app.schemas.service_payment import PublicPaymentOut
 
 
 def _checked_slug(value: str) -> str:
@@ -48,6 +49,9 @@ class PublicBusinessOut(BaseModel):
     description: Optional[LongText] = None
     currency: str
     timezone: str
+    deposit_type: Literal["none", "fixed", "percentage"] = "none"
+    deposit_value: float = 0
+    deposit_hold_minutes: int = 30
 
 
 class PublicBookingSettingsOut(BaseModel):
@@ -55,12 +59,19 @@ class PublicBookingSettingsOut(BaseModel):
     is_enabled: bool
     has_bookable_service: bool
     has_schedule: bool
+    deposit_type: Literal["none", "fixed", "percentage"] = "none"
+    deposit_value: float = 0
+    deposit_hold_minutes: int = 30
+    payments_available: bool = False
     model_config = ConfigDict(from_attributes=True)
 
 
 class PublicBookingSettingsUpdate(InputModel):
     slug: Optional[PublicSlug] = None
     is_enabled: Optional[bool] = None
+    deposit_type: Optional[Literal["none", "fixed", "percentage"]] = None
+    deposit_value: Optional[float] = Field(None, ge=0, le=1000000)
+    deposit_hold_minutes: Optional[int] = Field(None, ge=5, le=1440)
 
     @field_validator("is_enabled")
     @classmethod
@@ -68,6 +79,21 @@ class PublicBookingSettingsUpdate(InputModel):
         if value is None:
             raise invalid("invalid_choice", "is_enabled cannot be null")
         return value
+
+    @field_validator("deposit_value", "deposit_hold_minutes", "deposit_type")
+    @classmethod
+    def deposit_not_null(cls, value):
+        if value is None:
+            raise invalid("invalid_choice", "Deposit fields cannot be null")
+        return value
+
+    @model_validator(mode="after")
+    def deposit_policy(self):
+        if self.deposit_type == "percentage" and (self.deposit_value or 0) > 100:
+            raise invalid("deposit_invalid", "A percentage deposit cannot exceed 100%")
+        if self.deposit_type == "fixed" and self.deposit_value is not None and self.deposit_value <= 0:
+            raise invalid("deposit_invalid", "A fixed deposit must be greater than zero")
+        return self
 
 
 class PublicServiceOut(BaseModel):
@@ -193,6 +219,10 @@ class PublicBookingOut(BaseModel):
     status: str
     timezone: str
     items: list[PublicBookingItemOut] = Field(default_factory=list)
+    payment: Optional[PublicPaymentOut] = Field(
+        None,
+        description="Deposit required before the slot is confirmed; absent when the salon takes payment on site",
+    )
     manage_token: Optional[str] = Field(
         None,
         description="One-time management token for this booking; put it in a link fragment and never log it",

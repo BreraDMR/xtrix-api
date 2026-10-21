@@ -19,13 +19,17 @@ from app.api.core.availability import (
     salon_zone,
 )
 from app.api.core.clock import utcnow
-from app.api.core import notification_events
+from app.api.core import notification_events, service_payment_service as payments
 from app.api.core.visit_chain import apply_chain, service_line, total_minutes
 from app.api.crud import crud_public_booking
 from app.db.models.public_booking import PublicBookingRequest
 from app.db.models.user import User
 from app.db.models.visit import Visit
-from app.schemas.public_booking import PublicBookingCreate
+from app.schemas.public_booking import (
+    PublicBookingCreate,
+    PublicBookingItemOut,
+    PublicBookingOut,
+)
 
 
 class ServiceUnavailable(Exception):
@@ -152,6 +156,7 @@ def submit_booking(
     *,
     commit: bool = True,
 ) -> Visit:
+    payments.expire_stale_holds(db, business_id=business.id, commit=commit)
     digest = request_hash(payload)
     existing = db.query(PublicBookingRequest).filter(
         PublicBookingRequest.business_id == business.id,
@@ -231,7 +236,20 @@ def submit_booking(
 
     claim.client_id = client.id
     claim.visit_id = visit.id
-    notification_events.queue_booking_created(db, business, visit, client)
+    settings, provider = payments.effective_policy(db, business.id)
+    attempt = None
+    if settings is not None and provider is not None:
+        attempt = payments.create_attempt(
+            db,
+            business,
+            visit,
+            settings,
+            provider,
+            request_key=f"{payload.client_request_id}:deposit",
+        )
+    if attempt is None:
+        # a held booking is announced only once the deposit actually clears
+        notification_events.queue_booking_created(db, business, visit, client)
     if not commit:
         # the caller keeps its own row locks (waitlist offer) until its transaction ends
         db.flush()
@@ -257,3 +275,32 @@ def submit_booking(
     except Exception:
         pass
     return visit
+
+
+def public_booking_out(db: Session, business, visit: Visit, manage_token: str) -> PublicBookingOut:
+    staff = visit.specialist
+    return PublicBookingOut(
+        id=visit.id,
+        start=visit.date_start,
+        end=visit.date_end or visit.date_start + timedelta(minutes=60),
+        service_name=visit.service_name or "",
+        staff_id=visit.specialist_id,
+        staff_name=staff.full_name if staff else "",
+        price=visit.price,
+        currency=business.currency,
+        status=visit.status or "planned",
+        timezone=business.timezone,
+        items=[
+            PublicBookingItemOut(
+                service_id=item.service_id,
+                service_name=item.service_name,
+                staff_id=item.specialist_id,
+                start=item.date_start,
+                end=item.date_end,
+                price=float(item.price) if item.price is not None else None,
+            )
+            for item in visit.items
+        ],
+        payment=payments.payment_out(payments.latest_attempt(db, visit)),
+        manage_token=manage_token,
+    )

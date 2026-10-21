@@ -238,6 +238,9 @@ def cancel_managed_booking(
         if reason:
             raise HTTPException(status_code=409, detail=_(reason, locale))
         visit.status = "cancelled"
+        from app.api.core import service_payment_service as payments
+
+        payments.mark_attempt_cancelled(db, visit)
         db.add(
             VisitEvent(
                 business_id=visit.business_id,

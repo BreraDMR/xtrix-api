@@ -8669,6 +8669,17 @@
             "description": "One-time management token for this booking; put it in a link fragment and never log it",
             "title": "Manage Token"
           },
+          "payment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicPaymentOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deposit required before the slot is confirmed; absent when the salon takes payment on site"
+          },
           "price": {
             "anyOf": [
               {
@@ -8737,6 +8748,26 @@
       },
       "PublicBookingSettingsOut": {
         "properties": {
+          "deposit_hold_minutes": {
+            "default": 30,
+            "title": "Deposit Hold Minutes",
+            "type": "integer"
+          },
+          "deposit_type": {
+            "default": "none",
+            "enum": [
+              "none",
+              "fixed",
+              "percentage"
+            ],
+            "title": "Deposit Type",
+            "type": "string"
+          },
+          "deposit_value": {
+            "default": 0,
+            "title": "Deposit Value",
+            "type": "number"
+          },
           "has_bookable_service": {
             "title": "Has Bookable Service",
             "type": "boolean"
@@ -8747,6 +8778,11 @@
           },
           "is_enabled": {
             "title": "Is Enabled",
+            "type": "boolean"
+          },
+          "payments_available": {
+            "default": false,
+            "title": "Payments Available",
             "type": "boolean"
           },
           "slug": {
@@ -8765,6 +8801,48 @@
       },
       "PublicBookingSettingsUpdate": {
         "properties": {
+          "deposit_hold_minutes": {
+            "anyOf": [
+              {
+                "maximum": 1440.0,
+                "minimum": 5.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Hold Minutes"
+          },
+          "deposit_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "none",
+                  "fixed",
+                  "percentage"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Type"
+          },
+          "deposit_value": {
+            "anyOf": [
+              {
+                "maximum": 1000000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Value"
+          },
           "is_enabled": {
             "anyOf": [
               {
@@ -8813,6 +8891,26 @@
           "currency": {
             "title": "Currency",
             "type": "string"
+          },
+          "deposit_hold_minutes": {
+            "default": 30,
+            "title": "Deposit Hold Minutes",
+            "type": "integer"
+          },
+          "deposit_type": {
+            "default": "none",
+            "enum": [
+              "none",
+              "fixed",
+              "percentage"
+            ],
+            "title": "Deposit Type",
+            "type": "string"
+          },
+          "deposit_value": {
+            "default": 0,
+            "title": "Deposit Value",
+            "type": "number"
           },
           "description": {
             "anyOf": [
@@ -8893,6 +8991,167 @@
           "slots"
         ],
         "title": "PublicDaySlotsOut",
+        "type": "object"
+      },
+      "PublicPaymentOut": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "number"
+          },
+          "checkout_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkout Url"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "hold_expires_at": {
+            "format": "date-time",
+            "title": "Hold Expires At",
+            "type": "string"
+          },
+          "paid_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          },
+          "public_ref": {
+            "title": "Public Ref",
+            "type": "string"
+          },
+          "refunded_amount": {
+            "title": "Refunded Amount",
+            "type": "number"
+          },
+          "remaining_amount": {
+            "title": "Remaining Amount",
+            "type": "number"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "public_ref",
+          "status",
+          "amount",
+          "remaining_amount",
+          "refunded_amount",
+          "currency",
+          "hold_expires_at"
+        ],
+        "title": "PublicPaymentOut",
+        "type": "object"
+      },
+      "PublicPaymentStatusOut": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "number"
+          },
+          "checkout_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkout Url"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "hold_expires_at": {
+            "format": "date-time",
+            "title": "Hold Expires At",
+            "type": "string"
+          },
+          "paid_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          },
+          "public_ref": {
+            "title": "Public Ref",
+            "type": "string"
+          },
+          "refunded_amount": {
+            "title": "Refunded Amount",
+            "type": "number"
+          },
+          "remaining_amount": {
+            "title": "Remaining Amount",
+            "type": "number"
+          },
+          "service_name": {
+            "title": "Service Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "visit_end": {
+            "format": "date-time",
+            "title": "Visit End",
+            "type": "string"
+          },
+          "visit_start": {
+            "format": "date-time",
+            "title": "Visit Start",
+            "type": "string"
+          },
+          "visit_status": {
+            "title": "Visit Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "public_ref",
+          "status",
+          "amount",
+          "remaining_amount",
+          "refunded_amount",
+          "currency",
+          "hold_expires_at",
+          "visit_status",
+          "visit_start",
+          "visit_end",
+          "service_name",
+          "timezone"
+        ],
+        "title": "PublicPaymentStatusOut",
         "type": "object"
       },
       "PublicServiceOut": {
@@ -10912,6 +11171,24 @@
         "title": "SalaryPaymentUpdate",
         "type": "object"
       },
+      "SandboxPaymentOutcomeIn": {
+        "additionalProperties": false,
+        "properties": {
+          "outcome": {
+            "enum": [
+              "paid",
+              "failed"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome"
+        ],
+        "title": "SandboxPaymentOutcomeIn",
+        "type": "object"
+      },
       "ScheduleExceptionCreate": {
         "properties": {
           "end_time": {
@@ -11432,6 +11709,200 @@
           "specialist_id"
         ],
         "title": "ServiceOut",
+        "type": "object"
+      },
+      "ServicePaymentOut": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "number"
+          },
+          "client_name": {
+            "title": "Client Name",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "hold_expires_at": {
+            "format": "date-time",
+            "title": "Hold Expires At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "paid_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "refundable_amount": {
+            "title": "Refundable Amount",
+            "type": "number"
+          },
+          "refunded_amount": {
+            "title": "Refunded Amount",
+            "type": "number"
+          },
+          "refunds": {
+            "items": {
+              "$ref": "#/components/schemas/ServicePaymentRefundOut"
+            },
+            "title": "Refunds",
+            "type": "array"
+          },
+          "remaining_amount": {
+            "title": "Remaining Amount",
+            "type": "number"
+          },
+          "service_name": {
+            "title": "Service Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "visit_id": {
+            "title": "Visit Id",
+            "type": "integer"
+          },
+          "visit_start": {
+            "format": "date-time",
+            "title": "Visit Start",
+            "type": "string"
+          },
+          "visit_status": {
+            "title": "Visit Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "visit_id",
+          "status",
+          "provider",
+          "client_name",
+          "service_name",
+          "visit_start",
+          "visit_status",
+          "currency",
+          "amount",
+          "remaining_amount",
+          "refunded_amount",
+          "refundable_amount",
+          "hold_expires_at",
+          "created_at"
+        ],
+        "title": "ServicePaymentOut",
+        "type": "object"
+      },
+      "ServicePaymentRefundIn": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1000000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Defaults to the whole unrefunded amount",
+            "title": "Amount"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "refund_key": {
+            "description": "Caller-generated retry key: the same key never refunds twice",
+            "maxLength": 80,
+            "minLength": 8,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Refund Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "refund_key"
+        ],
+        "title": "ServicePaymentRefundIn",
+        "type": "object"
+      },
+      "ServicePaymentRefundOut": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "number"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "amount",
+          "currency",
+          "status",
+          "created_at"
+        ],
+        "title": "ServicePaymentRefundOut",
         "type": "object"
       },
       "ServiceSpecialistOut": {
@@ -14659,6 +15130,17 @@
             ],
             "description": "One-time management token for this booking; put it in a link fragment and never log it",
             "title": "Manage Token"
+          },
+          "payment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicPaymentOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deposit required before the slot is confirmed; absent when the salon takes payment on site"
           },
           "price": {
             "anyOf": [
@@ -18585,6 +19067,178 @@
         "summary": "Publish a questionnaire version and bind it to a service",
         "tags": [
           "questionnaires"
+        ]
+      }
+    },
+    "/businesses/me/service-payments": {
+      "get": {
+        "operationId": "list_service_payments_businesses_me_service_payments_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 24,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 1000000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ServicePaymentOut"
+                  },
+                  "title": "Response List Service Payments Businesses Me Service Payments Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Deposits and holds of this business",
+        "tags": [
+          "businesses"
+        ]
+      }
+    },
+    "/businesses/me/service-payments/{attempt_id}/refunds": {
+      "post": {
+        "operationId": "refund_service_payment_businesses_me_service_payments__attempt_id__refunds_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "attempt_id",
+            "required": true,
+            "schema": {
+              "title": "Attempt Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServicePaymentRefundIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServicePaymentRefundOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Refund a paid deposit by an idempotent key",
+        "tags": [
+          "businesses"
         ]
       }
     },
@@ -25966,6 +26620,164 @@
           }
         },
         "summary": "Move a booking to another available slot",
+        "tags": [
+          "public-booking"
+        ]
+      }
+    },
+    "/public/booking/payments/{public_ref}": {
+      "get": {
+        "operationId": "get_payment_status_public_booking_payments__public_ref__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "public_ref",
+            "required": true,
+            "schema": {
+              "title": "Public Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Payment-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Payment-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicPaymentStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Guest-visible state of one deposit",
+        "tags": [
+          "public-booking"
+        ]
+      }
+    },
+    "/public/booking/payments/{public_ref}/sandbox": {
+      "post": {
+        "operationId": "sandbox_outcome_public_booking_payments__public_ref__sandbox_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "public_ref",
+            "required": true,
+            "schema": {
+              "title": "Public Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Payment-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Payment-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SandboxPaymentOutcomeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicPaymentStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Finish a sandbox checkout (never moves money)",
         "tags": [
           "public-booking"
         ]

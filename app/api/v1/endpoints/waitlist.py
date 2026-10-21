@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.api import deps
 from app.api.core import booking_manage_access
+from app.api.core import public_booking_service as booking_service
 from app.api.core import waitlist_service
 from app.api.core.booking_slug import normalize_slug
 from app.api.core.clock import utcnow
@@ -74,21 +75,9 @@ def _offer_out(db: Session, offer: WaitlistOffer) -> WaitlistOfferOut:
 
 
 def _accepted_out(db: Session, business: Business, visit) -> WaitlistOfferAcceptOut:
-    staff = visit.specialist
     manage_token, _token = booking_manage_access.issue_token(db, visit)
-    return WaitlistOfferAcceptOut(
-        id=visit.id,
-        start=visit.date_start,
-        end=visit.date_end or visit.date_start + timedelta(minutes=60),
-        service_name=visit.service_name or "",
-        staff_id=visit.specialist_id,
-        staff_name=staff.full_name if staff else "",
-        price=visit.price,
-        currency=business.currency,
-        status=visit.status or "planned",
-        timezone=business.timezone,
-        manage_token=manage_token,
-    )
+    accepted = booking_service.public_booking_out(db, business, visit, manage_token)
+    return WaitlistOfferAcceptOut(**accepted.model_dump())
 
 
 @router.post(
