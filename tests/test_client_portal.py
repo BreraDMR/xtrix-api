@@ -378,3 +378,18 @@ def test_same_email_in_two_salons_has_separate_sessions(client, db, make_user, h
     assert alpha_forms["items"][0]["answers"] == {"mood": "good"}
     assert alpha_forms["items"][0]["name"] == "Alpha intake"
     assert beta_forms["items"] == []
+
+
+def test_browser_preflight_allows_the_portal_header(client):
+    # the portal is called from the browser with its own header, not Authorization
+    response = client.options(
+        "/public/client-portal/session",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "x-portal-token",
+        },
+    )
+    assert response.status_code == 200
+    allowed = response.headers.get("access-control-allow-headers", "").lower()
+    assert "x-portal-token" in allowed
