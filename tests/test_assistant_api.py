@@ -2,6 +2,7 @@
 import asyncio
 import json
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -12,6 +13,7 @@ from app.ai.cooldown import CooldownBoard
 from app.ai.router import build_router
 from app.api.v1.endpoints import assistant as endpoints
 from app.db.models.medical_profile import MedicalProfile
+from app.db.models.usage_counter import UsageCounter
 from app.db.models.visit import Visit
 from app.main import app
 from tests.fake_redis import FakeRedis
@@ -38,9 +40,11 @@ class Fakes:
         self.store = assistant.PlanStore()
         self.model_calls = 0
         self.stt_calls = 0
+        self.payloads = []
 
     def _llm(self, request):
         self.model_calls += 1
+        self.payloads.append(json.loads(request.content))
         a = self.answers.pop(0) if self.answers else {"summary": "nothing", "questions": [], "actions": []}
         return a if isinstance(a, httpx.Response) else model_reply(a)
 
@@ -119,6 +123,45 @@ def test_status_when_nothing_is_configured(client, ab, fakes):
     assert body["enabled"] is False and body["voice_enabled"] is False
     app.dependency_overrides[endpoints.llm_router] = lambda: None  # e.g. the CLI provider in production
     assert client.get("/assistant/status", headers=b["headers"]).json()["enabled"] is False
+
+
+def conversation(client, t):
+    r = client.post("/assistant/conversations", json={"client_request_id": str(uuid4())}, headers=t["headers"])
+    assert r.status_code == 201, r.text
+    return r.json()["id"]
+
+
+def test_conversation_history_reaches_the_model(client, ab, fakes):
+    _, b = ab
+    chat_id = conversation(client, b)
+    fakes.answers.extend([plan_of(summary="First answer"), plan_of(summary="Second answer")])
+    first = ask(client, b, "Book Clara tomorrow", conversation_id=chat_id, client_request_id=str(uuid4()))
+    assert first.status_code == 200, first.text
+    second = ask(client, b, "At 10", conversation_id=chat_id, client_request_id=str(uuid4()))
+    assert second.status_code == 200, second.text
+    block = fakes.payloads[-1]["messages"][1]["content"].split("<data>", 1)[1].rsplit("</data>", 1)[0]
+    context = json.loads(block)["context"]
+    assert context["history"] == [
+        {"role": "user", "text": "Book Clara tomorrow"},
+        {"role": "assistant", "text": "First answer"},
+    ]
+
+
+def test_fresh_answer_spends_one_ai_unit_and_a_replay_spends_none(client, db, ab, fakes):
+    _, b = ab
+    chat_id = conversation(client, b)
+    key = str(uuid4())
+    first = ask(client, b, "Book Clara tomorrow", conversation_id=chat_id, client_request_id=key)
+    assert first.status_code == 200, first.text
+    counter = db.query(UsageCounter).filter(UsageCounter.product == "ai").one()
+    assert (counter.business_id, counter.count) == (b["business"]["id"], 1)
+
+    replay = ask(client, b, "Book Clara tomorrow", conversation_id=chat_id, client_request_id=key)
+    assert replay.status_code == 200
+    assert replay.json()["plan_id"] == first.json()["plan_id"]
+    db.expire_all()
+    assert db.query(UsageCounter).filter(UsageCounter.product == "ai").one().count == 1
+    assert fakes.model_calls == 1
 
 
 def test_needs_login_and_a_staff_role(client, make_user, headers_for, fakes):

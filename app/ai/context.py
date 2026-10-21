@@ -58,7 +58,7 @@ def _services(db: Session, user: User, business_id: Optional[int], specialist_id
 
 
 def build_context(db: Session, user: User, text: str, *, locale: str, tz_name: str,
-                  now: Optional[datetime] = None) -> dict:
+                  now: Optional[datetime] = None, history: Optional[list] = None) -> dict:
     try:
         zone = ZoneInfo(tz_name)
     except Exception:
@@ -78,4 +78,5 @@ def build_context(db: Session, user: User, text: str, *, locale: str, tz_name: s
         "specialists": specialists,
         "services": _services(db, user, business_id, [s["id"] for s in specialists]),
         "client_matches": clients_in_text(db, user, text, limit=MAX_CLIENT_MATCHES),
+        "history": list(history or []),
     }

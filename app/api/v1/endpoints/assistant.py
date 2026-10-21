@@ -5,6 +5,7 @@ runs that saved plan as the same user. POST /transcribe only turns speech into t
 and edits it before asking for a plan.
 """
 from typing import Optional
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.routing import APIRoute
@@ -19,6 +20,7 @@ from app.ai.persona import effective_assistant
 from app.ai.router import LLMRouter, get_router
 from app.ai.usage import _month_bounds, monthly_limit, used_this_month
 from app.api import deps
+from app.api.core.ai_metering import consume_ai_unit
 from app.api.core.clock import utcnow
 from app.api.core.i18n import _
 from app.api.core.logger import get_logger
@@ -172,9 +174,14 @@ def make_plan(
     elif body.client_request_id:
         raise _bad_input("conversation_id", "missing_conversation_id", "conversation_id is required with client_request_id")
 
+    history = []
+    if body.conversation_id:
+        history = get_conversation_context(db, body.conversation_id, body.client_request_id)
+
     tz = assistant.user_timezone(db, current_user, model.config)
     try:
-        draft = assistant.make_plan(db, current_user, body.text, locale=locale, tz=tz, router=model, store=store)
+        draft = assistant.make_plan(db, current_user, body.text, locale=locale, tz=tz, router=model,
+                                    store=store, history=history)
     except AIError as err:
         if assistant_msg:
             http_err = ai_http_error(err, locale)
@@ -198,12 +205,19 @@ def make_plan(
         "questions": draft.plan.questions,
         "actions": actions,
         "assistant": draft.assistant.__dict__,
-        "expires_at": draft.expires_at,
+        "expires_at": draft.expires_at.isoformat(),
     }
+    # A fresh successful generation is the only thing that spends a PRICE unit:
+    # replays return earlier, failures never get here, execute is not a generation.
+    business_id = get_user_business_id(current_user, db)
+    consume_ai_unit(db, business_id, body.client_request_id or uuid4(), succeeded=True,
+                    user_id=None if business_id else current_user.id)
     if assistant_msg:
         record_assistant_success(
             db, body.conversation_id, assistant_msg.id, draft.plan.summary, draft.plan_id, plan_data, draft.expires_at
         )
+    else:
+        db.commit()
     return plan_data
 
 
