@@ -422,6 +422,19 @@ def test_payment_requires_its_guest_token(client, db, deposit_salon):
     assert status["status"] == "pending"
 
 
+def test_payment_token_header_is_allowed_by_cors(client):
+    response = client.options(
+        "/public/booking/payments/some-ref",
+        headers={
+            "Origin": "http://localhost:3170",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "X-Payment-Token",
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert "x-payment-token" in response.headers["access-control-allow-headers"].lower()
+
+
 def test_refunds_are_idempotent_and_capped(client, db, deposit_salon):
     booking = _ok(_book(client, deposit_salon), "booking")
     attempt = _attempt(db, booking)
