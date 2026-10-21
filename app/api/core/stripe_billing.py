@@ -51,6 +51,16 @@ def period_end(remote):
     return datetime.fromtimestamp(min(ends), timezone.utc).replace(tzinfo=None)
 
 
+def _offer_code(metadata):
+    code = metadata.get("offer_code")
+    if not code:
+        return None
+    from app.api.core.offer_catalog import get_offer_by_code
+    if get_offer_by_code(str(code), include_draft=True) is None:
+        raise HTTPException(400, "Invalid subscription offer")
+    return str(code)
+
+
 def sync_subscription(db: Session, remote, metadata=None):
     remote = as_dict(remote)
     external_id = remote["id"]
@@ -68,8 +78,12 @@ def sync_subscription(db: Session, remote, metadata=None):
         if not db.get(User, user_id) or not plan or plan.is_trial or plan.price <= 0:
             raise HTTPException(400, "Invalid subscription owner or paid plan")
         sub = Subscription(user_id=user_id, plan_id=plan_id, provider="stripe", external_id=external_id,
-                           is_trial=False)
+                           is_trial=False, offer_code=_offer_code(metadata))
         db.add(sub)
+    else:
+        current = remote.get("metadata") or metadata or {}
+        if current.get("offer_code") and not sub.offer_code:
+            sub.offer_code = _offer_code(current)
     status = remote.get("status")
     if not status:
         raise HTTPException(503, "Stripe subscription has no status")

@@ -7,6 +7,8 @@ class Subscription(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     plan_id = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False)
+    # public offer this subscription was bought from; legacy plan checkouts leave it empty
+    offer_code = Column(String, nullable=True)
     status = Column(String, default="active", index=True)  
     provider = Column(String, nullable=True)  
     external_id = Column(String, nullable=True)

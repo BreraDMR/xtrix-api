@@ -133,9 +133,13 @@ def create_checkout_session(
                 build_checkout_payload_for_offer,
                 resolve_offer_for_checkout,
             )
+            from app.api.core.offer_catalog import OFFER_PLAN_CODES
             offer = resolve_offer_for_checkout(offer_code)
-            payload = build_checkout_payload_for_offer(current_user, offer, settings.frontend_url)
-            return stripe_checkout.create_session(db, current_user, plan_id=0, payload=payload)
+            plan = crud_subscription.get_plan_by_code(db, OFFER_PLAN_CODES[offer.code])
+            if not plan or not plan.is_active or plan.is_trial or Decimal(str(plan.price)) <= 0:
+                raise HTTPException(status_code=400, detail="Offer plan is not available")
+            payload = build_checkout_payload_for_offer(current_user, offer, settings.frontend_url, plan.id)
+            return stripe_checkout.create_session(db, current_user, plan.id, payload)
 
         plan = crud_subscription.get_plan(db, plan_id)
         if not plan or not plan.is_active:
@@ -228,9 +232,10 @@ def get_usage_and_entitlements(
     strictly validates period bounds, and reflects payer entitlements.
     """
     import re
+    from app.api.core.clock import utcnow
     from app.api.core.crm_metering import count_distinct_active_clients, get_current_period
     from app.api.core.ai_metering import get_daily_ai_usage, get_current_daily_period
-    from app.api.core.offer_catalog import match_crm_offer_for_clients, get_offer_by_code
+    from app.api.core.offer_catalog import get_offer_by_code
     from app.api.core.permissions import get_staff_record
 
     period_str = period or get_current_period()
@@ -257,10 +262,18 @@ def get_usage_and_entitlements(
         period=period_str,
         user_id=usr_id,
     )
-    crm_offer = match_crm_offer_for_clients(active_clients, allow_draft=False)
-    crm_limit = crm_offer.entitlements.max_active_clients if crm_offer else 100
+
+    # Limits come from the offer that was actually paid for, never from the current client
+    # count or a hardcoded starter tier. No paid offer means no limit to report.
+    sub = crud_subscription.get_active_subscription(db, payer_id) if payer_id else None
+    if sub and sub.current_period_end and sub.current_period_end <= utcnow():
+        sub = None
+    offer = get_offer_by_code(sub.offer_code, include_draft=True) if sub and sub.offer_code else None
+    crm_offer = offer if offer and offer.product == "crm" else None
+    ai_offer = offer if offer and offer.product == "ai" else None
+    crm_limit = crm_offer.entitlements.max_active_clients if crm_offer else None
     crm_code = crm_offer.code if crm_offer else None
-    crm_within = (active_clients <= crm_limit) if crm_limit else True
+    crm_within = (active_clients <= crm_limit) if crm_limit is not None else True
 
     daily_period = get_current_daily_period()
     ai_used = get_daily_ai_usage(
@@ -269,10 +282,9 @@ def get_usage_and_entitlements(
         user_id=usr_id,
         day_str=daily_period,
     )
-    ai_offer = get_offer_by_code("ai_starter_czk")
-    ai_limit = ai_offer.entitlements.daily_requests_limit if ai_offer else 20
-    ai_code = ai_offer.code if ai_offer else "ai_starter_czk"
-    ai_within = (ai_used <= ai_limit)
+    ai_limit = ai_offer.entitlements.daily_requests_limit if ai_offer else None
+    ai_code = ai_offer.code if ai_offer else None
+    ai_within = (ai_used <= ai_limit) if ai_limit is not None else True
 
     return EntitlementsUsageOut(
         period=period_str,

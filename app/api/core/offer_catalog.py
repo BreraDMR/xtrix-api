@@ -11,15 +11,16 @@ from app.schemas.offer_catalog import (
 CATALOG_VERSION = "2026-10-v1"
 
 # Master offer definitions per D01 decision matrix.
-# Unknown/pending tiers (501-1000, >1000, voice units) are strictly marked draft
-# and never published anonymously or given away for free.
+# Every price here is a proposal: D01 (Damir) has not approved the commercial tiers yet,
+# so all of them stay draft and are neither published nor purchasable until that decision.
+OFFER_PLAN_CODES: Dict[str, str] = {}
 OFFERS_DATA: List[Dict] = [
     {
         "code": "crm_starter_czk",
         "product": "crm",
         "name": "CRM Starter (до 100 клиентов)",
         "description": "Базовый тариф CRM для небольших салонов и частных мастеров",
-        "status": "approved",
+        "status": "draft",
         "price": Decimal("200"),
         "currency": "CZK",
         "interval": "month",
@@ -34,7 +35,7 @@ OFFERS_DATA: List[Dict] = [
         "product": "crm",
         "name": "CRM Pro (до 500 клиентов)",
         "description": "Стандартный тариф CRM для растущих салонов",
-        "status": "approved",
+        "status": "draft",
         "price": Decimal("400"),
         "currency": "CZK",
         "interval": "month",
@@ -79,7 +80,7 @@ OFFERS_DATA: List[Dict] = [
         "product": "ai",
         "name": "AI Assistant Starter (20 в день)",
         "description": "Ассистент Сашенька, базовый пакет запросов",
-        "status": "approved",
+        "status": "draft",
         "price": Decimal("200"),
         "currency": "CZK",
         "interval": "month",
@@ -94,7 +95,7 @@ OFFERS_DATA: List[Dict] = [
         "product": "ai",
         "name": "AI Assistant Pro (50 в день)",
         "description": "Расширенный пакет ассистента Сашеньки",
-        "status": "approved",
+        "status": "draft",
         "price": Decimal("400"),
         "currency": "CZK",
         "interval": "month",
