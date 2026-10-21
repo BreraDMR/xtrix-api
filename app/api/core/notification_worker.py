@@ -13,6 +13,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.api.core import notification_preferences
+from app.api.core.client_portal_email import KIND as CLIENT_PORTAL_KIND
 from app.api.core.clock import utcnow
 from app.api.core.notification_transport import DeliveryResult
 from app.db.models.notification_outbox import NotificationOutbox
@@ -132,8 +133,13 @@ def run_once(
             db.commit()
             stats["sent"] += 1
             continue
-        # account-level messages (password reset) are not controlled by any business switch
-        channel = row.channel if row.business_id is None else notification_preferences.enabled_channel(db, row.business_id)
+        # account-level messages (password reset) and client sign-in links are transactional:
+        # a business reminder switch must not block access to the visitor's own cabinet
+        channel = (
+            row.channel
+            if row.business_id is None or row.kind == CLIENT_PORTAL_KIND
+            else notification_preferences.enabled_channel(db, row.business_id)
+        )
         if channel is None or row.channel != channel:
             # the owner turned notifications off after this message was queued
             row.status = "cancelled"

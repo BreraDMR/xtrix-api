@@ -86,6 +86,8 @@ PUBLIC_QUESTIONNAIRE_SUBMIT_LIMIT = "10/minute"
 # no account should be able to trigger reset mail faster than this; also bounds email guessing
 PASSWORD_RESET_LIMIT = "5/minute"
 PASSWORD_RESET_CONFIRM_LIMIT = "10/minute"
+CLIENT_PORTAL_LOGIN_LIMIT = "5/minute"
+CLIENT_PORTAL_VERIFY_LIMIT = "10/minute"
 
 
 def _retry_after(exc: RateLimitExceeded) -> int:

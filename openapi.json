@@ -1741,6 +1741,392 @@
         "title": "ClientOverviewVisit",
         "type": "object"
       },
+      "ClientPortalLoginIn": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "ClientPortalLoginIn",
+        "type": "object"
+      },
+      "ClientPortalLoyaltyOut": {
+        "properties": {
+          "cashback": {
+            "title": "Cashback",
+            "type": "number"
+          },
+          "level_benefits": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level Benefits"
+          },
+          "level_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level Name"
+          },
+          "points": {
+            "title": "Points",
+            "type": "number"
+          }
+        },
+        "required": [
+          "points",
+          "cashback"
+        ],
+        "title": "ClientPortalLoyaltyOut",
+        "type": "object"
+      },
+      "ClientPortalManageLinkOut": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "expires_at"
+        ],
+        "title": "ClientPortalManageLinkOut",
+        "type": "object"
+      },
+      "ClientPortalMessageOut": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "ClientPortalMessageOut",
+        "type": "object"
+      },
+      "ClientPortalQuestionnaireOut": {
+        "properties": {
+          "answers": {
+            "additionalProperties": true,
+            "title": "Answers",
+            "type": "object"
+          },
+          "fields": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "visit_id": {
+            "title": "Visit Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "visit_id",
+          "name",
+          "version",
+          "submitted_at",
+          "fields",
+          "answers"
+        ],
+        "title": "ClientPortalQuestionnaireOut",
+        "type": "object"
+      },
+      "ClientPortalQuestionnairesOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ClientPortalQuestionnaireOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ClientPortalQuestionnairesOut",
+        "type": "object"
+      },
+      "ClientPortalSessionInfoOut": {
+        "properties": {
+          "business_name": {
+            "title": "Business Name",
+            "type": "string"
+          },
+          "business_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Slug"
+          },
+          "client_name": {
+            "title": "Client Name",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "language": {
+            "default": "en",
+            "title": "Language",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expires_at",
+          "client_name",
+          "business_name"
+        ],
+        "title": "ClientPortalSessionInfoOut",
+        "type": "object"
+      },
+      "ClientPortalSessionOut": {
+        "properties": {
+          "business_name": {
+            "title": "Business Name",
+            "type": "string"
+          },
+          "business_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Slug"
+          },
+          "client_name": {
+            "title": "Client Name",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "language": {
+            "default": "en",
+            "title": "Language",
+            "type": "string"
+          },
+          "session_token": {
+            "title": "Session Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_token",
+          "expires_at",
+          "client_name",
+          "business_name"
+        ],
+        "title": "ClientPortalSessionOut",
+        "type": "object"
+      },
+      "ClientPortalVerifyIn": {
+        "properties": {
+          "token": {
+            "maxLength": 128,
+            "minLength": 20,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "ClientPortalVerifyIn",
+        "type": "object"
+      },
+      "ClientPortalVisitOut": {
+        "properties": {
+          "can_manage": {
+            "default": false,
+            "title": "Can Manage",
+            "type": "boolean"
+          },
+          "date_end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date End"
+          },
+          "date_start": {
+            "format": "date-time",
+            "title": "Date Start",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "service_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Id"
+          },
+          "service_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Name"
+          },
+          "staff_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Name"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "date_start",
+          "status"
+        ],
+        "title": "ClientPortalVisitOut",
+        "type": "object"
+      },
+      "ClientPortalVisitsOut": {
+        "properties": {
+          "booking_enabled": {
+            "default": false,
+            "title": "Booking Enabled",
+            "type": "boolean"
+          },
+          "booking_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booking Slug"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "past": {
+            "items": {
+              "$ref": "#/components/schemas/ClientPortalVisitOut"
+            },
+            "title": "Past",
+            "type": "array"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "upcoming": {
+            "items": {
+              "$ref": "#/components/schemas/ClientPortalVisitOut"
+            },
+            "title": "Upcoming",
+            "type": "array"
+          }
+        },
+        "required": [
+          "upcoming",
+          "past",
+          "currency",
+          "timezone"
+        ],
+        "title": "ClientPortalVisitsOut",
+        "type": "object"
+      },
       "ClientProfileOut": {
         "properties": {
           "client_id": {
@@ -25212,6 +25598,532 @@
         "summary": "Masters of the selected service",
         "tags": [
           "public-booking"
+        ]
+      }
+    },
+    "/public/client-portal/logout": {
+      "post": {
+        "operationId": "logout_public_client_portal_logout_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Portal-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Portal-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPortalMessageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke the visitor session",
+        "tags": [
+          "client-portal"
+        ]
+      }
+    },
+    "/public/client-portal/loyalty": {
+      "get": {
+        "operationId": "read_portal_loyalty_public_client_portal_loyalty_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Portal-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Portal-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPortalLoyaltyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read the client's own points and level",
+        "tags": [
+          "client-portal"
+        ]
+      }
+    },
+    "/public/client-portal/questionnaires": {
+      "get": {
+        "operationId": "list_portal_questionnaires_public_client_portal_questionnaires_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Portal-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Portal-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPortalQuestionnairesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List questionnaires the client submitted",
+        "tags": [
+          "client-portal"
+        ]
+      }
+    },
+    "/public/client-portal/session": {
+      "get": {
+        "operationId": "read_portal_session_public_client_portal_session_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Portal-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Portal-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPortalSessionInfoOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read the current visitor session",
+        "tags": [
+          "client-portal"
+        ]
+      }
+    },
+    "/public/client-portal/verify": {
+      "post": {
+        "operationId": "verify_portal_link_public_client_portal_verify_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientPortalVerifyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPortalSessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Exchange a one-time link for a limited visitor session",
+        "tags": [
+          "client-portal"
+        ]
+      }
+    },
+    "/public/client-portal/visits": {
+      "get": {
+        "operationId": "list_portal_visits_public_client_portal_visits_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Portal-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Portal-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPortalVisitsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List the client's own upcoming and past visits",
+        "tags": [
+          "client-portal"
+        ]
+      }
+    },
+    "/public/client-portal/visits/{visit_id}/manage-link": {
+      "post": {
+        "operationId": "create_portal_manage_link_public_client_portal_visits__visit_id__manage_link_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "title": "Visit Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Portal-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Portal-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPortalManageLinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Issue a guest management token for one of the client's visits",
+        "tags": [
+          "client-portal"
+        ]
+      }
+    },
+    "/public/client-portal/{slug}/request": {
+      "post": {
+        "operationId": "request_portal_link_public_client_portal__slug__request_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientPortalLoginIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPortalMessageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Email a one-time visitor portal sign-in link",
+        "tags": [
+          "client-portal"
         ]
       }
     },

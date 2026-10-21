@@ -90,3 +90,15 @@ def role_required(*roles: str):
 def get_locale(accept_language: str | None = Header(default=None, alias="Accept-Language")) -> str:
     from app.api.core.i18n import normalize_locale
     return normalize_locale(accept_language)
+def get_portal_session(
+    x_portal_token: str | None = Header(default=None, alias="X-Portal-Token"),
+    db: Session = Depends(get_db),
+    locale: str = Depends(get_locale),
+):
+    # opaque portal credentials are deliberately not JWTs: staff endpoints keep requiring
+    # a CRM access token and cannot be reached with this header
+    from app.api.crud import crud_client_portal
+    session = crud_client_portal.get_valid_session(db, x_portal_token)
+    if session is None:
+        raise HTTPException(status_code=401, detail=_("portal_session_invalid", locale))
+    return session

@@ -15,6 +15,7 @@ from app.api.core import booking_manage_access
 from app.api.core.availability import salon_zone
 from app.api.core.config import settings
 from app.api.core.notification_transport import DeliveryResult, OutboundMessage, get_notification_transport
+from app.api.core.client_portal_email import KIND as CLIENT_PORTAL_KIND, render_client_portal_login
 from app.api.core.password_reset_email import KIND as PASSWORD_RESET_KIND, render_password_reset
 from app.db.models.notification_outbox import NotificationOutbox
 from app.db.models.visit import Visit
@@ -123,6 +124,8 @@ def _html(body: str, link: str) -> str:
 def render_outbox_notification(db: Session, row: NotificationOutbox) -> OutboundMessage:
     if row.kind == PASSWORD_RESET_KIND:
         return render_password_reset(db, row)
+    if row.kind == CLIENT_PORTAL_KIND:
+        return render_client_portal_login(db, row)
     if row.kind not in _TEXTS:
         raise NotificationTemplateError(f"unknown notification kind: {row.kind}")
     visit = db.get(Visit, row.visit_id) if row.visit_id else None

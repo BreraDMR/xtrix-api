@@ -211,6 +211,26 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Сначала добавьте email в профиль или в данные бизнеса",
         "cz": "Nejprve přidejte e-mail do profilu nebo do údajů podniku",
     },
+    "portal_link_requested": {
+        "en": "If this email belongs to a client of this salon, a sign-in link has been sent",
+        "ru": "Если этот email принадлежит клиенту салона, ссылка для входа отправлена",
+        "cz": "Pokud tento e-mail patří klientovi salonu, odkaz pro přihlášení byl odeslán",
+    },
+    "portal_link_invalid": {
+        "en": "This sign-in link is invalid, has expired, or has already been used",
+        "ru": "Ссылка для входа недействительна, истекла или уже использована",
+        "cz": "Tento odkaz pro přihlášení je neplatný, vypršel nebo byl již použit",
+    },
+    "portal_session_invalid": {
+        "en": "The client session is invalid or has expired",
+        "ru": "Клиентская сессия недействительна или истекла",
+        "cz": "Klientská relace je neplatná nebo vypršela",
+    },
+    "portal_visit_not_found": {
+        "en": "Visit not found",
+        "ru": "Визит не найден",
+        "cz": "Návštěva nenalezena",
+    },
     "password_reset_requested": {
         "en": "If an account with this email exists, a reset link has been sent",
         "ru": "Если аккаунт с таким email существует, ссылка для сброса отправлена",
