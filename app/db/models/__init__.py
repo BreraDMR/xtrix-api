@@ -50,3 +50,4 @@ from app.db.models.questionnaire_access import QuestionnaireAccessToken
 from app.db.models.questionnaire_response import QuestionnaireResponse
 from app.db.models.questionnaire_attachment import QuestionnaireAttachment
 from app.db.models.client_portal import ClientPortalSession, ClientPortalToken
+from app.db.models.waitlist import WaitlistEntry, WaitlistOffer
