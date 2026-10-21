@@ -9,6 +9,8 @@ CRM_TRIAL_DEFAULT_DAYS = 7
 
 def get_crm_trial_days() -> int:
     """Return the single configured CRM trial duration in days (7 days)."""
+    if settings.pilot_mode_enabled:
+        return CRM_TRIAL_DEFAULT_DAYS
     return getattr(settings, "crm_trial_duration_days", CRM_TRIAL_DEFAULT_DAYS)
 
 

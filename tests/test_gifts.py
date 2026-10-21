@@ -786,3 +786,17 @@ def test_browser_preflight_allows_the_gift_token(client):
     )
     assert response.status_code == 200, response.text
     assert "x-gift-token" in response.headers["access-control-allow-headers"].lower()
+
+
+def test_pilot_gift_shop_and_orders_close_with_the_salon(client, db, gift_world, monkeypatch):
+    from app.api.core.config import settings
+    from tests.test_pilot_access import expire
+    order, _paid = _pay(client, gift_world)
+    monkeypatch.setattr(settings, "pilot_mode_enabled", True)
+    shop = lambda: client.get(f"/public/gifts/{gift_world['slug']}")
+    order_state = lambda: client.get(f"/public/gifts/orders/{order['public_ref']}", headers={"X-Gift-Token": _token(order)})
+    assert shop().status_code == 200
+    assert order_state().status_code == 200
+    expire(db, gift_world["owner"], 3)
+    assert shop().status_code == 402
+    assert order_state().status_code == 402

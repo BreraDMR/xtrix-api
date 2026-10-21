@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.api.core.clock import utcnow
 from app.api.core.i18n import _
-from app.api.core.permissions import get_user_business_id
+from app.api.core.permissions import get_staff_record, get_user_business_id
+from app.api.crud import crud_subscription
 from app.api.crud.crud_assistant_conversation import conversation_error, conversation_scope, resolve_conversation
 from app.db.models.assistant_conversation import AssistantConversation, AssistantMessage
 from app.db.models.user import User
@@ -18,17 +19,37 @@ MAX_HISTORY_MESSAGES = 6
 MAX_HISTORY_CHARS = 1800
 
 
-def validate_generation_scope(db: Session, user: User, locale: str = 'en') -> Optional[int]:
-    """Ensures conversation_scope == get_user_business_id(user, db) == user.business_id.
-    
-    A solo user must have all three as None.
-    If scope is inconsistent (e.g. stale user.business_id), raises 409 request_conflict.
-    """
-    conv_scope = conversation_scope(db, user, locale)
-    perm_scope = get_user_business_id(user, db)
-    if not (conv_scope == perm_scope == user.business_id):
+def generation_scope_snapshot(db: Session, user: User, locale: str = 'en') -> str:
+    """Read current employment and payer state, never a request's cached ORM values."""
+    fresh = db.query(User).filter(User.id == user.id).populate_existing().first()
+    if fresh is None or fresh.deleted_at is not None or fresh.is_locked:
         raise conversation_error('request_conflict', 409, locale)
-    return conv_scope
+    staff = get_staff_record(db, fresh)
+    owner = None
+    if staff:
+        owner = db.query(User).filter(User.id == staff.business_owner_id).populate_existing().first()
+    try:
+        conv_scope = conversation_scope(db, fresh, locale)
+    except HTTPException:
+        raise conversation_error('request_conflict', 409, locale)
+    perm_scope = get_user_business_id(fresh, db)
+    if not (conv_scope == perm_scope == fresh.business_id):
+        raise conversation_error('request_conflict', 409, locale)
+    values = [fresh.id, fresh.role, fresh.business_id, fresh.employer_id,
+              crud_subscription.subscription_payer_id(db, fresh)]
+    if staff:
+        values += [staff.id, staff.business_owner_id, staff.is_active, staff.permissions,
+                   owner.id if owner else None, owner.business_id if owner else None,
+                   owner.role if owner else None, str(owner.deleted_at) if owner else None]
+    return hashlib.sha256(json.dumps(values, sort_keys=True).encode()).hexdigest()
+
+
+def validate_generation_scope(db: Session, user: User, locale: str = 'en',
+                              expected_scope: Optional[str] = None) -> Optional[int]:
+    snapshot = generation_scope_snapshot(db, user, locale)
+    if expected_scope is not None and snapshot != expected_scope:
+        raise conversation_error('request_conflict', 409, locale)
+    return get_user_business_id(user, db)
 
 
 def prepare_user_request(
@@ -38,14 +59,17 @@ def prepare_user_request(
     client_request_id: UUID,
     text: str,
     locale: str = 'en',
+    expected_scope: Optional[str] = None,
 ) -> Tuple[AssistantConversation, AssistantMessage, Optional[AssistantMessage]]:
     """Locks the conversation, validates scope, and ensures the user message is saved.
     
     Returns (conversation, user_message, existing_assistant_message).
     If assistant message already succeeded or failed, it is returned for replay.
     """
-    validate_generation_scope(db, user, locale)
+    validate_generation_scope(db, user, locale, expected_scope)
     conv = resolve_conversation(db, user, conversation_id, locale=locale, lock=True)
+    # A membership may have changed while the conversation row lock was waiting.
+    validate_generation_scope(db, user, locale, expected_scope)
     text_hash = hashlib.sha256(text.encode('utf-8')).hexdigest()
 
     existing_user_msg = db.query(AssistantMessage).filter(

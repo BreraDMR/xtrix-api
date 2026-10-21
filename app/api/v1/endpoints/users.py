@@ -28,6 +28,10 @@ def create_user(
     db: Session = Depends(deps.get_db),
     locale: str = Depends(deps.get_locale),
 ):
+    from app.api.core.config import settings
+    if settings.pilot_mode_enabled:
+        # An allowlisted address alone is not proof of ownership. Google verifies it first.
+        raise HTTPException(status_code=403, detail={"code": "pilot_google_signup_required"})
     logger.info(f"Creating user: phone={mask_phone(user.phone)}, email={mask_email(user.email)}")
     # this endpoint is open to anyone, so only roles you can honestly pick for yourself.
     # admins are made by hand, employees and their business link come from the owner (/employees)

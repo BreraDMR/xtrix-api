@@ -56,6 +56,8 @@ def _resolve_published(db: Session, slug: str, locale: str) -> tuple[PublicBooki
     business = settings.business if settings else None
     if not settings or not business:
         raise HTTPException(status_code=404, detail=_("public_booking_unavailable", locale))
+    from app.api.core.subscription_access import enforce_business_access
+    enforce_business_access(db, business.id)
     return settings, business
 
 

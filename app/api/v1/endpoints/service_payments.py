@@ -83,6 +83,8 @@ def get_payment_status(
     locale: str = Depends(deps.get_locale),
 ):
     attempt = _public_attempt(db, public_ref, x_payment_token, locale)
+    from app.api.core.subscription_access import enforce_business_access
+    enforce_business_access(db, attempt.business_id, write=False)
     return payments.payment_status_out(attempt)
 
 

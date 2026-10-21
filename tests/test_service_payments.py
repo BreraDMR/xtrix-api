@@ -670,3 +670,15 @@ def test_guest_cancellation_releases_an_unpaid_hold(client, db, deposit_salon):
     assert deposit_salon["start"].isoformat() + "Z" in [
         slot["start"] for slot in slots["days"][0]["slots"]
     ]
+
+
+def test_pilot_guest_deposit_status_closes_with_the_salon(client, db, deposit_salon, monkeypatch):
+    from app.api.core.config import settings
+    from tests.test_pilot_access import expire
+    booking = _ok(_book(client, deposit_salon), "booking")
+    monkeypatch.setattr(settings, "pilot_mode_enabled", True)
+    status = lambda: client.get(f"/public/booking/payments/{booking['payment']['public_ref']}",
+                                headers={"X-Payment-Token": _payment_token(booking)})
+    assert status().status_code == 200
+    expire(db, deposit_salon["owner"], 3)
+    assert status().status_code == 402

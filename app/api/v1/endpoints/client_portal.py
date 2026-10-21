@@ -78,6 +78,8 @@ def _session_context(
     ):
         raise HTTPException(status_code=401, detail=_("portal_session_invalid"))
     settings = crud_public_booking.get_settings(db, business.id)
+    from app.api.core.subscription_access import enforce_business_access
+    enforce_business_access(db, business.id, write=False)
     return client, business, settings
 
 
@@ -110,6 +112,8 @@ def request_portal_link(
     email = str(payload.email)
     settings = _settings_by_slug(db, slug)
     if settings is not None:
+        from app.api.core.subscription_access import enforce_business_access
+        enforce_business_access(db, settings.business_id)
         business = db.get(Business, settings.business_id)
         client = crud_public_booking.find_business_client_by_contact(
             db, settings.business_id, None, email

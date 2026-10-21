@@ -64,6 +64,8 @@ def consume_magic_token(db: Session, raw_token: str) -> Optional[ClientPortalTok
     )
     if token is None:
         return None
+    from app.api.core.subscription_access import enforce_business_access
+    enforce_business_access(db, token.business_id)
     token.used_at = utcnow()
     db.flush()
     return token

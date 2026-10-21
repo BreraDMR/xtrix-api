@@ -97,6 +97,8 @@ def resolve_token(
     )
     if not visit or not business or visit.business_id != token.business_id:
         raise BookingManageTokenInvalid
+    from app.api.core.subscription_access import enforce_business_access
+    enforce_business_access(db, token.business_id, write=action is not None)
     return token, visit
 
 

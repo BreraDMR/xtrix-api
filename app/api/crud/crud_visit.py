@@ -148,6 +148,8 @@ def create_visit(
     service = db.query(Service).filter(Service.id == data["service_id"]).first() if data.get("service_id") else None
     resolved_business_id = _business_for_visit(db, data["specialist_id"], business_id)
 
+    from app.api.core.crm_metering import enforce_visit_quota
+    enforce_visit_quota(db, resolved_business_id, data["specialist_id"], data["date_start"], data.get("status") or "planned")
     if visit_in.items is not None:
         lines = lines_from_items(db, visit_in.items, data["specialist_id"])
     else:
@@ -225,6 +227,9 @@ def update_visit(
 ) -> Visit:
     """Patch the visit. A chain is rebuilt only when its shape, time or price changes."""
     data = update.model_dump(exclude_unset=True)
+    from app.api.core.crm_metering import enforce_visit_quota
+    enforce_visit_quota(db, visit.business_id, visit.specialist_id, data.get("date_start") or visit.date_start,
+                        data.get("status", visit.status), exclude_id=visit.id)
     structural = any(
         key in data for key in ("items", "service_id", "date_start", "date_end", "price")
     )

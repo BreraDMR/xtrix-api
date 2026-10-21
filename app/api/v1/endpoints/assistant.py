@@ -35,6 +35,7 @@ from app.api.middleware.rate_limit import (
 )
 from app.api.core.assistant_conversation_service import (
     get_conversation_context,
+    generation_scope_snapshot,
     prepare_user_request,
     record_assistant_failure,
     record_assistant_success,
@@ -156,6 +157,7 @@ def make_plan(
     store=Depends(plan_store),
 ):
     locale = body.locale or locale
+    expected_scope = generation_scope_snapshot(db, current_user, locale)
     if model is None:
         raise ai_http_error(AINotConfigured(), locale)
 
@@ -164,7 +166,7 @@ def make_plan(
         if not body.client_request_id:
             raise _bad_input("client_request_id", "missing_request_id", "client_request_id is required with conversation_id")
         conv, user_msg, existing_assistant_msg = prepare_user_request(
-            db, current_user, body.conversation_id, body.client_request_id, body.text, locale=locale
+            db, current_user, body.conversation_id, body.client_request_id, body.text, locale=locale, expected_scope=expected_scope
         )
         if existing_assistant_msg and existing_assistant_msg.status == "succeeded" and existing_assistant_msg.plan_payload:
             return existing_assistant_msg.plan_payload
@@ -181,13 +183,17 @@ def make_plan(
     tz = assistant.user_timezone(db, current_user, model.config)
     try:
         draft = assistant.make_plan(db, current_user, body.text, locale=locale, tz=tz, router=model,
-                                    store=store, history=history)
+                                    store=store, history=history, expected_scope=expected_scope)
     except AIError as err:
         if assistant_msg:
             http_err = ai_http_error(err, locale)
             retry_after = getattr(err, 'retry_after', None)
             record_assistant_failure(db, body.conversation_id, assistant_msg.id, err.code, http_err.status_code, retry_after)
         raise ai_http_error(err, locale)
+    except HTTPException as err:
+        if assistant_msg:
+            record_assistant_failure(db, body.conversation_id, assistant_msg.id, "request_conflict", err.status_code)
+        raise
     except ValueError as err:
         if assistant_msg:
             record_assistant_failure(db, body.conversation_id, assistant_msg.id, "invalid_request", 422)
@@ -236,20 +242,24 @@ def execute_plan(
     model: Optional[LLMRouter] = Depends(llm_router),
     store=Depends(plan_store),
 ):
+    expected_scope = generation_scope_snapshot(db, current_user, locale)
     message = db.query(AssistantMessage).filter(
         AssistantMessage.plan_id == body.plan_id
     ).populate_existing().with_for_update().first()
     if message:
-        validate_generation_scope(db, current_user, locale)
+        validate_generation_scope(db, current_user, locale, expected_scope)
         resolve_conversation(db, current_user, message.conversation_id, locale=locale, allow_archived=True)
         if message.result_payload:
             return message.result_payload
+        if message.execution_started_at is not None:
+            raise HTTPException(409, detail={"code": "request_in_progress"})
         message.execution_started_at = utcnow()
         db.commit()
 
+    validate_generation_scope(db, current_user, locale, expected_scope)
     try:
         result = assistant.execute_saved_plan(db, current_user, body.plan_id, locale=locale, store=store,
-                                              config=_limits_config(model))
+                                              config=_limits_config(model), expected_scope=expected_scope)
     except assistant.PlanNotFound:
         raise HTTPException(404, detail={"message": _("ai_plan_not_found", locale), "code": "plan_not_found"})
 

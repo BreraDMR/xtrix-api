@@ -22,6 +22,7 @@ def list_offers(
     if product is not None:
         filtered = [offer for offer in catalog.offers if offer.product == product]
         return OfferCatalogOut(
+            **catalog.model_dump(exclude={"offers", "updated_at", "version"}),
             version=catalog.version,
             offers=filtered,
             updated_at=catalog.updated_at,

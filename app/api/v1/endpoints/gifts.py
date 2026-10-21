@@ -210,7 +210,7 @@ def create_gift_order(
     if provider is None:
         raise HTTPException(status_code=503, detail=_("gift_payment_unavailable", locale))
     try:
-        business, _resolved = gifts.get_shop(db, slug)
+        business, _resolved = gifts.get_shop(db, slug, write=True)
     except gifts.GiftNotFound:
         raise HTTPException(status_code=404, detail=_("gift_shop_unavailable", locale))
     try:

@@ -33,6 +33,8 @@ class Settings(BaseSettings):
         default=7,
         description="Duration in days for new CRM payer trials without credit card (D02 policy)",
     )
+    pilot_mode_enabled: bool = Field(False, description="Enforce the invite-only seven-day pilot and disable checkout")
+    pilot_invited_emails: str = Field("", description="Comma-separated exact email addresses invited to register in pilot mode")
     max_login_attempts: int = Field(
         default=5,
         description="Failed logins per (account, IP) before that pair is refused",
@@ -60,6 +62,7 @@ class Settings(BaseSettings):
     apple_shared_secret: str = Field("")
     apple_webhook_token: str = Field("")
     google_service_account_json: str = Field("")
+    google_client_id: str = Field("", description="Google Identity Services web client ID; empty disables Google login")
     google_webhook_token: str = Field("")
     erl_webhook_token: str = Field("")
     smtp_host: str = Field("")

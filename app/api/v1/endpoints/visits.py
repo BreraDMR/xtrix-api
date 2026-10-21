@@ -473,5 +473,7 @@ def restore_visit(
     from app.api.core.permissions import check_visit_access
     if not check_visit_access(db, current_user, visit):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    from app.api.core.crm_metering import enforce_visit_quota
+    enforce_visit_quota(db, visit.business_id, visit.specialist_id, visit.date_start, visit.status, exclude_id=visit.id)
     restore_soft_deleted(db, visit)
     return {"message": "Visit restored successfully"}

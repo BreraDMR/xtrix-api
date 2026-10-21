@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Callable, Optional, Union
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.ai.config import AIConfig, load_ai_config
@@ -30,6 +31,8 @@ from app.ai.router import LLMRouter, Role, get_router
 from app.ai.shared import shared_redis
 from app.ai.usage import release, reserve_request, settle
 from app.api.core.logger import get_logger
+from app.api.core.assistant_conversation_service import generation_scope_snapshot, validate_generation_scope
+from app.api.crud.crud_assistant_conversation import conversation_error
 from app.api.core.permissions import get_user_business_id
 from app.api.crud import crud_business
 from app.db.models.user import User
@@ -49,6 +52,7 @@ class _Kept:
     user_id: int
     plan: AssistantPlan
     expires_at: datetime
+    scope_fingerprint: Optional[str] = None
 
 
 class PlanStore:
@@ -65,12 +69,13 @@ class PlanStore:
         for key in [k for k, v in self._plans.items() if v.expires_at <= now]:
             del self._plans[key]
 
-    def save(self, *, user_id: int, plan: AssistantPlan, plan_id: Optional[str] = None) -> tuple[str, datetime]:
+    def save(self, *, user_id: int, plan: AssistantPlan, plan_id: Optional[str] = None,
+             scope_fingerprint: Optional[str] = None) -> tuple[str, datetime]:
         now = self.clock()
         plan_id = plan_id or secrets.token_urlsafe(16)
         with self._lock:
             self._sweep(now)
-            self._plans[plan_id] = _Kept(user_id, plan, now + self.ttl)
+            self._plans[plan_id] = _Kept(user_id, plan, now + self.ttl, scope_fingerprint)
         return plan_id, now + self.ttl
 
     def peek(self, plan_id: str, *, user_id: int) -> Optional[AssistantPlan]:
@@ -79,12 +84,14 @@ class PlanStore:
             kept = self._plans.get(plan_id)
             return kept.plan if kept and kept.user_id == user_id else None
 
-    def take(self, plan_id: str, *, user_id: int) -> AssistantPlan:
+    def take(self, plan_id: str, *, user_id: int, scope_fingerprint: Optional[str] = None) -> AssistantPlan:
         with self._lock:
             self._sweep(self.clock())
             kept = self._plans.get(plan_id)
             if not kept or kept.user_id != user_id:
                 raise PlanNotFound(plan_id)
+            if kept.scope_fingerprint is not None and kept.scope_fingerprint != scope_fingerprint:
+                raise conversation_error('request_conflict', 409)
             del self._plans[plan_id]
             return kept.plan
 
@@ -106,34 +113,43 @@ class SharedPlanStore:
     def _key(plan_id: str, user_id: int) -> str:
         return f"ai:plan:{int(user_id)}:{hashlib.sha256(plan_id.encode()).hexdigest()[:40]}"
 
-    def _decode(self, raw: Optional[str], user_id: int) -> Optional[AssistantPlan]:
+    def _decode(self, raw: Optional[str], user_id: int,
+                scope_fingerprint: Optional[str] = None) -> Optional[AssistantPlan]:
         if not raw:
             return None
         try:
             kept = json.loads(raw)
             if kept.get("user_id") != user_id or datetime.fromisoformat(kept["expires_at"]) <= self.clock():
                 return None
+            if scope_fingerprint is not None and kept.get("scope_fingerprint") is not None:
+                if kept["scope_fingerprint"] != scope_fingerprint:
+                    raise conversation_error('request_conflict', 409)
             # validated again on the way out - whatever sits in Redis is not trusted blindly
             return AssistantPlan.model_validate_json(json.dumps(kept["plan"]))
+        except HTTPException:
+            raise
         except Exception:
             logger.warning("ai plan store: unreadable plan in redis, user=%s", user_id)
             return None
 
-    def save(self, *, user_id: int, plan: AssistantPlan) -> tuple[str, datetime]:
+    def save(self, *, user_id: int, plan: AssistantPlan,
+             scope_fingerprint: Optional[str] = None) -> tuple[str, datetime]:
         plan_id = secrets.token_urlsafe(16)
         expires_at = self.clock() + self.ttl
         client = self.redis()
         if client is not None:
             try:
                 payload = json.dumps({"user_id": user_id, "expires_at": expires_at.isoformat(),
-                                      "plan": plan.model_dump(mode="json")})
+                                      "plan": plan.model_dump(mode="json"), "scope_fingerprint": scope_fingerprint})
                 client.set(self._key(plan_id, user_id), payload, ex=int(self.ttl.total_seconds()))
                 return plan_id, expires_at
             except Exception as exc:
                 logger.warning("ai plan store: redis write failed (%s), keeping it in memory", type(exc).__name__)
-        return self.memory.save(user_id=user_id, plan=plan, plan_id=plan_id)
+        return self.memory.save(user_id=user_id, plan=plan, plan_id=plan_id,
+                                scope_fingerprint=scope_fingerprint)
 
-    def _from_redis(self, plan_id: str, user_id: int, *, delete: bool) -> Optional[AssistantPlan]:
+    def _from_redis(self, plan_id: str, user_id: int, *, delete: bool,
+                    scope_fingerprint: Optional[str] = None) -> Optional[AssistantPlan]:
         client = self.redis()
         if client is None:
             return None
@@ -143,16 +159,16 @@ class SharedPlanStore:
         except Exception as exc:
             logger.warning("ai plan store: redis read failed (%s)", type(exc).__name__)
             return None
-        return self._decode(raw, user_id)
+        return self._decode(raw, user_id, scope_fingerprint)
 
     def peek(self, plan_id: str, *, user_id: int) -> Optional[AssistantPlan]:
         return self._from_redis(plan_id, user_id, delete=False) or self.memory.peek(plan_id, user_id=user_id)
 
-    def take(self, plan_id: str, *, user_id: int) -> AssistantPlan:
-        plan = self._from_redis(plan_id, user_id, delete=True)
+    def take(self, plan_id: str, *, user_id: int, scope_fingerprint: Optional[str] = None) -> AssistantPlan:
+        plan = self._from_redis(plan_id, user_id, delete=True, scope_fingerprint=scope_fingerprint)
         if plan is not None:
             return plan
-        return self.memory.take(plan_id, user_id=user_id)
+        return self.memory.take(plan_id, user_id=user_id, scope_fingerprint=scope_fingerprint)
 
 
 Store = Union[PlanStore, SharedPlanStore]
@@ -177,7 +193,7 @@ def user_timezone(db: Session, user: User, config: AIConfig) -> str:
 def make_plan(db: Session, user: User, text: str, *, locale: str, tz: Optional[str] = None,
               role: Role = "fast", router: Optional[LLMRouter] = None, store: Optional[Store] = None,
               config: Optional[AIConfig] = None, now: Optional[datetime] = None,
-              history: Optional[list] = None) -> PlanDraft:
+              history: Optional[list] = None, expected_scope: Optional[str] = None) -> PlanDraft:
     # now: naive UTC, only the evals pin it so relative dates in their phrases stay put
     text = (text or "").strip()
     if not text:
@@ -189,12 +205,18 @@ def make_plan(db: Session, user: User, text: str, *, locale: str, tz: Optional[s
     store = store or _default_store
     if not router.slots:
         raise AINotConfigured("no model slot is configured")
+    scope = expected_scope or generation_scope_snapshot(db, user, locale)
+    validate_generation_scope(db, user, locale, scope)
     usage = reserve_request(db, user, config, role=role)
     try:
+        validate_generation_scope(db, user, locale, scope)
         tz = tz or user_timezone(db, user, config)
         context = build_context(db, user, text, locale=locale, tz_name=tz, now=now, history=history)
         messages = build_messages(text, context)
+        # Do not leave row locks or a read transaction open across a provider call.
+        db.commit()
         result = router.generate(messages, AssistantPlan, role=role)
+        validate_generation_scope(db, user, locale, scope)
     except AIError as err:
         if err.prompt_tokens or err.completion_tokens:
             # the tokens were burnt, so the request counts
@@ -210,7 +232,7 @@ def make_plan(db: Session, user: User, text: str, *, locale: str, tz: Optional[s
     settle(db, usage, provider=result.provider, slot_index=result.slot_index, model=result.model,
            prompt_tokens=result.prompt_tokens, completion_tokens=result.completion_tokens,
            cost_estimate=result.cost_estimate, succeeded=True)
-    plan_id, expires_at = store.save(user_id=user.id, plan=result.value)
+    plan_id, expires_at = store.save(user_id=user.id, plan=result.value, scope_fingerprint=scope)
     business_id = get_user_business_id(user, db)
     business = crud_business.get_business(db, business_id) if business_id else None
     logger.info("ai plan: user=%s business=%s actions=%s questions=%s chars=%s",
@@ -219,8 +241,13 @@ def make_plan(db: Session, user: User, text: str, *, locale: str, tz: Optional[s
 
 
 def execute_saved_plan(db: Session, user: User, plan_id: str, *, locale: str, tz: Optional[str] = None,
-                       store: Optional[Store] = None, config: Optional[AIConfig] = None) -> ExecutionResult:
+                       store: Optional[Store] = None, config: Optional[AIConfig] = None,
+                       expected_scope: Optional[str] = None) -> ExecutionResult:
     store = store or _default_store
-    plan = store.take(plan_id, user_id=user.id)
+    scope = expected_scope or generation_scope_snapshot(db, user, locale)
+    validate_generation_scope(db, user, locale, scope)
+    plan = store.take(plan_id, user_id=user.id, scope_fingerprint=scope)
+    # Taking the plan is the one-shot execution claim; re-read membership afterwards.
+    validate_generation_scope(db, user, locale, scope)
     tz = tz or user_timezone(db, user, config or load_ai_config())
     return execute_plan(db, user, plan, locale=locale, tz=tz)

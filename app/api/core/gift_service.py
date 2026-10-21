@@ -201,7 +201,7 @@ def published_offers(db: Session, business: Business) -> list[GiftOffer]:
     )
 
 
-def get_shop(db: Session, slug: str) -> tuple[Business, str]:
+def get_shop(db: Session, slug: str, *, write: bool = False) -> tuple[Business, str]:
     """The salon's public handle, created with its online booking link."""
     settings = (
         db.query(PublicBookingSettings)
@@ -214,6 +214,8 @@ def get_shop(db: Session, slug: str) -> tuple[Business, str]:
     )
     if settings is None or settings.business is None:
         raise GiftNotFound()
+    from app.api.core.subscription_access import enforce_business_access
+    enforce_business_access(db, settings.business_id, write=write)
     return settings.business, settings.slug
 
 
@@ -481,7 +483,7 @@ def order_out(
     }
 
 
-def resolve_order(db: Session, public_ref: str, public_token: Optional[str]) -> GiftOrder:
+def resolve_order(db: Session, public_ref: str, public_token: Optional[str], *, write: bool = False) -> GiftOrder:
     if not public_token:
         raise GiftNotFound()
     order = (
@@ -493,6 +495,8 @@ def resolve_order(db: Session, public_ref: str, public_token: Optional[str]) -> 
         order.public_token_hash, token_digest(public_token)
     ):
         raise GiftNotFound()
+    from app.api.core.subscription_access import enforce_business_access
+    enforce_business_access(db, order.business_id, write=write)
     if expire_stale_orders(db, order):
         db.commit()
         db.refresh(order)

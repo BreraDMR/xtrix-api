@@ -1,5 +1,4 @@
-"""D01 offers stay draft until the owner approves them, and a purchase can only
-provision a subscription when the catalog says which plan it belongs to."""
+"""Approved prices are public, but checkout still requires a mapped subscription plan."""
 from datetime import timedelta, timezone
 
 import pytest
@@ -36,11 +35,21 @@ def remote_subscription(owner_id: int, plan_id: int, **metadata):
     }
 
 
-def test_unapproved_prices_are_not_published_or_purchasable():
-    # D01 has not approved a single proposed price yet
-    assert get_offer_catalog(include_draft=False).offers == []
-    assert all(item.status == "draft" for item in get_offer_catalog(include_draft=True).offers)
+def test_approved_catalog_contains_the_exact_four_crm_and_ai_tiers():
+    offers = get_offer_catalog().offers
+    assert len(offers) == 8
+    assert all(item.status == "approved" for item in offers)
+    crm = [item for item in offers if item.product == "crm"]
+    ai = [item for item in offers if item.product == "ai"]
+    assert [(item.entitlements.max_monthly_visits, int(item.price)) for item in crm] == [(100, 200), (300, 400), (700, 700), (2000, 1200)]
+    assert [(item.entitlements.daily_requests_limit, int(item.price)) for item in ai] == [(20, 200), (50, 400), (100, 700), (200, 1200)]
+    assert all(item.entitlements.max_active_clients is None for item in crm)
+
+
+def test_unapproved_prices_are_not_published_or_purchasable(monkeypatch):
+    monkeypatch.setitem(offer("crm_starter_czk"), "status", "draft")
     assert get_offer_by_code("crm_starter_czk") is None
+    assert "crm_starter_czk" not in [item.code for item in get_offer_catalog().offers]
     with pytest.raises(HTTPException) as exc:
         resolve_offer_for_checkout("crm_starter_czk")
     assert exc.value.status_code == 400

@@ -206,7 +206,16 @@ def _build_transport() -> NotificationTransport:
     return LiveNotificationTransport()
 
 
+class DisabledNotificationTransport:
+    name = "disabled"
+
+    def send(self, message: OutboundMessage) -> DeliveryResult:
+        return DeliveryResult("skipped", self.name, error="pilot_delivery_disabled")
+
+
 def get_notification_transport() -> NotificationTransport:
+    if settings.pilot_mode_enabled:
+        return DisabledNotificationTransport()
     global _transport
     if _transport is None:
         with _transport_lock:

@@ -1,5 +1,5 @@
 from datetime import timezone
-from fastapi import Depends, HTTPException, status, Header
+from fastapi import Depends, HTTPException, status, Header, Request
 from fastapi.security import OAuth2PasswordBearer
 import jwt
 from jwt import InvalidTokenError
@@ -23,7 +23,7 @@ def token_revoked(user, payload: dict) -> bool:
     # the DB keeps naive UTC; tokens from before iat_ms existed count as issued at 0
     valid_after_ms = user.tokens_valid_after.replace(tzinfo=timezone.utc).timestamp() * 1000
     return float(payload.get("iat_ms") or 0) < valid_after_ms
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+def get_current_user(request: Request, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -51,6 +51,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if token_revoked(user, payload):
         logger.warning(f"Revoked access token used: user_id={user_id}")
         raise credentials_exception
+    from app.api.core.subscription_access import enforce_subscription_request_access
+    enforce_subscription_request_access(db, user, request)
     logger.debug(f"User authenticated: id={user_id}, role={user.role}")
     return user
 def get_current_user_optional(
@@ -91,6 +93,7 @@ def get_locale(accept_language: str | None = Header(default=None, alias="Accept-
     from app.api.core.i18n import normalize_locale
     return normalize_locale(accept_language)
 def get_portal_session(
+    request: Request,
     x_portal_token: str | None = Header(default=None, alias="X-Portal-Token"),
     db: Session = Depends(get_db),
     locale: str = Depends(get_locale),
@@ -101,4 +104,6 @@ def get_portal_session(
     session = crud_client_portal.get_valid_session(db, x_portal_token)
     if session is None:
         raise HTTPException(status_code=401, detail=_("portal_session_invalid", locale))
+    from app.api.core.subscription_access import enforce_business_access
+    enforce_business_access(db, session.business_id, write=request.method not in {"GET", "HEAD", "OPTIONS"})
     return session

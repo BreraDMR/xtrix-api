@@ -1212,6 +1212,8 @@ def _execute_row(
         duration = int(visit_data.get("duration_minutes") or DEFAULT_DURATION_MINUTES)
         if service is not None and service.duration_minutes:
             duration = service.duration_minutes
+        from app.api.core.crm_metering import enforce_visit_quota
+        enforce_visit_quota(db, scope.business_id, specialist_id, start, visit_data.get("status") or "completed")
         visit = Visit(
             client_id=client.id,
             specialist_id=specialist_id,

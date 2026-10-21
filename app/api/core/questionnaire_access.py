@@ -107,4 +107,6 @@ def resolve_token(
         or template.business_id != token.business_id
     ):
         raise QuestionnaireTokenInvalid
+    from app.api.core.subscription_access import enforce_business_access
+    enforce_business_access(db, token.business_id)
     return token, version, visit

@@ -19,7 +19,7 @@ def get_staff_record(db: Session, user: User):
     return db.query(Employee).filter(
         Employee.employee_user_id == user.id,
         Employee.is_active == True,  # noqa: E712
-    ).first()
+    ).populate_existing().first()
 def _staff_permissions(employee) -> EmployeePermissions:
     return EmployeePermissions(**(employee.permissions or {}))
 def _allowed(user: User, db: Session, flag: str) -> bool:
@@ -30,7 +30,7 @@ def _allowed(user: User, db: Session, flag: str) -> bool:
     staff = get_staff_record(db, user)
     if staff:
         return getattr(_staff_permissions(staff), flag)
-    return user.role == "specialist"
+    return user.role == "specialist" and user.employer_id is None
 def can_view_financials(user: User, db: Session) -> bool:
     return _allowed(user, db, "can_view_financials")
 def can_manage_services(user: User, db: Session) -> bool:
@@ -77,8 +77,8 @@ def get_accessible_client_ids(db: Session, user: User) -> Optional[Set[int]]:
             # only ever the owner's own clients, whatever ids got saved in the permissions
             return set(assigned) & business_ids
         return business_ids
-    if user.role == "employee":
-        # fired, or never hired
+    if user.role == "employee" or (user.role == "specialist" and user.employer_id is not None):
+        # fired, or an employment link that no longer grants access
         return set()
     if user.role == "specialist":
         business_id = getattr(user, 'business_id', None)
@@ -102,11 +102,14 @@ def check_visit_access(db: Session, user: User, visit: Visit) -> bool:
         # no business yet: only their own visits, not everybody's
         return visit.specialist_id == user.id
     if get_staff_record(db, user):
+        business_id = get_user_business_id(user, db)
+        if not business_id or visit.business_id != business_id:
+            return False
         if visit.specialist_id == user.id:
             return True
         return check_client_access(db, user, visit.client_id)
-    if user.role == "specialist":
-        return visit.specialist_id == user.id
+    if user.role == "specialist" and user.employer_id is None:
+        return visit.specialist_id == user.id and visit.business_id == user.business_id
     return False
 def check_service_access(db: Session, user: User, service: Service) -> bool:
     if user.role == "admin":
@@ -118,12 +121,10 @@ def check_service_access(db: Session, user: User, service: Service) -> bool:
         return service.specialist_id == user.id
     staff = get_staff_record(db, user)
     if staff:
-        if service.specialist_id == user.id:
-            return True
-        owner = db.query(User).filter(User.id == staff.business_owner_id).first()
-        return bool(owner and owner.business_id) and service.business_id == owner.business_id
-    if user.role == "specialist":
-        return service.specialist_id == user.id
+        business_id = get_user_business_id(user, db)
+        return bool(business_id) and service.business_id == business_id
+    if user.role == "specialist" and user.employer_id is None:
+        return service.specialist_id == user.id and service.business_id == user.business_id
     return False
 def get_filtered_specialist_id(user: User) -> Optional[int]:
     if user.role == "admin":
@@ -146,6 +147,9 @@ def get_business_owner_ids_for_filter(current_user: User, db: Session) -> Option
     return None
 def check_specialist_in_scope(db: Session, user: User, specialist_id: int) -> bool:
     # who may be put down as the specialist of a visit/service/schedule on user's behalf
+    if user.role == "employee" or (user.role == "specialist" and user.employer_id is not None):
+        if not get_staff_record(db, user):
+            return False
     if specialist_id == user.id or user.role == "admin":
         return True
     target = db.query(User).filter(User.id == specialist_id, User.deleted_at.is_(None)).first()
@@ -167,14 +171,17 @@ def check_specialist_in_scope(db: Session, user: User, specialist_id: int) -> bo
     ).first() is not None
 def get_user_business_id(current_user: User, db: Session) -> Optional[int]:
     """The business the user works in: their own, or the employer's for an employee."""
-    if current_user.business_id:
-        return current_user.business_id
     staff = get_staff_record(db, current_user)
     if staff:
-        owner = db.query(User).filter(User.id == staff.business_owner_id).first()
-        if owner and owner.business_id:
-            return owner.business_id
-    return None
+        owner = db.query(User).filter(
+            User.id == staff.business_owner_id, User.deleted_at.is_(None)
+        ).populate_existing().first()
+        return owner.business_id if owner else None
+    if current_user.role == "employee" or (
+        current_user.role == "specialist" and current_user.employer_id is not None
+    ):
+        return None
+    return current_user.business_id
 def require_business_id(current_user: User, db: Session, locale: str) -> int:
     # stock, expenses and loyalty only make sense inside a business
     business_id = get_user_business_id(current_user, db)

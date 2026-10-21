@@ -85,6 +85,8 @@ def join_waitlist(
     locale: str,
 ) -> tuple[WaitlistEntry, Optional[str], bool]:
     """Create one active entry per identical request; a repeat returns the existing row."""
+    from app.api.core.subscription_access import enforce_business_access
+    enforce_business_access(db, business.id)
     service = crud_public_booking.get_public_service(db, business.id, payload.service_id)
     if service is None:
         raise ServiceUnavailable()
@@ -346,6 +348,8 @@ def resolve_offer(db: Session, raw_token: Optional[str], lock: bool = False) -> 
     offer = crud_waitlist.offer_by_token(db, raw_token, lock=lock)
     if offer is None:
         raise OfferUnavailable()
+    from app.api.core.subscription_access import enforce_business_access
+    enforce_business_access(db, offer.business_id)
     return offer
 
 
@@ -499,6 +503,8 @@ def leave_waitlist(db: Session, raw_token: Optional[str]) -> WaitlistEntry:
         )
         if entry is None:
             raise OfferUnavailable()
+    from app.api.core.subscription_access import enforce_business_access
+    enforce_business_access(db, entry.business_id)
     if entry.status == "fulfilled":
         raise EntryClosed()
     if entry.status == "cancelled":

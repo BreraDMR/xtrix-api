@@ -3612,6 +3612,9 @@
       "CrmUsageOut": {
         "properties": {
           "active_clients": {
+            "default": 0,
+            "deprecated": true,
+            "description": "Legacy unique-client report; use visits for billing",
             "title": "Active Clients",
             "type": "integer"
           },
@@ -3641,10 +3644,14 @@
               }
             ],
             "title": "Offer Code"
+          },
+          "visits": {
+            "title": "Visits",
+            "type": "integer"
           }
         },
         "required": [
-          "active_clients"
+          "visits"
         ],
         "title": "CrmUsageOut",
         "type": "object"
@@ -5970,6 +5977,110 @@
           "currency"
         ],
         "title": "GiftShopOut",
+        "type": "object"
+      },
+      "GoogleConfigOut": {
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "client_id"
+        ],
+        "title": "GoogleConfigOut",
+        "type": "object"
+      },
+      "GoogleLoginIn": {
+        "properties": {
+          "credential": {
+            "maxLength": 16384,
+            "minLength": 1,
+            "title": "Credential",
+            "type": "string"
+          },
+          "link_existing": {
+            "default": false,
+            "title": "Link Existing",
+            "type": "boolean"
+          },
+          "nonce": {
+            "maxLength": 128,
+            "minLength": 32,
+            "title": "Nonce",
+            "type": "string"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "role": {
+            "default": "business_owner",
+            "enum": [
+              "business_owner",
+              "specialist"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "totp_token": {
+            "anyOf": [
+              {
+                "maxLength": 6,
+                "minLength": 6,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Totp Token"
+          }
+        },
+        "required": [
+          "credential",
+          "nonce"
+        ],
+        "title": "GoogleLoginIn",
+        "type": "object"
+      },
+      "GoogleNonceOut": {
+        "properties": {
+          "expires_in": {
+            "title": "Expires In",
+            "type": "integer"
+          },
+          "nonce": {
+            "title": "Nonce",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nonce",
+          "expires_in"
+        ],
+        "title": "GoogleNonceOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -8623,6 +8734,16 @@
       },
       "OfferCatalogOut": {
         "properties": {
+          "checkout_available": {
+            "default": false,
+            "title": "Checkout Available",
+            "type": "boolean"
+          },
+          "email_available": {
+            "default": false,
+            "title": "Email Available",
+            "type": "boolean"
+          },
           "offers": {
             "description": "List of offers",
             "items": {
@@ -8630,6 +8751,16 @@
             },
             "title": "Offers",
             "type": "array"
+          },
+          "pilot_mode": {
+            "default": false,
+            "title": "Pilot Mode",
+            "type": "boolean"
+          },
+          "registration_requires_invitation": {
+            "default": false,
+            "title": "Registration Requires Invitation",
+            "type": "boolean"
           },
           "updated_at": {
             "anyOf": [
@@ -8691,6 +8822,19 @@
             ],
             "description": "Max active clients allowed in period for CRM",
             "title": "Max Active Clients"
+          },
+          "max_monthly_visits": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Maximum visits in a calendar month; repeat visits count separately",
+            "title": "Max Monthly Visits"
           }
         },
         "title": "OfferEntitlements",
@@ -14904,6 +15048,95 @@
         "title": "SpecialistProfileUpdate",
         "type": "object"
       },
+      "SubscriptionAccessOut": {
+        "properties": {
+          "ai_daily_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Daily Limit"
+          },
+          "can_export": {
+            "title": "Can Export",
+            "type": "boolean"
+          },
+          "can_manage_billing": {
+            "title": "Can Manage Billing",
+            "type": "boolean"
+          },
+          "can_use_ai": {
+            "title": "Can Use Ai",
+            "type": "boolean"
+          },
+          "checkout_available": {
+            "title": "Checkout Available",
+            "type": "boolean"
+          },
+          "crm_mode": {
+            "enum": [
+              "full",
+              "read_only",
+              "blocked"
+            ],
+            "title": "Crm Mode",
+            "type": "string"
+          },
+          "pilot_mode": {
+            "title": "Pilot Mode",
+            "type": "boolean"
+          },
+          "read_only_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read Only Until"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "trial_end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trial End"
+          }
+        },
+        "required": [
+          "crm_mode",
+          "can_export",
+          "can_use_ai",
+          "can_manage_billing",
+          "checkout_available",
+          "pilot_mode"
+        ],
+        "title": "SubscriptionAccessOut",
+        "type": "object"
+      },
       "SubscriptionCancelRequest": {
         "properties": {
           "cancel_at_period_end": {
@@ -20247,6 +20480,89 @@
         "summary": "Export Audit Logs Csv",
         "tags": [
           "audit"
+        ]
+      }
+    },
+    "/auth/google/config": {
+      "get": {
+        "operationId": "google_config_auth_google_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Google Config",
+        "tags": [
+          "google-login"
+        ]
+      }
+    },
+    "/auth/google/login": {
+      "post": {
+        "operationId": "google_login_auth_google_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleLoginIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Google Login",
+        "tags": [
+          "google-login"
+        ]
+      }
+    },
+    "/auth/google/nonce": {
+      "post": {
+        "operationId": "google_nonce_auth_google_nonce_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleNonceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Google Nonce",
+        "tags": [
+          "google-login"
         ]
       }
     },
@@ -35405,6 +35721,32 @@
           }
         ],
         "summary": "Create Subscription",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
+    "/subscriptions/access": {
+      "get": {
+        "operationId": "get_access_state_subscriptions_access_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionAccessOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Access State",
         "tags": [
           "subscriptions"
         ]

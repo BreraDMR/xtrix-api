@@ -156,6 +156,8 @@ def submit_booking(
     *,
     commit: bool = True,
 ) -> Visit:
+    from app.api.core.subscription_access import enforce_business_access
+    enforce_business_access(db, business.id)
     payments.expire_stale_holds(db, business_id=business.id, commit=commit)
     digest = request_hash(payload)
     existing = db.query(PublicBookingRequest).filter(
@@ -165,6 +167,8 @@ def submit_booking(
     if existing:
         return _replay(db, existing, digest)
 
+    from app.api.core.crm_metering import enforce_visit_quota
+    enforce_visit_quota(db, business.id, payload.staff_id, payload.start)
     service_ids = payload.service_ids or [payload.service_id]
     services = [
         crud_public_booking.get_public_service(db, business.id, service_id)

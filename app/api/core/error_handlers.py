@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from app.api.core.config import settings
 from app.api.core.logger import logger
 SECRET_HEADERS = {"authorization", "cookie", "x-apple-token", "x-google-token", "x-erl-token", "stripe-signature"}
-SECRET_KEY_PARTS = ("password", "token", "secret", "totp")
+SECRET_KEY_PARTS = ("password", "token", "secret", "totp", "credential", "nonce")
 def _redact(value: Any) -> Any:
     # error responses echo the request in detailed mode - never send credentials back
     if isinstance(value, dict):

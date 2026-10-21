@@ -135,6 +135,8 @@ def reschedule_managed_booking(
     locale: str = Depends(deps.get_locale),
 ):
     token, visit = _resolve(db, x_booking_token, locale, action="reschedule")
+    from app.api.core.crm_metering import enforce_visit_quota
+    enforce_visit_quota(db, visit.business_id, visit.specialist_id, payload.start, visit.status, exclude_id=visit.id)
     visit = _locked_visit(db, token, visit.id, locale)
 
     reason = booking_manage_policy.reschedule_block_reason(visit)

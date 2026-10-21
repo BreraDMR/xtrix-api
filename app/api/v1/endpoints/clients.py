@@ -428,6 +428,8 @@ def access_client_history_by_qr(
         logger.warning(f"Invalid password for QR code access: client_id={client_id}")
         # 403, not 401: nobody is logged in here, and 401 makes the web app think the session died
         raise HTTPException(status_code=403, detail=_("invalid_password", locale))
+    from app.api.core.subscription_access import enforce_client_access
+    enforce_client_access(db, client, write=False)
     visits, total = crud_visit.list_visits(db, client_id=client_id)
     total_spending = sum(v.price or 0 for v in visits)
     last_visit_date = None

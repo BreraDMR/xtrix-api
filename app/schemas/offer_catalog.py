@@ -10,6 +10,7 @@ BillingInterval = Literal["month", "year"]
 
 
 class OfferEntitlements(BaseModel):
+    max_monthly_visits: Optional[int] = Field(default=None, ge=1, description="Maximum visits in a calendar month; repeat visits count separately")
     max_active_clients: Optional[int] = Field(
         default=None,
         ge=1,
@@ -42,6 +43,10 @@ class OfferOut(BaseModel):
 
 
 class OfferCatalogOut(BaseModel):
+    pilot_mode: bool = False
+    checkout_available: bool = False
+    registration_requires_invitation: bool = False
+    email_available: bool = False
     version: str = Field(..., description="Offer catalog version string, e.g. 2026-10-v1")
     offers: List[OfferOut] = Field(default_factory=list, description="List of offers")
     updated_at: Optional[UtcDatetime] = Field(default=None, description="Catalog last update timestamp")
@@ -50,7 +55,8 @@ class OfferCatalogOut(BaseModel):
 
 
 class CrmUsageOut(BaseModel):
-    active_clients: int
+    visits: int
+    active_clients: int = Field(default=0, deprecated=True, description="Legacy unique-client report; use visits for billing")
     limit: Optional[int] = None
     offer_code: Optional[str] = None
     is_within_limit: bool = True
@@ -73,3 +79,16 @@ class EntitlementsUsageOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+
+class SubscriptionAccessOut(BaseModel):
+    crm_mode: Literal["full", "read_only", "blocked"]
+    trial_end: Optional[UtcDatetime] = None
+    read_only_until: Optional[UtcDatetime] = None
+    can_export: bool
+    can_use_ai: bool
+    can_manage_billing: bool
+    checkout_available: bool
+    pilot_mode: bool
+    ai_daily_limit: Optional[int] = None
+    reason: Optional[str] = None

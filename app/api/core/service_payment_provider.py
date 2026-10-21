@@ -113,6 +113,8 @@ class SandboxProvider:
 
 def get_service_payment_provider() -> SandboxProvider | None:
     """A configured, non-production sandbox adapter, else deposits stay off."""
+    if settings.pilot_mode_enabled:
+        return None
     if settings.service_payment_provider.strip().lower() != "sandbox":
         return None
     if settings.environment == "production":

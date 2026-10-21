@@ -7,15 +7,16 @@ Endpoints use reserve_request: count and add the row in one transaction under an
 the payer, so two requests racing at the edge can't both get in. The row is filled in (settle) or
 dropped (release, nothing was spent) once the model has answered.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
-from sqlalchemy import func, text
+from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
 
 from app.ai.config import AIConfig
 from app.ai.errors import AILimitReached
 from app.api.core.clock import utcnow
+from app.api.core.config import settings
 from app.api.core.permissions import get_user_business_id
 from app.api.crud import crud_subscription
 from app.db.models.ai_usage import AIUsage
@@ -77,9 +78,57 @@ def used_this_month(db: Session, user: User, now: Optional[datetime] = None) -> 
     return _scope(q, db, user).scalar() or 0
 
 
+def _day_bounds(now: datetime) -> tuple[datetime, datetime]:
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return start, start + timedelta(days=1)
+
+
+def _pilot_payer(db: Session, user: User) -> Optional[User]:
+    payer_id = crud_subscription.subscription_payer_id(db, user)
+    return db.get(User, payer_id) if payer_id is not None else None
+
+
+def pilot_used_today(db: Session, user: User, now: Optional[datetime] = None) -> int:
+    """Count successful or reserved chat requests in the payer's UTC day.
+
+    A provider failure stays in the cost log but does not spend the customer's allowance.
+    Speech is logged separately: transcribing and sending that text is one chat request.
+    """
+    payer = _pilot_payer(db, user)
+    if payer is None:
+        return 0
+    start, end = _day_bounds(now or utcnow())
+    query = db.query(func.count(AIUsage.id)).filter(
+        AIUsage.created_at >= start,
+        AIUsage.created_at < end,
+        AIUsage.role != "stt",
+        or_(AIUsage.succeeded.is_(True), AIUsage.provider == "pending"),
+    )
+    return int(_scope(query, db, payer).scalar() or 0)
+
+
+def _pilot_limit(db: Session, user: User, now: datetime, *, speech: bool = False) -> int:
+    # Imported here because subscription access itself uses the shared subscription CRUD.
+    from app.api.core.subscription_access import get_subscription_access_state
+
+    state = get_subscription_access_state(db, user.id)
+    limit = state.get("ai_daily_limit") or 0
+    used = pilot_used_today(db, user, now)
+    if not state.get("can_use_ai") or (not speech and used >= limit):
+        _, tomorrow = _day_bounds(now)
+        raise AILimitReached(
+            limit=limit if state.get("can_use_ai") else 0,
+            used=used,
+            retry_after=max(1, int((tomorrow - now).total_seconds())),
+        )
+    return max(0, limit - used)
+
+
 def check_limit(db: Session, user: User, config: AIConfig, now: Optional[datetime] = None) -> int:
     """Requests left this month; raises AILimitReached when none are."""
     now = now or utcnow()
+    if settings.pilot_mode_enabled:
+        return _pilot_limit(db, user, now)
     limit = monthly_limit(db, user, config)
     used = used_this_month(db, user, now)
     if used >= limit:
@@ -111,18 +160,26 @@ def record_usage(db: Session, user: User, *, provider: str, slot_index: Optional
 
 def reserve_request(db: Session, user: User, config: AIConfig, *, role: str,
                     now: Optional[datetime] = None) -> AIUsage:
-    """Take one request from the monthly allowance, or raise AILimitReached. Commits."""
-    business_id = get_user_business_id(user, db)
-    space, key = (_LOCK_BUSINESS, business_id) if business_id else (_LOCK_SOLO, user.id)
-    # held till the commit below; the count after it sees whatever the other request committed
+    """Reserve a request atomically before the model call. Pilot tiers use a daily limit."""
+    now = now or utcnow()
+    payer = _pilot_payer(db, user) if settings.pilot_mode_enabled else None
+    scope_user = payer or user
+    business_id = get_user_business_id(scope_user, db)
+    space, key = (_LOCK_BUSINESS, business_id) if business_id else (_LOCK_SOLO, scope_user.id)
+    # Held till commit; another request sees this pending row before calling its model.
+    # Locking the scope also covers two owners belonging to the same salon.
     db.execute(text("SELECT pg_advisory_xact_lock(:space, :key)"), {"space": space, "key": key})
     try:
-        check_limit(db, user, config, now)
+        if settings.pilot_mode_enabled:
+            _pilot_limit(db, user, now, speech=role == "stt")
+        else:
+            check_limit(db, user, config, now)
     except AILimitReached:
         db.rollback()
         raise
     row = AIUsage(business_id=business_id, user_id=user.id, provider="pending", slot_index=None, model="-",
-                  role=role, prompt_tokens=0, completion_tokens=0, cost_estimate=0.0, succeeded=False)
+                  role=role, prompt_tokens=0, completion_tokens=0, cost_estimate=0.0, succeeded=False,
+                  created_at=now)
     db.add(row)
     db.commit()
     db.refresh(row)

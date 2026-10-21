@@ -122,6 +122,8 @@ def create_checkout_session(
     current_user: User = Depends(_payer),
     locale: str = Depends(deps.get_locale),
 ):
+    if settings.pilot_mode_enabled:
+        raise HTTPException(status_code=503, detail={"code": "pilot_checkout_unavailable"})
     if not settings.stripe_api_key:
         raise HTTPException(status_code=503, detail="Stripe not configured")
     if not plan_id and not offer_code:
@@ -199,6 +201,15 @@ def get_checkout_session(
     except stripe.StripeError:
         raise HTTPException(status_code=503, detail="Stripe is temporarily unavailable")
     return None
+from app.schemas.offer_catalog import SubscriptionAccessOut
+
+
+@router.get("/access", response_model=SubscriptionAccessOut)
+def get_access_state(db: Session = Depends(deps.get_db), current_user: User = Depends(deps.get_current_user)):
+    from app.api.core.subscription_access import get_subscription_access_state
+    return get_subscription_access_state(db, current_user.id)
+
+
 @router.get("/trial/status")
 def get_trial_status(
     db: Session = Depends(deps.get_db),
@@ -233,7 +244,7 @@ def get_usage_and_entitlements(
     """
     import re
     from app.api.core.clock import utcnow
-    from app.api.core.crm_metering import count_distinct_active_clients, get_current_period
+    from app.api.core.crm_metering import count_distinct_active_clients, count_monthly_visits, get_current_period
     from app.api.core.ai_metering import get_daily_ai_usage, get_current_daily_period
     from app.api.core.offer_catalog import get_offer_by_code
     from app.api.core.permissions import get_staff_record
@@ -271,9 +282,17 @@ def get_usage_and_entitlements(
     offer = get_offer_by_code(sub.offer_code, include_draft=True) if sub and sub.offer_code else None
     crm_offer = offer if offer and offer.product == "crm" else None
     ai_offer = offer if offer and offer.product == "ai" else None
-    crm_limit = crm_offer.entitlements.max_active_clients if crm_offer else None
+    from app.api.core.subscription_access import product_subscriptions, TRIAL_VISIT_LIMIT, get_subscription_access_state
+    crm_subs = product_subscriptions(db, payer_id, "crm") if payer_id else []
+    ai_subs = product_subscriptions(db, payer_id, "ai") if payer_id else []
+    crm_offer = get_offer_by_code(crm_subs[0].offer_code) if crm_subs and crm_subs[0].offer_code else None
+    ai_offer = get_offer_by_code(ai_subs[0].offer_code) if ai_subs and ai_subs[0].offer_code else None
+    crm_limit = crm_offer.entitlements.max_monthly_visits if crm_offer else None
+    if settings.pilot_mode_enabled and crm_subs and crm_subs[0].is_trial:
+        crm_limit = TRIAL_VISIT_LIMIT
+    visits = count_monthly_visits(db, biz_id, period_str, usr_id)
     crm_code = crm_offer.code if crm_offer else None
-    crm_within = (active_clients <= crm_limit) if crm_limit is not None else True
+    crm_within = (visits <= crm_limit) if crm_limit is not None else True
 
     daily_period = get_current_daily_period()
     ai_used = get_daily_ai_usage(
@@ -283,7 +302,12 @@ def get_usage_and_entitlements(
         day_str=daily_period,
     )
     ai_limit = ai_offer.entitlements.daily_requests_limit if ai_offer else None
+    if settings.pilot_mode_enabled:
+        ai_limit = get_subscription_access_state(db, current_user.id)["ai_daily_limit"]
     ai_code = ai_offer.code if ai_offer else None
+    if settings.pilot_mode_enabled:
+        from app.ai.usage import pilot_used_today
+        ai_used = pilot_used_today(db, current_user)
     ai_within = (ai_used <= ai_limit) if ai_limit is not None else True
 
     return EntitlementsUsageOut(
@@ -292,6 +316,7 @@ def get_usage_and_entitlements(
         is_payer=is_payer,
         can_manage_billing=can_manage_billing,
         crm=CrmUsageOut(
+            visits=visits,
             active_clients=active_clients,
             limit=crm_limit,
             offer_code=crm_code,
@@ -484,6 +509,8 @@ def cancel_subscription(
     current_user: User = Depends(_billing_roles),
     locale: str = Depends(deps.get_locale),
 ):
+    if settings.pilot_mode_enabled:
+        raise HTTPException(status_code=503, detail={"code": "pilot_checkout_unavailable"})
     sub = _own_subscription(db, current_user, subscription_id, locale)
     if sub.provider == "stripe":
         try:
@@ -508,6 +535,8 @@ def reactivate_subscription(
     current_user: User = Depends(_payer),
     locale: str = Depends(deps.get_locale),
 ):
+    if settings.pilot_mode_enabled:
+        raise HTTPException(status_code=503, detail={"code": "pilot_checkout_unavailable"})
     sub = _own_subscription(db, current_user, subscription_id, locale)
     if sub.provider == "stripe":
         try:
@@ -531,6 +560,8 @@ def get_subscription_transactions(
     current_user: User = Depends(_billing_roles),
     locale: str = Depends(deps.get_locale),
 ):
+    if settings.pilot_mode_enabled:
+        raise HTTPException(status_code=503, detail={"code": "pilot_checkout_unavailable"})
     sub = _own_subscription(db, current_user, subscription_id, locale)
     from app.api.crud import crud_transaction
     transactions = crud_transaction.get_transactions_by_subscription(db, subscription_id)

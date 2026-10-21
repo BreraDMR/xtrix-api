@@ -27,7 +27,7 @@ def test_crm_offer_limits_come_from_the_purchased_offer(client, db, make_user, h
     owner = make_user("business_owner")
     paid_subscription(db, owner, "crm_starter_czk")
     body = usage(client, headers_for(owner)).json()
-    assert body["crm"] == {"active_clients": 0, "limit": 100,
+    assert body["crm"] == {"visits": 0, "active_clients": 0, "limit": 100,
                            "offer_code": "crm_starter_czk", "is_within_limit": True}
     # the AI product was not bought, so no AI starter limit is invented
     assert body["ai"] == {"daily_requests_used": 0, "daily_requests_limit": None,
@@ -40,7 +40,7 @@ def test_ai_offer_limits_are_separate_from_crm(client, db, make_user, headers_fo
     body = usage(client, headers_for(owner)).json()
     assert body["ai"] == {"daily_requests_used": 0, "daily_requests_limit": 50,
                           "offer_code": "ai_pro_czk", "is_within_limit": True}
-    assert body["crm"] == {"active_clients": 0, "limit": None,
+    assert body["crm"] == {"visits": 0, "active_clients": 0, "limit": None,
                            "offer_code": None, "is_within_limit": True}
 
 
