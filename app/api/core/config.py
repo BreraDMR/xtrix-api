@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     aws_bucket: str = Field("")
     stripe_api_key: str = Field("")
     stripe_webhook_secret: str = Field("")
+    # service deposits use their own provider namespace; empty means deposits stay off.
+    # only the sandbox adapter ships in this release - live merchant onboarding is D04.
+    service_payment_provider: str = Field("")
+    service_payment_merchant: str = Field("xtrix-service-sandbox")
+    service_payment_webhook_secret: str = Field("")
     apple_shared_secret: str = Field("")
     apple_webhook_token: str = Field("")
     google_service_account_json: str = Field("")
@@ -144,6 +149,9 @@ class Settings(BaseSettings):
         # these strings are public (repo, compose, CI) - a token signed with them can be forged by anyone
         if self.environment == "production" and self.jwt_secret in PLACEHOLDER_JWT_SECRETS:
             raise ValueError("JWT_SECRET is a public placeholder, set a real random secret in production")
+        # the sandbox adapter is a local check tool, never a live money path
+        if self.environment == "production" and self.service_payment_provider:
+            raise ValueError("SERVICE_PAYMENT_PROVIDER is sandbox-only; live providers need D04 approval")
         return self
     # .env also holds keys read elsewhere (LLM_* for app/ai) - ignore them instead of refusing to start
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, populate_by_name=True, extra="ignore")

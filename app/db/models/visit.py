@@ -32,3 +32,9 @@ class Visit(Base):
         order_by="VisitItem.position",
         cascade="all, delete-orphan",
     )
+    payment_attempts = relationship(
+        "ServicePaymentAttempt",
+        back_populates="visit",
+        lazy="select",
+        order_by="ServicePaymentAttempt.id",
+    )

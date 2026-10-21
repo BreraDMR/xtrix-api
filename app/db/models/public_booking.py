@@ -4,6 +4,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     UniqueConstraint,
 )
@@ -31,6 +32,10 @@ class PublicBookingSettings(Base):
     )
     slug = Column(String(64), nullable=False, unique=True, index=True)
     is_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
+    # deposit policy for guest bookings; "none" keeps the old pay-at-the-salon flow
+    deposit_type = Column(String(16), nullable=False, default="none", server_default="none")
+    deposit_value = Column(Numeric(10, 2), nullable=False, default=0, server_default="0")
+    deposit_hold_minutes = Column(Integer, nullable=False, default=30, server_default="30")
     created_at = Column(DateTime, nullable=False, default=utcnow)
     updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
 
