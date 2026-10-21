@@ -48,7 +48,7 @@ class ConversationPage(BaseModel):
     items: list[ConversationOut]
     total: int = Field(ge=0)
     limit: int = Field(default=50, ge=1, le=100)
-    offset: int = Field(default=0, ge=0)
+    offset: int = Field(default=0, ge=0, le=1_000_000)
 
 
 class MessageOut(BaseModel):

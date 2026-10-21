@@ -36,7 +36,7 @@ staff_user = deps.role_required('admin', 'business_owner', 'specialist', 'employ
             summary='List active private conversations for the signed-in staff member')
 def list_conversations(
     limit: int = Query(50, ge=1, le=100),
-    offset: int = Query(0, ge=0),
+    offset: int = Query(0, ge=0, le=1_000_000),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(staff_user),
     locale: str = Depends(deps.get_locale),
