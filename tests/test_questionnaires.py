@@ -1,10 +1,13 @@
 """Questionnaire tokens and answers: replay, expiry, tenancy and private uploads."""
+import json
 from datetime import datetime, timedelta
 
 from app.api.core import questionnaire_attachments as attachment_core
 from app.api.core.clock import utcnow
+from app.db.models.business_audit_event import BusinessAuditEvent
 from app.db.models.questionnaire_access import QuestionnaireAccessToken
 from app.db.models.questionnaire_attachment import QuestionnaireAttachment
+from app.db.models.questionnaire_response import QuestionnaireResponse
 
 FIELDS = [
     {"key": "symptoms", "label": "Symptoms", "type": "text", "required": True, "max_length": 200},
@@ -114,7 +117,7 @@ def _guest(token):
     return {"X-Questionnaire-Token": token}
 
 
-def test_guest_answers_are_replay_safe_and_owner_sees_them(client, make_user, headers_for):
+def test_guest_answers_are_replay_safe_and_owner_sees_them(client, db, make_user, headers_for):
     salon = _salon(client, make_user, headers_for, "Answer")
     issued = _published_token(client, salon)
     guest = _guest(issued["token"])
@@ -140,6 +143,24 @@ def test_guest_answers_are_replay_safe_and_owner_sees_them(client, make_user, he
     submitted_at = first.json()["submitted_at"]
     assert first.json()["version"] == 1
 
+    db.expire_all()
+    journal = (
+        db.query(BusinessAuditEvent)
+        .filter(
+            BusinessAuditEvent.business_id == salon["business"]["id"],
+            BusinessAuditEvent.action == "questionnaire.submitted",
+        )
+        .all()
+    )
+    assert len(journal) == 1
+    response_row = db.query(QuestionnaireResponse).filter_by(visit_id=visit_id).one()
+    assert journal[0].entity_id == response_row.id
+    assert journal[0].actor_role == "guest"
+    assert journal[0].request_id
+    assert journal[0].changes == {"version": 1, "fields_count": 3, "answered_count": 3}
+    assert "headache" not in json.dumps(journal[0].changes)
+    assert "good" not in json.dumps(journal[0].changes)
+
     replay = client.post("/public/questionnaires/answers", json={"answers": ANSWERS}, headers=guest)
     assert replay.status_code == 200, replay.text
     assert replay.json()["submitted_at"] == submitted_at
@@ -151,6 +172,11 @@ def test_guest_answers_are_replay_safe_and_owner_sees_them(client, make_user, he
     )
     assert changed.status_code == 409, changed.text
     assert client.get("/public/questionnaires", headers=guest).json()["submitted_at"] == submitted_at
+    db.expire_all()
+    assert db.query(BusinessAuditEvent).filter(
+        BusinessAuditEvent.business_id == salon["business"]["id"],
+        BusinessAuditEvent.action == "questionnaire.submitted",
+    ).count() == 1
 
     card = client.get(f"/visits/{visit_id}/questionnaire", headers=salon["headers"])
     assert card.status_code == 200, card.text

@@ -13,7 +13,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.api.core import notification_events
+from app.api.core import audit_service, notification_events
 from app.api.core.clock import utcnow
 from app.api.core.service_payment_provider import (
     SandboxProvider,
@@ -385,6 +385,24 @@ def handle_webhook(
     now = _now()
     changed = _apply_event(db, attempt, event_type, now)
     attempt.updated_at = now
+    if changed and event_type in ("payment.paid", "payment.failed"):
+        audit_service.record_event(
+            db,
+            action=event_type,
+            entity_type="payment",
+            entity_id=attempt.id,
+            business_id=attempt.business_id,
+            changes={
+                "amount": attempt.amount,
+                "currency": attempt.currency,
+                "status": attempt.status,
+                "provider": provider.name,
+                "provider_event_id": payload["id"],
+            },
+            actor_name="payment provider",
+            actor_role="system",
+            request_id=payload["id"],
+        )
     db.add(
         ServicePaymentEvent(
             attempt_id=attempt.id,
@@ -479,6 +497,9 @@ def refund(
     refund_key: str,
     amount: Optional[float],
     reason: Optional[str],
+    *,
+    actor=None,
+    request_id: Optional[str] = None,
 ) -> ServicePaymentRefund:
     attempt = (
         db.query(ServicePaymentAttempt)
@@ -544,6 +565,22 @@ def refund(
             source="internal",
             payload_hash=hashlib.sha256(f"{refund_key}:{requested}".encode("utf-8")).hexdigest(),
         )
+    )
+    audit_service.record_event(
+        db,
+        action="payment.refunded",
+        entity_type="payment",
+        entity_id=attempt.id,
+        business_id=business_id,
+        changes={
+            "amount": requested,
+            "currency": attempt.currency,
+            "status": attempt.status,
+            "refund_id": row.id,
+            "provider": provider.name,
+        },
+        actor=actor,
+        request_id=request_id,
     )
     db.commit()
     db.refresh(row)

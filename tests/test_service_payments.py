@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from app.api.core.clock import utcnow
+from app.db.models.business_audit_event import BusinessAuditEvent
 from app.db.models.service_payment import (
     ServicePaymentAttempt,
     ServicePaymentEvent,
@@ -158,6 +159,19 @@ def _attempt(db, booking):
     return attempt
 
 
+def _audit(db, business_id, action):
+    db.expire_all()
+    return (
+        db.query(BusinessAuditEvent)
+        .filter(
+            BusinessAuditEvent.business_id == business_id,
+            BusinessAuditEvent.action == action,
+        )
+        .order_by(BusinessAuditEvent.id)
+        .all()
+    )
+
+
 def test_fixed_deposit_holds_slot_and_uses_server_total(client, db, deposit_salon):
     booking = _ok(_book(client, deposit_salon), "deposit booking")
     assert booking["status"] == "awaiting_payment"
@@ -260,11 +274,25 @@ def test_paid_webhook_confirms_once_and_duplicate_does_nothing(client, db, depos
     assert _attempt(db, booking).paid_at is not None
     assert db.query(ServicePaymentEvent).count() == 1
 
+    paid_events = _audit(db, deposit_salon["business"]["id"], "payment.paid")
+    assert len(paid_events) == 1
+    assert paid_events[0].entity_id == attempt.id
+    assert paid_events[0].actor_role == "system"
+    assert paid_events[0].request_id == "evt-paid-1"
+    assert paid_events[0].changes == {
+        "amount": format(attempt.amount, "f"),
+        "currency": attempt.currency,
+        "status": "paid",
+        "provider": "sandbox",
+        "provider_event_id": "evt-paid-1",
+    }
+
     duplicate = _ok(_webhook(client, attempt, "payment.paid", "evt-paid-1"), "duplicate webhook")
     assert duplicate["duplicate"] is True
     db.expire_all()
     assert db.get(Visit, booking["id"]).status == "planned"
     assert db.query(ServicePaymentEvent).count() == 1
+    assert len(_audit(db, deposit_salon["business"]["id"], "payment.paid")) == 1
 
     stale_failure = _ok(
         _webhook(client, attempt, "payment.failed", "evt-failed-after-paid"), "late failure"
@@ -273,6 +301,7 @@ def test_paid_webhook_confirms_once_and_duplicate_does_nothing(client, db, depos
     db.expire_all()
     assert _attempt(db, booking).status == "paid"
     assert db.get(Visit, booking["id"]).status == "planned"
+    assert _audit(db, deposit_salon["business"]["id"], "payment.failed") == []
 
     status = _ok(
         client.get(
@@ -324,6 +353,11 @@ def test_failed_payment_releases_hold_and_late_paid_goes_to_reconcile(client, db
     assert failed["status"] == "failed"
     db.expire_all()
     assert db.get(Visit, booking["id"]).status == "cancelled"
+    failed_events = _audit(db, deposit_salon["business"]["id"], "payment.failed")
+    assert len(failed_events) == 1
+    assert failed_events[0].entity_id == attempt.id
+    assert failed_events[0].request_id == "evt-failed-1"
+    assert failed_events[0].changes["status"] == "failed"
 
     other = _ok(_book(client, deposit_salon, request_id="deposit-request-2", name="Second Guest"), "rebook")
     assert other["id"] != booking["id"]
@@ -334,6 +368,10 @@ def test_failed_payment_releases_hold_and_late_paid_goes_to_reconcile(client, db
     assert db.get(Visit, booking["id"]).status == "cancelled"
     assert db.get(Visit, other["id"]).status == "awaiting_payment"
     assert _attempt(db, booking).refunded_amount == 0
+    late_events = _audit(db, deposit_salon["business"]["id"], "payment.paid")
+    assert len(late_events) == 1
+    assert late_events[0].request_id == "evt-paid-late"
+    assert late_events[0].changes["status"] == "reconcile"
 
 
 def test_expired_hold_frees_the_slot_and_late_payment_is_reconcile(client, db, deposit_salon):
@@ -461,8 +499,8 @@ def test_refunds_are_idempotent_and_capped(client, db, deposit_salon):
     first = _ok(
         client.post(
             f"/businesses/me/service-payments/{attempt.id}/refunds",
-            json={"refund_key": "refund-part-1", "amount": 5, "reason": "partial"},
-            headers=deposit_salon["headers"],
+            json={"refund_key": "refund-part-1", "amount": 5, "reason": "secret-refund-reason"},
+            headers={**deposit_salon["headers"], "X-Request-ID": "refund-request-1"},
         ),
         "partial refund",
     )
@@ -471,7 +509,7 @@ def test_refunds_are_idempotent_and_capped(client, db, deposit_salon):
         client.post(
             f"/businesses/me/service-payments/{attempt.id}/refunds",
             json={"refund_key": "refund-part-1", "amount": 5},
-            headers=deposit_salon["headers"],
+            headers={**deposit_salon["headers"], "X-Request-ID": "refund-request-1"},
         ),
         "refund replay",
     )
@@ -480,6 +518,15 @@ def test_refunds_are_idempotent_and_capped(client, db, deposit_salon):
     assert db.query(ServicePaymentRefund).count() == 1
     assert _attempt(db, booking).status == "partially_refunded"
     assert float(_attempt(db, booking).refunded_amount) == pytest.approx(5)
+    refund_events = _audit(db, deposit_salon["business"]["id"], "payment.refunded")
+    assert len(refund_events) == 1
+    assert refund_events[0].entity_id == attempt.id
+    assert refund_events[0].actor_name == "Deposit Owner"
+    assert refund_events[0].request_id == "refund-request-1"
+    assert refund_events[0].changes["amount"] == "5.00"
+    assert refund_events[0].changes["refund_id"] == first["id"]
+    assert "reason" not in refund_events[0].changes
+    assert "secret-refund-reason" not in json.dumps(refund_events[0].changes)
 
     too_big = client.post(
         f"/businesses/me/service-payments/{attempt.id}/refunds",
@@ -492,7 +539,7 @@ def test_refunds_are_idempotent_and_capped(client, db, deposit_salon):
         client.post(
             f"/businesses/me/service-payments/{attempt.id}/refunds",
             json={"refund_key": "refund-rest-1"},
-            headers=deposit_salon["headers"],
+            headers={**deposit_salon["headers"], "X-Request-ID": "refund-request-2"},
         ),
         "full refund",
     )
@@ -500,6 +547,10 @@ def test_refunds_are_idempotent_and_capped(client, db, deposit_salon):
     db.expire_all()
     assert _attempt(db, booking).status == "refunded"
     assert float(_attempt(db, booking).refunded_amount) == pytest.approx(12.30)
+    refund_events = _audit(db, deposit_salon["business"]["id"], "payment.refunded")
+    assert len(refund_events) == 2
+    assert [event.changes["amount"] for event in refund_events] == ["5.00", "7.30"]
+    assert refund_events[1].request_id == "refund-request-2"
 
     again = client.post(
         f"/businesses/me/service-payments/{attempt.id}/refunds",

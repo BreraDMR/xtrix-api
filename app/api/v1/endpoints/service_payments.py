@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api import deps
-from app.api.core import service_payment_service as payments
+from app.api.core import audit_service, service_payment_service as payments
 from app.api.core.i18n import _
 from app.api.core.permissions import can_view_financials, require_business_id
 from app.api.core.service_payment_provider import WebhookRejected, get_service_payment_provider
@@ -147,6 +147,7 @@ def list_service_payments(
 def refund_service_payment(
     attempt_id: int,
     payload: ServicePaymentRefundIn,
+    request: Request,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
@@ -160,6 +161,8 @@ def refund_service_payment(
             payload.refund_key,
             payload.amount,
             payload.reason,
+            actor=current_user,
+            request_id=audit_service.request_id_for(request),
         )
     except payments.RefundError as exc:
         codes = {

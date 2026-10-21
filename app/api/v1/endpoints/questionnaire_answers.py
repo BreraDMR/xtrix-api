@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api import deps
-from app.api.core import questionnaire_access
+from app.api.core import audit_service, questionnaire_access
 from app.api.core.i18n import _
 from app.api.core.permissions import check_visit_access
 from app.api.core.questionnaire_answers import AnswersInvalid, answers_hash, normalize_answers
@@ -110,6 +110,22 @@ def submit_questionnaire(
     )
     db.add(response)
     try:
+        db.flush()
+        audit_service.record_event(
+            db,
+            action="questionnaire.submitted",
+            entity_type="questionnaire",
+            entity_id=response.id,
+            business_id=token.business_id,
+            changes={
+                "version": version.version,
+                "fields_count": len(version.fields or []),
+                "answered_count": len(answers),
+            },
+            actor_name="guest",
+            actor_role="guest",
+            request_id=audit_service.request_id_for(request),
+        )
         db.commit()
     except IntegrityError:
         db.rollback()
