@@ -17,7 +17,8 @@ PROVIDERS = ("pool", "anthropic", "cli", "fake")
 JSON_MODES = ("json_object", "json_schema", "none")
 DATA_COLLECTION = ("allow", "deny")
 
-# requests per calendar month (UTC) by subscription plan code
+# requests per calendar month (UTC) by subscription plan code; the bare trial_* keys are the
+# allowance for every trial of that role, whatever duration its code carries (trial_admin_7d)
 DEFAULT_MONTHLY_LIMITS = {
     "trial_admin": 50,
     "trial_specialist": 50,

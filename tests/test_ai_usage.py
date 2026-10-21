@@ -43,9 +43,9 @@ def test_record_keeps_ids_and_numbers_never_keys(db, make_user):
 
 
 def test_limit_by_plan_code_with_env_override(db, make_user):
-    owner = owner_with_business(db, make_user)  # gets trial_admin on signup
-    assert monthly_limit(db, owner, CFG) == 3
-    solo = make_user("specialist")  # trial_specialist: not in the override, has a built-in default
+    owner = owner_with_business(db, make_user)  # gets the trial_admin_7d plan on signup
+    assert monthly_limit(db, owner, CFG) == 3  # trial_admin is the allowance for any admin trial
+    solo = make_user("specialist")  # trial_specialist_7d: not in the override, has a built-in default
     assert monthly_limit(db, solo, CFG) == 50
 
 
@@ -144,7 +144,7 @@ def test_reserve_counts_at_once_and_settles_later(db, make_user):
 def test_reserve_refuses_at_the_limit(db, make_user):
     from app.ai.usage import reserve_request
 
-    owner = owner_with_business(db, make_user)  # trial_admin = 3 in CFG
+    owner = owner_with_business(db, make_user)  # trial_admin_7d = 3 in CFG
     for _ in range(3):
         reserve_request(db, owner, CFG, role="fast")
     with pytest.raises(AILimitReached) as exc:

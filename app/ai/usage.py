@@ -41,11 +41,22 @@ def plan_code(db: Session, user: User, now: Optional[datetime] = None) -> Option
     return sub.plan.code if sub.plan else None
 
 
+def _limit_for_plan(code: str, config: AIConfig) -> int:
+    limit = config.monthly_limits.get(code)
+    if limit is not None:
+        return limit
+    # trial codes carry their duration (trial_admin_7d); the role key is the allowance
+    for role in ("trial_admin", "trial_specialist"):
+        if code == role or code.startswith(role + "_"):
+            return config.monthly_limits.get(role, config.monthly_limit_default)
+    return config.monthly_limit_default
+
+
 def monthly_limit(db: Session, user: User, config: AIConfig) -> int:
     code = plan_code(db, user)
     if code is None:
         return 0
-    return config.monthly_limits.get(code, config.monthly_limit_default)
+    return _limit_for_plan(code, config)
 
 
 # advisory lock namespaces, so a business id and a solo user id with the same number don't share a lock

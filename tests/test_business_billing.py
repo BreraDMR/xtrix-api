@@ -21,9 +21,9 @@ def test_owner_gets_trial_and_manages_billing(client, db, make_user, headers_for
     owner = make_user("business_owner")
     sub = crud_subscription.get_active_subscription(db, owner.id)
     assert sub is not None and sub.is_trial
-    # Existing admin plans cover teams; keep that trial rather than adding a tariff.
-    assert sub.plan.code == "trial_admin"
-    assert sub.trial_end - sub.trial_start == timedelta(days=5)
+    # New signups get the single 7-day trial policy for both roles.
+    assert sub.plan.code == "trial_admin_7d"
+    assert sub.trial_end - sub.trial_start == timedelta(days=7)
     headers = headers_for(owner)
     assert client.get("/subscriptions/me", headers=headers).json()["id"] == sub.id
     assert client.get("/subscriptions/history", headers=headers).json()[0]["id"] == sub.id
@@ -177,8 +177,8 @@ def test_staff_uses_paid_owner_plan_even_without_employer_field(client, db, make
 def test_solo_specialist_keeps_own_trial(client, db, make_user, headers_for):
     solo = make_user("specialist")
     sub = crud_subscription.get_active_subscription(db, solo.id)
-    assert sub.plan.code == "trial_specialist"
-    assert sub.trial_end - sub.trial_start == timedelta(days=14)
+    assert sub.plan.code == "trial_specialist_7d"
+    assert sub.trial_end - sub.trial_start == timedelta(days=7)
     assert crud_subscription.check_subscription_access(db, solo.id) == (True, None)
     assert client.get("/subscriptions/me", headers=headers_for(solo)).status_code == 200
     assert client.get("/subscriptions/history", headers=headers_for(solo)).json()[0]["id"] == sub.id
