@@ -66,6 +66,10 @@ class Settings(BaseSettings):
         "",
         description="Notification transport: empty/live uses configured providers, capture stores messages in memory without sending",
     )
+    capture_mail_file: str = Field(
+        "",
+        description="Optional JSONL file for messages caught by the capture transport; local checks only",
+    )
     twilio_sid: str = Field("")
     twilio_token: str = Field("")
     twilio_from: str = Field("")

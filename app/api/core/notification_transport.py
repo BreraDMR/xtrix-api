@@ -5,10 +5,12 @@ transport stores messages in memory and reports ``captured``, which is not a del
 only selected explicitly through NOTIFICATION_TRANSPORT=capture, so a missing provider in
 production can never look like a successful send.
 """
+import json
 import logging
 import smtplib
 import threading
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from email.message import EmailMessage
 from typing import Literal, Protocol, runtime_checkable
 
@@ -155,6 +157,7 @@ class CaptureNotificationTransport:
     def send(self, message: OutboundMessage) -> DeliveryResult:
         with self._lock:
             self._messages.append(message)
+            self._write_file(message)
         masked = mask_email(message.recipient) if message.channel == "email" else mask_phone(message.recipient)
         logger.info(
             "Notification captured by capture transport for %s (%s); nothing was sent",
@@ -162,6 +165,21 @@ class CaptureNotificationTransport:
             message.channel,
         )
         return DeliveryResult("captured", self.name)
+
+    def _write_file(self, message: OutboundMessage) -> None:
+        path = (settings.capture_mail_file or "").strip()
+        if not path:
+            return
+        record = {
+            "captured_at": datetime.now(timezone.utc).isoformat(),
+            "channel": message.channel,
+            "recipient": message.recipient,
+            "subject": message.subject,
+            "text": message.text,
+            "html": message.html,
+        }
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
     def messages(self) -> list[OutboundMessage]:
         with self._lock:
