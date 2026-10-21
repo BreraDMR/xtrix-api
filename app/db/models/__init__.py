@@ -22,6 +22,7 @@ from app.db.models.refresh_token import RefreshToken
 from app.db.models.password_reset_token import PasswordResetToken
 from app.db.models.audit_log import AuditLog
 from app.db.models.business_audit_event import BusinessAuditEvent
+from app.db.models.import_batch import ImportBatch, ImportRow
 from app.db.models.specialist_profile import SpecialistProfile
 from app.db.models.employee import Employee
 from app.db.models.salary_calculation import SalaryCalculation
