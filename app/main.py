@@ -14,7 +14,7 @@ from app.api.v1.endpoints import (
     assistant, assistant_conversations, offers, onboarding, public_booking, questionnaires,
     questionnaire_answers, questionnaire_attachments, public_booking_manage, service_payments,
     notification_settings, notification_deliveries, password_reset, client_portal, waitlist, gifts,
-    campaigns, business_audit,
+    campaigns, business_audit, business_imports,
 )
 from app.api.core import error_handlers
 from app.api.middleware.rate_limit import DefaultRateLimitMiddleware, limiter, rate_limit_exceeded_handler
@@ -257,4 +257,9 @@ app.include_router(
     business_audit.router,
     prefix="/businesses/me/audit",
     tags=["audit"],
+)
+app.include_router(
+    business_imports.router,
+    prefix="/businesses/me/imports",
+    tags=["imports"],
 )

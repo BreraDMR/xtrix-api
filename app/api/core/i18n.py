@@ -981,6 +981,116 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "У этого клиента нет записи о маркетинговом согласии",
         "cz": "U tohoto klienta není záznam o marketingovém souhlasu",
     },
+    "import_file_too_large": {
+        "en": "The file is larger than 10 MB",
+        "ru": "Файл больше 10 МБ",
+        "cz": "Soubor je větší než 10 MB",
+    },
+    "import_file_type": {
+        "en": "Only .csv and .xlsx files are supported",
+        "ru": "Поддерживаются только файлы .csv и .xlsx",
+        "cz": "Podporují se pouze soubory .csv a .xlsx",
+    },
+    "import_file_empty": {
+        "en": "The file has no rows to import",
+        "ru": "В файле нет строк для импорта",
+        "cz": "Soubor neobsahuje žádné řádky k importu",
+    },
+    "import_too_many_rows": {
+        "en": "The file has more than 5000 rows",
+        "ru": "В файле больше 5000 строк",
+        "cz": "Soubor má více než 5000 řádků",
+    },
+    "import_too_many_columns": {
+        "en": "The file has more than 50 columns",
+        "ru": "В файле больше 50 столбцов",
+        "cz": "Soubor má více než 50 sloupců",
+    },
+    "import_duplicate_headers": {
+        "en": "Two columns have the same name",
+        "ru": "Два столбца называются одинаково",
+        "cz": "Dva sloupce mají stejný název",
+    },
+    "import_empty_header": {
+        "en": "Every column needs a name in the first row",
+        "ru": "У каждого столбца должно быть название в первой строке",
+        "cz": "Každý sloupec musí mít v prvním řádku název",
+    },
+    "import_formula_not_allowed": {
+        "en": "Formulas are not allowed in the import file",
+        "ru": "Формулы в файле импорта не разрешены",
+        "cz": "Vzorce nejsou v importovaném souboru povoleny",
+    },
+    "import_macros_not_allowed": {
+        "en": "Files with macros are not allowed",
+        "ru": "Файлы с макросами не разрешены",
+        "cz": "Soubory s makry nejsou povoleny",
+    },
+    "import_malformed_file": {
+        "en": "The file could not be read as CSV or XLSX",
+        "ru": "Не удалось прочитать файл как CSV или XLSX",
+        "cz": "Soubor se nepodařilo přečíst jako CSV nebo XLSX",
+    },
+    "import_encoding": {
+        "en": "Save the CSV file as UTF-8 and try again",
+        "ru": "Сохраните CSV в кодировке UTF-8 и повторите",
+        "cz": "Uložte CSV v kódování UTF-8 a zkuste to znovu",
+    },
+    "import_mapping_required": {
+        "en": "Map at least the client name column",
+        "ru": "Сопоставьте хотя бы столбец с именем клиента",
+        "cz": "Namapujte alespoň sloupec se jménem klienta",
+    },
+    "import_mapping_required_field": {
+        "en": "The client name column is required",
+        "ru": "Столбец с именем клиента обязателен",
+        "cz": "Sloupec se jménem klienta je povinný",
+    },
+    "import_mapping_unknown_field": {
+        "en": "The mapping contains an unknown field",
+        "ru": "В сопоставлении есть неизвестное поле",
+        "cz": "Mapování obsahuje neznámé pole",
+    },
+    "import_mapping_unknown_column": {
+        "en": "The mapping points at a column that is not in this file",
+        "ru": "Сопоставление указывает на столбец, которого нет в файле",
+        "cz": "Mapování odkazuje na sloupec, který v souboru není",
+    },
+    "import_mapping_duplicate_column": {
+        "en": "One column is mapped to more than one field",
+        "ru": "Один столбец сопоставлен нескольким полям",
+        "cz": "Jeden sloupec je namapován na více polí",
+    },
+    "import_source_exists": {
+        "en": "This file has already been uploaded",
+        "ru": "Этот файл уже загружен",
+        "cz": "Tento soubor už byl nahrán",
+    },
+    "import_batch_not_found": {
+        "en": "Import batch not found",
+        "ru": "Пакет импорта не найден",
+        "cz": "Dávka importu nebyla nalezena",
+    },
+    "import_batch_locked": {
+        "en": "This import batch can no longer be changed",
+        "ru": "Этот пакет импорта больше нельзя изменить",
+        "cz": "Tuto dávku importu už nelze změnit",
+    },
+    "import_preview_required": {
+        "en": "Build a preview before confirming the import",
+        "ru": "Сначала постройте предпросмотр импорта",
+        "cz": "Nejprve vytvořte náhled importu",
+    },
+    "import_preview_outdated": {
+        "en": "The file, mapping or duplicate policy changed; build a new preview",
+        "ru": "Файл, сопоставление или политика дублей изменились; постройте новый предпросмотр",
+        "cz": "Soubor, mapování nebo pravidlo duplicit se změnily; vytvořte nový náhled",
+    },
+    "import_in_progress": {
+        "en": "This import is already running",
+        "ru": "Этот импорт уже выполняется",
+        "cz": "Tento import již probíhá",
+    },
 }
 def normalize_locale(locale: str | None) -> str:
     if not locale:
