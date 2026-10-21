@@ -49,3 +49,40 @@ def sync_and_deliver() -> dict:
         return result
     finally:
         db.close()
+
+
+def deliver_campaigns() -> dict:
+    """Deliver due outbox rows, including campaigns the owner explicitly confirmed.
+
+    Campaigns are never queued by this job - the send endpoint does that. This only drains
+    what is already due, so a scheduled campaign leaves on the next frequent job run.
+    """
+    db: Session = SessionLocal()
+    try:
+        transport = notification_transport.get_notification_transport()
+        if transport.name == "capture":
+            logger.warning(
+                "campaign job: capture transport is active; campaign messages are NOT delivered"
+            )
+        elif not (settings.smtp_host and settings.smtp_from):
+            logger.warning(
+                "campaign job: email provider is not configured; nothing will be sent"
+            )
+        delivered = notification_worker.run_once(
+            db, lambda row: notification_templates.send_outbox_message(db, row)
+        )
+        logger.info(
+            "campaign job: transport %s, claimed %s, sent %s, captured %s, retried %s, "
+            "failed %s, skipped %s, cancelled at delivery %s",
+            transport.name,
+            delivered.get("claimed", 0),
+            delivered.get("sent", 0),
+            delivered.get("captured", 0),
+            delivered.get("retried", 0),
+            delivered.get("failed", 0),
+            delivered.get("skipped", 0),
+            delivered.get("cancelled", 0),
+        )
+        return {"delivery": delivered}
+    finally:
+        db.close()

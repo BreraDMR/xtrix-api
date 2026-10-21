@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.core import notification_preferences
+from app.api.core import campaign_service
 from app.api.core.availability import salon_zone
 from app.api.core.clock import utcnow
 from app.api.core.logger import get_logger
@@ -132,6 +133,15 @@ def join_waitlist(
     raw_token = crud_waitlist.issue_entry_token(entry)
     db.add(entry)
     try:
+        db.flush()
+        if payload.marketing_consent and client is not None:
+            campaign_service.record_consent(
+                db,
+                business_id=business.id,
+                client_id=client.id,
+                source="waitlist",
+                source_ref=str(entry.id),
+            )
         db.commit()
     except IntegrityError:
         # another request with the same preferences won; show the same generic answer

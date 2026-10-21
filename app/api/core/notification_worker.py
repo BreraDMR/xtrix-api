@@ -13,6 +13,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.api.core import notification_preferences
+from app.api.core import campaign_service
 from app.api.core.client_portal_email import KIND as CLIENT_PORTAL_KIND
 from app.api.core.clock import utcnow
 from app.api.core.notification_transport import DeliveryResult
@@ -127,12 +128,28 @@ def run_once(
         row = db.get(NotificationOutbox, message_id)
         if row is None:
             continue
+        # see a cancellation that happened after claim_batch committed the lease
+        db.refresh(row)
+        if row.status == "cancelled":
+            stats["cancelled"] += 1
+            continue
         if row.provider_message_id:
             # the provider already accepted this message before the previous worker stopped
             _finish_sent(row, row.provider or "unknown", row.provider_message_id, now)
             db.commit()
             stats["sent"] += 1
             continue
+        if row.kind == campaign_service.KIND:
+            blocked = campaign_service.campaign_delivery_block(db, row)
+            if blocked is not None:
+                # withdrawn consent or an owner's cancel must win over a queued message
+                row.status = "cancelled"
+                row.locked_until = None
+                row.last_error = blocked
+                row.updated_at = now
+                db.commit()
+                stats["cancelled"] += 1
+                continue
         # account-level messages (password reset) and client sign-in links are transactional:
         # a business reminder switch must not block access to the visitor's own cabinet
         channel = (

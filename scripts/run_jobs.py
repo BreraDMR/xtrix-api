@@ -29,6 +29,7 @@ CHANNEL = os.environ.get("JOBS_CHANNEL", "email")
 
 FREQUENT = {
     "reminders": notification_jobs.sync_and_deliver,
+    "campaigns": notification_jobs.deliver_campaigns,
     "followups": lambda: notification_tasks.send_visit_followups(CHANNEL),
 }
 DAILY = {

@@ -25,12 +25,14 @@ def enqueue_notification(
     language: Optional[str] = None,
     payload: Optional[dict[str, Any]] = None,
     visit_id: Optional[int] = None,
+    campaign_id: Optional[int] = None,
     scheduled_at: Optional[datetime] = None,
 ) -> NotificationOutbox:
     values = {
         "business_id": business_id,
         "user_id": user_id,
         "visit_id": visit_id,
+        "campaign_id": campaign_id,
         "event_key": event_key,
         "kind": kind,
         "channel": channel,

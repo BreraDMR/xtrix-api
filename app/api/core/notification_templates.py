@@ -12,6 +12,7 @@ from urllib.parse import quote
 from sqlalchemy.orm import Session
 
 from app.api.core import booking_manage_access
+from app.api.core import campaign_service
 from app.api.core.availability import salon_zone
 from app.api.core.config import settings
 from app.api.core.notification_transport import DeliveryResult, OutboundMessage, get_notification_transport
@@ -19,6 +20,8 @@ from app.api.core.client_portal_email import KIND as CLIENT_PORTAL_KIND, render_
 from app.api.core.password_reset_email import KIND as PASSWORD_RESET_KIND, render_password_reset
 from app.api.core.waitlist_email import KIND as WAITLIST_OFFER_KIND, render_waitlist_offer
 from app.db.models.notification_outbox import NotificationOutbox
+from app.db.models.campaign import Campaign
+from app.db.models.marketing_consent import MarketingConsent
 from app.db.models.visit import Visit
 
 FALLBACK = "ru"
@@ -89,6 +92,13 @@ _TEXTS = {
 }
 
 
+_UNSUBSCRIBE = {
+    "en": "You are receiving this because you agreed to marketing emails from {team}. Unsubscribe: {link}",
+    "ru": "Вы получили это письмо, потому что согласились на маркетинговые рассылки {team}. Отписаться: {link}",
+    "cz": "Tento e-mail dostáváte, protože jste souhlasili s marketingovými e-maily od {team}. Odhlásit odběr: {link}",
+}
+
+
 class NotificationTemplateError(Exception):
     pass
 
@@ -122,6 +132,37 @@ def _html(body: str, link: str) -> str:
     return "<html><body>" + "".join(paragraphs) + "</body></html>"
 
 
+def render_campaign(db: Session, row: NotificationOutbox) -> OutboundMessage:
+    reason = campaign_service.campaign_delivery_block(db, row)
+    if reason is not None:
+        raise NotificationTemplateError(f"campaign cannot be sent: {reason}")
+    payload = row.payload or {}
+    campaign = db.get(Campaign, row.campaign_id)
+    consent = db.get(MarketingConsent, payload.get("consent_id"))
+    if campaign is None or consent is None:
+        raise NotificationTemplateError("campaign is incomplete")
+    language = row.language if row.language in _UNSUBSCRIBE else FALLBACK
+    team = campaign.business.name if campaign.business else "Xtrix"
+    token = campaign_service.unsubscribe_token(consent.id, campaign.id)
+    link = f"{settings.frontend_url.rstrip('/')}/unsubscribe#token={quote(token, safe='')}"
+    unsubscribe = (
+        _UNSUBSCRIBE[language].replace("{team}", team).replace("{link}", link)
+    )
+    subject = str(payload.get("subject") or campaign.subject)
+    body = str(payload.get("body") or campaign.body)
+    name = payload.get("client_name") or ""
+    subject = subject.replace("{name}", name).replace("{business}", team)
+    body = body.replace("{name}", name).replace("{business}", team)
+    text = f"{body}\n\n---\n{unsubscribe}"
+    return OutboundMessage(
+        channel=row.channel,
+        recipient=row.recipient,
+        subject=subject,
+        text=text,
+        html=_html(text, link),
+    )
+
+
 def render_outbox_notification(db: Session, row: NotificationOutbox) -> OutboundMessage:
     if row.kind == PASSWORD_RESET_KIND:
         return render_password_reset(db, row)
@@ -129,6 +170,8 @@ def render_outbox_notification(db: Session, row: NotificationOutbox) -> Outbound
         return render_client_portal_login(db, row)
     if row.kind == WAITLIST_OFFER_KIND:
         return render_waitlist_offer(db, row)
+    if row.kind == campaign_service.KIND:
+        return render_campaign(db, row)
     if row.kind not in _TEXTS:
         raise NotificationTemplateError(f"unknown notification kind: {row.kind}")
     visit = db.get(Visit, row.visit_id) if row.visit_id else None

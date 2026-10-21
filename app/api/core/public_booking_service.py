@@ -19,7 +19,7 @@ from app.api.core.availability import (
     salon_zone,
 )
 from app.api.core.clock import utcnow
-from app.api.core import notification_events, service_payment_service as payments
+from app.api.core import campaign_service, notification_events, service_payment_service as payments
 from app.api.core.visit_chain import apply_chain, service_line, total_minutes
 from app.api.crud import crud_public_booking
 from app.db.models.public_booking import PublicBookingRequest
@@ -233,6 +233,16 @@ def submit_booking(
     apply_chain(visit, lines, start)
     db.add(visit)
     db.flush()
+
+    if payload.marketing_consent:
+        # booking itself never opts a guest in; this row exists only because it was ticked
+        campaign_service.record_consent(
+            db,
+            business_id=business.id,
+            client_id=client.id,
+            source="public_booking",
+            source_ref=str(visit.id),
+        )
 
     claim.client_id = client.id
     claim.visit_id = visit.id

@@ -14,6 +14,7 @@ from app.api.v1.endpoints import (
     assistant, assistant_conversations, offers, onboarding, public_booking, questionnaires,
     questionnaire_answers, questionnaire_attachments, public_booking_manage, service_payments,
     notification_settings, notification_deliveries, password_reset, client_portal, waitlist, gifts,
+    campaigns,
 )
 from app.api.core import error_handlers
 from app.api.middleware.rate_limit import DefaultRateLimitMiddleware, limiter, rate_limit_exceeded_handler
@@ -241,3 +242,14 @@ app.include_router(questionnaire_attachments.staff_router, prefix="/visits", tag
 app.include_router(client_portal.router, prefix="/public/client-portal", tags=["client-portal"])
 app.include_router(waitlist.router, prefix="/public/waitlist", tags=["waitlist"])
 app.include_router(waitlist.staff_router, prefix="/waitlist", tags=["waitlist"])
+app.include_router(campaigns.router, prefix="/public/campaigns", tags=["campaigns"])
+app.include_router(
+    campaigns.staff_router,
+    prefix="/businesses/me/campaigns",
+    tags=["campaigns"],
+)
+app.include_router(
+    campaigns.consent_router,
+    prefix="/businesses/me/clients",
+    tags=["campaigns"],
+)

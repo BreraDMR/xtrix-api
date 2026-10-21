@@ -921,6 +921,66 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Нужно согласие на обработку персональных данных",
         "cz": "Je vyžadován souhlas se zpracováním osobních údajů",
     },
+    "campaign_not_found": {
+        "en": "Campaign not found",
+        "ru": "Кампания не найдена",
+        "cz": "Kampaň nenalezena",
+    },
+    "campaign_locked": {
+        "en": "This campaign can no longer be changed",
+        "ru": "Эту кампанию больше нельзя изменить",
+        "cz": "Tuto kampaň už nelze změnit",
+    },
+    "campaign_empty_audience": {
+        "en": "No subscribed clients match this segment",
+        "ru": "В этом сегменте нет клиентов с согласием",
+        "cz": "V tomto segmentu nejsou klienti se souhlasem",
+    },
+    "campaign_too_many_recipients": {
+        "en": "Too many recipients for one campaign",
+        "ru": "Слишком много получателей для одной кампании",
+        "cz": "Pro jednu kampaň je příliš mnoho příjemců",
+    },
+    "campaign_not_confirmed": {
+        "en": "Confirm the campaign before sending",
+        "ru": "Подтвердите кампанию перед отправкой",
+        "cz": "Před odesláním kampaň potvrďte",
+    },
+    "campaign_not_sendable": {
+        "en": "This campaign cannot be sent in its current state",
+        "ru": "Кампанию нельзя отправить в текущем статусе",
+        "cz": "Kampaň v tomto stavu nelze odeslat",
+    },
+    "campaign_notifications_disabled": {
+        "en": "Client notifications are turned off for this business",
+        "ru": "Уведомления клиентам в этом бизнесе выключены",
+        "cz": "Upozornění klientům jsou v této firmě vypnutá",
+    },
+    "campaign_provider_not_ready": {
+        "en": "The email provider is not connected yet",
+        "ru": "Email-провайдер ещё не подключён",
+        "cz": "E-mailový poskytovatel ještě není připojen",
+    },
+    "campaign_already_sent": {
+        "en": "This campaign has already been sent",
+        "ru": "Эта кампания уже отправлена",
+        "cz": "Tato kampaň už byla odeslána",
+    },
+    "campaign_body_required": {
+        "en": "Write the message text",
+        "ru": "Напишите текст сообщения",
+        "cz": "Napište text zprávy",
+    },
+    "invalid_unsubscribe_token": {
+        "en": "This unsubscribe link is invalid",
+        "ru": "Эта ссылка отписки недействительна",
+        "cz": "Tento odhlašovací odkaz je neplatný",
+    },
+    "marketing_consent_not_found": {
+        "en": "This client has no marketing consent on record",
+        "ru": "У этого клиента нет записи о маркетинговом согласии",
+        "cz": "U tohoto klienta není záznam o marketingovém souhlasu",
+    },
 }
 def normalize_locale(locale: str | None) -> str:
     if not locale:
