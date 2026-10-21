@@ -57,6 +57,8 @@ from app.db.models.questionnaire_response import QuestionnaireResponse
 from app.db.models.questionnaire_attachment import QuestionnaireAttachment
 from app.db.models.client_portal import ClientPortalSession, ClientPortalToken
 from app.db.models.waitlist import WaitlistEntry, WaitlistOffer
+from app.db.models.campaign import Campaign
+from app.db.models.marketing_consent import MarketingConsent
 
 from app.db.models.gift import (
     GiftCertificate,

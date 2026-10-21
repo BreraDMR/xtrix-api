@@ -19,6 +19,9 @@ class NotificationOutbox(Base):
     )
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     visit_id = Column(Integer, ForeignKey("visits.id", ondelete="SET NULL"), nullable=True, index=True)
+    campaign_id = Column(
+        Integer, ForeignKey("campaigns.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     event_key = Column(String(160), nullable=False)
     kind = Column(String(50), nullable=False)
     channel = Column(String(20), nullable=False, default="email", server_default="email")
