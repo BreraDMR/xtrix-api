@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from app.api import deps
+from app.api.core import audit_service
 from app.schemas.datetimes import UtcDatetime
 from app.api.core.i18n import _
 from app.api.core.logger import get_logger
@@ -51,6 +52,7 @@ def _check_item_access(db, current_user, items, default_specialist_id, locale):
 @router.post("/", response_model=VisitOut)
 def create_visit(
     visit: VisitCreate,
+    request: Request,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
@@ -116,7 +118,13 @@ def create_visit(
         if not business_id or own != len(product_ids):
             raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     try:
-        result = crud_visit.create_visit(db, visit, business_id=business_id)
+        result = crud_visit.create_visit(
+            db,
+            visit,
+            business_id=business_id,
+            actor=current_user,
+            request_id=audit_service.request_id_for(request),
+        )
     except ChainError as exc:
         _chain_error(exc, locale)
     if business_id and used_products:
@@ -360,6 +368,7 @@ def get_visit(
 def update_visit(
     visit_id: int,
     payload: VisitUpdate,
+    request: Request,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
@@ -392,7 +401,13 @@ def update_visit(
     old_specialist_id = visit.specialist_id
     old_business_id = visit.business_id
     try:
-        result = crud_visit.update_visit(db, visit, payload)
+        result = crud_visit.update_visit(
+            db,
+            visit,
+            payload,
+            actor=current_user,
+            request_id=audit_service.request_id_for(request),
+        )
     except ChainError as exc:
         _chain_error(exc, locale)
     if old_status != 'completed' and result.status == 'completed':

@@ -1,7 +1,8 @@
 from dataclasses import replace
 from datetime import timedelta
 from datetime import datetime
-from typing import Optional, Tuple
+from decimal import Decimal
+from typing import Any, Optional, Tuple
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
 from app.api.core.pagination import PaginationParams
@@ -16,9 +17,50 @@ from app.api.core.visit_chain import (
     money,
     service_line,
 )
+from app.api.core import audit_service
 from app.db.models.service import Service
 from app.db.models.visit import Visit
 from app.schemas.visit import VisitCreate, VisitUpdate
+
+VISIT_AUDIT_VALUE_FIELDS = (
+    "status",
+    "date_start",
+    "date_end",
+    "service_id",
+    "specialist_id",
+    "price",
+    "payment_method",
+)
+VISIT_AUDIT_NAME_FIELDS = VISIT_AUDIT_VALUE_FIELDS + (
+    "service_name",
+    "note",
+    "photo_url",
+)
+
+
+def _audit_equal(old: Any, new: Any) -> bool:
+    if old is None or new is None:
+        return old is None and new is None
+    if isinstance(old, (Decimal, float, int)) or isinstance(new, (Decimal, float, int)):
+        try:
+            return Decimal(str(old)) == Decimal(str(new))
+        except Exception:
+            return old == new
+    return old == new
+
+
+def _item_signature(visit: Visit) -> tuple:
+    return tuple(
+        (
+            item.service_id,
+            item.specialist_id,
+            item.date_start,
+            item.date_end,
+            str(item.price) if item.price is not None else None,
+            item.duration_minutes,
+        )
+        for item in sorted(visit.items, key=lambda row: row.position)
+    )
 
 
 def existing_lines(visit: Visit) -> list[ChainLine]:
@@ -90,7 +132,14 @@ def prospective_update_lines(db: Session, visit: Visit, update: VisitUpdate) -> 
     return lines
 
 
-def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] = None) -> Visit:
+def create_visit(
+    db: Session,
+    visit_in: VisitCreate,
+    business_id: Optional[int] = None,
+    *,
+    actor=None,
+    request_id: Optional[str] = None,
+) -> Visit:
     """Create the visit and every item in one transaction: no half-saved chains."""
     from app.api.core.logger import get_logger
 
@@ -134,6 +183,28 @@ def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] 
     apply_chain(visit, lines, data["date_start"])
     try:
         db.add(visit)
+        db.flush()
+        audit_service.record_event(
+            db,
+            action="visit.created",
+            entity_type="visit",
+            entity_id=visit.id,
+            business_id=visit.business_id,
+            owner_user_id=visit.specialist_id if visit.business_id is None else None,
+            changes={
+                "fields": list(VISIT_AUDIT_NAME_FIELDS) + ["items"],
+                "status": visit.status,
+                "date_start": visit.date_start,
+                "date_end": visit.date_end,
+                "service_id": visit.service_id,
+                "specialist_id": visit.specialist_id,
+                "price": visit.price,
+                "payment_method": visit.payment_method,
+                "items_count": len(visit.items),
+            },
+            actor=actor,
+            request_id=request_id,
+        )
         db.commit()
         db.refresh(visit)
         logger.info(f"create_visit: created visit id={visit.id}, items={len(visit.items)}, price={visit.price}")
@@ -144,12 +215,22 @@ def create_visit(db: Session, visit_in: VisitCreate, business_id: Optional[int] 
         raise
 
 
-def update_visit(db: Session, visit: Visit, update: VisitUpdate) -> Visit:
+def update_visit(
+    db: Session,
+    visit: Visit,
+    update: VisitUpdate,
+    *,
+    actor=None,
+    request_id: Optional[str] = None,
+) -> Visit:
     """Patch the visit. A chain is rebuilt only when its shape, time or price changes."""
     data = update.model_dump(exclude_unset=True)
     structural = any(
         key in data for key in ("items", "service_id", "date_start", "date_end", "price")
     )
+    before = {field: getattr(visit, field) for field in VISIT_AUDIT_NAME_FIELDS}
+    before_items = _item_signature(visit)
+    owner_user_id = visit.specialist_id
     try:
         if structural:
             lines = prospective_update_lines(db, visit, update)
@@ -164,6 +245,43 @@ def update_visit(db: Session, visit: Visit, update: VisitUpdate) -> Visit:
             if field in computed:
                 continue
             setattr(visit, field, value)
+
+        changes: dict[str, Any] = {}
+        changed_fields = []
+        for field in VISIT_AUDIT_NAME_FIELDS:
+            new_value = getattr(visit, field)
+            if _audit_equal(before[field], new_value):
+                continue
+            changed_fields.append(field)
+            if field in VISIT_AUDIT_VALUE_FIELDS:
+                changes[field] = {"old": before[field], "new": new_value}
+
+        after_items = _item_signature(visit)
+        if "items" in data and after_items != before_items:
+            changed_fields.append("items")
+            changes["items_count"] = {"old": len(before_items), "new": len(after_items)}
+
+        if changed_fields:
+            changes["fields"] = changed_fields
+            if before["status"] != "cancelled" and visit.status == "cancelled":
+                action = "visit.cancelled"
+            elif (
+                "date_start" in changed_fields or "date_end" in changed_fields
+            ):
+                action = "visit.moved"
+            else:
+                action = "visit.updated"
+            audit_service.record_event(
+                db,
+                action=action,
+                entity_type="visit",
+                entity_id=visit.id,
+                business_id=visit.business_id,
+                owner_user_id=owner_user_id if visit.business_id is None else None,
+                changes=changes,
+                actor=actor,
+                request_id=request_id,
+            )
         db.add(visit)
         db.commit()
         db.refresh(visit)

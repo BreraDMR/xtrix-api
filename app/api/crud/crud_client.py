@@ -1,6 +1,7 @@
 from typing import Set, Optional, Tuple
 from datetime import date, timedelta
 from sqlalchemy.orm import Session
+from app.api.core import audit_service
 from app.api.core.clock import utcnow
 from sqlalchemy import func, and_
 from app.api.core.redis_client import (
@@ -166,9 +167,32 @@ def create_client(db: Session, client_in: ClientCreate, specialist_id: Optional[
     except Exception:
         pass
     return client
-def update_client(db: Session, client: Client, update: ClientUpdate) -> Client:
-    for field, value in update.model_dump(exclude_unset=True).items():
+def update_client(
+    db: Session,
+    client: Client,
+    update: ClientUpdate,
+    *,
+    business_id: Optional[int] = None,
+    owner_user_id: Optional[int] = None,
+    actor=None,
+    request_id: Optional[str] = None,
+) -> Client:
+    data = update.model_dump(exclude_unset=True)
+    changed = [field for field, value in data.items() if getattr(client, field) != value]
+    for field, value in data.items():
         setattr(client, field, value)
+    if changed:
+        audit_service.record_event(
+            db,
+            action="client.updated",
+            entity_type="client",
+            entity_id=client.id,
+            business_id=business_id,
+            owner_user_id=owner_user_id if business_id is None else None,
+            changes={"fields": changed},
+            actor=actor,
+            request_id=request_id,
+        )
     db.add(client)
     db.commit()
     db.refresh(client)

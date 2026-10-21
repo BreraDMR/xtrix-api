@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from app.api import deps
+from app.api.core import audit_service
 from app.api.core.i18n import _
 from app.api.core.logger import get_logger
 from app.api.core.pagination import MAX_PAGE, PaginationParams, PaginatedResponse
@@ -304,6 +305,7 @@ def get_client(
 def update_client(
     client_id: int,
     payload: ClientUpdate,
+    request: Request,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
@@ -319,7 +321,18 @@ def update_client(
     if not check_client_access(db, current_user, client_id):
         logger.warning(f"Client update denied: user_id={current_user.id}, client_id={client_id}")
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    result = crud_client.update_client(db, client, payload)
+    from app.api.core.permissions import get_user_business_id
+
+    business_id = get_user_business_id(current_user, db)
+    result = crud_client.update_client(
+        db,
+        client,
+        payload,
+        business_id=business_id,
+        owner_user_id=current_user.id,
+        actor=current_user,
+        request_id=audit_service.request_id_for(request),
+    )
     logger.info(f"Client updated successfully: id={result.id}")
     return result.model_dump() if hasattr(result, 'model_dump') else result
 @router.get("/export/csv")

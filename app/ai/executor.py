@@ -17,6 +17,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from starlette.requests import Request
 
 from app.ai import client_search
 from app.ai import plan as p
@@ -116,14 +117,35 @@ def _parse_iso(value: str) -> datetime:
     return to_naive_utc(datetime.fromisoformat(value.replace("Z", "+00:00")))
 
 
+def _internal_request() -> Request:
+    """Endpoint deps that only log a correlation id still need a Request when called in-process."""
+    return Request(
+        {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "POST",
+            "scheme": "http",
+            "path": "/assistant/execute",
+            "raw_path": b"/assistant/execute",
+            "query_string": b"",
+            "headers": [],
+            "client": ("assistant", 0),
+            "server": ("assistant", 80),
+        }
+    )
+
+
 class _Run:
     def __init__(self, db: Session, user: User, locale: str, tz: ZoneInfo, now: datetime):
         self.db, self.user, self.locale, self.tz, self.now = db, user, locale, tz, now
         self.refs: dict[str, dict] = {}
 
     # --- helpers -------------------------------------------------------------
-    def ep(self) -> dict:
-        return dict(db=self.db, current_user=self.user, locale=self.locale)
+    def ep(self, *, request: bool = False) -> dict:
+        values = dict(db=self.db, current_user=self.user, locale=self.locale)
+        if request:
+            values["request"] = _internal_request()
+        return values
 
     def client_id(self, action) -> int:
         if action.client_id is not None:
@@ -153,7 +175,7 @@ class _Run:
 
     def update_visit(self, visit_id: int, payload: VisitUpdate):
         from app.api.v1.endpoints import visits as visits_ep
-        return visits_ep.update_visit(visit_id=visit_id, payload=payload, **self.ep())
+        return visits_ep.update_visit(visit_id=visit_id, payload=payload, **self.ep(request=True))
 
     # --- actions -------------------------------------------------------------
     def find_client(self, a: p.FindClient) -> dict:
@@ -175,7 +197,7 @@ class _Run:
         from app.api.v1.endpoints import clients as clients_ep
         client_id = self.client_id(a)
         fields = {f: getattr(a, f) for f in CLIENT_FIELDS if getattr(a, f) is not None}
-        clients_ep.update_client(client_id=client_id, payload=ClientUpdate(**fields), **self.ep())
+        clients_ep.update_client(client_id=client_id, payload=ClientUpdate(**fields), **self.ep(request=True))
         return {"client_id": client_id, "changed": sorted(fields)}
 
     def find_free_slot(self, a: p.FindFreeSlot) -> dict:
@@ -236,7 +258,7 @@ class _Run:
             price=service.price if service and service.price is not None else None,
             note=a.note, status="planned",
         )
-        created = visits_ep.create_visit(visit=visit, **self.ep())
+        created = visits_ep.create_visit(visit=visit, **self.ep(request=True))
         return {"visit_id": _get(created, "id"), "client_id": client_id, "specialist_id": specialist_id,
                 "start": _iso(start), "end": _iso(start + timedelta(minutes=minutes))}
 
