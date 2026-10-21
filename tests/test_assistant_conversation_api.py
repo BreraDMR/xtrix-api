@@ -1,6 +1,9 @@
 """Conversation APIs are private and retry-safe; no model or external service is needed."""
 from uuid import uuid4
 
+import pytest
+from fastapi import HTTPException
+
 from app.db.models.assistant_conversation import AssistantConversation, AssistantMessage
 from app.db.models.business import Business
 
@@ -159,7 +162,7 @@ def test_list_messages_stranger_cannot_access(client, make_user, headers_for):
 
     resp = client.get(f'{URL}/{chat["id"]}/messages', headers=headers_for(stranger))
     assert resp.status_code == 404
-    assert resp.json()['detail']['code'] == 'conversation_not_found'
+    assert resp.json()['error']['detail']['code'] == 'conversation_not_found'
 
 
 def test_rename_conversation(client, db, make_user, headers_for):
@@ -259,9 +262,19 @@ def test_prepare_user_request_saves_user_message_and_idempotency(db, make_user):
     # Verify committed rows in DB
     assert db.query(AssistantMessage).filter(AssistantMessage.conversation_id == chat_row.id).count() == 2
 
-    # Retry with identical text does not duplicate
+    # A retry while the first answer is still pending is refused, not sent to the model twice
+    with pytest.raises(HTTPException) as exc:
+        prepare_user_request(db, owner, chat_row.id, req_id, 'Book a haircut')
+    assert exc.value.status_code == 409
+    assert exc.value.detail['code'] == 'request_in_progress'
+    assert db.query(AssistantMessage).filter(AssistantMessage.conversation_id == chat_row.id).count() == 2
+
+    # Once the answer is recorded, the same key returns the same rows instead of duplicating them
+    a_msg.status = 'succeeded'
+    a_msg.text = 'Here is your plan'
+    db.commit()
     conv2, u_msg2, a_msg2 = prepare_user_request(db, owner, chat_row.id, req_id, 'Book a haircut')
-    assert u_msg2.id == u_msg.id
+    assert (u_msg2.id, a_msg2.id) == (u_msg.id, a_msg.id)
     assert db.query(AssistantMessage).filter(AssistantMessage.conversation_id == chat_row.id).count() == 2
 
 
