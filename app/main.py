@@ -13,7 +13,7 @@ from app.api.v1.endpoints import (
     analytics, audit, archiving, specialist_profiles, client_relations, employees, businesses, products, expenses, loyalty, user_preferences,
     assistant, assistant_conversations, offers, onboarding, public_booking, questionnaires,
     questionnaire_answers, questionnaire_attachments, public_booking_manage, service_payments,
-    notification_settings, notification_deliveries, password_reset, client_portal, waitlist,
+    notification_settings, notification_deliveries, password_reset, client_portal, waitlist, gifts,
 )
 from app.api.core import error_handlers
 from app.api.middleware.rate_limit import DefaultRateLimitMiddleware, limiter, rate_limit_exceeded_handler
@@ -139,6 +139,7 @@ if settings.environment == "production":
             "X-Portal-Token",
             "X-Waitlist-Token",
             "X-Payment-Token",
+            "X-Gift-Token",
         ],
         expose_headers=["X-Total-Count", "X-Page", "X-Per-Page", "Retry-After"],
         max_age=3600,  
@@ -161,6 +162,7 @@ else:
             "X-Portal-Token",
             "X-Waitlist-Token",
             "X-Payment-Token",
+            "X-Gift-Token",
         ],
         expose_headers=["X-Total-Count", "X-Page", "X-Per-Page", "Retry-After"],
         max_age=3600,  
@@ -203,6 +205,17 @@ app.include_router(onboarding.router, prefix="/onboarding", tags=["onboarding"])
 app.include_router(public_booking.router, prefix="/public/booking", tags=["public-booking"])
 app.include_router(service_payments.router, prefix="/public/booking/payments", tags=["public-booking"])
 app.include_router(public_booking_manage.router, prefix="/public/booking-management", tags=["public-booking"])
+app.include_router(gifts.router, prefix="/public/gifts", tags=["gifts"])
+app.include_router(
+    gifts.offers_router,
+    prefix="/businesses/me/gift-offers",
+    tags=["gifts"],
+)
+app.include_router(
+    gifts.certificates_router,
+    prefix="/businesses/me/gift-certificates",
+    tags=["gifts"],
+)
 app.include_router(
     service_payments.staff_router,
     prefix="/businesses/me/service-payments",

@@ -46,13 +46,14 @@ class SandboxProvider:
         public_token: str,
         amount: str,
         currency: str,
+        checkout_path: str = "/payment/sandbox",
     ) -> ProviderCheckout:
         # no network call: the reference and the signed return URL are the whole sandbox
         provider_ref = f"sandbox_{secrets.token_urlsafe(18)}"
         query = f"ref={quote(public_ref)}&token={quote(public_token)}"
         return ProviderCheckout(
             provider_ref=provider_ref,
-            checkout_url=f"{self._frontend_url}/payment/sandbox#{query}",
+            checkout_url=f"{self._frontend_url}{checkout_path}#{query}",
         )
 
     def refund(self, attempt, amount) -> str:

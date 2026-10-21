@@ -836,6 +836,91 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Здравоохранение",
         "cz": "Zdravotní péče",
     },
+    "gift_shop_unavailable": {
+        "en": "This gift shop is unavailable",
+        "ru": "Этот магазин подарочных сертификатов недоступен",
+        "cz": "Tento obchod s dárkovými poukazy není dostupný",
+    },
+    "gift_offer_not_found": {
+        "en": "Gift offer not found",
+        "ru": "Предложение сертификата не найдено",
+        "cz": "Nabídka dárkového poukazu nebyla nalezena",
+    },
+    "gift_offer_unavailable": {
+        "en": "This gift offer is no longer on sale",
+        "ru": "Это предложение больше не продаётся",
+        "cz": "Tato nabídka již není v prodeji",
+    },
+    "gift_code_invalid": {
+        "en": "This gift code is unknown in this salon",
+        "ru": "Этот подарочный код неизвестен в этом салоне",
+        "cz": "Tento dárkový kód v tomto salonu neexistuje",
+    },
+    "gift_not_found": {
+        "en": "This gift order or certificate is unavailable",
+        "ru": "Этот заказ или сертификат недоступен",
+        "cz": "Tato objednávka nebo poukaz není dostupný",
+    },
+    "gift_redemption_not_found": {
+        "en": "This redemption was not found",
+        "ru": "Списание не найдено",
+        "cz": "Čerpání nebylo nalezeno",
+    },
+    "gift_visit_invalid": {
+        "en": "Choose a visit of this salon with a positive price",
+        "ru": "Выберите визит этого салона с положительной стоимостью",
+        "cz": "Vyberte návštěvu tohoto salonu s kladnou cenou",
+    },
+    "gift_request_conflict": {
+        "en": "This retry key was already used for another gift operation",
+        "ru": "Этот ключ повтора уже использован для другой операции с сертификатом",
+        "cz": "Tento klíč opakování byl již použit pro jinou operaci s poukazem",
+    },
+    "gift_expired": {
+        "en": "This certificate has expired",
+        "ru": "Срок действия сертификата истёк",
+        "cz": "Platnost poukazu vypršela",
+    },
+    "gift_insufficient_balance": {
+        "en": "Not enough balance for this amount",
+        "ru": "Недостаточно остатка для этой суммы",
+        "cz": "Na tuto částku není dostatečný zůstatek",
+    },
+    "gift_scope_mismatch": {
+        "en": "This certificate does not cover the services in the visit",
+        "ru": "Сертификат не покрывает услуги этого визита",
+        "cz": "Poukaz nepokrývá služby této návštěvy",
+    },
+    "gift_service_invalid": {
+        "en": "Choose services of this salon only",
+        "ru": "Выберите только услуги этого салона",
+        "cz": "Vyberte pouze služby tohoto salonu",
+    },
+    "gift_payment_unavailable": {
+        "en": "Gift checkout is temporarily unavailable",
+        "ru": "Оплата сертификата временно недоступна",
+        "cz": "Platba dárkového poukazu je dočasně nedostupná",
+    },
+    "gift_face_value_required": {
+        "en": "A money certificate needs a face value",
+        "ru": "Денежному сертификату нужен номинал",
+        "cz": "Peněžní poukaz potřebuje nominální hodnotu",
+    },
+    "gift_visits_required": {
+        "en": "A visit package needs a visit count",
+        "ru": "Пакету посещений нужно количество визитов",
+        "cz": "Balíček návštěv potřebuje počet návštěv",
+    },
+    "gift_units_mixed": {
+        "en": "A certificate carries either money or visits, not both",
+        "ru": "Сертификат содержит либо деньги, либо посещения, но не оба",
+        "cz": "Poukaz obsahuje buď peníze, nebo návštěvy, ne obojí",
+    },
+    "processing_consent_required": {
+        "en": "Personal data processing consent is required",
+        "ru": "Нужно согласие на обработку персональных данных",
+        "cz": "Je vyžadován souhlas se zpracováním osobních údajů",
+    },
 }
 def normalize_locale(locale: str | None) -> str:
     if not locale:
