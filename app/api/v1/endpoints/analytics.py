@@ -341,7 +341,7 @@ def get_insights_endpoint(
     locale: str = Depends(deps.get_locale),
 ):
     specialist_id, business_id = _scope(current_user, db)
-    insights = get_smart_insights(db, business_id=business_id, specialist_id=specialist_id)
+    insights = get_smart_insights(db, business_id=business_id, specialist_id=specialist_id, locale=locale)
     return SmartInsightsResponse(insights=insights)
 @router.get("/benchmarks", response_model=AnonymousBenchmarksResponse)
 def get_benchmarks_endpoint(
@@ -351,5 +351,5 @@ def get_benchmarks_endpoint(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
-    benchmarks = get_anonymous_benchmarks(db, business_type=business_type, min_businesses=min_businesses)
+    benchmarks = get_anonymous_benchmarks(db, business_type=business_type, min_businesses=min_businesses, locale=locale)
     return AnonymousBenchmarksResponse(**benchmarks)

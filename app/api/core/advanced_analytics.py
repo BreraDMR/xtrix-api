@@ -7,6 +7,7 @@ from app.db.models.visit import Visit
 from app.db.models.service import Service
 from app.db.models.user import User
 from app.api.core.clock import utcnow
+from app.api.core.i18n import _
 def get_retention_metrics(
     db: Session,
     business_id: Optional[int] = None,
@@ -396,6 +397,7 @@ def get_smart_insights(
     db: Session,
     business_id: Optional[int] = None,
     specialist_id: Optional[int] = None,
+    locale: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     insights = []
     now = utcnow()
@@ -408,8 +410,8 @@ def get_smart_insights(
     if retention_metrics['retention_30_days'] < 30:
         insights.append({
             'type': 'warning',
-            'title': 'Low Retention Rate',
-            'message': f"30-day retention is {retention_metrics['retention_30_days']}%, which is below optimal levels.",
+            'title': _('insight_low_retention_title', locale),
+            'message': _('insight_low_retention', locale).format(value=retention_metrics['retention_30_days']),
             'priority': 'high',
         })
     services_analytics = get_service_and_specialist_analytics(db, business_id=business_id, specialist_id=specialist_id)
@@ -417,23 +419,24 @@ def get_smart_insights(
         top_service = max(services_analytics['services'], key=lambda x: x['visits_per_client'])
         insights.append({
             'type': 'info',
-            'title': 'Top Service by Client Return',
-            'message': f"Service '{top_service['service_name']}' has the highest client return rate ({top_service['visits_per_client']:.1f} visits per client).",
+            'title': _('insight_top_service_title', locale),
+            'message': _('insight_top_service', locale).format(
+                name=top_service['service_name'], value=f"{top_service['visits_per_client']:.1f}"),
             'priority': 'medium',
         })
     revenue_trend = get_trends_analysis(db, business_id=business_id, specialist_id=specialist_id, metric='revenue', comparison_type='MoM')
     if revenue_trend['trend_direction'] == 'down' and abs(revenue_trend['change_percent']) > 5:
         insights.append({
             'type': 'warning',
-            'title': 'Revenue Decline',
-            'message': f"Revenue decreased by {abs(revenue_trend['change_percent']):.1f}% compared to last month.",
+            'title': _('insight_revenue_decline_title', locale),
+            'message': _('insight_revenue_decline', locale).format(value=f"{abs(revenue_trend['change_percent']):.1f}"),
             'priority': 'high',
         })
     elif revenue_trend['trend_direction'] == 'up' and revenue_trend['change_percent'] > 10:
         insights.append({
             'type': 'success',
-            'title': 'Revenue Growth',
-            'message': f"Revenue increased by {revenue_trend['change_percent']:.1f}% compared to last month!",
+            'title': _('insight_revenue_growth_title', locale),
+            'message': _('insight_revenue_growth', locale).format(value=f"{revenue_trend['change_percent']:.1f}"),
             'priority': 'medium',
         })
     load_by_day = db.query(
@@ -444,12 +447,13 @@ def get_smart_insights(
         day_counts = {day: count for day, count in load_by_day}
         max_day = max(day_counts.items(), key=lambda x: x[1])
         min_day = min(day_counts.items(), key=lambda x: x[1])
-        day_names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
         if max_day[1] > min_day[1] * 1.5:
             insights.append({
                 'type': 'info',
-                'title': 'Load Distribution',
-                'message': f"{day_names[max_day[0]]}s are busiest ({max_day[1]} visits), while {day_names[min_day[0]]}s are quietest ({min_day[1]} visits).",
+                'title': _('insight_load_title', locale),
+                'message': _('insight_load', locale).format(
+                    busy=_(f'weekday_{int(max_day[0])}', locale), busy_count=max_day[1],
+                    quiet=_(f'weekday_{int(min_day[0])}', locale), quiet_count=min_day[1]),
                 'priority': 'low',
             })
     return insights
@@ -457,6 +461,7 @@ def get_anonymous_benchmarks(
     db: Session,
     business_type: Optional[str] = None,
     min_businesses: int = 10,
+    locale: Optional[str] = None,
 ) -> Dict[str, Any]:
     from app.db.models.business import Business
     business_filters = [Business.deleted_at.is_(None)]
@@ -466,7 +471,7 @@ def get_anonymous_benchmarks(
     if eligible_businesses < min_businesses:
         return {
             'available': False,
-            'reason': f'Not enough businesses (need at least {min_businesses}, have {eligible_businesses})',
+            'reason': _('benchmarks_not_enough', locale).format(need=min_businesses, have=eligible_businesses),
         }
     business_ids = [b[0] for b in db.query(Business.id).filter(*business_filters).all()]
     visit_filters = [

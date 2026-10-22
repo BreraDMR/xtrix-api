@@ -1,6 +1,50 @@
 from typing import Dict, Any
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
+    # analytics insights - str.format templates
+    "insight_low_retention_title": {"en": "Low Retention Rate", "ru": "Низкое удержание клиентов", "cz": "Nízké udržení klientů"},
+    "insight_low_retention": {
+        "en": "30-day retention is {value}%, which is below optimal levels.",
+        "ru": "Удержание за 30 дней — {value}%, это ниже желаемого уровня.",
+        "cz": "Udržení za 30 dní je {value} %, což je pod optimální úrovní.",
+    },
+    "insight_top_service_title": {"en": "Top Service by Client Return", "ru": "Услуга, ради которой возвращаются", "cz": "Služba, kvůli které se klienti vracejí"},
+    "insight_top_service": {
+        "en": "Service '{name}' has the highest client return rate ({value} visits per client).",
+        "ru": "У услуги «{name}» самый высокий возврат клиентов: {value} визита на клиента.",
+        "cz": "Služba „{name}“ má nejvyšší návratnost klientů ({value} návštěvy na klienta).",
+    },
+    "insight_revenue_decline_title": {"en": "Revenue Decline", "ru": "Выручка снизилась", "cz": "Pokles tržeb"},
+    "insight_revenue_decline": {
+        "en": "Revenue decreased by {value}% compared to last month.",
+        "ru": "Выручка снизилась на {value}% по сравнению с прошлым месяцем.",
+        "cz": "Tržby klesly o {value} % oproti minulému měsíci.",
+    },
+    "insight_revenue_growth_title": {"en": "Revenue Growth", "ru": "Рост выручки", "cz": "Růst tržeb"},
+    "insight_revenue_growth": {
+        "en": "Revenue increased by {value}% compared to last month!",
+        "ru": "Выручка выросла на {value}% по сравнению с прошлым месяцем!",
+        "cz": "Tržby vzrostly o {value} % oproti minulému měsíci!",
+    },
+    "insight_load_title": {"en": "Load Distribution", "ru": "Загрузка по дням", "cz": "Vytížení podle dnů"},
+    "insight_load": {
+        "en": "{busy} are busiest ({busy_count} visits), while {quiet} are quietest ({quiet_count} visits).",
+        "ru": "Больше всего визитов по {busy} ({busy_count}), меньше всего — по {quiet} ({quiet_count}).",
+        "cz": "Nejvíc návštěv bývá {busy} ({busy_count}), nejméně {quiet} ({quiet_count}).",
+    },
+    # weekday as it reads inside insight_load: "Mondays", "по понедельникам", "v pondělí"; 0 = Sunday like Postgres dow
+    "weekday_0": {"en": "Sundays", "ru": "воскресеньям", "cz": "v neděli"},
+    "weekday_1": {"en": "Mondays", "ru": "понедельникам", "cz": "v pondělí"},
+    "weekday_2": {"en": "Tuesdays", "ru": "вторникам", "cz": "v úterý"},
+    "weekday_3": {"en": "Wednesdays", "ru": "средам", "cz": "ve středu"},
+    "weekday_4": {"en": "Thursdays", "ru": "четвергам", "cz": "ve čtvrtek"},
+    "weekday_5": {"en": "Fridays", "ru": "пятницам", "cz": "v pátek"},
+    "weekday_6": {"en": "Saturdays", "ru": "субботам", "cz": "v sobotu"},
+    "benchmarks_not_enough": {
+        "en": "Not enough businesses (need at least {need}, have {have})",
+        "ru": "Пока мало салонов для сравнения: нужно хотя бы {need}, сейчас {have}.",
+        "cz": "Zatím málo podniků pro srovnání: potřeba alespoň {need}, nyní {have}.",
+    },
     "request_conflict": {
         "en": "This request key was already used for different data or another workspace",
         "ru": "Этот ключ запроса уже использован для других данных или другого бизнеса",
