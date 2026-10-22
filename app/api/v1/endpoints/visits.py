@@ -9,6 +9,7 @@ from app.api.core.i18n import _
 from app.api.core.logger import get_logger
 from app.api.core.notify import send_notifications
 from app.api.core.pagination import MAX_PAGE, PaginationParams, PaginatedResponse
+from app.api.core.permissions import can_view_financials
 from app.api.core.soft_delete import hard_delete, restore_soft_deleted, soft_delete
 from app.db.models.client import Client
 from app.api.core.slots import find_next_available_slot
@@ -21,6 +22,18 @@ from app.api.core.clock import utcnow
 from app.api.middleware.rate_limit import limiter, EXPORT_LIMIT
 router = APIRouter()
 logger = get_logger("visits")
+
+
+def _visit_response(visit, include_financials: bool):
+    if include_financials:
+        return visit.model_dump() if hasattr(visit, "model_dump") else visit
+    # Copy the response, never the ORM fields: a later flush must keep its prices.
+    result = VisitOut.model_validate(visit)
+    return result.model_copy(update={
+        "price": None,
+        "payment_method": None,
+        "items": [item.model_copy(update={"price": None}) for item in result.items],
+    })
 
 
 def _chain_error(exc: ChainError, locale: str):
@@ -143,7 +156,7 @@ def create_visit(
                 logger.info(f"Auto-usage: product {used_product.product_id}, quantity {used_product.quantity}, visit {result.id}")
             except Exception as e:
                 logger.error(f"Failed to auto-usage product {used_product.product_id} for visit {result.id}: {e}")
-    return result.model_dump() if hasattr(result, 'model_dump') else result
+    return _visit_response(result, can_view_financials(current_user, db))
 @router.get("/", response_model=PaginatedResponse[VisitOut])
 def visits_list(
     client_id: Optional[int] = None,
@@ -197,9 +210,8 @@ def visits_list(
         include_deleted=include_deleted,
         include_archived=include_archived,
     )
-    localized_items = [
-        v.model_dump() if hasattr(v, 'model_dump') else v for v in visits
-    ]
+    include_financials = can_view_financials(current_user, db)
+    localized_items = [_visit_response(v, include_financials) for v in visits]
     return PaginatedResponse.create(
         items=localized_items,
         total=total,
@@ -264,6 +276,10 @@ def visits_for_reminders(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
 ):
+    include_financials = can_view_financials(current_user, db)
+    return [_visit_response(v, include_financials) for v in _due_visits(db, current_user)]
+
+def _due_visits(db, current_user):
     now = utcnow()
     horizon = now + timedelta(hours=24)
     visits, _total = crud_visit.list_visits(
@@ -285,7 +301,7 @@ def send_reminders(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    due = visits_for_reminders(db=db, current_user=current_user)
+    due = _due_visits(db, current_user)
     client_ids = {v.client_id for v in due}
     contacts = {}
     if client_ids:
@@ -326,7 +342,8 @@ def export_visits_csv(
         include_deleted=False,
         include_archived=False,
     )
-    export_data = prepare_visit_export_data(visits)
+    include_financials = can_view_financials(current_user, db)
+    export_data = prepare_visit_export_data([_visit_response(v, include_financials) for v in visits])
     return export_to_csv(export_data, filename="visits_export.csv")
 @router.get("/export/excel")
 @limiter.limit(EXPORT_LIMIT)
@@ -351,7 +368,8 @@ def export_visits_excel(
         include_deleted=False,
         include_archived=False,
     )
-    export_data = prepare_visit_export_data(visits)
+    include_financials = can_view_financials(current_user, db)
+    export_data = prepare_visit_export_data([_visit_response(v, include_financials) for v in visits])
     return export_to_excel(export_data, filename="visits_export.xlsx", sheet_name="Visits")
 
 @router.get("/{visit_id}", response_model=VisitOut)
@@ -371,7 +389,7 @@ def get_visit(
     from app.api.core.permissions import check_visit_access
     if not check_visit_access(db, current_user, visit):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    return visit.model_dump() if hasattr(visit, 'model_dump') else visit
+    return _visit_response(visit, can_view_financials(current_user, db))
 @router.put("/{visit_id}", response_model=VisitOut)
 def update_visit(
     visit_id: int,
@@ -434,7 +452,7 @@ def update_visit(
         waitlist_service.release_slot_quietly(
             db, business, old_service_id, old_specialist_id, old_start
         )
-    return result.model_dump() if hasattr(result, 'model_dump') else result
+    return _visit_response(result, can_view_financials(current_user, db))
 @router.delete("/{visit_id}")
 def delete_visit(
     visit_id: int,
