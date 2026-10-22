@@ -120,6 +120,7 @@ def _pilot_limit(db: Session, user: User, now: datetime, *, speech: bool = False
             limit=limit if state.get("can_use_ai") else 0,
             used=used,
             retry_after=max(1, int((tomorrow - now).total_seconds())),
+            period="day",
         )
     return max(0, limit - used)
 

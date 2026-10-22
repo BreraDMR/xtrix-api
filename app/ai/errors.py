@@ -34,11 +34,12 @@ class AIBusy(AIError):
 
 
 class AILimitReached(AIError):
-    """The business used up its monthly assistant requests."""
+    """The business used up its assistant requests - monthly normally, daily in the pilot."""
     code = "ai_limit_reached"
 
-    def __init__(self, limit: int, used: int, retry_after: int):
-        super().__init__(f"monthly assistant limit reached ({used}/{limit})")
+    def __init__(self, limit: int, used: int, retry_after: int, period: str = "month"):
+        super().__init__(f"{period}ly assistant limit reached ({used}/{limit})")
         self.limit = limit
         self.used = used
         self.retry_after = retry_after
+        self.period = period

@@ -344,9 +344,18 @@
             "type": "boolean"
           },
           "limit": {
-            "description": "Assistant requests per calendar month (UTC) for whoever pays",
+            "description": "Assistant requests per period for whoever pays",
             "title": "Limit",
             "type": "integer"
+          },
+          "period": {
+            "description": "What the limit counts: a UTC calendar month, or a UTC day in the pilot",
+            "enum": [
+              "day",
+              "month"
+            ],
+            "title": "Period",
+            "type": "string"
           },
           "resets_at": {
             "format": "date-time",
@@ -369,7 +378,8 @@
           "assistant",
           "limit",
           "used",
-          "resets_at"
+          "resets_at",
+          "period"
         ],
         "title": "AssistantStatusOut",
         "type": "object"
@@ -20095,7 +20105,7 @@
             "description": "Validation Error"
           },
           "429": {
-            "description": "Monthly assistant limit used up (code ai_limit_reached), Retry-After = seconds to the next month; or too many requests a minute"
+            "description": "Assistant limit used up (code ai_limit_reached, period month or day in the pilot), Retry-After = seconds to the next period; or too many requests a minute"
           },
           "503": {
             "description": "ai_busy (all provider slots resting, Retry-After), ai_not_configured or ai_unavailable"
@@ -20219,7 +20229,7 @@
             "description": "Validation Error"
           },
           "429": {
-            "description": "Monthly assistant limit used up (code ai_limit_reached), Retry-After = seconds to the next month; or too many requests a minute"
+            "description": "Assistant limit used up (code ai_limit_reached, period month or day in the pilot), Retry-After = seconds to the next period; or too many requests a minute"
           },
           "503": {
             "description": "ai_busy (all provider slots resting, Retry-After), ai_not_configured or ai_unavailable"

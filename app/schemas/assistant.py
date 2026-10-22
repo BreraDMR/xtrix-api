@@ -19,9 +19,11 @@ class AssistantStatusOut(BaseModel):
     enabled: bool = Field(description="A model provider is configured, so /assistant/plan can work")
     voice_enabled: bool = Field(description="A speech provider is configured, so /assistant/transcribe can work")
     assistant: AssistantPersonaOut
-    limit: int = Field(description="Assistant requests per calendar month (UTC) for whoever pays")
+    limit: int = Field(description="Assistant requests per period for whoever pays")
     used: int
     resets_at: UtcDatetime
+    period: Literal["day", "month"] = Field(
+        description="What the limit counts: a UTC calendar month, or a UTC day in the pilot")
 
 
 class PlanRequest(BaseModel):

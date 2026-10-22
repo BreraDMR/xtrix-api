@@ -61,8 +61,8 @@ logger = get_logger("assistant")
 staff_user = deps.role_required("admin", "business_owner", "specialist", "employee")
 
 AI_ERRORS = {
-    429: {"description": "Monthly assistant limit used up (code ai_limit_reached), Retry-After = seconds "
-                         "to the next month; or too many requests a minute"},
+    429: {"description": "Assistant limit used up (code ai_limit_reached, period month or day in the pilot), "
+                         "Retry-After = seconds to the next period; or too many requests a minute"},
     503: {"description": "ai_busy (all provider slots resting, Retry-After), ai_not_configured or "
                          "ai_unavailable"},
 }
@@ -104,8 +104,9 @@ def _limits_config(router: Optional[LLMRouter]) -> AIConfig:
 
 def ai_http_error(err: AIError, locale: str) -> HTTPException:
     if isinstance(err, AILimitReached):
-        return HTTPException(429, detail={"message": _("ai_limit_reached", locale), "code": err.code,
-                                          "limit": err.limit, "used": err.used},
+        key = "ai_daily_limit_reached" if err.period == "day" else "ai_limit_reached"
+        return HTTPException(429, detail={"message": _(key, locale), "code": err.code,
+                                          "limit": err.limit, "used": err.used, "period": err.period},
                              headers={"Retry-After": str(err.retry_after)})
     if isinstance(err, AIBusy):
         return HTTPException(503, detail={"message": _("ai_busy", locale), "code": err.code,
@@ -141,10 +142,12 @@ def get_status(
         limit = (access.get("ai_daily_limit") or 0) if access["can_use_ai"] else 0
         used = pilot_used_today(db, current_user, now)
         resets_at = _day_bounds(now)[1]
+        period = "day"
     else:
         limit = monthly_limit(db, current_user, config)
         used = used_this_month(db, current_user, now)
         resets_at = _month_bounds(now)[1]
+        period = "month"
     return {
         "enabled": bool(model and model.slots),
         "voice_enabled": bool(speech and speech.slots),
@@ -152,6 +155,7 @@ def get_status(
         "limit": limit,
         "used": used,
         "resets_at": resets_at,
+        "period": period,
     }
 
 

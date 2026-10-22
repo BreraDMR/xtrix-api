@@ -113,6 +113,7 @@ def test_status(client, ab, fakes):
     now = datetime.now(timezone.utc)
     nxt = datetime(now.year + (now.month == 12), now.month % 12 + 1, 1)
     assert body["resets_at"] == nxt.isoformat() + "Z"
+    assert body["period"] == "month"
     ask(client, b)
     assert client.get("/assistant/status", headers=b["headers"]).json()["used"] == 1
 
@@ -150,6 +151,7 @@ def test_pilot_status_reports_the_same_daily_pool_as_reservations(client, ab, fa
     body = client.get("/assistant/status", headers=tenant["headers"]).json()
     assert (body["limit"], body["used"]) == (50, 2)
     assert body["resets_at"] == "2026-10-23T00:00:00Z"
+    assert body["period"] == "day"
 
 
 def conversation(client, t):
@@ -354,8 +356,29 @@ def test_limit_reached_is_429_with_retry_after(client, ab, fakes):
     assert r.status_code == 429
     assert error(r)["detail"]["code"] == "ai_limit_reached"
     assert (error(r)["detail"]["limit"], error(r)["detail"]["used"]) == (1, 1)
+    assert error(r)["detail"]["period"] == "month"
     assert int(r.headers["retry-after"]) > 0
     assert fakes.model_calls == 1
+
+
+def test_pilot_limit_says_it_is_a_daily_one(client, ab, fakes, db, monkeypatch):
+    from app.api.core.config import settings
+    from app.db.models.ai_usage import AIUsage
+
+    monkeypatch.setattr(settings, "pilot_mode_enabled", True)
+    _, b = ab
+    owner = b["owner"]
+    db.refresh(owner)
+    for _ in range(50):
+        db.add(AIUsage(user_id=owner.id, business_id=owner.business_id, role="fast", succeeded=True,
+                       provider="test", model="test", prompt_tokens=0, completion_tokens=0, cost_estimate=0))
+    db.commit()
+    r = client.post("/assistant/plan", json={"text": "hi"}, headers={**b["headers"], "Accept-Language": "en"})
+    assert r.status_code == 429
+    detail = error(r)["detail"]
+    assert (detail["code"], detail["period"]) == ("ai_limit_reached", "day")
+    assert "daily" in error(r)["message"]
+    assert fakes.model_calls == 0
 
 
 def test_busy_pool_is_503_with_retry_after(client, ab, fakes):
