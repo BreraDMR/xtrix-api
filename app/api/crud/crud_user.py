@@ -139,6 +139,7 @@ def list_users_pending_moderation(
         User.deleted_at.is_(None)
     )
     total = query.count()
+    query = query.order_by(User.id.asc())
     if pagination:
         query = query.offset(pagination.offset).limit(pagination.limit)
     items = query.all()
@@ -176,6 +177,7 @@ def list_users(
     if role:
         q = q.filter(User.role == role)
     total = q.count()
+    q = q.order_by(User.id.asc())
     if pagination:
         q = q.offset(pagination.offset).limit(pagination.limit)
     items = q.all()
