@@ -800,3 +800,62 @@ def test_pilot_gift_shop_and_orders_close_with_the_salon(client, db, gift_world,
     expire(db, gift_world["owner"], 3)
     assert shop().status_code == 402
     assert order_state().status_code == 402
+
+
+def _directory_certificate(db, base, index, *, kind='money', balance=0, units=0, expired=False, status='active'):
+    """A paid order snapshot, with ledger balances independent of its cached status."""
+    order_values = {column.name: getattr(base.order, column.name) for column in GiftOrder.__table__.columns
+                    if column.name not in {'id', 'request_key', 'public_ref', 'public_token_hash', 'provider_ref'}}
+    order = GiftOrder(**order_values, request_key=f'directory-{index}', public_ref=f'directory-{index}', provider_ref=f'directory-{index}',
+                      public_token_hash=hashlib.sha256(f'directory-{index}'.encode()).hexdigest())
+    db.add(order)
+    db.flush()
+    values = {column.name: getattr(base, column.name) for column in GiftCertificate.__table__.columns
+              if column.name not in {'id', 'order_id', 'code', 'code_hash', 'code_last4', 'kind', 'status', 'expires_at'}}
+    code = f'DIRECTORY-{index:08d}'
+    certificate = GiftCertificate(**values, order_id=order.id, code=code,
+                                  code_hash=hashlib.sha256(code.encode()).hexdigest(), code_last4=code[-4:],
+                                  kind=kind, status=status,
+                                  expires_at=utcnow() + timedelta(days=-1 if expired else 30))
+    db.add(certificate)
+    db.flush()
+    db.add(GiftLedgerEntry(certificate_id=certificate.id, business_id=base.business_id,
+                          entry_type='issued', amount_delta=balance, units_delta=units, request_key='issued'))
+    return certificate
+
+
+def test_directory_status_filter_precedes_offset_and_limit(client, db, gift_world):
+    _, paid = _pay(client, gift_world)
+    base = _certificate(db, paid)
+    exhausted = [_directory_certificate(db, base, index) for index in range(125)]
+    db.commit()
+    headers = gift_world['headers']
+    active = _ok(client.get('/businesses/me/gift-certificates', headers=headers,
+                            params={'status': 'active', 'limit': 100}), 'active directory')
+    assert [row['id'] for row in active] == [base.id]
+    page = _ok(client.get('/businesses/me/gift-certificates', headers=headers,
+                          params={'status': 'exhausted', 'limit': 100, 'offset': 100}), 'exhausted page')
+    assert [row['id'] for row in page] == [row.id for row in reversed(exhausted[:25])]
+    assert all(row['status'] == 'exhausted' for row in page)
+
+
+def test_directory_filter_uses_live_money_units_and_expiry(client, db, gift_world):
+    _, paid = _pay(client, gift_world)
+    base = _certificate(db, paid)
+    package = _directory_certificate(db, base, 200, kind='package', balance=0, units=2, status='exhausted')
+    money = _directory_certificate(db, base, 201, balance=10, status='exhausted')
+    expired = _directory_certificate(db, base, 202, balance=10, expired=True)
+    sticky = _directory_certificate(db, base, 203, balance=0, status='expired')
+    db.commit()
+    headers = gift_world['headers']
+    active = _ok(client.get('/businesses/me/gift-certificates', headers=headers,
+                            params={'status': 'active', 'limit': 1, 'offset': 1}), 'active filtered page')
+    assert [row['id'] for row in active] == [package.id]
+    assert active[0]['visits_remaining'] == 2
+    ended = _ok(client.get('/businesses/me/gift-certificates', headers=headers,
+                           params={'status': 'expired', 'limit': 1, 'offset': 1}), 'expired filtered page')
+    assert [row['id'] for row in ended] == [expired.id]
+    assert ended[0]['money_balance'] == 0
+    assert db.query(GiftLedgerEntry).filter_by(certificate_id=expired.id, entry_type='expired').count() == 1
+    assert money.id not in [row['id'] for row in ended]
+    assert sticky.status == 'expired'

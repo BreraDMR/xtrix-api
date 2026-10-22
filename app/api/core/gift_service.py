@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -911,23 +911,33 @@ def list_certificates(
     limit: int = 100,
     offset: int = 0,
 ) -> list[GiftCertificate]:
-    certificates = (
-        db.query(GiftCertificate)
-        .filter(GiftCertificate.business_id == business_id)
-        .order_by(GiftCertificate.id.desc())
-        .offset(max(0, offset))
-        .limit(max(1, min(limit, 200)))
-        .all()
-    )
+    moment = _now()
+    query = db.query(GiftCertificate).filter(GiftCertificate.business_id == business_id)
+    if status:
+        # The stored status may lag behind a redemption or expiration. Filter by
+        # the same balances as _refresh_status before applying the page boundary.
+        amount = select(func.coalesce(func.sum(GiftLedgerEntry.amount_delta), 0)).where(
+            GiftLedgerEntry.certificate_id == GiftCertificate.id,
+        ).scalar_subquery()
+        units = select(func.coalesce(func.sum(GiftLedgerEntry.units_delta), 0)).where(
+            GiftLedgerEntry.certificate_id == GiftCertificate.id,
+        ).scalar_subquery()
+        exhausted = case((GiftCertificate.kind == "money", amount <= 0), else_=units <= 0)
+        live_status = case(
+            (or_(GiftCertificate.status == EXPIRED_STATUS, GiftCertificate.expires_at <= moment), EXPIRED_STATUS),
+            (exhausted, EXHAUSTED_STATUS),
+            else_=ACTIVE_STATUS,
+        )
+        query = query.filter(live_status == status)
+    certificates = (query.order_by(GiftCertificate.id.desc())
+                    .offset(max(0, offset)).limit(max(1, min(limit, 200))).all())
     changed = False
     for certificate in certificates:
         if certificate.status != EXPIRED_STATUS:
-            _refresh_status(db, certificate)
+            _refresh_status(db, certificate, moment)
             changed = True
     if changed:
         db.commit()
-    if status:
-        certificates = [row for row in certificates if row.status == status]
     return certificates
 
 
