@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, time
-from typing import Optional
+from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from app.api import deps
@@ -150,6 +150,10 @@ def visits_list(
     specialist_id: Optional[int] = None,
     date_from: Optional[UtcDatetime] = None,
     date_to: Optional[UtcDatetime] = None,
+    q: Optional[str] = Query(None, max_length=200),
+    status: Optional[Literal["planned", "completed", "cancelled", "in_progress"]] = None,
+    sort_by: Literal["id", "date_start", "service_name", "client_name", "status", "price"] = "id",
+    sort_order: Literal["asc", "desc"] = "asc",
     page: int = Query(1, ge=1, le=MAX_PAGE),
     per_page: int = Query(20, ge=1, le=100),
     include_deleted: bool = Query(False, description="Include soft-deleted visits"),
@@ -185,6 +189,10 @@ def visits_list(
         business_id=business_id,  
         date_from=date_from,
         date_to=date_to,
+        search=q,
+        status=status,
+        sort_by=sort_by,
+        sort_order=sort_order,
         pagination=pagination,
         include_deleted=include_deleted,
         include_archived=include_archived,

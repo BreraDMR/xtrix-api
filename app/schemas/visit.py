@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, List
 from app.schemas.limits import LongText, Money, ShortText
-from pydantic import ConfigDict, BaseModel, Field, field_validator
+from pydantic import AliasChoices, AliasPath, ConfigDict, BaseModel, Field, field_validator
 from app.api.core.clock import utcnow
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.errors import invalid, invalid_choice
@@ -131,6 +131,7 @@ class VisitUpdate(InputModel):
                 raise invalid("payment_method_required", "Payment method is required for completed visits with price")
         return v
 class VisitOut(VisitBase):
+    client_name: Optional[str] = Field(default=None, validation_alias=AliasChoices("client_name", AliasPath("client", "full_name")))
     id: int
     created_at: UtcDatetime
     client_confirmed_at: Optional[UtcDatetime] = None

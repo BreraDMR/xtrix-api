@@ -17080,6 +17080,17 @@
             "title": "Client Id",
             "type": "integer"
           },
+          "client_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Name"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -37821,6 +37832,77 @@
                 }
               ],
               "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "planned",
+                    "completed",
+                    "cancelled",
+                    "in_progress"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort_by",
+            "required": false,
+            "schema": {
+              "default": "id",
+              "enum": [
+                "id",
+                "date_start",
+                "service_name",
+                "client_name",
+                "status",
+                "price"
+              ],
+              "title": "Sort By",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort_order",
+            "required": false,
+            "schema": {
+              "default": "asc",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "title": "Sort Order",
+              "type": "string"
             }
           },
           {

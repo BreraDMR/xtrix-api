@@ -3,7 +3,7 @@ from datetime import timedelta
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Optional, Tuple
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, func, select
 from sqlalchemy.orm import Session, joinedload
 from app.api.core.pagination import PaginationParams
 from app.api.core.soft_delete import filter_active
@@ -18,6 +18,7 @@ from app.api.core.visit_chain import (
     service_line,
 )
 from app.api.core import audit_service
+from app.db.models.client import Client
 from app.db.models.service import Service
 from app.db.models.visit import Visit
 from app.schemas.visit import VisitCreate, VisitUpdate
@@ -333,6 +334,25 @@ def get_visit(
                 _no_business_but_ours(business_id),
             ))
     return query.first()
+def _directory_sql(search, status, sort_by, sort_order):
+    conditions = ""
+    params = {}
+    if search:
+        value = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        params["directory_search"] = f"%{value}%"
+        conditions += """ AND (COALESCE(service_name, (SELECT s.name FROM services s WHERE s.id = visits.service_id)) ILIKE :directory_search
+            OR EXISTS (SELECT 1 FROM clients c WHERE c.id = visits.client_id AND c.full_name ILIKE :directory_search))"""
+    if status:
+        conditions += " AND status = :directory_status"
+        params["directory_status"] = status
+    columns = {key: key for key in ("id", "date_start", "status", "price")}
+    columns["service_name"] = "LOWER(COALESCE(service_name, (SELECT s.name FROM services s WHERE s.id = visits.service_id)))"
+    columns["client_name"] = "(SELECT LOWER(c.full_name) FROM clients c WHERE c.id = visits.client_id)"
+    direction = "DESC" if sort_order == "desc" else "ASC"
+    order = f" ORDER BY {columns.get(sort_by, 'id')} {direction} NULLS LAST, id ASC"
+    return conditions, params, order
+
+
 def list_visits(
     db: Session,
     client_id: Optional[int] = None,
@@ -343,7 +363,12 @@ def list_visits(
     pagination: Optional[PaginationParams] = None,
     include_deleted: bool = False,
     include_archived: bool = False,
+    search: Optional[str] = None,
+    status: Optional[str] = None,
+    sort_by: str = "id",
+    sort_order: str = "asc",
 ) -> Tuple[list[Visit], int]:
+    directory_sql, directory_params, directory_order = _directory_sql(search, status, sort_by, sort_order)
     from sqlalchemy import inspect, text
     inspector = inspect(db.bind)
     has_business_id_column = False
@@ -371,6 +396,8 @@ def list_visits(
         if date_to:
             count_sql += " AND date_start <= :date_to"
             params['date_to'] = date_to
+        count_sql += directory_sql
+        params.update(directory_params)
         total = db.execute(text(count_sql), params).scalar()
         select_sql = """
             SELECT id, client_id, specialist_id, service_id, date_start, date_end, 
@@ -396,6 +423,8 @@ def list_visits(
         if date_to:
             select_sql += " AND date_start <= :date_to"
             select_params['date_to'] = date_to
+        select_sql += directory_sql + directory_order
+        select_params.update(directory_params)
         if pagination:
             select_sql += " LIMIT :limit OFFSET :offset"
             select_params['limit'] = pagination.limit
@@ -413,13 +442,11 @@ def list_visits(
             for key, value in row._mapping.items():
                 setattr(visit, key, value)
             if visit.client_id:
-                from app.db.models.client import Client
                 visit.client = db.query(Client).filter(Client.id == visit.client_id).first()
             if visit.specialist_id:
                 from app.db.models.user import User
                 visit.specialist = db.query(User).filter(User.id == visit.specialist_id).first()
             if visit.service_id:
-                from app.db.models.service import Service
                 if not services_has_business_id:
                     service_row = db.execute(
                         text("SELECT id, specialist_id, name, duration_minutes, price, is_active, created_at, deleted_at, archived_at FROM services WHERE id = :id"),
@@ -444,7 +471,6 @@ def list_visits(
     if not include_archived:
         q = q.filter(Visit.archived_at.is_(None))
     if business_id and has_business_id_column:
-        from sqlalchemy import or_
         q = q.filter(or_(
             Visit.business_id == business_id,
             _no_business_but_ours(business_id),
@@ -457,6 +483,20 @@ def list_visits(
         q = q.filter(Visit.date_start >= date_from)
     if date_to:
         q = q.filter(Visit.date_start <= date_to)
+    if search:
+        escaped = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
+        q = q.filter(or_(
+            func.coalesce(Visit.service_name, select(Service.name).where(Service.id == Visit.service_id).scalar_subquery()).ilike(pattern, escape="\\"),
+            Visit.client.has(Client.full_name.ilike(pattern, escape="\\")),
+        ))
+    if status:
+        q = q.filter(Visit.status == status)
+    columns = {key: getattr(Visit, key) for key in ("id", "date_start", "status", "price")}
+    columns["service_name"] = func.lower(func.coalesce(Visit.service_name, select(Service.name).where(Service.id == Visit.service_id).scalar_subquery()))
+    columns["client_name"] = select(func.lower(Client.full_name)).where(Client.id == Visit.client_id).scalar_subquery()
+    column = columns.get(sort_by, Visit.id)
+    order = column.desc() if sort_order == "desc" else column.asc()
     try:
         total = q.count()
     except Exception as e:
@@ -480,9 +520,12 @@ def list_visits(
             if date_to:
                 count_sql += " AND date_start <= :date_to"
                 params['date_to'] = date_to
+            count_sql += directory_sql
+            params.update(directory_params)
             total = db.execute(text(count_sql), params).scalar()
         else:
             raise
+    q = q.order_by(order.nulls_last(), Visit.id.asc())
     if pagination:
         q = q.offset(pagination.offset).limit(pagination.limit)
     try:
@@ -514,6 +557,8 @@ def list_visits(
             if date_to:
                 select_sql += " AND date_start <= :date_to"
                 params['date_to'] = date_to
+            select_sql += directory_sql + directory_order
+            params.update(directory_params)
             if pagination:
                 select_sql += " LIMIT :limit OFFSET :offset"
                 params['limit'] = pagination.limit
