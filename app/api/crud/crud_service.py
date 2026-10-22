@@ -130,6 +130,7 @@ def list_services(
     if is_active is not None:
         q = q.filter(Service.is_active == is_active)
     total = q.count()
+    q = q.order_by(Service.id.asc())
     if pagination:
         q = q.offset(pagination.offset).limit(pagination.limit)
     return q.all(), total
