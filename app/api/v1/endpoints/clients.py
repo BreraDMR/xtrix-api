@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Optional
+from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from app.api import deps
@@ -125,6 +125,10 @@ def list_clients(
     owner_id: Optional[int] = None,
     phone: Optional[str] = None,
     name: Optional[str] = None,
+    q: Optional[str] = Query(None, max_length=200),
+    gender: Optional[Literal["male", "female", "other"]] = None,
+    sort_by: Literal["id", "full_name", "contact_phone", "contact_email", "gender", "birth_date", "created_at"] = "id",
+    sort_order: Literal["asc", "desc"] = "asc",
     page: int = Query(1, ge=1, le=MAX_PAGE),
     per_page: int = Query(20, ge=1, le=100),
     include_deleted: bool = Query(False, description="Include soft-deleted clients"),
@@ -152,6 +156,10 @@ def list_clients(
         business_id=business_id,  
         phone=phone,
         name=name,
+        search=q,
+        gender=gender,
+        sort_by=sort_by,
+        sort_order=sort_order,
         pagination=pagination,
         include_deleted=include_deleted,
         include_archived=include_archived,

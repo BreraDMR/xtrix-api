@@ -221,6 +221,10 @@ def list_clients(
     include_deleted: bool = False,
     include_archived: bool = False,
     accessible_client_ids: Optional[set[int]] = None,  
+    search: Optional[str] = None,
+    gender: Optional[str] = None,
+    sort_by: str = "id",
+    sort_order: str = "asc",
 ) -> Tuple[list[Client], int]:
     cache_filters = {
         'owner_id': owner_id,
@@ -310,11 +314,27 @@ def list_clients(
         q = q.filter(Client.contact_phone == phone)
     if name:
         q = q.filter(Client.full_name.ilike(f"%{name}%"))
+    if search:
+        escaped = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
+        q = q.filter(or_(Client.full_name.ilike(pattern, escape="\\"),
+                         Client.contact_phone.ilike(pattern, escape="\\"),
+                         Client.contact_email.ilike(pattern, escape="\\")))
+    if gender:
+        q = q.filter(Client.gender == gender)
     if accessible_client_ids is not None:
         if len(accessible_client_ids) == 0:
             return [], 0
         q = q.filter(Client.id.in_(accessible_client_ids))
     total = q.count()
+    columns = {key: getattr(Client, key) for key in (
+        "id", "full_name", "contact_phone", "contact_email", "gender", "birth_date", "created_at",
+    )}
+    column = columns.get(sort_by, Client.id)
+    if sort_by in {"full_name", "contact_phone", "contact_email", "gender"}:
+        column = func.lower(column)
+    order = column.desc() if sort_order == "desc" else column.asc()
+    q = q.order_by(order.nulls_last(), Client.id.asc())
     if pagination:
         q = q.offset(pagination.offset).limit(pagination.limit)
     items = q.all()
