@@ -126,6 +126,32 @@ def test_status_when_nothing_is_configured(client, ab, fakes):
     assert client.get("/assistant/status", headers=b["headers"]).json()["enabled"] is False
 
 
+def test_pilot_status_reports_the_same_daily_pool_as_reservations(client, ab, fakes, db, monkeypatch):
+    from app.api.core.config import settings
+    from app.db.models.ai_usage import AIUsage
+
+    monkeypatch.setattr(settings, "pilot_mode_enabled", True)
+    now = datetime(2026, 10, 22, 12, tzinfo=timezone.utc)
+    monkeypatch.setattr(endpoints, "utcnow", lambda: now)
+    _, tenant = ab
+    owner = tenant["owner"]
+    db.refresh(owner)
+    for when, role, succeeded, provider in [
+        (now - timedelta(days=1), "fast", True, "test"),
+        (now, "fast", True, "test"),
+        (now, "fast", False, "pending"),
+        (now, "fast", False, "test"),
+        (now, "stt", True, "test"),
+    ]:
+        db.add(AIUsage(user_id=owner.id, business_id=owner.business_id, created_at=when,
+                       role=role, succeeded=succeeded, provider=provider, model="test",
+                       prompt_tokens=0, completion_tokens=0, cost_estimate=0))
+    db.commit()
+    body = client.get("/assistant/status", headers=tenant["headers"]).json()
+    assert (body["limit"], body["used"]) == (50, 2)
+    assert body["resets_at"] == "2026-10-23T00:00:00Z"
+
+
 def conversation(client, t):
     r = client.post("/assistant/conversations", json={"client_request_id": str(uuid4())}, headers=t["headers"])
     assert r.status_code == 201, r.text

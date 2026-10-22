@@ -18,10 +18,12 @@ from app.ai.display import describe_plan
 from app.ai.errors import AIBusy, AIError, AILimitReached, AINotConfigured
 from app.ai.persona import effective_assistant
 from app.ai.router import LLMRouter, get_router
-from app.ai.usage import _month_bounds, monthly_limit, used_this_month
+from app.ai.usage import _day_bounds, _month_bounds, monthly_limit, pilot_used_today, used_this_month
 from app.api import deps
 from app.api.core.ai_metering import consume_ai_unit
 from app.api.core.clock import utcnow
+from app.api.core.config import settings
+from app.api.core.subscription_access import get_subscription_access_state
 from app.api.core.i18n import _
 from app.api.core.logger import get_logger
 from app.api.core.permissions import get_user_business_id
@@ -134,13 +136,22 @@ def get_status(
     business = crud_business.get_business(db, business_id) if business_id else None
     persona = effective_assistant(business, locale)
     now = utcnow()
+    if settings.pilot_mode_enabled:
+        access = get_subscription_access_state(db, current_user.id)
+        limit = (access.get("ai_daily_limit") or 0) if access["can_use_ai"] else 0
+        used = pilot_used_today(db, current_user, now)
+        resets_at = _day_bounds(now)[1]
+    else:
+        limit = monthly_limit(db, current_user, config)
+        used = used_this_month(db, current_user, now)
+        resets_at = _month_bounds(now)[1]
     return {
         "enabled": bool(model and model.slots),
         "voice_enabled": bool(speech and speech.slots),
         "assistant": persona.__dict__,
-        "limit": monthly_limit(db, current_user, config),
-        "used": used_this_month(db, current_user, now),
-        "resets_at": _month_bounds(now)[1],
+        "limit": limit,
+        "used": used,
+        "resets_at": resets_at,
     }
 
 
