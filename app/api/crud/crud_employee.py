@@ -75,6 +75,7 @@ def list_employees(
     else:
         query = query.filter(Employee.is_active == True)
     total = query.count()
+    query = query.order_by(Employee.id.asc())
     if pagination:
         query = query.offset(pagination.offset).limit(pagination.limit)
     items = query.all()
