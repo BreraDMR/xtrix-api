@@ -7,7 +7,6 @@ from app.schemas.datetimes import UtcDatetime
 from app.api.core.i18n import _
 from app.api.core.pagination import MAX_PAGE, PaginatedResponse
 from app.db.models.user import User
-from app.db.models.product import Product
 from app.schemas.product import ProductCreate, ProductUpdate, ProductOut, ProductStockOut
 from app.schemas.product_usage import ProductUsageCreate, ProductUsageOut
 from app.api.crud import crud_product, crud_product_usage
@@ -45,17 +44,16 @@ def list_products(
 ):
     business_id = require_business_id(current_user, db, locale)
     skip = (page - 1) * per_page
-    products = crud_product.list_products(
+    query = crud_product.query_products(
         db,
         business_id=business_id,
         category=category,
         is_active=is_active,
         search=search,
         low_stock_only=low_stock_only,
-        skip=skip,
-        limit=per_page,
     )
-    total = db.query(Product).filter(Product.business_id == business_id).count()
+    total = query.order_by(None).count()
+    products = query.offset(skip).limit(per_page).all()
     return PaginatedResponse.create(
         items=[p for p in products],
         total=total,

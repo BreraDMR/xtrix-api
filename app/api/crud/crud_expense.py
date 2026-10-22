@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict
 from datetime import datetime
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Query, Session
 from sqlalchemy import and_, func
 from app.db.models.expense import Expense
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate
@@ -25,7 +25,7 @@ def get_expense(db: Session, expense_id: int, business_id: Optional[int] = None)
     if business_id:
         query = query.filter(Expense.business_id == business_id)
     return query.first()
-def list_expenses(
+def query_expenses(
     db: Session,
     business_id: Optional[int] = None,
     category_id: Optional[int] = None,
@@ -34,9 +34,7 @@ def list_expenses(
     payment_method: Optional[str] = None,
     min_amount: Optional[float] = None,
     max_amount: Optional[float] = None,
-    skip: int = 0,
-    limit: int = 100,
-) -> List[Expense]:
+) -> Query[Expense]:
     query = db.query(Expense)
     if business_id:
         query = query.filter(Expense.business_id == business_id)
@@ -52,7 +50,23 @@ def list_expenses(
         query = query.filter(Expense.amount >= min_amount)
     if max_amount is not None:
         query = query.filter(Expense.amount <= max_amount)
-    return query.order_by(Expense.expense_date.desc()).offset(skip).limit(limit).all()
+    return query.order_by(Expense.expense_date.desc(), Expense.id.desc())
+def list_expenses(
+    db: Session,
+    business_id: Optional[int] = None,
+    category_id: Optional[int] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+    payment_method: Optional[str] = None,
+    min_amount: Optional[float] = None,
+    max_amount: Optional[float] = None,
+    skip: int = 0,
+    limit: int = 100,
+) -> List[Expense]:
+    return query_expenses(
+        db, business_id=business_id, category_id=category_id, date_from=date_from,
+        date_to=date_to, payment_method=payment_method, min_amount=min_amount, max_amount=max_amount,
+    ).offset(skip).limit(limit).all()
 def update_expense(db: Session, expense: Expense, expense_in: ExpenseUpdate) -> Expense:
     update_data = expense_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():

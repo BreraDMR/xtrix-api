@@ -6,7 +6,6 @@ from app.schemas.datetimes import UtcDatetime
 from app.api.core.i18n import _
 from app.api.core.pagination import MAX_PAGE, PaginatedResponse
 from app.db.models.user import User
-from app.db.models.expense import Expense
 from app.schemas.expense import ExpenseCategoryTotal, ExpenseCreate, ExpenseUpdate, ExpenseOut, ProfitReportResponse
 from app.schemas.expense_category import ExpenseCategoryCreate, ExpenseCategoryUpdate, ExpenseCategoryOut
 from app.api.crud import crud_expense, crud_expense_category
@@ -130,7 +129,7 @@ def list_expenses(
 ):
     business_id = _finance_business_id(current_user, db, locale)
     skip = (page - 1) * per_page
-    expenses = crud_expense.list_expenses(
+    query = crud_expense.query_expenses(
         db,
         business_id=business_id,
         category_id=category_id,
@@ -139,10 +138,9 @@ def list_expenses(
         payment_method=payment_method,
         min_amount=min_amount,
         max_amount=max_amount,
-        skip=skip,
-        limit=per_page,
     )
-    total = db.query(Expense).filter(Expense.business_id == business_id).count()
+    total = query.order_by(None).count()
+    expenses = query.offset(skip).limit(per_page).all()
     return PaginatedResponse.create(
         items=[e for e in expenses],
         total=total,
