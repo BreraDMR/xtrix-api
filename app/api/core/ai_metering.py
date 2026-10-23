@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.api.core.clock import utcnow
@@ -27,7 +28,7 @@ def get_daily_ai_usage(
     Technical errors, replayed requests, and plan execution do not consume units.
     """
     period_str = day_str or get_current_daily_period()
-    query = db.query(UsageCounter).filter(
+    query = db.query(func.coalesce(func.sum(UsageCounter.count), 0)).filter(
         UsageCounter.product == "ai",
         UsageCounter.unit == "requests",
         UsageCounter.period == period_str,
@@ -35,12 +36,11 @@ def get_daily_ai_usage(
     if business_id is not None:
         query = query.filter(UsageCounter.business_id == business_id)
     elif user_id is not None:
-        query = query.filter(UsageCounter.user_id == user_id)
+        query = query.filter(UsageCounter.business_id.is_(None), UsageCounter.user_id == user_id)
     else:
         return 0
 
-    counter = query.first()
-    return counter.count if counter else 0
+    return int(query.scalar())
 
 
 def can_consume_ai_unit(
@@ -83,6 +83,13 @@ def consume_ai_unit(
 
     period_str = day_str or get_current_daily_period()
 
+    if business_id is None and user_id is None:
+        raise ValueError("An assistant usage counter needs a business or solo user")
+    scope = f"business:{business_id}" if business_id is not None else f"user:{user_id}"
+    # The lock also covers the first insert, where there is no counter row to lock.
+    db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+               {"key": f"assistant-meter:{scope}:{period_str}"})
+
     query = db.query(UsageCounter).filter(
         UsageCounter.product == "ai",
         UsageCounter.unit == "requests",
@@ -91,9 +98,9 @@ def consume_ai_unit(
     if business_id is not None:
         query = query.filter(UsageCounter.business_id == business_id)
     elif user_id is not None:
-        query = query.filter(UsageCounter.user_id == user_id)
+        query = query.filter(UsageCounter.business_id.is_(None), UsageCounter.user_id == user_id)
 
-    counter = query.first()
+    counter = query.populate_existing().order_by(UsageCounter.id).with_for_update().first()
     if not counter:
         counter = UsageCounter(
             business_id=business_id,
