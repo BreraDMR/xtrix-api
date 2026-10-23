@@ -3,6 +3,7 @@
 The guest gets one presigned POST with a server-made key; staff links are signed only
 after the visit access check. A client-supplied storage key is never accepted.
 """
+from datetime import timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -65,6 +66,16 @@ def create_attachment(
         raise HTTPException(
             status_code=422, detail=_("questionnaire_attachment_type", locale)
         )
+    # one reservation at a time per visit, otherwise two tabs both see 4 and both insert
+    db.query(Visit.id).filter(Visit.id == visit.id).with_for_update().first()
+    # a reservation nobody finished after its presigned POST expired is dead weight;
+    # drop it so a guest who closed the tab can still upload
+    abandoned_before = utcnow() - timedelta(seconds=attachments.UPLOAD_URL_TTL + 60)
+    db.query(QuestionnaireAttachment).filter(
+        QuestionnaireAttachment.visit_id == visit.id,
+        QuestionnaireAttachment.uploaded_at.is_(None),
+        QuestionnaireAttachment.created_at < abandoned_before,
+    ).delete(synchronize_session=False)
     used = (
         db.query(QuestionnaireAttachment.id)
         .filter(QuestionnaireAttachment.visit_id == visit.id)

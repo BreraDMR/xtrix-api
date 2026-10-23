@@ -1,5 +1,7 @@
 """Questionnaire tokens and answers: replay, expiry, tenancy and private uploads."""
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 
 from app.api.core import questionnaire_attachments as attachment_core
@@ -450,3 +452,60 @@ def test_attachments_complete_list_limit_and_tenancy(
         ).status_code
         == 404
     )
+
+
+def _reserve(client, guest, name="scan.pdf"):
+    return client.post(
+        "/public/questionnaires/attachments",
+        json={"filename": name, "content_type": "application/pdf", "size_bytes": 100},
+        headers=guest,
+    )
+
+
+def _fake_presign(monkeypatch, before=None):
+    def presign(key, content_type):
+        if before:
+            before()
+        return {"url": "https://storage.example.test/upload", "fields": {"key": key, "Content-Type": content_type}}
+
+    monkeypatch.setattr(attachment_core, "presign_upload", presign)
+
+
+def test_abandoned_upload_reservations_free_their_slots(client, db, make_user, headers_for, monkeypatch):
+    salon = _salon(client, make_user, headers_for, "Abandoned")
+    guest = _guest(_published_token(client, salon)["token"])
+    _fake_presign(monkeypatch)
+    for index in range(attachment_core.MAX_ATTACHMENTS_PER_VISIT):
+        assert _reserve(client, guest, f"scan-{index}.pdf").status_code == 200
+    # the guest closed the tab; every presigned POST has long expired
+    stale = utcnow() - timedelta(seconds=attachment_core.UPLOAD_URL_TTL * 2)
+    db.query(QuestionnaireAttachment).update({QuestionnaireAttachment.created_at: stale})
+    db.commit()
+
+    retry = _reserve(client, guest, "retry.pdf")
+    assert retry.status_code == 200, retry.text
+
+
+def test_parallel_reservations_cannot_pass_the_limit(client, db, make_user, headers_for, monkeypatch):
+    salon = _salon(client, make_user, headers_for, "Racing")
+    guest = _guest(_published_token(client, salon)["token"])
+    _fake_presign(monkeypatch)
+    for index in range(attachment_core.MAX_ATTACHMENTS_PER_VISIT - 1):
+        assert _reserve(client, guest, f"scan-{index}.pdf").status_code == 200
+
+    barrier = threading.Barrier(2)
+
+    def hold():
+        # both requests counted 4 before either inserted - unless the visit is locked
+        try:
+            barrier.wait(timeout=2)
+        except threading.BrokenBarrierError:
+            pass
+
+    _fake_presign(monkeypatch, before=hold)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        codes = sorted(pool.map(lambda name: _reserve(client, guest, name).status_code, ("a.pdf", "b.pdf")))
+    assert codes == [200, 409], codes
+    db.expire_all()
+    visit_id = salon["visit"]["id"]
+    assert db.query(QuestionnaireAttachment).filter_by(visit_id=visit_id).count() == attachment_core.MAX_ATTACHMENTS_PER_VISIT
