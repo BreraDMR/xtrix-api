@@ -38028,6 +38028,18 @@
             }
           },
           {
+            "description": "Calendar interval overlap; date_to is exclusive",
+            "in": "query",
+            "name": "calendar_overlap",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Calendar interval overlap; date_to is exclusive",
+              "title": "Calendar Overlap",
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Include soft-deleted visits",
             "in": "query",
             "name": "include_deleted",

@@ -367,9 +367,21 @@ def list_visits(
     status: Optional[str] = None,
     sort_by: str = "id",
     sort_order: str = "asc",
+    calendar_overlap: bool = False,
 ) -> Tuple[list[Visit], int]:
     directory_sql, directory_params, directory_order = _directory_sql(search, status, sort_by, sort_order)
     from sqlalchemy import inspect, text
+    # Share the predicate with legacy-schema count/select fallbacks.
+    range_sql = ""
+    range_params = {}
+    if date_from is not None:
+        end = ("CASE WHEN date_end > date_start THEN date_end "
+               "ELSE date_start + interval '1 hour' END")
+        range_sql += f" AND ({end}) > :date_from" if calendar_overlap else " AND date_start >= :date_from"
+        range_params['date_from'] = date_from
+    if date_to is not None:
+        range_sql += " AND date_start < :date_to" if calendar_overlap else " AND date_start <= :date_to"
+        range_params['date_to'] = date_to
     inspector = inspect(db.bind)
     has_business_id_column = False
     try:
@@ -390,12 +402,8 @@ def list_visits(
         if specialist_id:
             count_sql += " AND specialist_id = :specialist_id"
             params['specialist_id'] = specialist_id
-        if date_from:
-            count_sql += " AND date_start >= :date_from"
-            params['date_from'] = date_from
-        if date_to:
-            count_sql += " AND date_start <= :date_to"
-            params['date_to'] = date_to
+        count_sql += range_sql
+        params.update(range_params)
         count_sql += directory_sql
         params.update(directory_params)
         total = db.execute(text(count_sql), params).scalar()
@@ -417,12 +425,8 @@ def list_visits(
         if specialist_id:
             select_sql += " AND specialist_id = :specialist_id"
             select_params['specialist_id'] = specialist_id
-        if date_from:
-            select_sql += " AND date_start >= :date_from"
-            select_params['date_from'] = date_from
-        if date_to:
-            select_sql += " AND date_start <= :date_to"
-            select_params['date_to'] = date_to
+        select_sql += range_sql
+        select_params.update(range_params)
         select_sql += directory_sql + directory_order
         select_params.update(directory_params)
         if pagination:
@@ -479,10 +483,8 @@ def list_visits(
         q = q.filter(Visit.client_id == client_id)
     if specialist_id:
         q = q.filter(Visit.specialist_id == specialist_id)
-    if date_from:
-        q = q.filter(Visit.date_start >= date_from)
-    if date_to:
-        q = q.filter(Visit.date_start <= date_to)
+    if range_sql:
+        q = q.filter(text(range_sql[5:])).params(**range_params)
     if search:
         escaped = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         pattern = f"%{escaped}%"
@@ -514,12 +516,8 @@ def list_visits(
             if specialist_id:
                 count_sql += " AND specialist_id = :specialist_id"
                 params['specialist_id'] = specialist_id
-            if date_from:
-                count_sql += " AND date_start >= :date_from"
-                params['date_from'] = date_from
-            if date_to:
-                count_sql += " AND date_start <= :date_to"
-                params['date_to'] = date_to
+            count_sql += range_sql
+            params.update(range_params)
             count_sql += directory_sql
             params.update(directory_params)
             total = db.execute(text(count_sql), params).scalar()
@@ -551,12 +549,8 @@ def list_visits(
             if specialist_id:
                 select_sql += " AND specialist_id = :specialist_id"
                 params['specialist_id'] = specialist_id
-            if date_from:
-                select_sql += " AND date_start >= :date_from"
-                params['date_from'] = date_from
-            if date_to:
-                select_sql += " AND date_start <= :date_to"
-                params['date_to'] = date_to
+            select_sql += range_sql
+            params.update(range_params)
             select_sql += directory_sql + directory_order
             params.update(directory_params)
             if pagination:

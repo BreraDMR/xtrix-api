@@ -169,6 +169,7 @@ def visits_list(
     sort_order: Literal["asc", "desc"] = "asc",
     page: int = Query(1, ge=1, le=MAX_PAGE),
     per_page: int = Query(20, ge=1, le=100),
+    calendar_overlap: bool = Query(False, description="Calendar interval overlap; date_to is exclusive"),
     include_deleted: bool = Query(False, description="Include soft-deleted visits"),
     include_archived: bool = Query(False, description="Include archived visits"),
     db: Session = Depends(deps.get_db),
@@ -176,6 +177,8 @@ def visits_list(
     locale: str = Depends(deps.get_locale),
 ):
     from app.api.core.permissions import check_specialist_in_scope, get_filtered_specialist_id
+    if calendar_overlap and (date_from is None or date_to is None or date_to <= date_from):
+        raise HTTPException(status_code=422, detail=_("date_range_invalid", locale))
     if date_from is not None and date_to is not None and date_to < date_from:
         raise HTTPException(status_code=422, detail=_("date_range_invalid", locale))
     if current_user.role in ("admin", "business_owner"):
@@ -202,6 +205,7 @@ def visits_list(
         business_id=business_id,  
         date_from=date_from,
         date_to=date_to,
+        calendar_overlap=calendar_overlap,
         search=q,
         status=status,
         sort_by=sort_by,
