@@ -39,7 +39,7 @@ def request_password_reset(
     locale: str = Depends(deps.get_locale),
 ):
     email = str(data.email)
-    user = crud_user.get_by_phone_or_email(db, phone=None, email=email)
+    user = crud_user.get_password_reset_user(db, email)
     if user is not None and user.deleted_at is None:
         password_reset_email.queue_password_reset(db, user, locale)
         db.commit()

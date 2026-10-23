@@ -1,4 +1,5 @@
 from typing import Optional, Tuple
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.api.core.security import (
     get_password_hash, verify_password, create_access_token, 
@@ -130,6 +131,12 @@ def get_by_phone_or_email(db: Session, phone: str | None, email: str | None) -> 
     if email:
         return q.filter(User.email == email).first()
     return None
+def get_password_reset_user(db: Session, email: str) -> User | None:
+    # Old accounts can differ only by letter case. Never choose one arbitrarily.
+    matches = db.query(User).filter(
+        func.lower(User.email) == email.lower(), User.deleted_at.is_(None)
+    ).limit(2).all()
+    return matches[0] if len(matches) == 1 else None
 def list_users_pending_moderation(
     db: Session,
     pagination: Optional[PaginationParams] = None,
