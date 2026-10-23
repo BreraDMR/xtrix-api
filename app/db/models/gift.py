@@ -84,6 +84,7 @@ class GiftOrder(Base):
     public_ref = Column(String(48), nullable=False)
     public_token_hash = Column(String(64), nullable=False)
     status = Column(String(24), nullable=False, default="pending", index=True)
+    offer_snapshot = Column(JSON, nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
     currency = Column(String(3), nullable=False)
     provider_ref = Column(String(128), nullable=True, index=True)

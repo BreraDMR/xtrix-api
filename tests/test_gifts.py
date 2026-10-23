@@ -861,3 +861,30 @@ def test_directory_filter_uses_live_money_units_and_expiry(client, db, gift_worl
     assert db.query(GiftLedgerEntry).filter_by(certificate_id=expired.id, entry_type='expired').count() == 1
     assert money.id not in [row['id'] for row in ended]
     assert sticky.status == 'expired'
+
+
+@pytest.mark.parametrize("kind", ["money", "package"])
+def test_pending_order_keeps_the_terms_accepted_before_offer_changes(client, db, gift_world, kind):
+    world = gift_world
+    original = world["money_offer" if kind == "money" else "package_offer"]
+    order = _ok(_purchase(client, world, offer_id=original["id"]), "pending purchase")
+    changed = _offer_body("package" if kind == "money" else "money", name="Changed terms",
+                          face_value=None if kind == "money" else 5,
+                          visits_count=1 if kind == "money" else None,
+                          validity_days=1, service_ids=[])
+    _ok(client.put(f"/businesses/me/gift-offers/{original['id']}", json=changed,
+                   headers=world["headers"]), "edit offer")
+    current = _ok(client.get(f"/public/gifts/orders/{order['public_ref']}",
+                             headers={"X-Gift-Token": _token(order)}), "pending terms")
+    assert current["kind"] == kind
+    assert current["offer_name"] == original["name"]
+    paid = _ok(_sandbox(client, order), "pay accepted terms")
+    certificate = _certificate(db, paid)
+    assert certificate.kind == kind
+    assert certificate.offer_name == original["name"]
+    assert certificate.service_ids == original["service_ids"]
+    assert certificate.expires_at - certificate.issued_at == timedelta(days=60)
+    if kind == "money":
+        assert float(certificate.face_value) == 50
+    else:
+        assert certificate.visits_total == 3

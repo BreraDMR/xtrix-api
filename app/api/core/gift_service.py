@@ -287,6 +287,12 @@ def create_order(
         public_ref=public_ref,
         public_token_hash=token_digest(public_token),
         status=PENDING_ORDER,
+        offer_snapshot={
+            "name": offer.name, "kind": offer.kind,
+            "face_value": str(offer.face_value) if offer.face_value is not None else None,
+            "visits_count": offer.visits_count, "service_ids": list(offer.service_ids or []),
+            "validity_days": offer.validity_days,
+        },
         amount=money(offer.price),
         currency=offer.currency,
         buyer_name=payload.buyer_name,
@@ -470,8 +476,8 @@ def order_out(
         "status": order.status,
         "amount": float(order.amount),
         "currency": order.currency,
-        "offer_name": order.offer.name,
-        "kind": order.offer.kind,
+        "offer_name": order.offer_snapshot["name"],
+        "kind": order.offer_snapshot["kind"],
         "buyer_name": order.buyer_name,
         "recipient_name": order.recipient_name or order.buyer_name,
         "checkout_url": order.checkout_url if active else None,
@@ -511,33 +517,33 @@ def _issue_certificate(db: Session, order: GiftOrder, now: datetime) -> GiftCert
     )
     if existing is not None:
         return existing
-    offer = order.offer
+    terms = order.offer_snapshot
     business = order.business if hasattr(order, "business") else db.get(Business, order.business_id)
     code = _new_code()
     while db.query(GiftCertificate.id).filter(GiftCertificate.code_hash == code_digest(code)).first():
         code = _new_code()
     certificate = GiftCertificate(
         business_id=order.business_id,
-        offer_id=offer.id,
+        offer_id=order.offer_id,
         order_id=order.id,
         code=code,
         code_hash=code_digest(code),
         code_last4=canonical_code(code)[-4:],
-        kind=offer.kind,
+        kind=terms["kind"],
         status=ACTIVE_STATUS,
         issuer_name=business.name if business else "",
-        offer_name=offer.name,
+        offer_name=terms["name"],
         currency=order.currency,
-        face_value=money(offer.face_value) if offer.kind == "money" else Decimal("0.00"),
-        visits_total=int(offer.visits_count or 0) if offer.kind == "package" else 0,
-        service_ids=_service_ids(offer.service_ids) or None,
+        face_value=money(terms["face_value"]) if terms["kind"] == "money" else Decimal("0.00"),
+        visits_total=int(terms["visits_count"] or 0) if terms["kind"] == "package" else 0,
+        service_ids=_service_ids(terms["service_ids"]) or None,
         recipient_name=order.recipient_name or order.buyer_name,
         recipient_email=order.recipient_email,
         buyer_name=order.buyer_name,
         buyer_email=order.buyer_email,
         message=order.message,
         issued_at=now,
-        expires_at=now + timedelta(days=offer.validity_days),
+        expires_at=now + timedelta(days=terms["validity_days"]),
     )
     db.add(certificate)
     db.flush()
