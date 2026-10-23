@@ -43,6 +43,19 @@ def reminder_at(
     return local_reminder.astimezone(timezone.utc).replace(tzinfo=None)
 
 
+def reminder_still_due(db: Session, row: NotificationOutbox) -> bool:
+    """The visit is still planned at the time this reminder was written for."""
+    # a plain read on purpose: holding a visit lock through the SMTP call would stall the calendar
+    visit = db.query(Visit).filter(Visit.id == row.visit_id).populate_existing().first() if row.visit_id else None
+    return bool(
+        visit is not None
+        and visit.status == "planned"
+        and visit.deleted_at is None
+        and visit.archived_at is None
+        and reminder_event_key(visit) == row.event_key
+    )
+
+
 def cancel_pending_reminders(db: Session, visit_id: int, keep_key: Optional[str] = None) -> int:
     query = db.query(NotificationOutbox).filter(
         NotificationOutbox.visit_id == visit_id,

@@ -12,7 +12,7 @@ from typing import Callable, Optional
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
-from app.api.core import notification_preferences
+from app.api.core import notification_events, notification_preferences
 from app.api.core import campaign_service
 from app.api.core.client_portal_email import KIND as CLIENT_PORTAL_KIND
 from app.api.core.clock import utcnow
@@ -150,6 +150,15 @@ def run_once(
                 db.commit()
                 stats["cancelled"] += 1
                 continue
+        if row.kind == notification_events.KIND_REMINDER and not notification_events.reminder_still_due(db, row):
+            # cancel/reschedule only drop pending rows, so a row we already hold is checked here
+            row.status = "cancelled"
+            row.locked_until = None
+            row.last_error = "visit_changed"
+            row.updated_at = now
+            db.commit()
+            stats["cancelled"] += 1
+            continue
         # account-level messages (password reset) and client sign-in links are transactional:
         # a business reminder switch must not block access to the visitor's own cabinet
         channel = (
