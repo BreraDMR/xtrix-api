@@ -204,6 +204,10 @@ def decline_offer(
 
 
 def _staff_business_id(db: Session, user: User, locale: str) -> int:
+    from app.api.core.permissions import get_staff_record
+    # The waitlist desk belongs to the owner or a standalone specialist.
+    if user.role == "employee" or user.employer_id is not None or get_staff_record(db, user):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     business_id = get_user_business_id(user, db)
     if not business_id:
         raise HTTPException(status_code=403, detail=_("business_required", locale))
