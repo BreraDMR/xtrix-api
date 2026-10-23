@@ -15,7 +15,8 @@ from app.api.core import booking_manage_access, booking_manage_policy, notificat
 from app.api.core import public_booking_service as booking_service
 from app.api.core.clock import utcnow
 from app.api.core.i18n import _
-from app.api.crud import crud_public_booking
+from app.api.crud import crud_public_booking, crud_visit
+from app.api.core.visit_chain import apply_chain
 from app.api.middleware.rate_limit import (
     PUBLIC_BOOKING_MANAGE_ACTION_LIMIT,
     PUBLIC_BOOKING_MANAGE_LIMIT,
@@ -147,44 +148,23 @@ def reschedule_managed_booking(
     if new_start == visit.date_start:
         return _summary(token, visit)
 
-    service = (
-        crud_public_booking.get_public_service(db, visit.business_id, visit.service_id)
-        if visit.service_id
-        else None
-    )
-    if not service or visit.specialist_id not in crud_public_booking.public_service_master_ids(
-        db, visit.business_id, service
-    ):
-        raise HTTPException(status_code=409, detail=_("booking_reschedule_unavailable", locale))
+    lines = crud_visit.existing_lines(visit)
+    for line in lines:
+        service = crud_public_booking.get_public_service(db, visit.business_id, line.service_id) if line.service_id else None
+        if not service or line.specialist_id not in crud_public_booking.public_service_master_ids(db, visit.business_id, service):
+            raise HTTPException(status_code=409, detail=_("booking_reschedule_unavailable", locale))
 
-    # the same row public booking locks before checking a slot, so the two paths can't
-    # pick the same free time from under each other
-    staff = (
-        db.query(User)
-        .filter(
-            User.id == visit.specialist_id,
-            User.deleted_at.is_(None),
-            User.archived_at.is_(None),
-        )
-        .with_for_update()
-        .first()
-    )
-    if not staff:
+    # Lock every master in a stable order, just as public booking locks its master.
+    master_ids = sorted({line.specialist_id for line in lines})
+    staff = (db.query(User).filter(User.id.in_(master_ids), User.deleted_at.is_(None),
+                                  User.archived_at.is_(None)).order_by(User.id).with_for_update().all())
+    if len(staff) != len(master_ids):
         raise HTTPException(status_code=409, detail=_("booking_reschedule_unavailable", locale))
-
-    if not booking_service._slot_is_free(
-        db,
-        visit.business,
-        service,
-        staff.id,
-        new_start,
-        exclude_visit_id=visit.id,
-    ):
+    if not booking_service.snapshot_chain_is_free(db, visit.business, lines, new_start, exclude_visit_id=visit.id):
         raise HTTPException(status_code=409, detail=_("public_slot_unavailable", locale))
 
     previous_start = visit.date_start
-    visit.date_start = new_start
-    visit.date_end = new_start + timedelta(minutes=service.duration_minutes)
+    apply_chain(visit, lines, new_start)
     db.add(
         VisitEvent(
             business_id=visit.business_id,

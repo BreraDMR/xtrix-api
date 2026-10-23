@@ -111,14 +111,11 @@ def _slot_is_free(
 def _chain_is_free(db: Session, business, services, staff_id: int, start) -> bool:
     """The whole chain must fit one master, item by item, with each service's buffers."""
     lines = [service_line(service, staff_id) for service in services]
-    timings = [
-        ChainTiming(
-            duration_minutes=line.duration_minutes,
-            buffer_before_minutes=line.buffer_before_minutes,
-            buffer_after_minutes=line.buffer_after_minutes,
-        )
-        for line in lines
-    ]
+    return snapshot_chain_is_free(db, business, lines, start)
+
+
+def snapshot_chain_is_free(db: Session, business, lines, start, exclude_visit_id=None) -> bool:
+    """Use the booked durations and buffers when moving an existing appointment."""
     zone = salon_zone(business.timezone)
     local_start = start.replace(tzinfo=timezone.utc).astimezone(zone)
     local_end = (
@@ -133,19 +130,22 @@ def _chain_is_free(db: Session, business, services, staff_id: int, start) -> boo
     if (first, last) != (local_start.date(), local_end.date()):
         return False
     schedules, exceptions, blocks, busy = crud_public_booking.availability_sources(
-        db, [staff_id], first, last, business.timezone
+        db, sorted({line.specialist_id for line in lines}), first, last, business.timezone,
+        exclude_visit_id=exclude_visit_id,
     )
-    return chain_start_available(
-        start=start,
-        timings=timings,
-        timezone_name=business.timezone,
-        schedules=schedules,
-        exceptions=exceptions,
-        blocks=blocks,
-        busy=busy,
-        staff_id=staff_id,
-        lead_time_minutes=business.booking_lead_time_minutes,
-    )
+    cursor = start
+    for line in lines:
+        if not chain_start_available(
+            start=cursor,
+            timings=[ChainTiming(line.duration_minutes, line.buffer_before_minutes, line.buffer_after_minutes)],
+            timezone_name=business.timezone,
+            schedules=schedules, exceptions=exceptions, blocks=blocks, busy=busy,
+            staff_id=line.specialist_id,
+            lead_time_minutes=business.booking_lead_time_minutes,
+        ):
+            return False
+        cursor += timedelta(minutes=line.duration_minutes)
+    return True
 
 
 def submit_booking(

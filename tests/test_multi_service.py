@@ -484,3 +484,57 @@ def test_revenue_reads_the_visit_total_once(client, salon):
     )
     assert report["total_revenue"] == pytest.approx(50.30)
     assert report["average_revenue_per_visit"] == pytest.approx(50.30)
+
+
+@pytest.mark.parametrize("chain", [False, True])
+def test_guest_move_updates_all_intervals_and_keeps_purchased_duration(client, db, salon, chain):
+    from app.api.core.booking_manage_access import issue_token
+    services = [salon["first"]["id"]] + ([salon["second"]["id"]] if chain else [])
+    body = {
+        "service_ids": services, "staff_id": salon["owner"].id,
+        "start": salon["start"].isoformat() + "Z", "full_name": "Move Guest",
+        "email": "move.guest@example.com", "processing_consent": True,
+        "client_request_id": "before-guest-move",
+    }
+    url = f"/public/booking/{salon['slug']}/bookings"
+    booking = _ok(client.post(url, json=body), "booking")
+    visit = db.get(Visit, booking["id"])
+    raw, _ = issue_token(db, visit)
+    # Editing the catalog must not change the duration already booked.
+    _ok(client.put(f"/services/{services[0]}", json={"duration_minutes": 15},
+                   headers=salon["headers"]), "change catalog duration")
+    target = salon["start"] + timedelta(hours=3)
+    moved = _ok(client.post("/public/booking-management/reschedule",
+                           headers={"X-Booking-Token": raw}, json={"start": target.isoformat() + "Z"}), "move")
+    duration = 75 if chain else 30
+    assert moved["end"] == (target + timedelta(minutes=duration)).isoformat() + "Z"
+    db.expire_all()
+    visit = db.get(Visit, booking["id"])
+    assert visit.items[0].date_start == target
+    assert visit.items[-1].date_end == target + timedelta(minutes=duration)
+    # Another guest can take the released time, but never the new time.
+    assert client.post(url, json={**body, "client_request_id": "released-slot"}).status_code == 200
+    assert client.post(url, json={**body, "start": target.isoformat() + "Z",
+                                  "client_request_id": "occupied-slot"}).status_code == 409
+    events_before = client.post("/public/booking-management/reschedule",
+                               headers={"X-Booking-Token": raw}, json={"start": target.isoformat() + "Z"})
+    assert events_before.status_code == 200
+
+
+def test_guest_move_checks_the_last_procedure_and_preserves_old_slot_on_conflict(client, db, salon):
+    from app.api.core.booking_manage_access import issue_token
+    visit = _ok(client.post("/visits/", json=_chain_body(salon), headers=salon["headers"]), "chain")
+    raw, _ = issue_token(db, db.get(Visit, visit["id"]))
+    target = salon["start"] + timedelta(hours=3)
+    _ok(client.post("/visits/", headers=salon["headers"], json={
+        "client_id": salon["client"]["id"], "specialist_id": salon["owner"].id,
+        "date_start": (target + timedelta(minutes=45)).isoformat(),
+        "date_end": (target + timedelta(minutes=75)).isoformat(), "price": 10,
+    }), "busy tail")
+    result = client.post("/public/booking-management/reschedule", headers={"X-Booking-Token": raw},
+                         json={"start": target.isoformat() + "Z"})
+    assert result.status_code == 409, result.text
+    db.expire_all()
+    stored = db.get(Visit, visit["id"])
+    assert stored.date_start == salon["start"]
+    assert stored.items[0].date_start == salon["start"]
