@@ -351,6 +351,11 @@ def _totals(db: Session, certificate_id: int) -> tuple[Decimal, int]:
 
 
 def _refresh_status(db: Session, certificate: GiftCertificate, now: Optional[datetime] = None) -> None:
+    # Reads can write an expiry entry too. Use the same lock as redemption and
+    # reload stale ORM state before deciding how much remains to expire.
+    certificate = db.query(GiftCertificate).filter(
+        GiftCertificate.id == certificate.id
+    ).populate_existing().with_for_update().one()
     if certificate.status == EXPIRED_STATUS:
         return
     moment = now or _now()
