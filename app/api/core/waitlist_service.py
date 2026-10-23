@@ -395,6 +395,11 @@ def accept_offer(db: Session, raw_token: Optional[str], locale: str) -> Visit:
         raise EntryClosed()
 
     business, service, _staff = _offer_rows(db, offer)
+    public = crud_public_booking.get_settings(db, business.id)
+    if public is None or not public.is_enabled:
+        # the salon closed online booking after the offer went out, so no visit from a link.
+        # The offer stays pending and simply runs out
+        raise OfferUnavailable()
     payload = PublicBookingCreate(
         service_id=offer.service_id,
         staff_id=offer.specialist_id,

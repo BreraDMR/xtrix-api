@@ -297,6 +297,21 @@ def test_accept_creates_one_visit_and_is_replayable(client, db, make_user, heade
     assert leave.status_code == 409
 
 
+def test_offer_is_not_accepted_after_public_booking_is_switched_off(client, db, make_user, headers_for, salon):
+    assert _join(client, salon, email="closed.guest@example.com").status_code == 202
+    visit = _visit(client, salon)
+    assert _cancel(client, salon, visit["id"]).status_code == 200
+    token = _offer_token(db, salon["business"]["id"], "closed.guest@example.com")
+    off = client.put("/businesses/me/public-booking", json={"is_enabled": False}, headers=salon["headers"])
+    assert off.status_code == 200, off.text
+
+    accepted = client.post("/public/waitlist/offer/accept", headers=_headers(token))
+    assert accepted.status_code == 404, accepted.text
+    assert db.query(Visit).filter(Visit.status != "cancelled").count() == 0
+    offer = _offer_rows(db, salon["business"]["id"])[0]
+    assert offer.status == "pending" and offer.visit_id is None
+
+
 def test_two_offers_for_one_slot_accept_exactly_once(client, db, make_user, headers_for, salon):
     first = _join(client, salon, email="race.one@example.com", name="Race One")
     second = _join(client, salon, email="race.two@example.com", name="Race Two")
