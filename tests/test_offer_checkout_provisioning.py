@@ -97,3 +97,20 @@ def test_unknown_offer_in_webhook_is_rejected(db, make_user):
             db, remote_subscription(owner.id, plan.id, offer_code="not_a_real_offer")
         )
     assert exc.value.status_code == 400
+
+
+def test_ai_subscription_and_repeated_events_preserve_the_crm_trial(db, make_user):
+    from app.api.core.subscription_access import get_subscription_access_state
+    from app.db.models.subscription import Subscription
+    owner = make_user("business_owner")
+    trial = db.query(Subscription).filter_by(user_id=owner.id, is_trial=True).one()
+    original_end = trial.trial_end
+    plan = crud_subscription.get_plan_by_code(db, "solo_basic")
+    remote = remote_subscription(owner.id, plan.id, offer_code="ai_starter_czk", product="ai")
+    for _ in range(2):
+        stripe_billing.sync_subscription(db, remote)
+        db.commit()
+        db.refresh(trial)
+        assert trial.status == "active"
+        assert trial.trial_end == original_end
+        assert get_subscription_access_state(db, owner.id)["crm_mode"] == "full"

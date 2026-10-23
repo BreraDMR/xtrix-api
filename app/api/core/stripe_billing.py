@@ -96,13 +96,19 @@ def sync_subscription(db: Session, remote, metadata=None):
     else:
         sub.cancelled_at = None
     if status == "active" and sub.current_period_end > utcnow():
-        # A paid plan replaces the signup trial. Keeping a longer trial active
-        # would hide this subscription and could bring access back after past_due.
-        db.query(Subscription).filter(
-            Subscription.user_id == sub.user_id, Subscription.is_trial.is_(True),
-            Subscription.status.in_(["active", "pending_cancellation"]),
-        ).update({Subscription.status: "expired", Subscription.current_period_end: utcnow()},
-                 synchronize_session="fetch")
+        from app.api.core.offer_catalog import get_offer_by_code
+        from app.api.core.subscription_access import product_subscriptions
+
+        offer = get_offer_by_code(sub.offer_code, include_draft=True) if sub.offer_code else None
+        product = offer.product if offer else "crm"
+        # A paid product replaces only its own trial, never the other subscription.
+        trial_ids = [row.id for row in product_subscriptions(db, sub.user_id, product, live_only=False)
+                     if row.is_trial and row.status in ("active", "pending_cancellation")]
+        if trial_ids:
+            db.query(Subscription).filter(Subscription.id.in_(trial_ids)).update(
+                {Subscription.status: "expired", Subscription.current_period_end: utcnow()},
+                synchronize_session="fetch",
+            )
     db.flush()
     return sub
 
