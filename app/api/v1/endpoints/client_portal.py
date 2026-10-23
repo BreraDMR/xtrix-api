@@ -7,8 +7,8 @@ business finance. Sign-in links are single-use and delivered through the outbox.
 from datetime import timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import func
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from sqlalchemy import func, and_, case
 from sqlalchemy.orm import Session, joinedload
 
 from app.api import deps
@@ -209,10 +209,15 @@ def logout(
     summary="List the client's own upcoming and past visits",
 )
 def list_portal_visits(
+    limit: int = Query(100, ge=1, le=100),
+    offset: int = Query(0, ge=0, le=1000000),
     session: ClientPortalSession = Depends(deps.get_portal_session),
     db: Session = Depends(deps.get_db),
 ):
     client, business, settings = _session_context(db, session)
+    now = utcnow()
+    is_upcoming = and_(func.coalesce(Visit.status, "planned").notin_(["cancelled", "completed"]),
+                       Visit.date_start >= now)
     visits = (
         db.query(Visit)
         .options(joinedload(Visit.specialist))
@@ -221,11 +226,14 @@ def list_portal_visits(
             Visit.client_id == client.id,
             Visit.deleted_at.is_(None),
         )
-        .order_by(Visit.date_start.desc())
-        .limit(200)
+        .order_by(case((is_upcoming, 0), else_=1), case((is_upcoming, Visit.date_start)),
+                  Visit.date_start.desc(), Visit.id)
+        .offset(offset)
+        .limit(limit + 1)
         .all()
     )
-    now = utcnow()
+    next_offset = offset + limit if len(visits) > limit else None
+    visits = visits[:limit]
 
     def out(visit: Visit) -> ClientPortalVisitOut:
         status = visit.status or "planned"
@@ -254,6 +262,7 @@ def list_portal_visits(
     return ClientPortalVisitsOut(
         upcoming=[out(visit) for visit in upcoming],
         past=[out(visit) for visit in past],
+        next_offset=next_offset,
         booking_slug=settings.slug if settings else None,
         booking_enabled=bool(settings and settings.is_enabled),
         currency=business.currency,

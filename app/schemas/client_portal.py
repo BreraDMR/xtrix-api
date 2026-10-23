@@ -53,6 +53,7 @@ class ClientPortalVisitOut(BaseModel):
 
 
 class ClientPortalVisitsOut(BaseModel):
+    next_offset: Optional[int] = None
     upcoming: list[ClientPortalVisitOut]
     past: list[ClientPortalVisitOut]
     booking_slug: Optional[str] = None

@@ -2700,6 +2700,17 @@
             "title": "Currency",
             "type": "string"
           },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Offset"
+          },
           "past": {
             "items": {
               "$ref": "#/components/schemas/ClientPortalVisitOut"
@@ -32618,6 +32629,30 @@
       "get": {
         "operationId": "list_portal_visits_public_client_portal_visits_get",
         "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 1000000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
           {
             "in": "header",
             "name": "X-Portal-Token",

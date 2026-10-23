@@ -393,3 +393,33 @@ def test_browser_preflight_allows_the_portal_header(client):
     assert response.status_code == 200
     allowed = response.headers.get("access-control-allow-headers", "").lower()
     assert "x-portal-token" in allowed
+
+
+def test_portal_pages_keep_the_nearest_booking_and_all_history(client, db, make_user, headers_for):
+    from app.db.models.visit import Visit
+    salon = _salon(client, db, make_user, headers_for, "Pages")
+    start = db.get(Visit, salon["upcoming"]["id"]).date_start
+    for index in range(201):
+        begins = start + timedelta(hours=2 * (index + 1))
+        db.add(Visit(client_id=salon["client"]["id"], business_id=salon["business"]["id"],
+                     specialist_id=salon["owner"].id, service_id=salon["service"]["id"],
+                     date_start=begins, date_end=begins + timedelta(hours=1), status="planned", price=50))
+    db.commit()
+    token, _, _ = _login(client, db, salon)
+    seen = []
+    offset = 0
+    while True:
+        page = _ok(client.get("/public/client-portal/visits", headers=_portal_headers(token),
+                              params={"limit": 50, "offset": offset}), "visit page")
+        if offset == 0:
+            assert page["upcoming"][0]["id"] == salon["upcoming"]["id"]
+        ids = [row["id"] for row in page["upcoming"] + page["past"]]
+        assert len(ids) <= 50
+        assert not set(ids).intersection(seen)
+        seen.extend(ids)
+        if page["next_offset"] is None:
+            break
+        assert page["next_offset"] > offset
+        offset = page["next_offset"]
+    assert len(seen) == 203
+    assert salon["past"]["id"] in seen
