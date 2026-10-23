@@ -10,7 +10,7 @@ from app.db.models.block_slot import BlockSlot
 from app.schemas.work_schedule import WorkScheduleCreate, WorkScheduleUpdate
 from app.schemas.schedule_exception import ScheduleExceptionCreate, ScheduleExceptionUpdate
 from app.schemas.block_slot import BlockSlotCreate, BlockSlotUpdate
-from app.api.core.date_validation import validate_time_range
+from app.api.core.date_validation import validate_time_range, validate_datetime_range
 from app.db.models.user import User
 
 
@@ -158,7 +158,17 @@ def list_block_slots(db: Session, specialist_id: int) -> List[BlockSlot]:
         .all()
     )
 def update_block_slot(db: Session, obj: BlockSlot, data: BlockSlotUpdate) -> BlockSlot:
-    for k, v in data.model_dump(exclude_unset=True).items():
+    obj = db.query(BlockSlot).filter(BlockSlot.id == obj.id).with_for_update().populate_existing().first()
+    if obj is None:
+        raise HTTPException(status_code=404, detail="Block not found")
+    changes = data.model_dump(exclude_unset=True)
+    start, end = changes.get("start", obj.start), changes.get("end", obj.end)
+    if start is None or end is None:
+        raise HTTPException(status_code=422, detail="Start and end are required")
+    valid, message = validate_datetime_range(start, end, min_duration_minutes=15, max_duration_hours=24)
+    if not valid:
+        raise HTTPException(status_code=422, detail={"code": "invalid_time_range", "message": message})
+    for k, v in changes.items():
         setattr(obj, k, v)
     db.add(obj)
     db.commit()
