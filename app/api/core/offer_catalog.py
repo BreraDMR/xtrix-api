@@ -50,10 +50,12 @@ def get_offer_by_code(code: str, include_draft: bool = False) -> Optional[OfferO
 
 def get_offer_catalog(include_draft: bool = False) -> OfferCatalogOut:
     offers = get_all_offers() if include_draft else get_approved_offers()
+    approved = get_approved_offers()
+    checkout_mapped = bool(approved) and all(OFFER_PLAN_CODES.get(offer.code) for offer in approved)
     return OfferCatalogOut(
         version=CATALOG_VERSION,
         pilot_mode=settings.pilot_mode_enabled,
-        checkout_available=bool(settings.stripe_api_key and not settings.pilot_mode_enabled),
+        checkout_available=bool(settings.stripe_api_key and not settings.pilot_mode_enabled and checkout_mapped),
         registration_requires_invitation=settings.pilot_mode_enabled and not settings.pilot_open_signup,
         email_available=bool(not settings.pilot_mode_enabled and settings.smtp_host and settings.smtp_from),
         offers=offers,

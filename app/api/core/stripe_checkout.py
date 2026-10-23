@@ -1,4 +1,4 @@
-"""One payable Checkout Session per user, even when Stripe's response gets lost."""
+"""One payable Checkout Session per user and product, including lost responses."""
 from datetime import timedelta
 from uuid import uuid4
 
@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.core import stripe_billing
 from app.api.core.clock import utcnow
+from app.api.core.offer_catalog import get_offer_by_code
 from app.db.models.stripe_checkout import StripeCheckoutState
 from app.db.models.subscription import Subscription
 
@@ -57,33 +58,46 @@ def _customer(db, user, state):
     return customer["id"]
 
 
-def _check_subscription(db, user_id, subscription_id):
+def _product(metadata):
+    code = (metadata or {}).get("offer_code")
+    if not code:
+        return "crm"  # Checkout before the offer catalog sold CRM plans only.
+    offer = get_offer_by_code(str(code), include_draft=True)
+    if offer is None:
+        raise HTTPException(409, "An unknown subscription offer needs reconciliation")
+    return offer.product
+
+
+def _check_subscription(db, user_id, subscription_id, product):
     stripe_billing.lock_subscription(db, subscription_id)
     fresh = stripe_billing.as_dict(stripe.Subscription.retrieve(subscription_id))
     if fresh.get("status") not in ("canceled", "incomplete_expired"):
         owner = (fresh.get("metadata") or {}).get("user_id")
         if owner and owner != str(user_id):
             raise HTTPException(409, "Stripe subscription ownership needs reconciliation")
+        if _product(fresh.get("metadata")) != product:
+            return
         stripe_billing.sync_subscription(db, fresh)
         db.commit()
         raise HTTPException(409, "Manage the existing Stripe subscription before starting another")
 
 
-def _live_subscription(db, user_id, customer_id):
+def _live_subscription(db, user_id, customer_id, product):
     for remote in _list_all(stripe.Subscription.list, customer=customer_id, status="all"):
         if remote.get("status") not in ("canceled", "incomplete_expired"):
-            _check_subscription(db, user_id, remote["id"])
+            _check_subscription(db, user_id, remote["id"], product)
 
 
 def create_session(db, user, plan_id, payload):
     stripe_billing.configured()
+    product = _product(payload.get("metadata"))
     db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
                {"key": f"stripe-checkout:{user.id}"})
     existing = db.query(Subscription).filter(
         Subscription.user_id == user.id, Subscription.provider == "stripe",
         Subscription.status.notin_(["cancelled", "canceled", "expired", "incomplete_expired"]),
-    ).first()
-    if existing:
+    ).all()
+    if any(_product({"offer_code": sub.offer_code}) == product for sub in existing):
         raise HTTPException(409, "Manage the existing Stripe subscription before starting another")
     state = db.get(StripeCheckoutState, user.id)
     preferred_id = state.session_id if state else None
@@ -95,7 +109,7 @@ def create_session(db, user, plan_id, payload):
     if state and state.request_key and not state.session_id:
         recovered = next((s for s in sessions if (s.get("metadata") or {}).get("checkout_attempt") == state.request_key), None)
         if recovered is None:
-            _live_subscription(db, user.id, customer_id)
+            _live_subscription(db, user.id, customer_id, _product((state.request_payload or {}).get("metadata")))
             if not state.attempt_started_at or utcnow() - state.attempt_started_at >= timedelta(hours=23):
                 # Stripe can prune idempotency keys after 24 hours. An unknown old
                 # result needs reconciliation, never a blind second creation.
@@ -105,29 +119,32 @@ def create_session(db, user, plan_id, payload):
             sessions.append(recovered)
         _persist(db, user.id, session_id=recovered["id"])
         preferred_id = recovered["id"]
-    relevant = [s for s in sessions if s.get("mode") == "subscription"]
-    opened = [s for s in relevant if s.get("status") == "open"]
-    for session in opened:
+    subscriptions = [s for s in sessions if s.get("mode") == "subscription"]
+    for session in subscriptions:
+        if session.get("status") != "open":
+            continue
         if (session.get("metadata") or {}).get("user_id") != str(user.id):
             raise HTTPException(409, "An open checkout has conflicting ownership")
+    relevant = [s for s in subscriptions if _product(s.get("metadata")) == product]
+    opened = [s for s in relevant if s.get("status") == "open"]
     offer_code = (payload.get("metadata") or {}).get("offer_code")
     if offer_code:
         same = [s for s in opened if (s.get("metadata") or {}).get("offer_code") == str(offer_code)]
     else:
         same = [s for s in opened if (s.get("metadata") or {}).get("plan_id") == str(plan_id)]
     chosen = next((s for s in same if s["id"] == preferred_id), same[0] if same else None)
-    # Expire every other payable session first. If a payment wins that race,
+    # Expire other payable sessions for this product first. If payment wins,
     # Stripe rejects expire and we stop; we must not create another subscription.
     for session in opened:
         if chosen is None or session["id"] != chosen["id"]:
             stripe.checkout.Session.expire(session["id"])
-    _live_subscription(db, user.id, customer_id)
+    _live_subscription(db, user.id, customer_id, product)
     for session in relevant:
         if session.get("status") == "complete":
             subscription_id = stripe_billing.object_id(session.get("subscription"))
             if not subscription_id:
                 raise HTTPException(409, "Checkout payment is still being processed")
-            _check_subscription(db, user.id, subscription_id)
+            _check_subscription(db, user.id, subscription_id, product)
     if chosen:
         _persist(db, user.id, session_id=chosen["id"])
         return {"session_id": chosen["id"], "url": chosen["url"]}

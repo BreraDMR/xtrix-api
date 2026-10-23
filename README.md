@@ -57,7 +57,7 @@ from preferences.
 
 ## Stripe checkout
 
-Checkout reuses the user's open session. Choosing another plan expires the old session before creating
+Checkout reuses the user's open session for the same product. Choosing another plan expires that product's old session before creating
 its replacement. `stripe_checkout_state` keeps the customer binding and the exact idempotent request
 across network failures and e-mail changes; run migrations before deploying this code.
 
