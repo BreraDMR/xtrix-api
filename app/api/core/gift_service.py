@@ -721,12 +721,20 @@ def redeem(
 ) -> tuple[GiftCertificate, GiftLedgerEntry, Decimal, int]:
     visit = (
         db.query(Visit)
-        .filter(Visit.id == visit_id, Visit.business_id == business_id)
+        .filter(Visit.id == visit_id, Visit.business_id == business_id, Visit.deleted_at.is_(None))
         .populate_existing()
+        .with_for_update()
         .first()
     )
     if visit is None or visit.status == "cancelled":
         raise GiftError("gift_visit_invalid")
+
+    if actor_user_id is not None:
+        from app.api.core.permissions import check_visit_access
+        from app.db.models.user import User
+        actor = db.get(User, actor_user_id)
+        if actor is None or not check_visit_access(db, actor, visit):
+            raise GiftError("gift_visit_invalid")
 
     certificate = _lock_certificate(db, business_id, code)
     _check_scope(certificate, visit)
@@ -739,14 +747,8 @@ def redeem(
             applied = -money(existing.amount_delta)
             if amount is not None and applied != money(amount):
                 raise GiftError("gift_request_conflict")
-            if amount is None:
-                available_now, _units = _totals(db, certificate.id)
-                cap_now = min(
-                    available_now + applied,
-                    money(visit.price) if visit.price is not None else Decimal("0.00"),
-                )
-                if applied != cap_now:
-                    raise GiftError("gift_request_conflict")
+            # An automatic amount is fixed by the first operation. Replaying it
+            # must not depend on later payments, reversals or balance changes.
         if certificate.kind == "package" and int(existing.units_delta) != -1:
             raise GiftError("gift_request_conflict")
         db.commit()
@@ -762,18 +764,26 @@ def redeem(
     if certificate.status not in REDEEMABLE_STATUSES:
         raise GiftError("gift_insufficient_balance")
 
+    # The visit lock also serializes payments made with different certificates.
+    total_money, total_units = db.query(
+        func.coalesce(func.sum(GiftLedgerEntry.amount_delta), 0),
+        func.coalesce(func.sum(GiftLedgerEntry.units_delta), 0),
+    ).filter(GiftLedgerEntry.visit_id == visit.id, GiftLedgerEntry.business_id == business_id,
+             GiftLedgerEntry.entry_type.in_(["redeemed", "reversed"])).one()
+    paid_money, paid_units = max(Decimal("0.00"), -money(total_money)), max(0, -int(total_units))
     available_money, available_units = _totals(db, certificate.id)
     spend_money = Decimal("0.00")
     spend_units = 0
     if certificate.kind == "money":
         if visit.price is None or money(visit.price) <= 0:
             raise GiftError("gift_visit_invalid")
-        cap = min(available_money, money(visit.price))
+        remaining = max(Decimal("0.00"), money(visit.price) - paid_money) if paid_units == 0 else Decimal("0.00")
+        cap = min(available_money, remaining)
         spend_money = cap if amount is None else money(amount)
-        if spend_money <= 0 or spend_money > available_money or spend_money > money(visit.price):
+        if spend_money <= 0 or spend_money > cap:
             raise GiftError("gift_insufficient_balance")
     else:
-        if available_units <= 0:
+        if available_units <= 0 or paid_units > 0 or paid_money > 0:
             raise GiftError("gift_insufficient_balance")
         spend_units = 1
 

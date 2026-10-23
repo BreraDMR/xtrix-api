@@ -170,8 +170,8 @@ def _webhook(
     )
 
 
-def _new_visit(client, world, service_id=None, price=500):
-    start = (utcnow() + timedelta(days=6)).replace(microsecond=0)
+def _new_visit(client, world, service_id=None, price=500, start=None):
+    start = start or (utcnow() + timedelta(days=6)).replace(microsecond=0)
     return _ok(
         client.post(
             "/visits/",
@@ -571,19 +571,21 @@ def test_package_redemption_spends_visits_and_respects_service_scope(client, gif
     assert out_of_scope.status_code == 409, out_of_scope.text
 
     for index in range(2, 4):
+        next_visit = _new_visit(client, gift_world, start=utcnow() + timedelta(days=7, hours=index * 2))
         result = _ok(
             client.post(
                 "/businesses/me/gift-certificates/redeem",
-                json={**base, "request_key": f"redeem-visit-{index}"},
+                json={**base, "visit_id": next_visit["id"], "request_key": f"redeem-visit-{index}"},
                 headers=gift_world["headers"],
             ),
             f"visit {index}",
         )
     assert result["certificate"]["visits_remaining"] == 0
     assert result["certificate"]["status"] == "exhausted"
+    unpaid_visit = _new_visit(client, gift_world, start=utcnow() + timedelta(days=8))
     refused = client.post(
         "/businesses/me/gift-certificates/redeem",
-        json={**base, "request_key": "redeem-visit-6"},
+        json={**base, "visit_id": unpaid_visit["id"], "request_key": "redeem-visit-6"},
         headers=gift_world["headers"],
     )
     assert refused.status_code == 409, refused.text
