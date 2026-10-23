@@ -277,6 +277,11 @@ def users_list(
         page=page,
         per_page=per_page,
     )
+def _locked_totp_user(db: Session, user_id: int) -> User:
+    # Enrollment and activation must read the same current secret under a row lock.
+    return db.query(User).filter(User.id == user_id).with_for_update().populate_existing().one()
+
+
 @router.post("/2fa/setup", response_model=TwoFactorSetup)
 @limiter.limit(SENSITIVE_LIMIT)
 def setup_2fa(
@@ -286,6 +291,9 @@ def setup_2fa(
     locale: str = Depends(deps.get_locale),
 ):
     from app.api.core.totp import generate_totp_secret, generate_totp_qr_code
+    current_user = _locked_totp_user(db, current_user.id)
+    if current_user.is_2fa_enabled:
+        raise HTTPException(status_code=409, detail=_("not_allowed", locale))
     logger.info(f"2FA setup requested for user_id={current_user.id}")
     secret = generate_totp_secret()
     current_user.totp_secret = secret
@@ -305,6 +313,7 @@ def enable_2fa(
     locale: str = Depends(deps.get_locale),
 ):
     from app.api.core.totp import verify_totp_token
+    current_user = _locked_totp_user(db, current_user.id)
     logger.info(f"2FA enable attempt for user_id={current_user.id}")
     if not current_user.totp_secret:
         raise HTTPException(status_code=400, detail=_("2fa_not_setup", locale))
@@ -325,6 +334,7 @@ def disable_2fa(
     locale: str = Depends(deps.get_locale),
 ):
     from app.api.core.totp import verify_totp_token
+    current_user = _locked_totp_user(db, current_user.id)
     logger.info(f"2FA disable attempt for user_id={current_user.id}")
     if not current_user.is_2fa_enabled or not current_user.totp_secret:
         raise HTTPException(status_code=400, detail=_("2fa_not_enabled", locale))
