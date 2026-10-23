@@ -25,6 +25,8 @@ os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
 os.environ["LLM_PROVIDER"] = "fake"
 os.environ["LLM_FAKE_PLAN_FILE"] = os.path.join(os.path.dirname(__file__), "data", "assistant_plan.json")
 os.environ["STT_PROVIDER"] = "fake"
+# same idea for Redis - a plain `pytest` must not touch whatever cache the shell points at
+os.environ["REDIS_URL"] = "redis://localhost:1/0"
 
 from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402

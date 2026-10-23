@@ -1,6 +1,8 @@
 """check.sh must not let parallel runs share the compose Redis (analytics cache, rate limits)."""
 import os
 import stat
+import sys
+import pytest
 import subprocess
 from pathlib import Path
 
@@ -24,6 +26,16 @@ def test_check_defaults_redis_to_an_unreachable_one(tmp_path):
     assert url.startswith("redis://localhost:1/"), url
 
 
-def test_check_keeps_a_redis_url_given_from_outside(tmp_path):
-    env = {**os.environ, "REDIS_URL": "redis://localhost:6390/3"}
-    assert _redis_url_seen_by_check(tmp_path, env) == "redis://localhost:6390/3"
+@pytest.mark.parametrize("url", ["redis://localhost:6390/3", "redis://cache.example.invalid:6379/0"])
+def test_check_neutralizes_a_redis_url_given_from_outside(tmp_path, url):
+    env = {**os.environ, "REDIS_URL": url}
+    assert _redis_url_seen_by_check(tmp_path, env) == "redis://localhost:1/0"
+
+
+def test_direct_pytest_setup_neutralizes_external_redis():
+    # Importing conftest does not run its DB fixtures or connect to Redis.
+    env = {**os.environ, "REDIS_URL": "redis://cache.example.invalid:6379/0"}
+    result = subprocess.run([sys.executable, "-c", "import tests.conftest; from app.api.core.config import settings; print(settings.redis_url)"],
+                            env=env, cwd=SCRIPT.parent.parent, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip().splitlines()[-1] == "redis://localhost:1/0"

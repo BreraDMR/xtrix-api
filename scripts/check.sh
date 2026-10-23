@@ -8,8 +8,9 @@ PY=${PYTHON:-.venv/bin/python}
 PG_PORT=${CHECK_PG_PORT:-55433}
 PG_NAME=${CHECK_PG_NAME:-xtrix-check-pg}
 # nothing listens on port 1, so the app falls back to in-memory cache and rate limits -
-# parallel runs then can't see each other's analytics cache through the compose Redis
-export REDIS_URL=${REDIS_URL:-redis://localhost:1/0}
+# parallel runs then can't see each other's analytics cache through the compose Redis.
+# A REDIS_URL from the shell is ignored on purpose: tests wipe cache keys and must never hit a real one
+export REDIS_URL=redis://localhost:1/0
 
 # Reject remote and non-test targets before importing the app or starting tools.
 if [ -n "${DATABASE_URL:-}" ]; then
