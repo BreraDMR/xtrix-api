@@ -418,7 +418,8 @@ def scope_for(db: Session, user: User) -> ImportScope:
             raise ImportFileError("not_allowed", status_code=403)
         business_id = user.business_id
         owner_user_id = None
-    elif user.role in ("business_owner", "specialist") and not get_staff_record(db, user):
+    elif (user.role in ("business_owner", "specialist")
+          and user.employer_id is None and not get_staff_record(db, user)):
         business_id = user.business_id
         owner_user_id = None if business_id else user.id
     else:
