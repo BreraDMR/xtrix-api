@@ -45,6 +45,18 @@ def claim_batch(
     max_attempts: int = MAX_ATTEMPTS,
     lease: timedelta = LEASE,
 ) -> list[int]:
+    return list(claim_leases(db, now=now, limit=limit, max_attempts=max_attempts, lease=lease))
+
+
+def claim_leases(
+    db: Session,
+    now: Optional[datetime] = None,
+    limit: int = BATCH_SIZE,
+    max_attempts: int = MAX_ATTEMPTS,
+    lease: timedelta = LEASE,
+) -> dict[int, int]:
+    """Claim rows and return id -> attempts. The attempts value is this worker's lease ticket:
+    whoever reclaims the row after an expired lease bumps it, so a stale worker can tell."""
     now = now or utcnow()
     expired = (
         db.query(NotificationOutbox)
@@ -85,15 +97,22 @@ def claim_batch(
         .with_for_update(skip_locked=True)
         .all()
     )
-    ids: list[int] = []
+    leases: dict[int, int] = {}
     for row in rows:
         row.status = "processing"
         row.locked_until = now + lease
         row.attempts = (row.attempts or 0) + 1
         row.updated_at = now
-        ids.append(row.id)
+        leases[row.id] = row.attempts
     db.commit()
-    return ids
+    return leases
+
+
+def _still_ours(db: Session, message_id: int, ticket: int) -> Optional[NotificationOutbox]:
+    row = db.query(NotificationOutbox).filter(NotificationOutbox.id == message_id).populate_existing().first()
+    if row is None or row.status != "processing" or row.attempts != ticket:
+        return None
+    return row
 
 
 def _finish_sent(row: NotificationOutbox, provider: str, provider_message_id: Optional[str], now: datetime) -> None:
@@ -114,24 +133,29 @@ def run_once(
     max_attempts: int = MAX_ATTEMPTS,
 ) -> dict[str, int]:
     now = now or utcnow()
-    ids = claim_batch(db, now=now, limit=limit, max_attempts=max_attempts)
+    leases = claim_leases(db, now=now, limit=limit, max_attempts=max_attempts)
     stats: dict[str, int] = {
-        "claimed": len(ids),
+        "claimed": len(leases),
         "sent": 0,
         "captured": 0,
         "retried": 0,
         "failed": 0,
         "skipped": 0,
         "cancelled": 0,
+        "lost": 0,
     }
-    for message_id in ids:
+    for message_id, ticket in leases.items():
         row = db.get(NotificationOutbox, message_id)
         if row is None:
             continue
-        # see a cancellation that happened after claim_batch committed the lease
+        # see a cancellation that happened after the claim committed the lease
         db.refresh(row)
         if row.status == "cancelled":
             stats["cancelled"] += 1
+            continue
+        if row.status != "processing" or row.attempts != ticket:
+            # our lease ran out and another worker owns (or already finished) this row
+            stats["lost"] += 1
             continue
         if row.provider_message_id:
             # the provider already accepted this message before the previous worker stopped
@@ -175,10 +199,17 @@ def run_once(
             db.commit()
             stats["cancelled"] += 1
             continue
+        if _still_ours(db, message_id, ticket) is None:
+            stats["lost"] += 1
+            continue
         try:
             result = send(row)
         except Exception as exc:
             result = DeliveryResult("failed", "worker", error=f"send_error:{type(exc).__name__}")
+        if _still_ours(db, message_id, ticket) is None:
+            # a slow send outlived the lease; the row's new owner writes the outcome
+            stats["lost"] += 1
+            continue
         if result.status == "sent":
             row.provider = result.provider
             row.provider_message_id = result.provider_message_id
