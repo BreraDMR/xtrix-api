@@ -1,4 +1,4 @@
-"""Server-side pilot access; account and billing stay reachable after the trial."""
+"""Server-side subscription access; account and billing stay reachable after the trial."""
 from datetime import timedelta
 import calendar
 from typing import Any, Optional
@@ -18,6 +18,12 @@ TRIAL_AI_DAILY_LIMIT = 50
 READ_ONLY_DAYS = 3
 
 
+def _is_live(sub: Subscription, now) -> bool:
+    return (sub.status in ("active", "pending_cancellation")
+            and not (sub.current_period_end and sub.current_period_end <= now)
+            and not (sub.is_trial and sub.trial_end and sub.trial_end <= now))
+
+
 def product_subscriptions(db: Session, payer_id: int, product: str, *, live_only=True):
     rows = db.query(Subscription).filter(Subscription.user_id == payer_id).order_by(Subscription.id.desc()).all()
     result = []
@@ -27,7 +33,7 @@ def product_subscriptions(db: Session, payer_id: int, product: str, *, live_only
         row_product = offer.product if offer else "crm"
         if row_product != product:
             continue
-        if live_only and (sub.status not in ("active", "pending_cancellation") or (sub.current_period_end and sub.current_period_end <= now) or (sub.is_trial and sub.trial_end and sub.trial_end <= now)):
+        if live_only and not _is_live(sub, now):
             continue
         result.append(sub)
     # A newly created AI subscription must never hide an existing CRM subscription.
@@ -45,8 +51,8 @@ def get_subscription_access_state(db: Session, user_id: int) -> dict[str, Any]:
     if payer_id is None:
         state["reason"] = "no_payer"
         return state
-    live = product_subscriptions(db, payer_id, "crm")
     history = product_subscriptions(db, payer_id, "crm", live_only=False)
+    live = [sub for sub in history if _is_live(sub, utcnow())]
     sub = live[0] if live else (history[0] if history else None)
     if sub is None:
         return state
@@ -73,6 +79,9 @@ def get_subscription_access_state(db: Session, user_id: int) -> dict[str, Any]:
                 matching_ai = get_offer_by_code(sub.offer_code.replace("crm_standard", "ai_pro").replace("crm_", "ai_"))
                 if crm_offer and matching_ai:
                     state.update(can_use_ai=True, ai_daily_limit=matching_ai.entitlements.daily_requests_limit)
+        elif not settings.pilot_mode_enabled:
+            # Legacy paid plans keep their existing monthly assistant allowance.
+            state["can_use_ai"] = True
         return state
     if expiry is not None:
         state["is_trial_expired"] = bool(sub.is_trial)
@@ -88,14 +97,18 @@ def _deny(reason="subscription_required"):
 
 
 def enforce_subscription_request_access(db: Session, user: User, request) -> None:
-    if not settings.pilot_mode_enabled:
+    if user.role not in {"admin", "business_owner", "specialist", "employee"}:
         return
     path = request.url.path.rstrip("/")
     method = request.method
     # Keep sign-in, account security, and billing available without exposing CRM data.
-    if path.startswith("/auth/google/") or path.startswith("/subscriptions") or path in {"/users/me", "/users/logout", "/users/change-password"} or path.startswith("/users/2fa"):
+    if path.startswith("/auth/google/") or path.startswith("/subscriptions") or path in {"/users/me", "/users/logout", "/users/logout-all", "/users/change-password"} or path.startswith("/users/2fa"):
         return
     state = get_subscription_access_state(db, user.id)
+    if state["reason"] in {"no_subscription", "no_payer"}:
+        # No workspace entitlement (for example, after firing) is a scope denial,
+        # rather than an expired period that the former staff member can renew.
+        raise HTTPException(status_code=403, detail={"code": state["reason"]})
     if state["crm_mode"] == "full":
         if path.startswith("/assistant") and method not in {"GET", "HEAD", "OPTIONS"} and not state["can_use_ai"]:
             _deny("ai_subscription_required")
@@ -114,8 +127,6 @@ def enforce_subscription_mutation_access(db: Session, user_id: int, feature: Opt
 
 def enforce_business_access(db: Session, business_id: Optional[int], *, write: bool = True) -> None:
     """Opaque visitor credentials do not bypass the salon's access period."""
-    if not settings.pilot_mode_enabled:
-        return
     # Without a salon the owner filter would become IS NULL and match every solo owner.
     if business_id is None:
         _deny()
@@ -129,8 +140,6 @@ def enforce_business_access(db: Session, business_id: Optional[int], *, write: b
 
 def enforce_owner_access(db: Session, owner_id: Optional[int], *, write: bool = True) -> None:
     """Gate a record owned by one user, salon member or solo specialist."""
-    if not settings.pilot_mode_enabled:
-        return
     owner = db.get(User, owner_id) if owner_id else None
     if owner is None or owner.deleted_at is not None:
         _deny()
@@ -144,8 +153,6 @@ def enforce_owner_access(db: Session, owner_id: Optional[int], *, write: bool = 
 
 def enforce_client_access(db: Session, client, *, write: bool = True) -> None:
     """A client's history spans every salon and solo owner holding it; each must be open."""
-    if not settings.pilot_mode_enabled:
-        return
     from app.db.models.client_business_relation import ClientBusinessRelation
     business_ids = {row.business_id for row in db.query(ClientBusinessRelation.business_id).filter(ClientBusinessRelation.client_id == client.id)}
     if not business_ids and not client.owner_id:
