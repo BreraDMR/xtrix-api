@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlparse
 from zoneinfo import ZoneInfo
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.api.core.clock import utcnow
 from app.db.models.business_audit_event import BusinessAuditEvent
@@ -409,41 +410,53 @@ def test_conflicting_visit_at_payment_time_is_not_confirmed(client, db, deposit_
     attempt = _attempt(db, booking)
     held = db.get(Visit, booking["id"])
 
-    conflicting = Visit(
-        client_id=held.client_id,
-        specialist_id=held.specialist_id,
-        business_id=held.business_id,
-        service_id=deposit_salon["service"]["id"],
-        service_name="Walk-in",
-        date_start=held.date_start - timedelta(minutes=25),
-        date_end=held.date_start,
-        price=20.10,
-        status="planned",
-    )
-    db.add(conflicting)
-    db.flush()
-    db.add(
-        VisitItem(
-            visit_id=conflicting.id,
-            position=0,
-            service_id=deposit_salon["service"]["id"],
+    def create_walk_in():
+        conflicting = Visit(
+            client_id=held.client_id,
             specialist_id=held.specialist_id,
+            business_id=held.business_id,
+            service_id=deposit_salon["service"]["id"],
             service_name="Walk-in",
+            date_start=held.date_start - timedelta(minutes=25),
+            date_end=held.date_start,
             price=20.10,
-            duration_minutes=25,
-            buffer_before_minutes=0,
-            buffer_after_minutes=10,
-            date_start=conflicting.date_start,
-            date_end=conflicting.date_end,
+            status="planned",
         )
-    )
+        db.add(conflicting)
+        db.flush()
+        db.add(
+            VisitItem(
+                visit_id=conflicting.id,
+                position=0,
+                service_id=deposit_salon["service"]["id"],
+                specialist_id=held.specialist_id,
+                service_name="Walk-in",
+                price=20.10,
+                duration_minutes=25,
+                buffer_before_minutes=0,
+                buffer_after_minutes=10,
+                date_start=conflicting.date_start,
+                date_end=conflicting.date_end,
+            )
+        )
+        db.commit()
+        return conflicting.id
+
+    # An active payment hold now protects its buffers at the database boundary.
+    with pytest.raises(IntegrityError):
+        create_walk_in()
+    db.rollback()
+    held = db.get(Visit, booking["id"])
+    assert held.status == "awaiting_payment"
+    held.status = "cancelled"
     db.commit()
+    conflicting_id = create_walk_in()
 
     result = _ok(_webhook(client, attempt, "payment.paid", "evt-paid-conflict"), "conflict paid")
     assert result["status"] == "reconcile"
     db.expire_all()
     assert db.get(Visit, booking["id"]).status == "cancelled"
-    assert db.get(Visit, conflicting.id).status == "planned"
+    assert db.get(Visit, conflicting_id).status == "planned"
 
 
 def test_payment_requires_its_guest_token(client, db, deposit_salon):

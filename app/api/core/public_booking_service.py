@@ -270,8 +270,11 @@ def submit_booking(
         return visit
     try:
         db.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         db.rollback()
+        constraint = getattr(getattr(exc.orig, 'diag', None), 'constraint_name', None)
+        if constraint in {'ex_visits_specialist_slot', 'ex_visit_items_specialist_slot'}:
+            raise
         existing = db.query(PublicBookingRequest).filter(
             PublicBookingRequest.business_id == business.id,
             PublicBookingRequest.request_id == payload.client_request_id,

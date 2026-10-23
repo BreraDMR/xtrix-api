@@ -10,7 +10,8 @@ from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Sequence
 
-from sqlalchemy.orm import Session
+from sqlalchemy import text
+from sqlalchemy.orm import Session, object_session
 
 from app.db.models.service import Service
 from app.db.models.visit import Visit
@@ -175,6 +176,13 @@ def apply_chain(visit: Visit, lines: Sequence[ChainLine], start: datetime) -> No
         visit.specialist_id = lines[0].specialist_id
 
     existing = list(visit.items)
+    # Take all masters in one order before writing any step of the chain.
+    masters = {row.specialist_id for row in [*existing, *rows] if row.specialist_id is not None}
+    session = object_session(visit)
+    if session is not None:
+        for master_id in sorted(masters):
+            session.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+                            {"key": f"visit-slot:{master_id}"})
     for position, row in enumerate(rows):
         if position < len(existing):
             target = existing[position]

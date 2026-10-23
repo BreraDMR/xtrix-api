@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, UniqueConstraint, false
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 
@@ -25,7 +25,8 @@ class VisitItem(Base):
     )
     position = Column(Integer, nullable=False)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=True, index=True)
-    specialist_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    specialist_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    active = Column(Boolean, nullable=False, default=False, server_default=false())
     service_name = Column(String, nullable=True)
     price = Column(Numeric(10, 2), nullable=True)
     duration_minutes = Column(Integer, nullable=False)

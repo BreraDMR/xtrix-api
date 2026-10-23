@@ -133,7 +133,12 @@ async def database_exception_handler(
     request: Request,
     exc: SQLAlchemyError,
 ) -> JSONResponse:
-    if isinstance(exc, IntegrityError) and _constraint_name(exc) == "ex_visits_specialist_slot":
+    if getattr(getattr(exc, "orig", None), "pgcode", None) in {"40P01", "40001"}:
+        from app.api.core.i18n import _, normalize_locale
+        locale = normalize_locale(request.headers.get("accept-language"))
+        return create_error_response(status_code=409, message=_("concurrent_update", locale),
+                                     error_type="HTTPException", request=request)
+    if isinstance(exc, IntegrityError) and _constraint_name(exc) in {"ex_visits_specialist_slot", "ex_visit_items_specialist_slot"}:
         # the database caught a double booking the free-slot check let through (two requests at once,
         # a cancelled or deleted visit coming back) - same answer as the check itself gives
         from app.api.core.i18n import _, normalize_locale

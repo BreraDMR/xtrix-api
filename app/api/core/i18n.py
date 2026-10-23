@@ -1,6 +1,11 @@
 from typing import Dict, Any
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
+    "concurrent_update": {
+        "en": "The record changed. Refresh the page and try again.",
+        "ru": "Запись изменилась. Обновите страницу и повторите попытку.",
+        "cz": "Záznam se změnil. Obnovte stránku a zkuste to znovu.",
+    },
     # analytics insights - str.format templates
     "insight_low_retention_title": {"en": "Low Retention Rate", "ru": "Низкое удержание клиентов", "cz": "Nízké udržení klientů"},
     "insight_low_retention": {
