@@ -36087,6 +36087,26 @@
         "operationId": "my_subscription_subscriptions_me_get",
         "parameters": [
           {
+            "in": "query",
+            "name": "product",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "crm",
+                    "ai"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Product"
+            }
+          },
+          {
             "in": "header",
             "name": "Accept-Language",
             "required": false,

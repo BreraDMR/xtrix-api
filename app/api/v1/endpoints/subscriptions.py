@@ -1,4 +1,5 @@
 import hmac
+from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -107,11 +108,17 @@ def create_subscription(
     return result.model_dump() if hasattr(result, 'model_dump') else result
 @router.get("/me", response_model=SubscriptionOut | None)
 def my_subscription(
+    product: Literal["crm", "ai"] | None = None,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(_billing_roles),
     locale: str = Depends(deps.get_locale),
 ):
-    sub = crud_subscription.get_active_subscription(db, current_user.id)
+    if product is None:
+        sub = crud_subscription.get_active_subscription(db, current_user.id)
+    else:
+        from app.api.core.subscription_access import product_subscriptions
+        rows = product_subscriptions(db, current_user.id, product)
+        sub = rows[0] if rows else None
     if sub:
         return sub.model_dump() if hasattr(sub, 'model_dump') else sub
 @router.post("/checkout/create-session")
@@ -193,10 +200,17 @@ def get_checkout_session(
         session = stripe.checkout.Session.retrieve(session_id)
         if stripe_billing.as_dict(session.metadata).get("user_id") != str(current_user.id):
             raise HTTPException(status_code=403, detail="Not allowed")
+        subscription_id = stripe_billing.object_id(session.subscription)
+        sub = crud_subscription.get_by_external(db, "stripe", subscription_id) if subscription_id else None
+        from app.api.core.clock import utcnow
+        ready = bool(sub and sub.user_id == current_user.id and not sub.is_trial
+                     and sub.status in ("active", "pending_cancellation")
+                     and sub.current_period_end and sub.current_period_end > utcnow())
         return {
             "id": session.id,
             "status": session.payment_status,
-            "subscription_id": session.subscription,
+            "subscription_id": subscription_id,
+            "subscription_ready": ready,
         }
     except stripe.StripeError:
         raise HTTPException(status_code=503, detail="Stripe is temporarily unavailable")
@@ -216,17 +230,19 @@ def get_trial_status(
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    from app.api.crud import crud_subscription
+    from app.api.core.clock import utcnow
+    from app.api.core.subscription_access import product_subscriptions, get_subscription_access_state
     user_id = crud_subscription.subscription_payer_id(db, current_user)
-    # fired staff have nobody paying for them
-    is_active = crud_subscription.is_trial_active(db, user_id) if user_id else False
-    sub = crud_subscription.get_active_subscription(db, user_id) if user_id else None
+    live = product_subscriptions(db, user_id, "crm") if user_id else []
+    history = product_subscriptions(db, user_id, "crm", live_only=False) if user_id else []
+    sub = live[0] if live else (history[0] if history else None)
+    is_active = bool(sub and sub in live and sub.is_trial and sub.trial_end and sub.trial_end > utcnow())
     return {
         "is_trial_active": is_active,
         "is_trial": sub.is_trial if sub else False,
         "trial_start": sub.trial_start if sub else None,
         "trial_end": sub.trial_end if sub else None,
-        "has_access": crud_subscription.check_subscription_access(db, current_user.id)[0],
+        "has_access": get_subscription_access_state(db, current_user.id)["has_access"],
     }
 
 
