@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     )
     pilot_mode_enabled: bool = Field(False, description="Enforce the invite-only seven-day pilot and disable checkout")
     pilot_invited_emails: str = Field("", description="Comma-separated exact email addresses invited to register in pilot mode")
+    pilot_open_signup: bool = Field(False, description="Let any verified Google account register in pilot mode, the invite list is skipped")
     max_login_attempts: int = Field(
         default=5,
         description="Failed logins per (account, IP) before that pair is refused",

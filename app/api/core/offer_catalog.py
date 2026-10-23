@@ -54,7 +54,7 @@ def get_offer_catalog(include_draft: bool = False) -> OfferCatalogOut:
         version=CATALOG_VERSION,
         pilot_mode=settings.pilot_mode_enabled,
         checkout_available=bool(settings.stripe_api_key and not settings.pilot_mode_enabled),
-        registration_requires_invitation=settings.pilot_mode_enabled,
+        registration_requires_invitation=settings.pilot_mode_enabled and not settings.pilot_open_signup,
         email_available=bool(not settings.pilot_mode_enabled and settings.smtp_host and settings.smtp_from),
         offers=offers,
         updated_at=datetime(2026, 10, 21, 0, 0, 0, tzinfo=timezone.utc),

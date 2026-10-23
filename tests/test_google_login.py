@@ -81,6 +81,23 @@ def test_google_signup_requires_invitation(client, db, monkeypatch, google_setup
     assert db.query(User).filter_by(email="other@example.com").count() == 0
 
 
+def test_open_pilot_signup_lets_any_verified_google_account_in(client, db, monkeypatch, google_setup):
+    from app.db.models.subscription import Subscription
+    from app.db.models.user import User
+
+    monkeypatch.setattr(settings, "pilot_open_signup", True)
+    assert client.get("/offers/").json()["registration_requires_invitation"] is False
+    response = sign_in(client, monkeypatch, email="friend@example.com", sub="google-friend")
+    assert response.status_code == 200, response.text
+    user = db.query(User).filter_by(email="friend@example.com").one()
+    assert db.query(Subscription).filter_by(user_id=user.id).count() == 1
+    # plain password signup stays closed, Google still has to vouch for the address
+    signup = client.post("/users/", json={"full_name": "Pw", "email": "pw@example.com", "phone": "+420123456780",
+                                          "password": "Str0ng!Pass-word", "role": "business_owner"})
+    assert signup.status_code == 403
+    assert "pilot_google_signup_required" in signup.text
+
+
 def test_existing_email_is_never_linked_without_password_and_explicit_consent(client, db, make_user, monkeypatch, google_setup):
     from app.db.models.google_identity import GoogleIdentity
 

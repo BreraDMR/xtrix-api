@@ -83,7 +83,7 @@ def issue_nonce(db: Session, request: Request) -> GoogleNonceOut:
 
 
 def _create_user(db: Session, claims: dict, email: str, role: str) -> User:
-    if settings.pilot_mode_enabled:
+    if settings.pilot_mode_enabled and not settings.pilot_open_signup:
         invited = {address.strip().casefold() for address in settings.pilot_invited_emails.split(",") if address.strip()}
         if email not in invited:
             _fail("pilot_invitation_required", 403)
