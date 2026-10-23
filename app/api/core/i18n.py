@@ -975,6 +975,11 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Кампания не найдена",
         "cz": "Kampaň nenalezena",
     },
+    "campaign_preview_stale": {
+        "en": "The campaign or its audience changed after the preview. Check the preview again",
+        "ru": "После предпросмотра изменились текст или аудитория. Проверьте предпросмотр ещё раз",
+        "cz": "Po náhledu se změnil text nebo publikum. Zkontrolujte náhled znovu",
+    },
     "campaign_locked": {
         "en": "This campaign can no longer be changed",
         "ru": "Эту кампанию больше нельзя изменить",

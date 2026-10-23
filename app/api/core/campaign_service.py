@@ -339,6 +339,7 @@ def confirm_campaign(
     user: User,
     locale: str,
     now: Optional[datetime] = None,
+    seen: Optional[tuple[str, str]] = None,
 ) -> Campaign:
     if campaign.status not in ("draft", "confirmed"):
         raise HTTPException(status_code=409, detail=_("campaign_locked", locale))
@@ -348,9 +349,13 @@ def confirm_campaign(
         raise HTTPException(status_code=409, detail=_("campaign_empty_audience", locale))
     if len(recipients) > MAX_RECIPIENTS:
         raise HTTPException(status_code=409, detail=_("campaign_too_many_recipients", locale))
+    new_audience, new_content = audience_hash(recipients), content_hash(campaign)
+    # confirm only what was on the owner's screen; a text edit or a new client since then means a new preview
+    if seen is not None and seen != (new_audience, new_content):
+        raise HTTPException(status_code=409, detail=_("campaign_preview_stale", locale))
     campaign.audience_snapshot = recipients
-    campaign.audience_hash = audience_hash(recipients)
-    campaign.content_hash = content_hash(campaign)
+    campaign.audience_hash = new_audience
+    campaign.content_hash = new_content
     campaign.recipient_count = len(recipients)
     campaign.queued_count = 0
     campaign.confirmed_at = now

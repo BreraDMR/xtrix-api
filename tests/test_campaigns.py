@@ -125,6 +125,15 @@ def _create(client, world, **overrides):
     )
 
 
+def _confirm(client, world, campaign_id, preview=None):
+    preview = preview or _preview(client, world, campaign_id)
+    return client.post(
+        f"/businesses/me/campaigns/{campaign_id}/confirm",
+        json={"audience_hash": preview["audience_hash"], "content_hash": preview["content_hash"]},
+        headers=world["headers"],
+    )
+
+
 def _preview(client, world, campaign_id):
     return _ok(
         client.get(
@@ -345,9 +354,7 @@ def test_draft_preview_confirm_send_and_freeze(client, db, world):
     assert not_confirmed.json()["error"]["message"] == "Confirm the campaign before sending"
 
     confirmed = _ok(
-        client.post(
-            f"/businesses/me/campaigns/{campaign['id']}/confirm", headers=world["headers"]
-        ),
+        _confirm(client, world, campaign["id"]),
         "confirm",
     )
     assert confirmed["status"] == "confirmed"
@@ -377,9 +384,7 @@ def test_draft_preview_confirm_send_and_freeze(client, db, world):
     assert _preview(client, world, campaign["id"])["requires_confirmation"] is True
 
     _ok(
-        client.post(
-            f"/businesses/me/campaigns/{campaign['id']}/confirm", headers=world["headers"]
-        ),
+        _confirm(client, world, campaign["id"]),
         "reconfirm",
     )
     sent = _ok(
@@ -428,9 +433,7 @@ def test_campaign_text_renders_name_business_and_signed_unsubscribe(client, db, 
         body="{name}, come to {business}",
     )
     _ok(
-        client.post(
-            f"/businesses/me/campaigns/{campaign['id']}/confirm", headers=world["headers"]
-        ),
+        _confirm(client, world, campaign["id"]),
         "confirm",
     )
     _ok(
@@ -510,9 +513,7 @@ def test_unsubscribed_after_confirmation_is_not_queued(client, db, world):
         _age_relation(db, world["business"]["id"], row["id"], 200)
     campaign = _create(client, world)
     _ok(
-        client.post(
-            f"/businesses/me/campaigns/{campaign['id']}/confirm", headers=world["headers"]
-        ),
+        _confirm(client, world, campaign["id"]),
         "confirm",
     )
     leave_consent = (
@@ -550,9 +551,7 @@ def test_cancel_stops_pending_messages_before_the_worker(client, db, world):
     _age_relation(db, world["business"]["id"], recipient["id"], 200)
     campaign = _create(client, world)
     _ok(
-        client.post(
-            f"/businesses/me/campaigns/{campaign['id']}/confirm", headers=world["headers"]
-        ),
+        _confirm(client, world, campaign["id"]),
         "confirm",
     )
     _ok(
@@ -585,9 +584,7 @@ def test_send_requires_enabled_notifications_and_a_ready_provider(
     _age_relation(db, world["business"]["id"], recipient["id"], 200)
     campaign = _create(client, world)
     _ok(
-        client.post(
-            f"/businesses/me/campaigns/{campaign['id']}/confirm", headers=world["headers"]
-        ),
+        _confirm(client, world, campaign["id"]),
         "confirm",
     )
     _ok(
@@ -627,9 +624,7 @@ def test_recipient_limit_is_checked_at_confirmation(client, db, world, monkeypat
     campaign = _create(client, world)
     preview = _preview(client, world, campaign["id"])
     assert preview["over_limit"] is True
-    response = client.post(
-        f"/businesses/me/campaigns/{campaign['id']}/confirm", headers=world["headers"]
-    )
+    response = _confirm(client, world, campaign["id"], preview)
     assert response.status_code == 409
     assert "Too many recipients" in response.json()["error"]["message"]
 
@@ -656,7 +651,8 @@ def test_another_business_cannot_read_or_send_the_campaign(client, db, world, ma
         ("post", f"/businesses/me/campaigns/{campaign['id']}/send"),
         ("post", f"/businesses/me/campaigns/{campaign['id']}/cancel"),
     ):
-        response = getattr(client, method)(path, headers=intruder_headers)
+        body = {"json": {"audience_hash": "x", "content_hash": "y"}} if path.endswith("/confirm") else {}
+        response = getattr(client, method)(path, headers=intruder_headers, **body)
         assert response.status_code == 404, f"{method} {path}: {response.status_code}"
     assert client.get(
         f"/businesses/me/clients/{recipient['id']}/marketing-consent",
@@ -716,3 +712,30 @@ def test_owner_can_read_and_revoke_consent_idempotently(client, db, world):
     assert second["revoked_source"] == "owner_request"
     db.refresh(consent)
     assert consent.status == "unsubscribed"
+
+
+def test_confirm_refuses_text_or_audience_the_owner_did_not_preview(client, db, world):
+    first = _add_client(client, world, "Seen A", "seen.a@example.com")
+    _consent(db, world, first)
+    _age_relation(db, world["business"]["id"], first["id"], 200)
+    _completed_visit(db, world, first["id"], days_ago=100)
+    campaign = _create(client, world)
+    seen = _preview(client, world, campaign["id"])
+
+    _ok(client.patch(f"/businesses/me/campaigns/{campaign['id']}", json={"body": "Different text nobody saw"},
+                     headers=world["headers"]), "edit after preview")
+    stale_text = _confirm(client, world, campaign["id"], seen)
+    assert stale_text.status_code == 409, stale_text.text
+
+    seen = _preview(client, world, campaign["id"])
+    late = _add_client(client, world, "Late B", "late.b@example.com")
+    _consent(db, world, late)
+    _age_relation(db, world["business"]["id"], late["id"], 200)
+    _completed_visit(db, world, late["id"], days_ago=100)
+    stale_audience = _confirm(client, world, campaign["id"], seen)
+    assert stale_audience.status_code == 409, stale_audience.text
+
+    db.expire_all()
+    assert _ok(client.get(f"/businesses/me/campaigns/{campaign['id']}", headers=world["headers"]), "get")["status"] == "draft"
+    assert db.query(NotificationOutbox).filter(NotificationOutbox.campaign_id == campaign["id"]).count() == 0
+    assert _confirm(client, world, campaign["id"]).status_code == 200

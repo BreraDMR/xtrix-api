@@ -1202,6 +1202,29 @@
         "title": "CalculateSalaryRequest",
         "type": "object"
       },
+      "CampaignConfirmIn": {
+        "description": "The fingerprints from the preview the owner actually looked at.",
+        "properties": {
+          "audience_hash": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Audience Hash",
+            "type": "string"
+          },
+          "content_hash": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Content Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "audience_hash",
+          "content_hash"
+        ],
+        "title": "CampaignConfirmIn",
+        "type": "object"
+      },
       "CampaignIn": {
         "additionalProperties": false,
         "properties": {
@@ -21620,6 +21643,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignConfirmIn"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {

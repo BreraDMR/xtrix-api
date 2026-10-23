@@ -20,6 +20,7 @@ from app.db.models.client_business_relation import ClientBusinessRelation
 from app.db.models.marketing_consent import MarketingConsent
 from app.db.models.user import User
 from app.schemas.campaign import (
+    CampaignConfirmIn,
     CampaignIn,
     CampaignOut,
     CampaignPreviewOut,
@@ -199,13 +200,16 @@ def preview_campaign(
 @staff_router.post("/{campaign_id}/confirm", response_model=CampaignOut, summary="Freeze audience and text")
 def confirm_campaign(
     campaign_id: int,
+    payload: CampaignConfirmIn,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
     business_id = notification_business_id(db, current_user, locale)
     campaign = campaign_service.campaign_for_business(db, campaign_id, business_id, locale)
-    campaign_service.confirm_campaign(db, campaign, current_user, locale)
+    campaign_service.confirm_campaign(
+        db, campaign, current_user, locale, seen=(payload.audience_hash, payload.content_hash)
+    )
     db.commit()
     db.refresh(campaign)
     return _out(campaign)

@@ -47,6 +47,12 @@ class CampaignUpdate(InputModel):
         return self
 
 
+class CampaignConfirmIn(InputModel):
+    """The fingerprints from the preview the owner actually looked at."""
+    audience_hash: str = Field(..., min_length=1, max_length=128)
+    content_hash: str = Field(..., min_length=1, max_length=128)
+
+
 class CampaignOut(BaseModel):
     id: int
     business_id: int
