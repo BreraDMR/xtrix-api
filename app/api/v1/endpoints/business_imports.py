@@ -210,7 +210,8 @@ def confirm_import(
     ):
         _fail("import_preview_outdated", locale, 409)
     try:
-        executed = import_service.execute_batch(db, batch, scope, current_user)
+        executed = import_service.execute_batch(db, batch, scope, current_user, expected=(
+            payload.source_hash, payload.mapping_version, payload.preview_version, payload.duplicate_policy))
     except import_service.ImportFileError as exc:
         _fail(exc.code, locale, exc.status_code)
     if executed:

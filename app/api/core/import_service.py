@@ -12,6 +12,7 @@ dropped after 24 hours or as soon as the batch finishes.
 from __future__ import annotations
 
 import csv
+from contextlib import contextmanager
 import hashlib
 import io
 import json
@@ -577,7 +578,39 @@ def expire_source(db: Session, batch: ImportBatch) -> None:
     db.commit()
 
 
+@contextmanager
+def _batch_lock(db: Session, batch: ImportBatch):
+    # Keep the same lock through per-row commits, using a dedicated connection.
+    key = 7_400_000 + int(batch.id)
+    connection = db_engine.connect()
+    acquired = False
+    try:
+        acquired = bool(connection.execute(sa_lock, {"key": key}).scalar())
+        if not acquired:
+            raise ImportFileError("import_in_progress", status_code=409)
+        db.refresh(batch)
+        db.expire(batch, ["rows"])
+        yield
+    finally:
+        if acquired:
+            try:
+                connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": key})
+                connection.commit()
+            except Exception:
+                # A pooled session must never retain a lock after an unlock failure.
+                connection.invalidate()
+        connection.close()
+
+
+sa_lock = text("SELECT pg_try_advisory_lock(:key)")
+
+
 def save_mapping(db: Session, batch: ImportBatch, mapping: dict[str, str]) -> ImportBatch:
+    with _batch_lock(db, batch):
+        return _save_mapping_locked(db, batch, mapping)
+
+
+def _save_mapping_locked(db: Session, batch: ImportBatch, mapping: dict[str, str]) -> ImportBatch:
     if batch.status not in ("uploaded", "mapped", "previewed"):
         raise ImportFileError("import_batch_locked", status_code=409)
     cleaned = validate_mapping(mapping, batch.headers or [])
@@ -645,7 +678,14 @@ def _parse_visit_datetime(text: Optional[str], timezone_name: str) -> datetime:
             zone = ZoneInfo(timezone_name)
         except (ZoneInfoNotFoundError, ValueError):
             zone = ZoneInfo("UTC")
-        parsed = parsed.replace(tzinfo=zone).astimezone(dt_timezone.utc).replace(tzinfo=None)
+        local = parsed.replace(tzinfo=zone)
+        utc = local.astimezone(dt_timezone.utc)
+        if utc.astimezone(zone).replace(tzinfo=None) != parsed:
+            raise ImportRowError("invalid_date", "visit_date")
+        # An ambiguous local time needs an explicit offset in the source file.
+        if parsed.replace(tzinfo=zone, fold=0).utcoffset() != parsed.replace(tzinfo=zone, fold=1).utcoffset():
+            raise ImportRowError("invalid_date", "visit_date")
+        parsed = utc.replace(tzinfo=None)
     if not datetime(1900, 1, 1) <= parsed <= datetime(2100, 12, 31):
         raise ImportRowError("invalid_date", "visit_date")
     return parsed
@@ -921,7 +961,12 @@ def parse_visit_values(
     }
 
 
-def build_preview(
+def build_preview(db: Session, batch: ImportBatch, scope: ImportScope, user: User, policy: str) -> ImportBatch:
+    with _batch_lock(db, batch):
+        return _build_preview_locked(db, batch, scope, user, policy)
+
+
+def _build_preview_locked(
     db: Session,
     batch: ImportBatch,
     scope: ImportScope,
@@ -1265,39 +1310,19 @@ def execute_batch(
     batch: ImportBatch,
     scope: ImportScope,
     user: User,
+    *,
+    expected: Optional[tuple] = None,
 ) -> bool:
-    """Run a previewed batch. Returns True when this call actually executed rows."""
-    if batch.status in ("completed", "completed_with_errors"):
-        return False
-    if batch.status not in ("previewed", "importing", "failed"):
-        raise ImportFileError("import_preview_required", status_code=409)
-    if not batch.preview_version:
-        raise ImportFileError("import_preview_required", status_code=409)
-
-    # A session advisory lock survives the per-row commits and is released by PostgreSQL
-    # if the worker dies, so a double click cannot run the same rows twice while a retry
-    # after a crash still resumes from the checkpoint. It lives on its own connection:
-    # the batch session releases and re-checks out connections on every per-row commit.
-    lock_key = 7_400_000 + int(batch.id)
-    lock_connection = db_engine.connect()
-    try:
-        acquired = lock_connection.execute(
-            text("SELECT pg_try_advisory_lock(:key)"), {"key": lock_key}
-        ).scalar()
-        if not acquired:
-            raise ImportFileError("import_in_progress", status_code=409)
-        try:
-            return _execute_batch_locked(db, batch, scope, user)
-        finally:
-            try:
-                lock_connection.execute(
-                    text("SELECT pg_advisory_unlock(:key)"), {"key": lock_key}
-                )
-                lock_connection.commit()
-            except Exception:
-                lock_connection.rollback()
-    finally:
-        lock_connection.close()
+    """Execute only the exact preview the owner approved, under the shared batch lock."""
+    with _batch_lock(db, batch):
+        actual = (batch.source_hash, batch.mapping_version, batch.preview_version, batch.duplicate_policy)
+        if expected is not None and actual != expected:
+            raise ImportFileError("import_preview_outdated", status_code=409)
+        if batch.status in ("completed", "completed_with_errors"):
+            return False
+        if batch.status not in ("previewed", "importing", "failed") or not batch.preview_version:
+            raise ImportFileError("import_preview_required", status_code=409)
+        return _execute_batch_locked(db, batch, scope, user)
 
 
 def _execute_batch_locked(
