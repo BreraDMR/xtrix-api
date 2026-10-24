@@ -17,7 +17,8 @@ DEFAULT_REMINDER_TIME = "10:00"
 
 def channel_ready(channel: str) -> bool:
     if channel == "email":
-        return bool(settings.smtp_host and settings.smtp_from)
+        return (settings.email_provider_configured
+                and (settings.email_provider != "gmail" or settings.gmail_delivery_enabled))
     # SMS and WhatsApp stay off until a separate product decision activates them
     return False
 

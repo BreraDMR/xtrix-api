@@ -18,7 +18,7 @@ def sync_and_deliver() -> dict:
     db: Session = SessionLocal()
     try:
         transport = notification_transport.get_notification_transport()
-        provider_ready = bool(settings.smtp_host and settings.smtp_from)
+        provider_ready = settings.email_delivery_available
         if transport.name == "capture":
             logger.warning(
                 "notification job: capture transport is active; messages are kept in memory and NOT delivered"
@@ -64,7 +64,7 @@ def deliver_campaigns() -> dict:
             logger.warning(
                 "campaign job: capture transport is active; campaign messages are NOT delivered"
             )
-        elif not (settings.smtp_host and settings.smtp_from):
+        elif not settings.email_delivery_available:
             logger.warning(
                 "campaign job: email provider is not configured; nothing will be sent"
             )

@@ -1,4 +1,5 @@
-from pydantic import AliasChoices, Field, field_validator, model_validator
+from typing import Literal
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 PLACEHOLDER_JWT_SECRETS = {
     "change-me-minimum-32-characters-long",
@@ -71,6 +72,29 @@ class Settings(BaseSettings):
     smtp_user: str = Field("")
     smtp_password: str = Field("")
     smtp_from: str = Field("")
+    email_provider: Literal["smtp", "gmail"] = "smtp"
+    gmail_from: str = ""
+    gmail_oauth_client_id: str = ""
+    gmail_oauth_client_secret: SecretStr = SecretStr("")
+    gmail_refresh_token: SecretStr = SecretStr("")
+    gmail_delivery_enabled: bool = False
+    gmail_allowed_recipients: str = ""
+    pilot_email_delivery_enabled: bool = False
+
+    @property
+    def email_provider_configured(self) -> bool:
+        if self.email_provider == "gmail":
+            return bool(self.gmail_from and self.gmail_oauth_client_id
+                        and self.gmail_oauth_client_secret.get_secret_value()
+                        and self.gmail_refresh_token.get_secret_value())
+        return bool(self.smtp_host and self.smtp_from)
+
+    @property
+    def email_delivery_available(self) -> bool:
+        return (self.email_provider_configured
+                and (self.email_provider != "gmail" or self.gmail_delivery_enabled)
+                and (not self.pilot_mode_enabled or self.pilot_email_delivery_enabled))
+
     notification_transport: str = Field(
         "",
         description="Notification transport: empty/live uses configured providers, capture stores messages in memory without sending",

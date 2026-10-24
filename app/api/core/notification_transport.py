@@ -71,7 +71,7 @@ class SmtpEmailTransport:
         if message.html:
             msg.add_alternative(message.html, subtype="html")
         try:
-            with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
+            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
                 server.starttls()
                 if settings.smtp_user and settings.smtp_password:
                     server.login(settings.smtp_user, settings.smtp_password)
@@ -135,11 +135,15 @@ class LiveNotificationTransport:
 
     def __init__(self) -> None:
         self._smtp = SmtpEmailTransport()
+        from app.api.core.gmail_transport import GmailEmailTransport
+        self._gmail = GmailEmailTransport()
         self._twilio = TwilioTransport()
 
     def send(self, message: OutboundMessage) -> DeliveryResult:
+        if settings.pilot_mode_enabled and message.channel != "email":
+            return DeliveryResult("skipped", self.name, error="pilot_delivery_disabled")
         if message.channel == "email":
-            return self._smtp.send(message)
+            return (self._gmail if settings.email_provider == "gmail" else self._smtp).send(message)
         if message.channel in ("sms", "whatsapp"):
             return self._twilio.send(message)
         return DeliveryResult("skipped", self.name, error="unsupported_channel")
@@ -214,7 +218,7 @@ class DisabledNotificationTransport:
 
 
 def get_notification_transport() -> NotificationTransport:
-    if settings.pilot_mode_enabled:
+    if settings.pilot_mode_enabled and not settings.pilot_email_delivery_enabled:
         return DisabledNotificationTransport()
     global _transport
     if _transport is None:
