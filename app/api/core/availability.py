@@ -6,6 +6,7 @@ visits and blocks are naive UTC. Candidate slots are built in local time, checke
 and returned as naive UTC so they serialize with a trailing Z.
 """
 from dataclasses import dataclass
+from functools import lru_cache
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Mapping, Optional, Sequence
 from zoneinfo import ZoneInfo
@@ -87,86 +88,13 @@ def collect_slots(
     now: Optional[datetime] = None,
     max_slots: int = MAX_SLOTS,
 ) -> list[AvailableSlot]:
-    zone = salon_zone(timezone_name)
-    first, last, _today = booking_window(
-        date_from, date_to, timezone_name, horizon_days, now=now
+    return collect_chain_slots(
+        date_from=date_from, date_to=date_to, timezone_name=timezone_name,
+        horizon_days=horizon_days, lead_time_minutes=lead_time_minutes,
+        timings=[ChainTiming(duration_minutes, buffer_before_minutes, buffer_after_minutes)],
+        master_ids=master_ids, schedules=schedules, exceptions=exceptions,
+        blocks=blocks, busy=busy, now=now, max_slots=max_slots,
     )
-    if last < first or not master_ids:
-        return []
-
-    current = now or utcnow()
-    if current.tzinfo is None:
-        current = current.replace(tzinfo=UTC)
-    else:
-        current = current.astimezone(UTC)
-    lead_until = (current + timedelta(minutes=max(0, lead_time_minutes))).replace(tzinfo=None)
-
-    duration = timedelta(minutes=max(1, duration_minutes))
-    before = timedelta(minutes=max(0, buffer_before_minutes))
-    after = timedelta(minutes=max(0, buffer_after_minutes))
-    step = timedelta(minutes=SLOT_STEP_MINUTES)
-
-    # day -> start (naive UTC) -> staff id, so overlapping windows and DST folds don't duplicate
-    collected: dict[date, dict[datetime, int]] = {}
-    total = 0
-    stopped = False
-
-    for offset in range((last - first).days + 1):
-        day = first + timedelta(days=offset)
-        for staff_id in master_ids:
-            staff_exceptions = exceptions.get(staff_id, {})
-            if day in staff_exceptions and staff_exceptions[day][0] is None:
-                continue
-            if day in staff_exceptions:
-                exception_start, exception_end = staff_exceptions[day]
-                windows: list[tuple[time, time]] = (
-                    [] if exception_start is None or exception_end is None
-                    else [(exception_start, exception_end)]
-                )
-            else:
-                windows = [
-                    (start, end)
-                    for weekday, start, end in schedules.get(staff_id, ())
-                    if weekday == day.weekday()
-                ]
-            for window_start, window_end in windows:
-                cursor = datetime.combine(day, window_start)
-                end_local = datetime.combine(day, window_end)
-                if end_local <= cursor:
-                    continue
-                while cursor + duration <= end_local:
-                    local = cursor.replace(tzinfo=zone)
-                    aware_utc = local.astimezone(UTC)
-                    start = aware_utc.replace(tzinfo=None)
-                    # a wall time inside the spring-forward gap doesn't exist; skip it
-                    if aware_utc.astimezone(zone).replace(tzinfo=None) == cursor and start >= lead_until:
-                        conflict_start = start - before
-                        conflict_end = start + duration + after
-                        if (
-                            not _overlaps(conflict_start, conflict_end, blocks.get(staff_id, ()))
-                            and not _overlaps(conflict_start, conflict_end, busy.get(staff_id, ()))
-                        ):
-                            day_bucket = collected.setdefault(day, {})
-                            if start not in day_bucket:
-                                day_bucket[start] = staff_id
-                                total += 1
-                                if total >= max_slots:
-                                    stopped = True
-                                    break
-                    cursor += step
-                if stopped:
-                    break
-            if stopped:
-                break
-        if stopped:
-            break
-
-    slots = [
-        AvailableSlot(day=day, start=start, staff_id=staff_id)
-        for day in sorted(collected)
-        for start, staff_id in sorted(collected[day].items(), key=lambda item: (item[0], item[1]))
-    ]
-    return slots[:max_slots]
 
 
 def _windows_for_day(
@@ -184,6 +112,46 @@ def _windows_for_day(
         for weekday, start, end in schedules.get(staff_id, ())
         if weekday == day.weekday()
     ]
+
+
+@lru_cache(maxsize=4096)
+def _utc_window(day: date, start: time, end: time, zone: ZoneInfo):
+    """Project a wall-clock window onto real intervals, including both DST folds."""
+    wall_start, wall_end = datetime.combine(day, start), datetime.combine(day, end)
+    if wall_end <= wall_start:
+        return ()
+    first = datetime.combine(day, time.min, tzinfo=zone).astimezone(UTC)
+    last = datetime.combine(day + timedelta(days=1), time.min, tzinfo=zone).astimezone(UTC)
+    cursor = segment_start = first
+    offset = first.astimezone(zone).utcoffset()
+    segments = []
+    # Modern timezone transitions are minute-aligned; bounds keep schedule seconds intact.
+    while cursor < last:
+        next_cursor = min(cursor + timedelta(minutes=1), last)
+        next_offset = next_cursor.astimezone(zone).utcoffset()
+        if next_offset != offset or next_cursor == last:
+            left = max(segment_start.replace(tzinfo=None), wall_start - offset)
+            right = min(next_cursor.replace(tzinfo=None), wall_end - offset)
+            if left < right:
+                if segments and segments[-1][1] == left:
+                    segments[-1] = (segments[-1][0], right)
+                else:
+                    segments.append((left, right))
+            segment_start, offset = next_cursor, next_offset
+        cursor = next_cursor
+    return tuple(segments)
+
+
+def _window_candidates(day: date, start: time, end: time, zone: ZoneInfo):
+    cursor, last = datetime.combine(day, start), datetime.combine(day, end)
+    starts = set()
+    while cursor < last:
+        for fold in (0, 1):
+            utc = cursor.replace(tzinfo=zone, fold=fold).astimezone(UTC)
+            if utc.astimezone(zone).replace(tzinfo=None) == cursor:
+                starts.add(utc.replace(tzinfo=None))
+        cursor += timedelta(minutes=SLOT_STEP_MINUTES)
+    return sorted(starts)
 
 
 def _chain_parts(start: datetime, timings: Sequence[ChainTiming]):
@@ -233,14 +201,12 @@ def chain_start_available(
     zone = salon_zone(timezone_name)
     for raw_start, raw_end, occupied_start, occupied_end in _chain_parts(start, timings):
         local_start = raw_start.replace(tzinfo=UTC).astimezone(zone)
-        local_end = raw_end.replace(tzinfo=UTC).astimezone(zone)
-        if local_start.date() != local_end.date():
-            return False
         if not any(
-            window_start <= local_start.time() and local_end.time() <= window_end
+            left <= raw_start and raw_end <= right
             for window_start, window_end in _windows_for_day(
                 staff_id, local_start.date(), schedules, exceptions
             )
+            for left, right in _utc_window(local_start.date(), window_start, window_end, zone)
         ):
             return False
         if _overlaps(occupied_start, occupied_end, blocks.get(staff_id, ())):
@@ -278,8 +244,6 @@ def collect_chain_slots(
     current = now or utcnow()
     current = current.replace(tzinfo=UTC) if current.tzinfo is None else current.astimezone(UTC)
     lead_until = (current + timedelta(minutes=max(0, lead_time_minutes))).replace(tzinfo=None)
-    total = timedelta(minutes=sum(max(1, timing.duration_minutes) for timing in timings))
-    step = timedelta(minutes=SLOT_STEP_MINUTES)
     collected: dict[date, dict[datetime, int]] = {}
     count = 0
 
@@ -289,36 +253,24 @@ def collect_chain_slots(
             for window_start, window_end in _windows_for_day(
                 staff_id, day, schedules, exceptions
             ):
-                cursor = datetime.combine(day, window_start)
-                local_end = datetime.combine(day, window_end)
-                while cursor + total <= local_end:
-                    aware = cursor.replace(tzinfo=zone)
-                    utc_start = aware.astimezone(UTC)
-                    valid_wall_time = aware.astimezone(zone).replace(tzinfo=None) == cursor
-                    if valid_wall_time and utc_start.replace(tzinfo=None) >= lead_until:
-                        if chain_start_available(
-                            start=utc_start.replace(tzinfo=None),
-                            timings=timings,
-                            timezone_name=timezone_name,
-                            schedules=schedules,
-                            exceptions=exceptions,
-                            blocks=blocks,
-                            busy=busy,
-                            staff_id=staff_id,
-                            lead_time_minutes=lead_time_minutes,
-                            now=current,
-                        ):
-                            bucket = collected.setdefault(day, {})
-                            if utc_start.replace(tzinfo=None) not in bucket:
-                                bucket[utc_start.replace(tzinfo=None)] = staff_id
-                                count += 1
-                                if count >= max_slots:
-                                    return [
-                                        AvailableSlot(day=d, start=s, staff_id=i)
-                                        for d in sorted(collected)
-                                        for s, i in sorted(collected[d].items())
-                                    ]
-                    cursor += step
+                for start in _window_candidates(day, window_start, window_end, zone):
+                    if start < lead_until:
+                        continue
+                    if chain_start_available(
+                        start=start, timings=timings, timezone_name=timezone_name,
+                        schedules=schedules, exceptions=exceptions, blocks=blocks, busy=busy,
+                        staff_id=staff_id, lead_time_minutes=lead_time_minutes, now=current,
+                    ):
+                        bucket = collected.setdefault(day, {})
+                        if start not in bucket:
+                            bucket[start] = staff_id
+                            count += 1
+                            if count >= max_slots:
+                                return [
+                                    AvailableSlot(day=d, start=s, staff_id=i)
+                                    for d in sorted(collected)
+                                    for s, i in sorted(collected[d].items())
+                                ]
 
     return [
         AvailableSlot(day=day, start=start, staff_id=staff_id)
