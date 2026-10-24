@@ -1,13 +1,14 @@
 from typing import Optional, List, Tuple
 from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func
+from sqlalchemy import and_, case, func, or_, select
 from app.api.core.pagination import PaginationParams
 from app.db.models.salary_calculation import SalaryCalculation
 from app.db.models.salary_adjustment import SalaryAdjustment
 from app.db.models.salary_payment import SalaryPayment
 from app.db.models.employee import Employee
 from app.db.models.visit import Visit
+from app.db.models.visit_item import VisitItem
 from app.api.crud import crud_employee
 from app.schemas.salary import (
     SalaryCalculationUpdate,
@@ -29,22 +30,27 @@ def calculate_salary(
         raise ValueError(f"Employee with id={employee_id} not found")
     if not employee.is_active:
         raise ValueError(f"Employee with id={employee_id} is not active")
+    # Each master earns from their own items; the visit still counts once per master.
+    own_items = select(func.sum(VisitItem.price)).where(
+        VisitItem.visit_id == Visit.id,
+        VisitItem.specialist_id == employee.employee_user_id,
+    ).correlate(Visit).scalar_subquery()
+    legacy = ~Visit.items.any()
     visits_query = db.query(Visit).filter(
-        and_(
-            Visit.specialist_id == employee.employee_user_id,
-            Visit.date_start >= period_start,
-            Visit.date_start < period_end
-        )
+        Visit.deleted_at.is_(None),
+        Visit.date_start >= period_start,
+        Visit.date_start < period_end,
+        or_(
+            Visit.items.any(VisitItem.specialist_id == employee.employee_user_id),
+            and_(legacy, Visit.specialist_id == employee.employee_user_id),
+        ),
     )
     total_visits = visits_query.count()
     completed_visits = visits_query.filter(Visit.status == 'completed').count()
     cancelled_visits = visits_query.filter(Visit.status == 'cancelled').count()
-    revenue_result = visits_query.filter(
-        and_(
-            Visit.status == 'completed',
-            Visit.price.isnot(None)
-        )
-    ).with_entities(func.sum(Visit.price)).scalar()
+    revenue_result = visits_query.filter(Visit.status == 'completed').with_entities(
+        func.sum(case((legacy, Visit.price), else_=own_items))
+    ).scalar()
     total_revenue = float(revenue_result) if revenue_result else 0.0
     commission_percentage = employee.commission_percentage or 0.0
     base_salary = employee.base_salary or 0.0
