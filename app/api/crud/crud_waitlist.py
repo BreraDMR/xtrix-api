@@ -37,7 +37,7 @@ def dedupe_key(
             str(service_id),
             str(specialist_id or 0),
             date_from.isoformat(),
-            (date_to or date_from).isoformat(),
+            date_to.isoformat() if date_to is not None else "*",
             time_preference,
         )
     )

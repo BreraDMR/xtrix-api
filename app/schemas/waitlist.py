@@ -25,7 +25,7 @@ class WaitlistJoinIn(InputModel):
     preferred_date_from: date
     preferred_date_to: Optional[date] = None
     time_preference: TimePreference = "any"
-    full_name: str = Field(..., min_length=1, max_length=255)
+    full_name: str = Field(..., min_length=1, max_length=200)
     email: EmailStr
     phone: Optional[str] = Field(None, max_length=50)
     marketing_consent: bool = False

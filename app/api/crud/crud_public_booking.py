@@ -488,6 +488,8 @@ def find_or_create_client(
     specialist_id: int,
     payload: PublicBookingCreate,
     language: str,
+    *,
+    secondary_phone: Optional[str] = None,
 ) -> Client:
     client = find_business_client_by_contact(
         db, business_id, payload.phone, payload.email
@@ -499,7 +501,7 @@ def find_or_create_client(
     client = Client(
         owner_id=None,
         full_name=payload.full_name,
-        contact_phone=payload.phone,
+        contact_phone=payload.phone or secondary_phone,
         contact_email=payload.email,
         language=language if language in ("en", "ru", "cz") else "en",
     )

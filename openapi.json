@@ -17576,7 +17576,7 @@
             "type": "string"
           },
           "full_name": {
-            "maxLength": 255,
+            "maxLength": 200,
             "minLength": 1,
             "title": "Full Name",
             "type": "string"

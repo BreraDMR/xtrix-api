@@ -221,6 +221,8 @@ def _offer_candidate(
             WaitlistEntry.business_id == business.id,
             WaitlistEntry.service_id == service.id,
             WaitlistEntry.status == "active",
+            WaitlistEntry.time_preference.in_(["any",
+                "morning" if local_start.hour < 12 else "afternoon" if local_start.hour < 17 else "evening"]),
             WaitlistEntry.preferred_date_from <= local_start.date(),
             or_(
                 WaitlistEntry.preferred_date_to.is_(None),
@@ -232,8 +234,7 @@ def _offer_candidate(
             ),
         )
         .order_by(WaitlistEntry.created_at, WaitlistEntry.id)
-        .limit(100)
-        .all()
+        .yield_per(100)
     )
 
     created: list[WaitlistOffer] = []
@@ -412,7 +413,7 @@ def accept_offer(db: Session, raw_token: Optional[str], locale: str) -> Visit:
         client_request_id=f"waitlist-{offer.id}",
     )
     try:
-        visit = booking_service.submit_booking(db, business, payload, locale, commit=False)
+        visit = booking_service.submit_booking(db, business, payload, locale, commit=False, secondary_phone=entry.phone)
     except booking_service.SlotUnavailable:
         _conflict_offer(db, offer)
         raise OfferConflict()

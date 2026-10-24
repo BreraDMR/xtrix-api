@@ -155,6 +155,7 @@ def submit_booking(
     language: str,
     *,
     commit: bool = True,
+    secondary_phone: str | None = None,
 ) -> Visit:
     from app.api.core.subscription_access import enforce_business_access
     enforce_business_access(db, business.id)
@@ -226,7 +227,7 @@ def submit_booking(
         raise SlotUnavailable()
 
     client = crud_public_booking.find_or_create_client(
-        db, business.id, staff.id, payload, language
+        db, business.id, staff.id, payload, language, secondary_phone=secondary_phone
     )
     visit = Visit(
         client_id=client.id,
