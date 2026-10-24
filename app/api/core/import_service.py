@@ -28,7 +28,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
-from sqlalchemy import func, text
+from sqlalchemy import cast, func, or_, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session
 
 from app.api.core.clock import utcnow
@@ -44,7 +45,7 @@ from app.db.models.service import Service
 from app.db.models.user import User
 from app.db.models.user_preferences import UserPreferences
 from app.db.models.visit import Visit
-from app.db.session import engine as db_engine
+from app.db.session import engine as db_engine, SessionLocal
 from app.schemas.import_batch import MAPPING_TARGETS
 
 logger = get_logger("import")
@@ -494,6 +495,32 @@ def create_batch(
     source_hash = hashlib.sha256(content).hexdigest()
     existing = find_batch_by_source(db, scope, source_hash)
     if existing is not None:
+        with _batch_lock(db, existing):
+            expired = existing.source_blob is None or (
+                existing.source_expires_at is not None and existing.source_expires_at <= utcnow())
+            if expired and existing.status in ("uploaded", "mapped", "previewed") and existing.confirmed_at is None:
+                # Re-uploading the same source restores this unfinished batch, never duplicates CRM rows.
+                by_number = {row.row_number: row for row in existing.rows}
+                if set(by_number) != {row.row_number for row in parsed_rows}:
+                    raise ImportFileError("import_preview_outdated", status_code=409)
+                for parsed in parsed_rows:
+                    row = by_number[parsed.row_number]
+                    row.raw = {"values": parsed.values, "error": parsed.error_code}
+                    row.client_data = row.visit_data = row.action = None
+                    row.status = "pending"
+                    row.error_code = parsed.error_code
+                    row.error_detail = None
+                existing.source_blob = content
+                existing.source_expires_at = utcnow() + timedelta(hours=SOURCE_RETENTION_HOURS)
+                existing.mapping_version += 1
+                existing.preview_version = 0
+                existing.previewed_at = None
+                existing.status = "mapped" if existing.mapping else "uploaded"
+                for field in ("valid_count", "error_count", "create_count", "update_count", "skip_count"):
+                    setattr(existing, field, 0)
+                db.commit()
+                db.refresh(existing)
+                return existing
         raise ImportSourceExists(existing)
     signature = _column_signature(headers)
     now = utcnow()
@@ -568,14 +595,50 @@ def suggested_mapping(db: Session, scope: ImportScope, batch: ImportBatch) -> di
     return suggest_mapping(batch.headers or [], _previous_for_batch(db, scope, batch))
 
 
-def expire_source(db: Session, batch: ImportBatch) -> None:
-    if batch.source_blob is None:
-        return
-    if batch.source_expires_at is not None and batch.source_expires_at > utcnow():
-        return
+def _clear_source(db: Session, batch: ImportBatch) -> None:
     batch.source_blob = None
     batch.source_expires_at = None
-    db.commit()
+    db.query(ImportRow).filter(ImportRow.batch_id == batch.id).update(
+        {ImportRow.raw: {}}, synchronize_session="fetch")
+
+
+def _source_current(batch: ImportBatch) -> bool:
+    return batch.source_blob is not None and (batch.source_expires_at is None or batch.source_expires_at > utcnow())
+
+
+def expire_source(db: Session, batch: ImportBatch) -> None:
+    if _source_current(batch):
+        return
+    try:
+        with _batch_lock(db, batch):
+            if not _source_current(batch):
+                _clear_source(db, batch)
+                db.commit()
+    except ImportFileError as exc:
+        if exc.code != "import_in_progress":
+            raise
+
+
+def purge_expired_sources() -> dict:
+    """The regular worker also expires sources that nobody opens in the wizard."""
+    with SessionLocal() as db:
+        raw_kept = db.query(ImportRow.id).filter(
+            ImportRow.batch_id == ImportBatch.id,
+            cast(ImportRow.raw, JSONB) != text("'{}'::jsonb"),
+        ).exists()
+        batches = db.query(ImportBatch).filter(raw_kept, or_(
+            ImportBatch.source_blob.is_(None), ImportBatch.source_expires_at <= utcnow(),
+        )).order_by(ImportBatch.id).limit(1000).all()
+        for batch in batches:
+            expire_source(db, batch)
+        return {"checked": len(batches)}
+
+
+def _require_source(db: Session, batch: ImportBatch) -> None:
+    if not _source_current(batch):
+        _clear_source(db, batch)
+        db.commit()
+        raise ImportFileError("import_source_expired", status_code=409)
 
 
 @contextmanager
@@ -613,6 +676,7 @@ def save_mapping(db: Session, batch: ImportBatch, mapping: dict[str, str]) -> Im
 def _save_mapping_locked(db: Session, batch: ImportBatch, mapping: dict[str, str]) -> ImportBatch:
     if batch.status not in ("uploaded", "mapped", "previewed"):
         raise ImportFileError("import_batch_locked", status_code=409)
+    _require_source(db, batch)
     cleaned = validate_mapping(mapping, batch.headers or [])
     batch.mapping = cleaned
     batch.mapping_version = (batch.mapping_version or 0) + 1
@@ -975,6 +1039,7 @@ def _build_preview_locked(
 ) -> ImportBatch:
     if batch.status not in ("uploaded", "mapped", "previewed"):
         raise ImportFileError("import_batch_locked", status_code=409)
+    _require_source(db, batch)
     mapping = validate_mapping(batch.mapping or {}, batch.headers or [])
     lookups = load_lookups(db, scope, user)
     counts = PreviewCounts()
@@ -1338,8 +1403,7 @@ def _execute_batch_locked(
         and batch.source_expires_at is not None
         and batch.source_expires_at <= utcnow()
     ):
-        batch.source_blob = None
-        batch.source_expires_at = None
+        _clear_source(db, batch)
     batch.updated_at = utcnow()
     db.commit()
 
@@ -1399,8 +1463,7 @@ def _execute_batch_locked(
     if remaining == 0:
         batch.status = "completed_with_errors" if batch.error_count else "completed"
         batch.finished_at = utcnow()
-        batch.source_blob = None
-        batch.source_expires_at = None
+        _clear_source(db, batch)
     batch.updated_at = utcnow()
     db.commit()
     db.refresh(batch)

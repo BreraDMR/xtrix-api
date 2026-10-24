@@ -21,13 +21,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.api.core import finance_tasks, notification_jobs, notification_tasks, subscription_tasks  # noqa: E402
+from app.api.core import finance_tasks, import_service, notification_jobs, notification_tasks, subscription_tasks  # noqa: E402
 from app.api.core.clock import utcnow  # noqa: E402
 from app.api.core.logger import logger  # noqa: E402
 
 CHANNEL = os.environ.get("JOBS_CHANNEL", "email")
 
 FREQUENT = {
+    "import_sources": import_service.purge_expired_sources,
     "reminders": notification_jobs.sync_and_deliver,
     "campaigns": notification_jobs.deliver_campaigns,
     "followups": lambda: notification_tasks.send_visit_followups(CHANNEL),
