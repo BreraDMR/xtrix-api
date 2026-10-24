@@ -3,13 +3,13 @@
 Rows are claimed with SELECT ... FOR UPDATE SKIP LOCKED and committed as ``processing``
 before any network call, so a second worker skips them. A crashed worker leaves the row
 processing until the lease expires; another worker then picks it up. The provider message id
-is stored before the final status, so a failure between the provider response and bookkeeping
-does not send the same message twice.
+is stored before the final status. A crash after provider acceptance but before that commit
+can still leave an uncertain delivery; external exactly-once delivery is not guaranteed.
 """
 from datetime import datetime, timedelta
 from typing import Callable, Optional
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, text
 from sqlalchemy.orm import Session
 
 from app.api.core import notification_events, notification_preferences
@@ -18,6 +18,7 @@ from app.api.core.client_portal_email import KIND as CLIENT_PORTAL_KIND
 from app.api.core.clock import utcnow
 from app.api.core.notification_transport import DeliveryResult
 from app.db.models.notification_outbox import NotificationOutbox
+from app.db.session import engine
 
 LEASE = timedelta(minutes=5)
 MAX_ATTEMPTS = 5
@@ -38,6 +39,46 @@ def _error(result: DeliveryResult) -> str:
     return text[:500]
 
 
+class _DeliveryLocks:
+    """Session locks fence live sends without holding a row lock across the network."""
+    def __init__(self):
+        self.connection = engine.connect()
+        self.ids = set()
+
+    def acquire(self, message_id: int) -> bool:
+        if message_id in self.ids:
+            return True
+        acquired = self.connection.execute(text(
+            "SELECT pg_try_advisory_lock(hashtextextended(:key,0))"
+        ), {"key": f"outbox-delivery:{message_id}"}).scalar()
+        self.connection.commit()
+        if acquired:
+            self.ids.add(message_id)
+        return bool(acquired)
+
+    def close(self):
+        if self.connection is None:
+            return
+        try:
+            for message_id in self.ids:
+                self.connection.execute(text(
+                    "SELECT pg_advisory_unlock(hashtextextended(:key,0))"
+                ), {"key": f"outbox-delivery:{message_id}"})
+            self.connection.commit()
+        except Exception:
+            self.connection.invalidate()
+        finally:
+            self.connection.close()
+            self.connection = None
+            self.ids.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
+
+
 def claim_batch(
     db: Session,
     now: Optional[datetime] = None,
@@ -49,14 +90,17 @@ def claim_batch(
 
 
 def claim_leases(
-    db: Session,
-    now: Optional[datetime] = None,
-    limit: int = BATCH_SIZE,
-    max_attempts: int = MAX_ATTEMPTS,
-    lease: timedelta = LEASE,
+    db: Session, now: Optional[datetime] = None, limit: int = BATCH_SIZE,
+    max_attempts: int = MAX_ATTEMPTS, lease: timedelta = LEASE,
+    _locks: Optional[_DeliveryLocks] = None,
 ) -> dict[int, int]:
-    """Claim rows and return id -> attempts. The attempts value is this worker's lease ticket:
-    whoever reclaims the row after an expired lease bumps it, so a stale worker can tell."""
+    if _locks is None:
+        with _DeliveryLocks() as locks:
+            return _claim_leases_locked(db, now, limit, max_attempts, lease, locks)
+    return _claim_leases_locked(db, now, limit, max_attempts, lease, _locks)
+
+
+def _claim_leases_locked(db, now, limit, max_attempts, lease, locks):
     now = now or utcnow()
     expired = (
         db.query(NotificationOutbox)
@@ -69,6 +113,8 @@ def claim_leases(
         .all()
     )
     for row in expired:
+        if not locks.acquire(row.id):
+            continue
         if row.provider_message_id:
             _finish_sent(row, row.provider or "unknown", row.provider_message_id, now)
         elif (row.attempts or 0) >= max_attempts:
@@ -99,6 +145,8 @@ def claim_leases(
     )
     leases: dict[int, int] = {}
     for row in rows:
+        if not locks.acquire(row.id):
+            continue
         row.status = "processing"
         row.locked_until = now + lease
         row.attempts = (row.attempts or 0) + 1
@@ -108,9 +156,9 @@ def claim_leases(
     return leases
 
 
-def _still_ours(db: Session, message_id: int, ticket: int) -> Optional[NotificationOutbox]:
+def _still_ours(db: Session, message_id: int, ticket: int, allow_cancelled: bool = False) -> Optional[NotificationOutbox]:
     row = db.query(NotificationOutbox).filter(NotificationOutbox.id == message_id).populate_existing().first()
-    if row is None or row.status != "processing" or row.attempts != ticket:
+    if row is None or row.status not in ({"processing", "cancelled"} if allow_cancelled else {"processing"}) or row.attempts != ticket:
         return None
     return row
 
@@ -132,8 +180,13 @@ def run_once(
     limit: int = BATCH_SIZE,
     max_attempts: int = MAX_ATTEMPTS,
 ) -> dict[str, int]:
+    with _DeliveryLocks() as locks:
+        return _run_once_locked(db, send, now, limit, max_attempts, locks)
+
+
+def _run_once_locked(db, send, now, limit, max_attempts, locks):
     now = now or utcnow()
-    leases = claim_leases(db, now=now, limit=limit, max_attempts=max_attempts)
+    leases = claim_leases(db, now=now, limit=limit, max_attempts=max_attempts, _locks=locks)
     stats: dict[str, int] = {
         "claimed": len(leases),
         "sent": 0,
@@ -206,10 +259,17 @@ def run_once(
             result = send(row)
         except Exception as exc:
             result = DeliveryResult("failed", "worker", error=f"send_error:{type(exc).__name__}")
-        if _still_ours(db, message_id, ticket) is None:
-            # a slow send outlived the lease; the row's new owner writes the outcome
+        row = _still_ours(db, message_id, ticket, allow_cancelled=True)
+        if row is None:
             stats["lost"] += 1
             continue
+        if row.status == "cancelled" and result.status != "sent":
+            if result.error == "gmail_delivery_uncertain":
+                row.last_error = result.error
+                db.commit()
+            stats["cancelled"] += 1
+            continue
+        # A cancellation cannot recall a message already accepted by the provider.
         if result.status == "sent":
             row.provider = result.provider
             row.provider_message_id = result.provider_message_id
@@ -222,6 +282,15 @@ def run_once(
             _finish_sent(row, result.provider, result.provider_message_id, now)
             db.commit()
             stats["sent"] += 1
+        elif result.error == "gmail_delivery_uncertain":
+            # Acceptance may have happened. Leave this for reconciliation, never auto-resend.
+            row.status = "failed"
+            row.provider = result.provider
+            row.locked_until = None
+            row.last_error = result.error
+            row.updated_at = now
+            db.commit()
+            stats["failed"] += 1
         elif result.status == "captured":
             row.status = "captured"
             row.provider = result.provider

@@ -64,7 +64,8 @@ def test_worker_that_lost_its_lease_does_not_send_again(client, db, salon, monke
 
     def stalled_claim(*args, **kwargs):
         ids = real_claim(*args, **kwargs)
-        # this worker freezes past its lease; a second one takes the row over and delivers it
+        # A disconnected worker loses its session lock; the next worker may recover its lease.
+        kwargs["_locks"].close()
         monkeypatch.setattr(notification_worker, "claim_leases", real_claim)
         notification_worker.run_once(db, send, now=due + notification_worker.LEASE + timedelta(minutes=1))
         return ids
