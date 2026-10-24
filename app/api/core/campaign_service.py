@@ -320,7 +320,16 @@ def _clear_confirmation(campaign: Campaign) -> None:
     campaign.confirmed_by = None
 
 
+def _lock_campaign(db: Session, campaign: Campaign) -> Campaign:
+    # Endpoint lookups can be stale by the time a transition starts.
+    with db.no_autoflush:
+        return db.query(Campaign).filter(
+            Campaign.id == campaign.id, Campaign.business_id == campaign.business_id,
+        ).populate_existing().with_for_update().one()
+
+
 def update_campaign(db: Session, campaign: Campaign, fields: dict, locale: str) -> Campaign:
+    campaign = _lock_campaign(db, campaign)
     if campaign.status not in ("draft", "confirmed"):
         raise HTTPException(status_code=409, detail=_("campaign_locked", locale))
     for key, value in fields.items():
@@ -341,6 +350,7 @@ def confirm_campaign(
     now: Optional[datetime] = None,
     seen: Optional[tuple[str, str]] = None,
 ) -> Campaign:
+    campaign = _lock_campaign(db, campaign)
     if campaign.status not in ("draft", "confirmed"):
         raise HTTPException(status_code=409, detail=_("campaign_locked", locale))
     now = now or utcnow()
@@ -440,12 +450,16 @@ def dispatch_campaign(
     locale: str,
     now: Optional[datetime] = None,
 ) -> Campaign:
+    campaign = _lock_campaign(db, campaign)
     if campaign.status == "draft":
         raise HTTPException(status_code=409, detail=_("campaign_not_confirmed", locale))
     if campaign.status in ("sent", "cancelled"):
         raise HTTPException(status_code=409, detail=_("campaign_not_sendable", locale))
     if campaign.status == "sending":
         return campaign
+
+    if not campaign.content_hash or campaign.content_hash != content_hash(campaign):
+        raise HTTPException(status_code=409, detail=_("campaign_preview_stale", locale))
 
     provider_ready, notifications_enabled = send_readiness(db, campaign.business_id)
     if not notifications_enabled:
@@ -517,6 +531,7 @@ def cancel_campaign(
     locale: str,
     now: Optional[datetime] = None,
 ) -> Campaign:
+    campaign = _lock_campaign(db, campaign)
     if campaign.status == "sent":
         raise HTTPException(status_code=409, detail=_("campaign_already_sent", locale))
     if campaign.status == "cancelled":
@@ -550,6 +565,7 @@ def campaign_stats(
     campaign: Campaign,
     now: Optional[datetime] = None,
 ) -> dict:
+    campaign = _lock_campaign(db, campaign)
     rows = (
         db.query(NotificationOutbox.status, func.count(NotificationOutbox.id))
         .filter(NotificationOutbox.campaign_id == campaign.id)
@@ -610,6 +626,8 @@ def campaign_delivery_block(
         return "campaign_missing"
     if campaign.status == "cancelled":
         return "campaign_cancelled"
+    if not campaign.content_hash or campaign.content_hash != content_hash(campaign):
+        return "campaign_content_changed"
     payload = row.payload or {}
     consent = (
         db.get(MarketingConsent, payload.get("consent_id"))
