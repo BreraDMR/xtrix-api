@@ -12,7 +12,7 @@ from app.api.core.pagination import MAX_PAGE, PaginationParams, PaginatedRespons
 from app.api.core.permissions import can_view_financials
 from app.api.core.soft_delete import hard_delete, restore_soft_deleted, soft_delete
 from app.db.models.client import Client
-from app.api.core.slots import find_next_available_slot
+from app.api.core.slot_search import find_staff_slot
 from app.api.crud import crud_visit, crud_schedule
 from app.api.core.visit_chain import ChainError
 from app.db.models.service import Service
@@ -226,9 +226,9 @@ def visits_list(
 def next_available_slot(
     specialist_id: int,
     service_id: Optional[int] = None,
-    duration_minutes: Optional[int] = None,
-    work_start: str = "09:00",
-    work_end: str = "18:00",
+    duration_minutes: Optional[int] = Query(None, ge=1, le=1440),
+    work_start: Optional[str] = None,
+    work_end: Optional[str] = None,
     break_start: Optional[str] = None,
     break_end: Optional[str] = None,
     db: Session = Depends(deps.get_db),
@@ -237,44 +237,29 @@ def next_available_slot(
 ):
     if current_user.role != "admin" and specialist_id != current_user.id:
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    if not duration_minutes and service_id:
-        service = db.query(Service).filter(Service.id == service_id).first()
-        duration_minutes = service.duration_minutes if service and service.duration_minutes else 60
-    duration_minutes = duration_minutes or 60
-    visits, _total = crud_visit.list_visits(
-        db,
-        specialist_id=specialist_id,
-        include_deleted=False,
-        include_archived=False,
-    )
-    existing = []
-    for v in visits:
-        if v.date_end:
-            end = v.date_end
-        else:
-            end = v.date_start + timedelta(minutes=duration_minutes)
-        existing.append((v.date_start, end))
-    schedules = crud_schedule.list_work_schedules(db, specialist_id)
-    blocks = crud_schedule.list_block_slots(db, specialist_id)
-    exceptions = crud_schedule.list_schedule_exceptions(db, specialist_id)
-    schedule_tuples = [(s.weekday, s.start_time, s.end_time) for s in schedules] if schedules else None
-    block_tuples = [(b.start, b.end) for b in blocks] if blocks else None
-    exception_tuples = (
-        [(e.exception_date, e.start_time, e.end_time) for e in exceptions] if exceptions else None
-    )
-    slot = find_next_available_slot(
-        existing,
-        duration_minutes,
-        workday_start=_parse_time(work_start),
-        workday_end=_parse_time(work_end),
-        breaks=_build_breaks(break_start, break_end),
-        schedule=schedule_tuples,
-        blocks=block_tuples,
-        exceptions=exception_tuples,
-    )
+    from app.api.core.permissions import check_service_access, check_specialist_in_scope
+    from app.schemas.datetimes import utc_iso
+    if not check_specialist_in_scope(db, current_user, specialist_id):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    service = db.get(Service, service_id) if service_id else None
+    if service_id and (service is None or not check_service_access(db, current_user, service)):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    minutes = duration_minutes or (service.duration_minutes if service else None) or 60
+    try:
+        start = _parse_time(work_start) if work_start else None
+        end = _parse_time(work_end) if work_end else None
+        if (start and end and start >= end) or bool(break_start) != bool(break_end):
+            raise ValueError("invalid time range")
+        breaks = _build_breaks(break_start, break_end)
+        if any(left >= right for left, right in breaks or []):
+            raise ValueError("invalid break")
+    except ValueError:
+        raise HTTPException(status_code=422, detail=_("invalid_time_range", locale))
+    slot = find_staff_slot(db, specialist_id, service=service, duration_minutes=minutes,
+                          now=utcnow(), work_start=start, work_end=end, breaks=breaks)
     if not slot:
         raise HTTPException(status_code=404, detail=_("no_slot", locale))
-    return {"next_slot": slot}
+    return {"next_slot": utc_iso(slot)}
 @router.get("/reminders")
 def visits_for_reminders(
     db: Session = Depends(deps.get_db),

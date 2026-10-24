@@ -8,16 +8,18 @@ from app.ai.display import describe_plan
 from app.ai.plan import AssistantPlan
 from app.api.crud import crud_user
 from app.db.models.medical_profile import MedicalProfile
-from tests.tenant_world import build_tenant
+from tests.tenant_world import build_tenant, configure_owner_schedule
 
 EMPTY = {"client_name": None, "service_name": None, "specialist_name": None, "start_time": None,
          "end_time": None, "note": None}
 
 
 @pytest.fixture
-def ab(client, make_user, headers_for):
+def ab(client, db, make_user, headers_for):
     a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
     b = build_tenant(client, make_user, headers_for, "Beta", "+42070022")
+    for tenant in (a, b):
+        configure_owner_schedule(db, tenant)
     return a, b
 
 

@@ -27,8 +27,7 @@ from app.api.core.permissions import (
     check_service_access,
     check_specialist_in_scope,
 )
-from app.api.core.slots import find_next_available_slot
-from app.api.crud import crud_schedule
+from app.api.core.slot_search import find_staff_slot
 from app.db.models.service import Service
 from app.db.models.user import User
 from app.db.models.visit import Visit
@@ -209,32 +208,11 @@ class _Run:
         minutes = a.duration_minutes or (service.duration_minutes if service and service.duration_minutes
                                          else DEFAULT_MINUTES)
         start_utc = max(self.now, to_naive_utc(a.not_before)) if a.not_before else self.now
-        horizon = start_utc + timedelta(days=a.days_ahead + 1)
-        busy = self.db.query(Visit).filter(
-            Visit.specialist_id == specialist_id,
-            Visit.deleted_at.is_(None),
-            Visit.status != "cancelled",
-            Visit.date_start < horizon,
-            Visit.date_start > start_utc - timedelta(days=1),
-        ).all()
-        existing = [(self.to_local(v.date_start),
-                     self.to_local(v.date_end or v.date_start + timedelta(hours=1))) for v in busy]
-        blocks = [(self.to_local(b.start), self.to_local(b.end))
-                  for b in crud_schedule.list_block_slots(self.db, specialist_id)]
-        schedule = [(s.weekday, s.start_time, s.end_time)
-                    for s in crud_schedule.list_work_schedules(self.db, specialist_id)]
-        exceptions = [(e.exception_date, e.start_time, e.end_time)
-                      for e in crud_schedule.list_schedule_exceptions(self.db, specialist_id)]
-        local_start = self.to_local(start_utc).replace(second=0, microsecond=0)
-        overshoot = local_start.minute % SLOT_STEP_MINUTES
-        if overshoot:
-            local_start += timedelta(minutes=SLOT_STEP_MINUTES - overshoot)
-        found = find_next_available_slot(existing, minutes, start_from=local_start, days_ahead=a.days_ahead,
-                                         step_minutes=SLOT_STEP_MINUTES, schedule=schedule or None,
-                                         blocks=blocks or None, exceptions=exceptions or None)
-        if not found:
+        start = find_staff_slot(self.db, specialist_id, service=service, duration_minutes=minutes,
+                                start_from=start_utc, days_ahead=a.days_ahead, now=self.now,
+                                timezone_name=str(self.tz))
+        if not start:
             raise ActionFailed(404, "no_slot")
-        start = self.to_utc(found)
         return {"start": _iso(start), "end": _iso(start + timedelta(minutes=minutes)),
                 "specialist_id": specialist_id, "service_id": service.id if service else None,
                 "duration_minutes": minutes}

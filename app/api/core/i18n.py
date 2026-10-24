@@ -695,6 +695,11 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Недостаточно прав",
         "cz": "Nedostatečná oprávnění",
     },
+    "invalid_time_range": {
+        "en": "Enter valid working hours and breaks, with the end after the start.",
+        "ru": "Укажите корректное рабочее время и перерывы: конец должен быть позже начала.",
+        "cz": "Zadejte platnou pracovní dobu a přestávky, s koncem po začátku.",
+    },
     "date_range_invalid": {
         "en": "The end of the range cannot be earlier than its start",
         "ru": "Конец диапазона не может быть раньше начала",
@@ -1134,6 +1139,11 @@ messages: Dict[str, Dict[str, str]] = {
         "en": "This import batch can no longer be changed",
         "ru": "Этот пакет импорта больше нельзя изменить",
         "cz": "Tuto dávku importu už nelze změnit",
+    },
+    "import_source_expired": {
+        "en": "The source file expired. Upload the same file again to change the mapping or preview.",
+        "ru": "Срок хранения исходного файла истёк. Загрузите тот же файл снова, чтобы изменить сопоставление или предпросмотр.",
+        "cz": "Platnost zdrojového souboru vypršela. Pro změnu mapování nebo náhledu nahrajte stejný soubor znovu.",
     },
     "import_preview_required": {
         "en": "Build a preview before confirming the import",

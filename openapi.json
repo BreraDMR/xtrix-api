@@ -38447,6 +38447,8 @@
             "schema": {
               "anyOf": [
                 {
+                  "maximum": 1440,
+                  "minimum": 1,
                   "type": "integer"
                 },
                 {
@@ -38461,9 +38463,15 @@
             "name": "work_start",
             "required": false,
             "schema": {
-              "default": "09:00",
-              "title": "Work Start",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Work Start"
             }
           },
           {
@@ -38471,9 +38479,15 @@
             "name": "work_end",
             "required": false,
             "schema": {
-              "default": "18:00",
-              "title": "Work End",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Work End"
             }
           },
           {

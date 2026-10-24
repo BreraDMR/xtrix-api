@@ -85,3 +85,16 @@ def build_tenant(client, make_user, headers_for, name, phone_prefix):
         "amount": 100, "payment_date": datetime.utcnow().isoformat(), "payment_method": "cash", "notes": f"{name} payment",
     }, headers=h), "salary payment")
     return t
+
+
+def configure_owner_schedule(db, tenant):
+    """Slot-search fixtures need explicit hours; an absent schedule is closed."""
+    from datetime import time
+    from app.db.models.business import Business
+    from app.db.models.work_schedule import WorkSchedule
+    business = db.get(Business, tenant['business']['id'])
+    business.timezone = 'UTC'
+    business.booking_horizon_days = 365
+    db.add_all([WorkSchedule(specialist_id=tenant['owner'].id, weekday=day,
+                            start_time=time(9), end_time=time(18)) for day in range(7)])
+    db.commit()

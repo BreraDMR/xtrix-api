@@ -49,7 +49,9 @@ def find_next_available_slot(
                             conflict = True
                             slot = br_e
                             break
-                    if conflict:
+                    else:
+                        br_e = None
+                    if br_e is not None:
                         continue
                 if blocks:
                     for blk_start, blk_end in blocks:
@@ -57,7 +59,9 @@ def find_next_available_slot(
                             conflict = True
                             slot = blk_end
                             break
-                    if conflict:
+                    else:
+                        blk_end = None
+                    if blk_end is not None:
                         continue
                 if not conflict:
                     return slot

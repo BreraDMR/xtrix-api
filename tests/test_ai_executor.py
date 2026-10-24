@@ -13,13 +13,15 @@ from app.db.models.client_business_relation import ClientBusinessRelation
 from app.db.models.employee import Employee
 from app.db.models.medical_profile import MedicalProfile
 from app.db.models.visit import Visit
-from tests.tenant_world import build_tenant
+from tests.tenant_world import build_tenant, configure_owner_schedule
 
 
 @pytest.fixture
-def ab(client, make_user, headers_for):
+def ab(client, db, make_user, headers_for):
     a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
     b = build_tenant(client, make_user, headers_for, "Beta", "+42070022")
+    for tenant in (a, b):
+        configure_owner_schedule(db, tenant)
     return a, b
 
 
@@ -63,6 +65,9 @@ def test_new_client_earliest_slot_and_visit(db, ab):
 
 def test_slot_search_uses_local_working_hours(db, ab):
     a, _ = ab
+    from app.db.models.business import Business
+    db.get(Business, a["business"]["id"]).timezone = "Europe/Prague"
+    db.commit()
     # Prague is UTC+1 in winter: the first 09:00 local slot is 08:00 UTC
     not_before = datetime(2026, 12, 1, 0, 0, tzinfo=timezone.utc)
     result = run(db, a["owner"], {"action": "find_free_slot", "duration_minutes": 30,
