@@ -70,3 +70,5 @@ from app.db.models.gift import (
     GiftOrder,
     GiftPaymentEvent,
 )
+
+from app.db.models.visitor_account import VisitorAccount, VisitorGoogleIdentity
