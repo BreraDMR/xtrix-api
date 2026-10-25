@@ -72,3 +72,5 @@ from app.db.models.gift import (
 )
 
 from app.db.models.visitor_account import VisitorAccount, VisitorGoogleIdentity
+
+from app.db.models.visitor_auth import VisitorChallenge, VisitorSession

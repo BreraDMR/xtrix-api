@@ -19,7 +19,7 @@ def legacy_rows(bind):
     with bind.connect() as connection:
         return {table.name: sorted(json.dumps(dict(row), sort_keys=True, default=str)
                 for row in connection.execute(select(table)).mappings())
-                for table in metadata.sorted_tables if table.name not in NEW_TABLES | {"alembic_version"}}
+                for table in metadata.sorted_tables if table.name not in NEW_TABLES | {"visitor_challenges", "visitor_sessions", "alembic_version"}}
 
 
 def test_visitor_creation_does_not_create_or_modify_a_crm_identity(db, make_user):
@@ -47,7 +47,7 @@ def test_0078_0079_roundtrip_has_one_head_and_preserves_all_legacy_rows(db, make
     bind = db.get_bind()
     before = legacy_rows(bind)
     config = Config("alembic.ini")
-    assert ScriptDirectory.from_config(config).get_heads() == ["0079_visitor_accounts"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0080_visitor_auth_credentials"]
     try:
         command.downgrade(config, "0078_waitlist_open_range")
         assert not (NEW_TABLES & set(inspect(bind).get_table_names()))
