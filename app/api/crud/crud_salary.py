@@ -30,6 +30,9 @@ def calculate_salary(
         raise ValueError(f"Employee with id={employee_id} not found")
     if not employee.is_active:
         raise ValueError(f"Employee with id={employee_id} is not active")
+    business_id = employee.business_owner.business_id
+    if business_id is None:
+        raise ValueError("The employer must belong to a business to calculate salary")
     # Each master earns from their own items; the visit still counts once per master.
     own_items = select(func.sum(VisitItem.price)).where(
         VisitItem.visit_id == Visit.id,
@@ -37,6 +40,7 @@ def calculate_salary(
     ).correlate(Visit).scalar_subquery()
     legacy = ~Visit.items.any()
     visits_query = db.query(Visit).filter(
+        Visit.business_id == business_id,
         Visit.deleted_at.is_(None),
         Visit.date_start >= period_start,
         Visit.date_start < period_end,
