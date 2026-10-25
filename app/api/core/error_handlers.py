@@ -46,7 +46,8 @@ def create_error_response(
                 "path": request.url.path,
                 "query_params": _redact(dict(request.query_params)),
                 "headers": {
-                    k: "***" if k.lower() in SECRET_HEADERS else v
+                    k: "***" if (k.lower() in SECRET_HEADERS
+                                 or any(part in k.lower() for part in SECRET_KEY_PARTS)) else v
                     for k, v in request.headers.items()
                 },
                 "client": {
