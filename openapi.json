@@ -17596,6 +17596,24 @@
         "title": "VisitorLoginOut",
         "type": "object"
       },
+      "VisitorManageClaimIn": {
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "VisitorManageClaimIn",
+        "type": "object"
+      },
       "VisitorPasswordResetIn": {
         "additionalProperties": false,
         "properties": {
@@ -38738,6 +38756,74 @@
           }
         },
         "summary": "Request Registration",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/claims/manage": {
+      "post": {
+        "operationId": "claim_guest_visit_visitor_claims_manage_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorManageClaimIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Claim Guest Visit",
         "tags": [
           "visitor-account"
         ]

@@ -71,3 +71,9 @@ class VisitorGoogleLoginIn(InputModel):
 
 class VisitorGoogleLinkIn(VisitorGoogleLoginIn):
     pass
+
+
+class VisitorManageClaimIn(InputModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: SecretStr = Field(min_length=1, max_length=128, repr=False)

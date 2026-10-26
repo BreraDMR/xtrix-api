@@ -280,6 +280,16 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Сессия посетителя истекла или недействительна. Войдите снова.",
         "cz": "Relace návštěvníka vypršela nebo není platná. Přihlaste se znovu.",
     },
+    "visitor_manage_claim_invalid": {
+        "en": "This guest booking link cannot be attached to your account.",
+        "ru": "Не удалось присоединить запись по этой гостевой ссылке.",
+        "cz": "Rezervaci z tohoto odkazu nelze připojit k vašemu účtu.",
+    },
+    "visitor_manage_claim_conflict": {
+        "en": "This booking cannot be attached to your account. Contact the salon.",
+        "ru": "Не удалось присоединить запись к аккаунту. Обратитесь в салон.",
+        "cz": "Rezervaci nelze připojit k účtu. Kontaktujte salon.",
+    },
     "visitor_password_reset_requested": {
         "en": "Your password reset request has been accepted.",
         "ru": "Запрос восстановления пароля принят.",

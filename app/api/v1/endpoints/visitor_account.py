@@ -9,7 +9,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api import deps, visitor_deps
 from app.api.core import error_handlers, visitor_challenges, visitor_google_credentials, visitor_google_login
 from app.api.core import visitor_login_guard, visitor_passwords, visitor_registration, visitor_sessions
-from app.api.core import visitor_registration_mail, visitor_password_reset, visitor_reset_mail
+from app.api.core import visitor_registration_mail, visitor_password_reset, visitor_reset_mail, visitor_manage_claim
 from app.api.core import visitor_google_link, visitor_recent_auth
 from app.api.core.config import settings
 from app.api.core.i18n import _
@@ -18,7 +18,7 @@ from app.db.models.visitor_account import VisitorAccount, VisitorGoogleIdentity
 from app.db.models.visitor_auth import VisitorSession
 from app.schemas.visitor_account import VisitorAccountOut, VisitorLoginIn, VisitorLoginOut, VisitorRegistrationIn
 from app.schemas.visitor_account import VisitorGoogleLoginIn, VisitorGoogleNonceIn
-from app.schemas.visitor_account import VisitorGoogleLinkIn, VisitorPasswordResetIn
+from app.schemas.visitor_account import VisitorGoogleLinkIn, VisitorPasswordResetIn, VisitorManageClaimIn
 from app.schemas.visitor_account import VisitorRegistrationRequestIn, VisitorRegistrationRequestOut
 from app.schemas.google_identity import GoogleConfigOut, GoogleNonceOut
 
@@ -250,6 +250,28 @@ def confirm_password_reset(request: Request, body: VisitorPasswordResetIn,
     except visitor_password_reset.InvalidResetPassword:
         db.rollback()
         raise HTTPException(status_code=422, detail=_("visitor_registration_password_invalid", locale)) from None
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.post("/claims/manage", status_code=204, response_class=Response)
+@limiter.limit(LOGIN_LIMIT)
+def claim_guest_visit(request: Request, body: VisitorManageClaimIn,
+                      _actor: VisitorSession = Depends(visitor_deps.get_visitor_session),
+                      db: Session = Depends(deps.get_db),
+                      locale: str = Depends(deps.get_locale)) -> Response:
+    try:
+        visitor_manage_claim.consume_guest_manage(
+            db, request.headers.get("X-Visitor-Token"), body.token.get_secret_value())
+    except visitor_manage_claim.InvalidVisitorSession:
+        db.rollback()
+        raise HTTPException(status_code=401, detail=_("visitor_session_invalid", locale)) from None
+    except visitor_manage_claim.InvalidManageClaim:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=_("visitor_manage_claim_invalid", locale)) from None
+    except visitor_manage_claim.ManageClaimConflict:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=_("visitor_manage_claim_conflict", locale)) from None
     db.commit()
     return Response(status_code=204)
 
