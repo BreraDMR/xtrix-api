@@ -1,15 +1,18 @@
 """Read the visitor's account and revoke sessions without entering CRM auth."""
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.routing import APIRoute
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import deps, visitor_deps
-from app.api.core import visitor_sessions
+from app.api.core import error_handlers, visitor_login_guard, visitor_passwords, visitor_sessions
 from app.api.core.i18n import _
+from app.api.middleware.rate_limit import LOGIN_LIMIT, client_ip, limiter, rate_limit_exceeded_handler
 from app.db.models.visitor_account import VisitorAccount, VisitorGoogleIdentity
 from app.db.models.visitor_auth import VisitorSession
-from app.schemas.visitor_account import VisitorAccountOut
+from app.schemas.visitor_account import VisitorAccountOut, VisitorLoginIn, VisitorLoginOut
 
 
 class _NoStoreRoute(APIRoute):
@@ -19,6 +22,10 @@ class _NoStoreRoute(APIRoute):
         async def private_response(request: Request) -> Response:
             try:
                 response = await original(request)
+            except RequestValidationError as exc:
+                response = await error_handlers.validation_exception_handler(request, exc)
+            except RateLimitExceeded as exc:
+                response = rate_limit_exceeded_handler(request, exc)
             except StarletteHTTPException as exc:
                 # Dependency failures use the same no-store policy as successful reads.
                 exc.headers = {**(exc.headers or {}), "Cache-Control": "no-store"}
@@ -30,6 +37,42 @@ class _NoStoreRoute(APIRoute):
 
 
 router = APIRouter(route_class=_NoStoreRoute)
+
+
+def _check_login_limit(email: str, ip: str) -> None:
+    try:
+        visitor_login_guard.check(email, ip)
+    except visitor_login_guard.LoginThrottled as exc:
+        raise HTTPException(status_code=429, detail="Too many login attempts",
+                            headers={"Retry-After": str(exc.retry_after)}) from None
+
+
+@router.post("/auth/login", response_model=VisitorLoginOut)
+@limiter.limit(LOGIN_LIMIT)
+def login(request: Request, body: VisitorLoginIn, db: Session = Depends(deps.get_db),
+          locale: str = Depends(deps.get_locale)) -> VisitorLoginOut:
+    email, ip = body.email, client_ip(request)
+    _check_login_limit(email, ip)
+    account_id = db.query(VisitorAccount.id).filter(VisitorAccount.email_canonical == email).scalar()
+    account = None
+    if account_id is not None:
+        try:
+            account = visitor_sessions.lock_verified_account(db, account_id)
+        except visitor_sessions.VisitorAccountUnavailable:
+            pass
+    # A reset or email change may have committed while this request waited for the lock.
+    _check_login_limit(email, ip)
+    current_email = account is not None and account.email_canonical == email
+    encoded = account.hashed_password if current_email else None
+    valid = visitor_passwords.verify_password(body.password.get_secret_value(), encoded)
+    if not current_email or not valid:
+        visitor_login_guard.failed(email, ip)
+        raise HTTPException(status_code=401, detail=_("invalid_credentials", locale))
+    session, raw = visitor_sessions.create_session(db, account)
+    expires_at = session.expires_at
+    db.commit()
+    visitor_login_guard.succeeded(email, ip)
+    return VisitorLoginOut(session_token=raw, expires_at=expires_at)
 
 
 @router.get("/me", response_model=VisitorAccountOut)

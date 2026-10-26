@@ -110,7 +110,7 @@ def too_many_requests(retry: int) -> JSONResponse:
         status_code=429,
         content={"error": {"message": f"Too many requests, try again in {retry} s",
                            "status_code": 429, "type": "RateLimitExceeded"}},
-        headers={"Retry-After": str(retry)},
+        headers={"Retry-After": str(retry), "Cache-Control": "no-store"},
     )
 
 

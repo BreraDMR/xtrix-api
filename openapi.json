@@ -17492,6 +17492,50 @@
         "title": "VisitorAccountOut",
         "type": "object"
       },
+      "VisitorLoginIn": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "maxLength": 320,
+            "minLength": 1,
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "VisitorLoginIn",
+        "type": "object"
+      },
+      "VisitorLoginOut": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "session_token": {
+            "title": "Session Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_token",
+          "expires_at"
+        ],
+        "title": "VisitorLoginOut",
+        "type": "object"
+      },
       "WaitlistEntryOut": {
         "properties": {
           "created_at": {
@@ -37899,6 +37943,65 @@
         "summary": "Unlock User Account",
         "tags": [
           "users"
+        ]
+      }
+    },
+    "/visitor/auth/login": {
+      "post": {
+        "operationId": "login_visitor_auth_login_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorLoginIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorLoginOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "visitor-account"
         ]
       }
     },
