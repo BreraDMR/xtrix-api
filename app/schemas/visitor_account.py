@@ -37,3 +37,14 @@ class VisitorRegistrationIn(InputModel):
 
     token: SecretStr = Field(min_length=1, max_length=128, repr=False)
     new_password: SecretStr = Field(min_length=1, max_length=128, repr=False)
+
+
+class VisitorGoogleNonceIn(InputModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class VisitorGoogleLoginIn(InputModel):
+    model_config = ConfigDict(extra="forbid")
+
+    credential: SecretStr = Field(min_length=1, max_length=16384, repr=False)
+    nonce: SecretStr = Field(min_length=1, max_length=128, repr=False)

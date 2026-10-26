@@ -1,4 +1,4 @@
-"""Read the visitor's account and revoke sessions without entering CRM auth."""
+"""Visitor identity and sessions stay independent from CRM authentication."""
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.routing import APIRoute
@@ -7,12 +7,16 @@ from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import deps, visitor_deps
-from app.api.core import error_handlers, visitor_login_guard, visitor_passwords, visitor_registration, visitor_sessions
+from app.api.core import error_handlers, visitor_challenges, visitor_google_credentials, visitor_google_login
+from app.api.core import visitor_login_guard, visitor_passwords, visitor_registration, visitor_sessions
+from app.api.core.config import settings
 from app.api.core.i18n import _
 from app.api.middleware.rate_limit import LOGIN_LIMIT, PASSWORD_RESET_CONFIRM_LIMIT, client_ip, limiter, rate_limit_exceeded_handler
 from app.db.models.visitor_account import VisitorAccount, VisitorGoogleIdentity
 from app.db.models.visitor_auth import VisitorSession
 from app.schemas.visitor_account import VisitorAccountOut, VisitorLoginIn, VisitorLoginOut, VisitorRegistrationIn
+from app.schemas.visitor_account import VisitorGoogleLoginIn, VisitorGoogleNonceIn
+from app.schemas.google_identity import GoogleConfigOut, GoogleNonceOut
 
 
 class _NoStoreRoute(APIRoute):
@@ -37,6 +41,59 @@ class _NoStoreRoute(APIRoute):
 
 
 router = APIRouter(route_class=_NoStoreRoute)
+
+
+def _google_origin(request: Request, locale: str) -> str:
+    if not settings.google_client_id.strip():
+        raise HTTPException(status_code=503, detail=_("visitor_google_unavailable", locale))
+    origin = request.headers.get("origin")
+    if not visitor_google_login.is_allowed_origin(origin):
+        raise HTTPException(status_code=403, detail=_("visitor_google_origin_invalid", locale))
+    return origin
+
+
+@router.get("/auth/google/config", response_model=GoogleConfigOut)
+def google_config() -> GoogleConfigOut:
+    client_id = settings.google_client_id.strip()
+    return GoogleConfigOut(enabled=bool(client_id), client_id=client_id or None)
+
+
+@router.post("/auth/google/nonce", response_model=GoogleNonceOut)
+@limiter.limit(LOGIN_LIMIT)
+def google_nonce(request: Request, body: VisitorGoogleNonceIn,
+                 db: Session = Depends(deps.get_db),
+                 locale: str = Depends(deps.get_locale)) -> GoogleNonceOut:
+    origin = _google_origin(request, locale)
+    proof = visitor_challenges.issue_challenge(db, "google_login", origin=origin)
+    expires_in = int((proof.row.expires_at - proof.row.created_at).total_seconds())
+    db.commit()
+    return GoogleNonceOut(nonce=proof.raw_token, expires_in=expires_in)
+
+
+@router.post("/auth/google/login", response_model=VisitorLoginOut)
+@limiter.limit(LOGIN_LIMIT)
+def google_login(request: Request, body: VisitorGoogleLoginIn,
+                 db: Session = Depends(deps.get_db),
+                 locale: str = Depends(deps.get_locale)) -> VisitorLoginOut:
+    origin = _google_origin(request, locale)
+    raw_nonce = body.nonce.get_secret_value()
+    try:
+        claims = visitor_google_credentials.verify_credential(body.credential.get_secret_value(), raw_nonce)
+        result = visitor_google_login.login(db, raw_nonce, origin, claims)
+    except visitor_google_credentials.GoogleVerificationUnavailable:
+        db.rollback()
+        raise HTTPException(status_code=503, detail=_("visitor_google_unavailable", locale)) from None
+    except (visitor_google_credentials.InvalidGoogleCredential, visitor_google_login.InvalidGoogleLogin):
+        db.rollback()
+        raise HTTPException(status_code=401, detail=_("visitor_google_invalid", locale)) from None
+    except visitor_google_login.GoogleEmailCollision:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=_("visitor_google_link_required", locale)) from None
+    except visitor_google_login.GoogleLoginConflict:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=_("visitor_google_retry", locale)) from None
+    db.commit()
+    return VisitorLoginOut(session_token=result.raw_session_token, expires_at=result.expires_at)
 
 
 def _check_login_limit(email: str, ip: str) -> None:

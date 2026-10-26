@@ -295,6 +295,31 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Не удалось завершить регистрацию. Войдите или восстановите доступ.",
         "cz": "Registraci nelze dokončit. Přihlaste se nebo obnovte přístup.",
     },
+    "visitor_google_unavailable": {
+        "en": "Google sign-in is temporarily unavailable. Try again later.",
+        "ru": "Вход через Google временно недоступен. Попробуйте позже.",
+        "cz": "Přihlášení přes Google je dočasně nedostupné. Zkuste to později.",
+    },
+    "visitor_google_origin_invalid": {
+        "en": "This website is not allowed to use Google sign-in.",
+        "ru": "Этот адрес сайта не разрешён для входа через Google.",
+        "cz": "Tato webová adresa nemá povolené přihlášení přes Google.",
+    },
+    "visitor_google_invalid": {
+        "en": "Google sign-in could not be verified. Try signing in again.",
+        "ru": "Не удалось подтвердить вход через Google. Повторите вход.",
+        "cz": "Přihlášení přes Google nelze ověřit. Přihlaste se znovu.",
+    },
+    "visitor_google_link_required": {
+        "en": "Sign in to your existing account before linking Google.",
+        "ru": "Сначала войдите в существующий аккаунт, затем привяжите Google.",
+        "cz": "Nejprve se přihlaste ke stávajícímu účtu a pak propojte Google.",
+    },
+    "visitor_google_retry": {
+        "en": "The account changed during sign-in. Try signing in again.",
+        "ru": "Аккаунт изменился во время входа. Повторите вход.",
+        "cz": "Účet se během přihlašování změnil. Přihlaste se znovu.",
+    },
     "portal_session_invalid": {
         "en": "The client session is invalid or has expired",
         "ru": "Клиентская сессия недействительна или истекла",
