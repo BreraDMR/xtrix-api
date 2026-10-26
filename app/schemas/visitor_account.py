@@ -1,5 +1,5 @@
 """The visitor can read only their own account's public security state."""
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr, TypeAdapter, field_validator
 
 from app.db.models.visitor_account import canonical_visitor_email
 from app.schemas.base import InputModel
@@ -37,6 +37,21 @@ class VisitorRegistrationIn(InputModel):
 
     token: SecretStr = Field(min_length=1, max_length=128, repr=False)
     new_password: SecretStr = Field(min_length=1, max_length=128, repr=False)
+
+
+class VisitorRegistrationRequestIn(InputModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=1, max_length=320)
+
+    @field_validator("email")
+    @classmethod
+    def canonical_email(cls, value: str) -> str:
+        return canonical_visitor_email(str(TypeAdapter(EmailStr).validate_python(value)))
+
+
+class VisitorRegistrationRequestOut(BaseModel):
+    message: str
 
 
 class VisitorGoogleNonceIn(InputModel):

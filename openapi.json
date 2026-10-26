@@ -17596,6 +17596,35 @@
         "title": "VisitorRegistrationIn",
         "type": "object"
       },
+      "VisitorRegistrationRequestIn": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "maxLength": 320,
+            "minLength": 1,
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "VisitorRegistrationRequestIn",
+        "type": "object"
+      },
+      "VisitorRegistrationRequestOut": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "VisitorRegistrationRequestOut",
+        "type": "object"
+      },
       "WaitlistEntryOut": {
         "properties": {
           "created_at": {
@@ -38342,6 +38371,65 @@
           }
         },
         "summary": "Complete Registration",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/auth/register/request": {
+      "post": {
+        "operationId": "request_registration_visitor_auth_register_request_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorRegistrationRequestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorRegistrationRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Request Registration",
         "tags": [
           "visitor-account"
         ]

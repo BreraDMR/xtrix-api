@@ -9,13 +9,15 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api import deps, visitor_deps
 from app.api.core import error_handlers, visitor_challenges, visitor_google_credentials, visitor_google_login
 from app.api.core import visitor_login_guard, visitor_passwords, visitor_registration, visitor_sessions
+from app.api.core import visitor_registration_mail
 from app.api.core.config import settings
 from app.api.core.i18n import _
-from app.api.middleware.rate_limit import LOGIN_LIMIT, PASSWORD_RESET_CONFIRM_LIMIT, client_ip, limiter, rate_limit_exceeded_handler
+from app.api.middleware.rate_limit import LOGIN_LIMIT, PASSWORD_RESET_CONFIRM_LIMIT, SIGNUP_LIMIT, client_ip, limiter, rate_limit_exceeded_handler
 from app.db.models.visitor_account import VisitorAccount, VisitorGoogleIdentity
 from app.db.models.visitor_auth import VisitorSession
 from app.schemas.visitor_account import VisitorAccountOut, VisitorLoginIn, VisitorLoginOut, VisitorRegistrationIn
 from app.schemas.visitor_account import VisitorGoogleLoginIn, VisitorGoogleNonceIn
+from app.schemas.visitor_account import VisitorRegistrationRequestIn, VisitorRegistrationRequestOut
 from app.schemas.google_identity import GoogleConfigOut, GoogleNonceOut
 
 
@@ -130,6 +132,22 @@ def login(request: Request, body: VisitorLoginIn, db: Session = Depends(deps.get
     db.commit()
     visitor_login_guard.succeeded(email, ip)
     return VisitorLoginOut(session_token=raw, expires_at=expires_at)
+
+
+@router.post("/auth/register/request", status_code=202, response_model=VisitorRegistrationRequestOut)
+@limiter.limit(SIGNUP_LIMIT)
+def request_registration(request: Request, body: VisitorRegistrationRequestIn,
+                         db: Session = Depends(deps.get_db),
+                         locale: str = Depends(deps.get_locale)) -> VisitorRegistrationRequestOut:
+    try:
+        prepared = visitor_registration_mail.prepare(db, body.email, locale)
+        db.commit()
+        if prepared is not None:
+            visitor_registration_mail.capture_after_commit(db, prepared)
+    except visitor_registration_mail.RegistrationMailUnavailable:
+        db.rollback()
+        raise HTTPException(status_code=503, detail=_("visitor_registration_mail_unavailable", locale)) from None
+    return VisitorRegistrationRequestOut(message=_("visitor_registration_requested", locale))
 
 
 @router.post("/auth/register/complete", status_code=201, response_model=VisitorLoginOut)

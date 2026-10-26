@@ -285,6 +285,16 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Ссылка регистрации недействительна, истекла или уже использована.",
         "cz": "Registrační odkaz je neplatný, vypršel nebo již byl použit.",
     },
+    "visitor_registration_requested": {
+        "en": "Your registration request has been accepted.",
+        "ru": "Запрос регистрации принят.",
+        "cz": "Žádost o registraci byla přijata.",
+    },
+    "visitor_registration_mail_unavailable": {
+        "en": "Email registration is temporarily unavailable. Try again later.",
+        "ru": "Регистрация по почте временно недоступна. Попробуйте позже.",
+        "cz": "Registrace e-mailem je dočasně nedostupná. Zkuste to později.",
+    },
     "visitor_registration_password_invalid": {
         "en": "The password does not meet the requirements. Choose another password.",
         "ru": "Пароль не соответствует требованиям. Выберите другой пароль.",
