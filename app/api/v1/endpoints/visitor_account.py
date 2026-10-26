@@ -9,7 +9,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api import deps, visitor_deps
 from app.api.core import error_handlers, visitor_challenges, visitor_google_credentials, visitor_google_login
 from app.api.core import visitor_login_guard, visitor_passwords, visitor_registration, visitor_sessions
-from app.api.core import visitor_registration_mail, visitor_password_reset
+from app.api.core import visitor_registration_mail, visitor_password_reset, visitor_reset_mail
 from app.api.core import visitor_google_link, visitor_recent_auth
 from app.api.core.config import settings
 from app.api.core.i18n import _
@@ -218,6 +218,22 @@ def complete_registration(request: Request, body: VisitorRegistrationIn,
     expires_at = result.session.expires_at
     db.commit()
     return VisitorLoginOut(session_token=result.raw_session_token, expires_at=expires_at)
+
+
+@router.post("/auth/password/reset/request", status_code=202, response_model=VisitorRegistrationRequestOut)
+@limiter.limit(SIGNUP_LIMIT)
+def request_password_reset(request: Request, body: VisitorRegistrationRequestIn,
+                           db: Session = Depends(deps.get_db),
+                           locale: str = Depends(deps.get_locale)) -> VisitorRegistrationRequestOut:
+    try:
+        prepared = visitor_reset_mail.prepare(db, body.email, locale)
+        db.commit()
+        if prepared is not None:
+            visitor_reset_mail.capture_after_commit(db, prepared)
+    except visitor_reset_mail.ResetMailUnavailable:
+        db.rollback()
+        raise HTTPException(status_code=503, detail=_("visitor_password_reset_unavailable", locale)) from None
+    return VisitorRegistrationRequestOut(message=_("visitor_password_reset_requested", locale))
 
 
 @router.post("/auth/password/reset/confirm", status_code=204, response_class=Response)

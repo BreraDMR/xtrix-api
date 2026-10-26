@@ -280,6 +280,16 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Сессия посетителя истекла или недействительна. Войдите снова.",
         "cz": "Relace návštěvníka vypršela nebo není platná. Přihlaste se znovu.",
     },
+    "visitor_password_reset_requested": {
+        "en": "Your password reset request has been accepted.",
+        "ru": "Запрос восстановления пароля принят.",
+        "cz": "Žádost o obnovení hesla byla přijata.",
+    },
+    "visitor_password_reset_unavailable": {
+        "en": "Password recovery is temporarily unavailable. Try again later.",
+        "ru": "Восстановление пароля временно недоступно. Попробуйте позже.",
+        "cz": "Obnovení hesla je dočasně nedostupné. Zkuste to později.",
+    },
     "visitor_password_reset_invalid": {
         "en": "The password reset link is invalid, expired or has already been used.",
         "ru": "Ссылка восстановления пароля недействительна, истекла или уже использована.",
