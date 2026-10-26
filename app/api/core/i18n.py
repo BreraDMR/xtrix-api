@@ -280,6 +280,11 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Сессия посетителя истекла или недействительна. Войдите снова.",
         "cz": "Relace návštěvníka vypršela nebo není platná. Přihlaste se znovu.",
     },
+    "visitor_password_reset_invalid": {
+        "en": "The password reset link is invalid, expired or has already been used.",
+        "ru": "Ссылка восстановления пароля недействительна, истекла или уже использована.",
+        "cz": "Odkaz pro obnovu hesla je neplatný, vypršel nebo již byl použit.",
+    },
     "visitor_registration_invalid": {
         "en": "The registration link is invalid, expired or has already been used.",
         "ru": "Ссылка регистрации недействительна, истекла или уже использована.",

@@ -39,6 +39,10 @@ class VisitorRegistrationIn(InputModel):
     new_password: SecretStr = Field(min_length=1, max_length=128, repr=False)
 
 
+class VisitorPasswordResetIn(VisitorRegistrationIn):
+    pass
+
+
 class VisitorRegistrationRequestIn(InputModel):
     model_config = ConfigDict(extra="forbid")
 

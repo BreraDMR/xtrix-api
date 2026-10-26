@@ -9,7 +9,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api import deps, visitor_deps
 from app.api.core import error_handlers, visitor_challenges, visitor_google_credentials, visitor_google_login
 from app.api.core import visitor_login_guard, visitor_passwords, visitor_registration, visitor_sessions
-from app.api.core import visitor_registration_mail
+from app.api.core import visitor_registration_mail, visitor_password_reset
 from app.api.core import visitor_google_link, visitor_recent_auth
 from app.api.core.config import settings
 from app.api.core.i18n import _
@@ -18,7 +18,7 @@ from app.db.models.visitor_account import VisitorAccount, VisitorGoogleIdentity
 from app.db.models.visitor_auth import VisitorSession
 from app.schemas.visitor_account import VisitorAccountOut, VisitorLoginIn, VisitorLoginOut, VisitorRegistrationIn
 from app.schemas.visitor_account import VisitorGoogleLoginIn, VisitorGoogleNonceIn
-from app.schemas.visitor_account import VisitorGoogleLinkIn
+from app.schemas.visitor_account import VisitorGoogleLinkIn, VisitorPasswordResetIn
 from app.schemas.visitor_account import VisitorRegistrationRequestIn, VisitorRegistrationRequestOut
 from app.schemas.google_identity import GoogleConfigOut, GoogleNonceOut
 
@@ -218,6 +218,24 @@ def complete_registration(request: Request, body: VisitorRegistrationIn,
     expires_at = result.session.expires_at
     db.commit()
     return VisitorLoginOut(session_token=result.raw_session_token, expires_at=expires_at)
+
+
+@router.post("/auth/password/reset/confirm", status_code=204, response_class=Response)
+@limiter.limit(PASSWORD_RESET_CONFIRM_LIMIT)
+def confirm_password_reset(request: Request, body: VisitorPasswordResetIn,
+                           db: Session = Depends(deps.get_db),
+                           locale: str = Depends(deps.get_locale)) -> Response:
+    try:
+        visitor_password_reset.confirm_reset(
+            db, body.token.get_secret_value(), body.new_password.get_secret_value())
+    except visitor_password_reset.InvalidResetProof:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=_("visitor_password_reset_invalid", locale)) from None
+    except visitor_password_reset.InvalidResetPassword:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=_("visitor_registration_password_invalid", locale)) from None
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.get("/me", response_model=VisitorAccountOut)
