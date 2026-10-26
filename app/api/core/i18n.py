@@ -275,6 +275,11 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Ссылка для входа недействительна, истекла или уже использована",
         "cz": "Tento odkaz pro přihlášení je neplatný, vypršel nebo byl již použit",
     },
+    "visitor_session_invalid": {
+        "en": "Your visitor session has expired or is invalid. Sign in again.",
+        "ru": "Сессия посетителя истекла или недействительна. Войдите снова.",
+        "cz": "Relace návštěvníka vypršela nebo není platná. Přihlaste se znovu.",
+    },
     "portal_session_invalid": {
         "en": "The client session is invalid or has expired",
         "ru": "Клиентская сессия недействительна или истекла",
