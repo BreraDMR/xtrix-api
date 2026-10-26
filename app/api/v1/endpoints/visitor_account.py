@@ -7,12 +7,12 @@ from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import deps, visitor_deps
-from app.api.core import error_handlers, visitor_login_guard, visitor_passwords, visitor_sessions
+from app.api.core import error_handlers, visitor_login_guard, visitor_passwords, visitor_registration, visitor_sessions
 from app.api.core.i18n import _
-from app.api.middleware.rate_limit import LOGIN_LIMIT, client_ip, limiter, rate_limit_exceeded_handler
+from app.api.middleware.rate_limit import LOGIN_LIMIT, PASSWORD_RESET_CONFIRM_LIMIT, client_ip, limiter, rate_limit_exceeded_handler
 from app.db.models.visitor_account import VisitorAccount, VisitorGoogleIdentity
 from app.db.models.visitor_auth import VisitorSession
-from app.schemas.visitor_account import VisitorAccountOut, VisitorLoginIn, VisitorLoginOut
+from app.schemas.visitor_account import VisitorAccountOut, VisitorLoginIn, VisitorLoginOut, VisitorRegistrationIn
 
 
 class _NoStoreRoute(APIRoute):
@@ -73,6 +73,28 @@ def login(request: Request, body: VisitorLoginIn, db: Session = Depends(deps.get
     db.commit()
     visitor_login_guard.succeeded(email, ip)
     return VisitorLoginOut(session_token=raw, expires_at=expires_at)
+
+
+@router.post("/auth/register/complete", status_code=201, response_model=VisitorLoginOut)
+@limiter.limit(PASSWORD_RESET_CONFIRM_LIMIT)
+def complete_registration(request: Request, body: VisitorRegistrationIn,
+                          db: Session = Depends(deps.get_db),
+                          locale: str = Depends(deps.get_locale)) -> VisitorLoginOut:
+    try:
+        result = visitor_registration.complete_registration(
+            db, body.token.get_secret_value(), body.new_password.get_secret_value())
+    except visitor_registration.InvalidRegistrationProof:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=_("visitor_registration_invalid", locale)) from None
+    except visitor_registration.InvalidRegistrationPassword:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=_("visitor_registration_password_invalid", locale)) from None
+    except visitor_registration.RegistrationConflict:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=_("visitor_registration_unavailable", locale)) from None
+    expires_at = result.session.expires_at
+    db.commit()
+    return VisitorLoginOut(session_token=result.raw_session_token, expires_at=expires_at)
 
 
 @router.get("/me", response_model=VisitorAccountOut)

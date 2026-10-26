@@ -30,3 +30,10 @@ class VisitorLoginIn(InputModel):
 class VisitorLoginOut(BaseModel):
     session_token: str
     expires_at: UtcDatetime
+
+
+class VisitorRegistrationIn(InputModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: SecretStr = Field(min_length=1, max_length=128, repr=False)
+    new_password: SecretStr = Field(min_length=1, max_length=128, repr=False)

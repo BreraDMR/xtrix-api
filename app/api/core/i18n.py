@@ -280,6 +280,21 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Сессия посетителя истекла или недействительна. Войдите снова.",
         "cz": "Relace návštěvníka vypršela nebo není platná. Přihlaste se znovu.",
     },
+    "visitor_registration_invalid": {
+        "en": "The registration link is invalid, expired or has already been used.",
+        "ru": "Ссылка регистрации недействительна, истекла или уже использована.",
+        "cz": "Registrační odkaz je neplatný, vypršel nebo již byl použit.",
+    },
+    "visitor_registration_password_invalid": {
+        "en": "The password does not meet the requirements. Choose another password.",
+        "ru": "Пароль не соответствует требованиям. Выберите другой пароль.",
+        "cz": "Heslo nesplňuje požadavky. Zvolte jiné heslo.",
+    },
+    "visitor_registration_unavailable": {
+        "en": "Registration could not be completed. Sign in or recover your account.",
+        "ru": "Не удалось завершить регистрацию. Войдите или восстановите доступ.",
+        "cz": "Registraci nelze dokončit. Přihlaste se nebo obnovte přístup.",
+    },
     "portal_session_invalid": {
         "en": "The client session is invalid or has expired",
         "ru": "Клиентская сессия недействительна или истекла",
