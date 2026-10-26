@@ -63,3 +63,7 @@ class VisitorGoogleLoginIn(InputModel):
 
     credential: SecretStr = Field(min_length=1, max_length=16384, repr=False)
     nonce: SecretStr = Field(min_length=1, max_length=128, repr=False)
+
+
+class VisitorGoogleLinkIn(VisitorGoogleLoginIn):
+    pass

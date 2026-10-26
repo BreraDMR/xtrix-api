@@ -330,6 +330,16 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Аккаунт изменился во время входа. Повторите вход.",
         "cz": "Účet se během přihlašování změnil. Přihlaste se znovu.",
     },
+    "visitor_recent_auth_required": {
+        "en": "Sign in again before changing your account security settings.",
+        "ru": "Повторите вход перед изменением настроек безопасности аккаунта.",
+        "cz": "Před změnou zabezpečení účtu se přihlaste znovu.",
+    },
+    "visitor_google_identity_in_use": {
+        "en": "This Google account is already linked to another visitor account.",
+        "ru": "Этот Google-аккаунт уже привязан к другому аккаунту посетителя.",
+        "cz": "Tento účet Google je již propojen s jiným účtem návštěvníka.",
+    },
     "portal_session_invalid": {
         "en": "The client session is invalid or has expired",
         "ru": "Клиентская сессия недействительна или истекла",

@@ -10,6 +10,7 @@ from app.api import deps, visitor_deps
 from app.api.core import error_handlers, visitor_challenges, visitor_google_credentials, visitor_google_login
 from app.api.core import visitor_login_guard, visitor_passwords, visitor_registration, visitor_sessions
 from app.api.core import visitor_registration_mail
+from app.api.core import visitor_google_link, visitor_recent_auth
 from app.api.core.config import settings
 from app.api.core.i18n import _
 from app.api.middleware.rate_limit import LOGIN_LIMIT, PASSWORD_RESET_CONFIRM_LIMIT, SIGNUP_LIMIT, client_ip, limiter, rate_limit_exceeded_handler
@@ -17,6 +18,7 @@ from app.db.models.visitor_account import VisitorAccount, VisitorGoogleIdentity
 from app.db.models.visitor_auth import VisitorSession
 from app.schemas.visitor_account import VisitorAccountOut, VisitorLoginIn, VisitorLoginOut, VisitorRegistrationIn
 from app.schemas.visitor_account import VisitorGoogleLoginIn, VisitorGoogleNonceIn
+from app.schemas.visitor_account import VisitorGoogleLinkIn
 from app.schemas.visitor_account import VisitorRegistrationRequestIn, VisitorRegistrationRequestOut
 from app.schemas.google_identity import GoogleConfigOut, GoogleNonceOut
 
@@ -104,6 +106,52 @@ def _check_login_limit(email: str, ip: str) -> None:
     except visitor_login_guard.LoginThrottled as exc:
         raise HTTPException(status_code=429, detail="Too many login attempts",
                             headers={"Retry-After": str(exc.retry_after)}) from None
+
+
+@router.post("/auth/google/link/nonce", response_model=GoogleNonceOut)
+@limiter.limit(LOGIN_LIMIT)
+def google_link_nonce(request: Request, body: VisitorGoogleNonceIn,
+                      _actor: VisitorSession = Depends(visitor_deps.get_visitor_session),
+                      db: Session = Depends(deps.get_db),
+                      locale: str = Depends(deps.get_locale)) -> GoogleNonceOut:
+    origin = _google_origin(request, locale)
+    try:
+        issued = visitor_google_link.issue_link_challenge(db, request.headers.get("X-Visitor-Token"), origin)
+    except visitor_recent_auth.VisitorReauthenticationRequired:
+        db.rollback()
+        raise HTTPException(status_code=403, detail=_("visitor_recent_auth_required", locale)) from None
+    except visitor_google_link.InvalidGoogleLink:
+        db.rollback()
+        raise HTTPException(status_code=401, detail=_("visitor_google_invalid", locale)) from None
+    expires_in = int((issued.row.expires_at - issued.row.created_at).total_seconds())
+    db.commit()
+    return GoogleNonceOut(nonce=issued.raw_token, expires_in=expires_in)
+
+
+@router.post("/auth/google/link", status_code=204, response_class=Response)
+@limiter.limit(LOGIN_LIMIT)
+def google_link(request: Request, body: VisitorGoogleLinkIn,
+                _actor: VisitorSession = Depends(visitor_deps.get_visitor_session),
+                db: Session = Depends(deps.get_db), locale: str = Depends(deps.get_locale)) -> Response:
+    origin = _google_origin(request, locale)
+    nonce = body.nonce.get_secret_value()
+    try:
+        claims = visitor_google_credentials.verify_credential(body.credential.get_secret_value(), nonce)
+        visitor_google_link.link(db, request.headers.get("X-Visitor-Token"), nonce, origin, claims)
+    except visitor_recent_auth.VisitorReauthenticationRequired:
+        db.rollback()
+        raise HTTPException(status_code=403, detail=_("visitor_recent_auth_required", locale)) from None
+    except visitor_google_credentials.GoogleVerificationUnavailable:
+        db.rollback()
+        raise HTTPException(status_code=503, detail=_("visitor_google_unavailable", locale)) from None
+    except (visitor_google_credentials.InvalidGoogleCredential, visitor_google_link.InvalidGoogleLink):
+        db.rollback()
+        raise HTTPException(status_code=401, detail=_("visitor_google_invalid", locale)) from None
+    except visitor_google_link.GoogleIdentityLinkConflict:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=_("visitor_google_identity_in_use", locale)) from None
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.post("/auth/login", response_model=VisitorLoginOut)

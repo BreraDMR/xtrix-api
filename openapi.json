@@ -17492,6 +17492,33 @@
         "title": "VisitorAccountOut",
         "type": "object"
       },
+      "VisitorGoogleLinkIn": {
+        "additionalProperties": false,
+        "properties": {
+          "credential": {
+            "format": "password",
+            "maxLength": 16384,
+            "minLength": 1,
+            "title": "Credential",
+            "type": "string",
+            "writeOnly": true
+          },
+          "nonce": {
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Nonce",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "credential",
+          "nonce"
+        ],
+        "title": "VisitorGoogleLinkIn",
+        "type": "object"
+      },
       "VisitorGoogleLoginIn": {
         "additionalProperties": false,
         "properties": {
@@ -38051,6 +38078,149 @@
           }
         },
         "summary": "Google Config",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/auth/google/link": {
+      "post": {
+        "operationId": "google_link_visitor_auth_google_link_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorGoogleLinkIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Google Link",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/auth/google/link/nonce": {
+      "post": {
+        "operationId": "google_link_nonce_visitor_auth_google_link_nonce_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorGoogleNonceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleNonceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Google Link Nonce",
         "tags": [
           "visitor-account"
         ]
