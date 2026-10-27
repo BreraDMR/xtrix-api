@@ -1,4 +1,6 @@
 """Read-only visitor history from exact grants, without CRM subscription gates."""
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request
 from sqlalchemy.orm import Session
 
@@ -26,16 +28,20 @@ def _require_same_session(db: Session, raw_token: str | None, actor: tuple[int, 
 @limiter.limit("60/minute")
 def list_visits(request: Request, limit: int = Query(default=25, ge=1, le=100),
                 business_id: int | None = Query(default=None, gt=0),
+                category: Literal["all", "upcoming", "past", "cancelled"] = Query(default="all"),
+                as_of: UtcDatetime | None = Query(default=None),
                 after_start: UtcDatetime | None = Query(default=None),
                 after_id: int | None = Query(default=None, gt=0),
                 session: VisitorSession = Depends(visitor_deps.get_visitor_session),
                 x_visitor_token: str | None = Header(default=None, alias="X-Visitor-Token"),
                 db: Session = Depends(deps.get_db), locale: str = Depends(deps.get_locale)) -> VisitorHistoryPage:
-    if (after_start is None) != (after_id is None):
+    if ((after_start is None) != (after_id is None)
+            or (after_start is not None and category != "all" and as_of is None)):
         raise HTTPException(status_code=422, detail=_("visitor_history_cursor_invalid", locale))
     actor = (session.account_id, session.id)
-    cursor = VisitorHistoryCursor(date_start=after_start, id=after_id) if after_start is not None else None
-    result = visitor_history_views.list_visits(db, actor[0], limit=limit, cursor=cursor, business_id=business_id)
+    cursor = VisitorHistoryCursor(date_start=after_start, id=after_id, as_of=as_of) if after_start is not None else None
+    result = visitor_history_views.list_visits(db, actor[0], limit=limit, cursor=cursor,
+                                              business_id=business_id, category=category, as_of=as_of)
     _require_same_session(db, x_visitor_token, actor, locale)
     return result
 

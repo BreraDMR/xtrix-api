@@ -27,9 +27,9 @@ messages: Dict[str, Dict[str, str]] = {
         "cz": "E-mail se nepodařilo změnit. Zkuste to znovu nebo použijte jinou adresu.",
     },
     "visitor_history_cursor_invalid": {
-        "en": "Provide both the visit time and ID to continue the history page.",
-        "ru": "Для продолжения истории укажите время и номер визита вместе.",
-        "cz": "Pro pokračování historie zadejte čas i ID návštěvy společně.",
+        "en": "Refresh the history and try again.",
+        "ru": "Обновите историю и повторите попытку.",
+        "cz": "Obnovte historii a zkuste to znovu.",
     },
     "visitor_history_visit_unavailable": {
         "en": "The visit is not available.",

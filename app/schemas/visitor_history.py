@@ -52,6 +52,7 @@ class VisitorHistoryVisit(_PublicHistoryModel):
 class VisitorHistoryCursor(_PublicHistoryModel):
     date_start: UtcDatetime
     id: int = Field(gt=0, strict=True)
+    as_of: UtcDatetime | None = None
 
 
 class VisitorHistoryPage(_PublicHistoryModel):

@@ -17704,6 +17704,18 @@
       "VisitorHistoryCursor": {
         "additionalProperties": false,
         "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
           "date_start": {
             "format": "date-time",
             "title": "Date Start",
@@ -39609,6 +39621,39 @@
                 }
               ],
               "title": "Business Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "all",
+                "upcoming",
+                "past",
+                "cancelled"
+              ],
+              "title": "Category",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
             }
           },
           {

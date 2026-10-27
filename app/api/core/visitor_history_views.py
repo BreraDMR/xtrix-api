@@ -1,4 +1,5 @@
 """One-statement public history, scoped before item joins or scalar projection."""
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -6,10 +7,12 @@ from sqlalchemy import and_, select
 from sqlalchemy.orm import Session, aliased
 
 from app.api.core import visitor_history
+from app.api.core.clock import utcnow
 from app.db.models.business import Business
 from app.db.models.user import User
 from app.db.models.visit import Visit
 from app.db.models.visit_item import VisitItem
+from app.schemas.datetimes import to_naive_utc
 from app.schemas.limits import ISO_4217
 from app.schemas.visitor_history import (
     VisitorHistoryBusiness, VisitorHistoryCursor, VisitorHistoryItem, VisitorHistoryMoney,
@@ -84,19 +87,35 @@ def _visits(rows):
 
 def list_visits(db: Session, account_id: int, *, limit: int = 25,
                 cursor: VisitorHistoryCursor | visitor_history.VisitorHistoryCursor | None = None,
-                business_id: int | None = None) -> VisitorHistoryPage:
+                business_id: int | None = None,
+                category: str = "all", as_of: datetime | None = None) -> VisitorHistoryPage:
     """Read one public page. account_id comes from a verified visitor session, not a body.
 
     Sort keys are stable across equal times, not across rescheduling between pages.
     Unknown currency/timezone remains unknown. No action or payment policy runs here.
     """
+    if as_of is not None:
+        if not isinstance(as_of, datetime):
+            raise ValueError("A UTC history boundary is required")
+        as_of = to_naive_utc(as_of)
     if isinstance(cursor, VisitorHistoryCursor):
+        if as_of is not None and cursor.as_of is not None and as_of != cursor.as_of:
+            raise ValueError("History cursor boundaries must match")
+        if as_of is None:
+            as_of = cursor.as_of
         cursor = visitor_history.VisitorHistoryCursor(cursor.date_start, cursor.id)
-    scoped = visitor_history.visit_page_query(account_id, limit=limit, cursor=cursor, business_id=business_id)
+    if category != "all":
+        if cursor is not None and as_of is None:
+            raise ValueError("Continuing a category requires its original boundary")
+        if as_of is None:
+            as_of = utcnow()
+    scoped = visitor_history.visit_page_query(account_id, limit=limit, cursor=cursor, business_id=business_id,
+                                             category=category, as_of=as_of)
     with db.no_autoflush:
         entries = _visits(db.execute(_projection(scoped)).mappings().all())
     selected = entries[:limit]
-    next_cursor = (VisitorHistoryCursor(date_start=selected[-1].start, id=selected[-1].id)
+    next_cursor = (VisitorHistoryCursor(date_start=selected[-1].start, id=selected[-1].id,
+                                        as_of=as_of if category != "all" else None)
                    if len(entries) > limit else None)
     return VisitorHistoryPage(entries=selected, next_cursor=next_cursor)
 
