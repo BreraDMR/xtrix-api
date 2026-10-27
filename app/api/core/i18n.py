@@ -1,6 +1,21 @@
 from typing import Dict, Any
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
+    "visitor_email_change_requested": {
+        "en": "Your request to confirm the new email address has been accepted.",
+        "ru": "Запрос подтверждения новой почты принят.",
+        "cz": "Žádost o potvrzení nové e-mailové adresy byla přijata.",
+    },
+    "visitor_email_change_mail_unavailable": {
+        "en": "Email change confirmation mail is unavailable. Try again later.",
+        "ru": "Письмо для подтверждения смены почты пока недоступно. Повторите попытку позже.",
+        "cz": "E-mail pro potvrzení změny adresy není dostupný. Zkuste to později.",
+    },
+    "visitor_email_change_recipient_invalid": {
+        "en": "Enter a valid new email address.",
+        "ru": "Укажите корректный новый адрес почты.",
+        "cz": "Zadejte platnou novou e-mailovou adresu.",
+    },
     "visitor_email_change_invalid": {
         "en": "This email confirmation is invalid, expired or unavailable for your account.",
         "ru": "Подтверждение почты недействительно, истекло или недоступно для вашего аккаунта.",

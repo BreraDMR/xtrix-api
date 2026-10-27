@@ -8,8 +8,8 @@ from app.api.core import visitor_challenges, visitor_google_credentials, visitor
 from app.api.core import visitor_login_guard, visitor_passwords, visitor_registration, visitor_sessions
 from app.api.core import visitor_registration_mail, visitor_password_reset, visitor_reset_mail, visitor_manage_claim
 from app.api.core import visitor_google_link, visitor_recent_auth
-from app.api.core import visitor_client_invite_accept, visitor_email_change
-from app.schemas.visitor_email_change import VisitorEmailChangeConfirmIn
+from app.api.core import visitor_client_invite_accept, visitor_email_change, visitor_email_change_mail
+from app.schemas.visitor_email_change import VisitorEmailChangeConfirmIn, VisitorEmailChangeRequestIn
 from app.schemas.visitor_invitations import ClientInviteAcceptIn
 from app.api.core.config import settings
 from app.api.core.i18n import _
@@ -231,6 +231,28 @@ def confirm_password_reset(request: Request, body: VisitorPasswordResetIn,
         raise HTTPException(status_code=422, detail=_("visitor_registration_password_invalid", locale)) from None
     db.commit()
     return Response(status_code=204)
+
+
+@router.post("/auth/email/change/request", status_code=202, response_model=VisitorRegistrationRequestOut)
+@limiter.limit(SIGNUP_LIMIT)
+def request_email_change(request: Request, body: VisitorEmailChangeRequestIn,
+                         _actor: VisitorSession = Depends(visitor_deps.get_visitor_session),
+                         db: Session = Depends(deps.get_db), locale: str = Depends(deps.get_locale)) -> VisitorRegistrationRequestOut:
+    try:
+        prepared = visitor_email_change_mail.prepare(db, request.headers.get("X-Visitor-Token"), body.email, locale)
+        db.commit()
+        if prepared is not None:
+            visitor_email_change_mail.capture_after_commit(db, prepared)
+    except visitor_recent_auth.VisitorReauthenticationRequired:
+        db.rollback()
+        raise HTTPException(status_code=403, detail=_("visitor_recent_auth_required", locale)) from None
+    except visitor_email_change.InvalidEmailChangeRecipient:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=_("visitor_email_change_recipient_invalid", locale)) from None
+    except visitor_email_change_mail.EmailChangeMailUnavailable:
+        db.rollback()
+        raise HTTPException(status_code=503, detail=_("visitor_email_change_mail_unavailable", locale)) from None
+    return VisitorRegistrationRequestOut(message=_("visitor_email_change_requested", locale))
 
 
 @router.post("/auth/email/change/confirm", status_code=204, response_class=Response)
