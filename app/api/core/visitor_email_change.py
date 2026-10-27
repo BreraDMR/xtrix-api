@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from pydantic import EmailStr, TypeAdapter
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from app.api.core import visitor_challenges, visitor_recent_auth, visitor_sessions
@@ -106,9 +106,10 @@ def confirm(db: Session, raw_visitor_session: str | None,
         account.email_verified_at = utcnow()
         try:
             db.flush()
-        except IntegrityError as exc:
+        except DBAPIError as exc:
             name = getattr(getattr(exc.orig, 'diag', None), 'constraint_name', None)
-            if name == 'uq_visitor_accounts_email_canonical':
+            if (name == 'uq_visitor_accounts_email_canonical'
+                    or getattr(exc.orig, 'pgcode', None) == '40P01'):
                 raise EmailChangeConflict('Email change could not be completed') from None
             raise
         # The unique index may have waited for another transaction. Authenticate
