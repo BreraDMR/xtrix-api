@@ -1,6 +1,6 @@
 """Capture the unit of new visit prices without guessing units for older amounts."""
-from sqlalchemy import inspect
-from sqlalchemy.orm import Session
+from sqlalchemy import inspect, select
+from sqlalchemy.orm import Session, attributes
 
 from app.db.models.business import Business
 from app.db.models.service import Service
@@ -61,11 +61,19 @@ def fresh_catalog(db: Session, service_ids) -> dict[int, Service]:
         for service_id in existing:
             row = pending[service_id]
             state = inspect(row)
-            if state.attrs.id.history.has_changes():
-                raise ValueError('Save catalog primary-key changes before creating a visit')
             unchanged = [prop.key for prop in state.mapper.column_attrs
                          if not state.attrs[prop.key].history.has_changes()]
-            db.refresh(row, attribute_names=unchanged)
+            if state.attrs.id.history.has_changes():
+                # ORM refresh rejects pending PK edits. Read only the unchanged facts.
+                if unchanged:
+                    fresh = db.execute(select(*(getattr(Service, name) for name in unchanged)).where(
+                        Service.id == service_id)).one_or_none()
+                    if fresh is None:
+                        continue
+                    for name, value in zip(unchanged, fresh):
+                        attributes.set_committed_value(row, name, value)
+            else:
+                db.refresh(row, attribute_names=unchanged)
             result[service_id] = row
     return result
 
