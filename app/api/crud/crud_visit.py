@@ -17,7 +17,7 @@ from app.api.core.visit_chain import (
     money,
     service_line,
 )
-from app.api.core import audit_service
+from app.api.core import audit_service, visit_currency
 from app.db.models.client import Client
 from app.db.models.service import Service
 from app.db.models.visit import Visit
@@ -146,11 +146,21 @@ def create_visit(
 
     logger = get_logger("visits")
     data = visit_in.model_dump(exclude={"used_products", "items"})
-    service = db.query(Service).filter(Service.id == data["service_id"]).first() if data.get("service_id") else None
     resolved_business_id = _business_for_visit(db, data["specialist_id"], business_id)
 
     from app.api.core.crm_metering import enforce_visit_quota
     enforce_visit_quota(db, resolved_business_id, data["specialist_id"], data["date_start"], data.get("status") or "planned")
+    user_ids = [data["specialist_id"], getattr(actor, "id", None)]
+    if visit_in.items is not None:
+        user_ids.extend(item.specialist_id or data["specialist_id"] for item in visit_in.items)
+    visit_currency.lock_user_references(db, user_ids)
+    currency = visit_currency.lock_business_currency(db, resolved_business_id)
+    service_ids = ({item.service_id for item in visit_in.items} if visit_in.items is not None
+                   else {data["service_id"]} if data.get("service_id") else set())
+    catalog = visit_currency.fresh_catalog(db, service_ids)
+    service = catalog.get(data.get("service_id"))
+    currency = (visit_currency.currency_for_catalog(currency, resolved_business_id, catalog.values())
+                if service_ids.issubset(catalog) else None)
     if visit_in.items is not None:
         lines = lines_from_items(db, visit_in.items, data["specialist_id"])
     else:
@@ -174,6 +184,7 @@ def create_visit(
         specialist_id=data["specialist_id"],
         service_id=data.get("service_id"),
         business_id=resolved_business_id,
+        currency_snapshot=currency,
         date_start=data["date_start"],
         date_end=data.get("date_end"),
         service_name=data.get("service_name"),
