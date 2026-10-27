@@ -14,7 +14,7 @@ from app.api.v1.endpoints import (
     assistant, assistant_conversations, offers, onboarding, public_booking, questionnaires,
     questionnaire_answers, questionnaire_attachments, public_booking_manage, service_payments,
     notification_settings, notification_deliveries, password_reset, client_portal, waitlist, gifts,
-    campaigns, business_audit, business_imports, google_login, visitor_account,
+    campaigns, business_audit, business_imports, google_login, visitor_account, visitor_history,
 )
 from app.api.core import error_handlers
 from app.api.middleware.rate_limit import DefaultRateLimitMiddleware, limiter, rate_limit_exceeded_handler
@@ -267,3 +267,4 @@ app.include_router(
 )
 app.include_router(google_login.router, prefix="/auth/google", tags=["google-login"])
 app.include_router(visitor_account.router, prefix="/visitor", tags=["visitor-account"])
+app.include_router(visitor_history.router, prefix="/visitor", tags=["visitor-history"])

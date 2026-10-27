@@ -1,6 +1,16 @@
 from typing import Dict, Any
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
+    "visitor_history_cursor_invalid": {
+        "en": "Provide both the visit time and ID to continue the history page.",
+        "ru": "Для продолжения истории укажите время и номер визита вместе.",
+        "cz": "Pro pokračování historie zadejte čas i ID návštěvy společně.",
+    },
+    "visitor_history_visit_unavailable": {
+        "en": "The visit is not available.",
+        "ru": "Визит недоступен.",
+        "cz": "Návštěva není dostupná.",
+    },
     "concurrent_update": {
         "en": "The record changed. Refresh the page and try again.",
         "ru": "Запись изменилась. Обновите страницу и повторите попытку.",

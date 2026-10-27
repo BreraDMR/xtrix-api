@@ -1,0 +1,54 @@
+"""Read-only visitor history from exact grants, without CRM subscription gates."""
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request
+from sqlalchemy.orm import Session
+
+from app.api import deps, visitor_deps
+from app.api.core import visitor_history_views, visitor_sessions
+from app.api.core.i18n import _
+from app.api.middleware.rate_limit import limiter
+from app.api.private_routes import NoStoreRoute
+from app.db.models.visitor_auth import VisitorSession
+from app.schemas.datetimes import UtcDatetime
+from app.schemas.visitor_history import VisitorHistoryCursor, VisitorHistoryPage, VisitorHistoryVisit
+
+router = APIRouter(route_class=NoStoreRoute)
+
+
+def _require_same_session(db: Session, raw_token: str | None, actor: tuple[int, int], locale: str) -> None:
+    # Capture IDs before the projection: populate_existing may refresh the original ORM row.
+    with db.no_autoflush:
+        current = visitor_sessions.get_valid_session(db, raw_token)
+    if current is None or (current.account_id, current.id) != actor:
+        raise HTTPException(status_code=401, detail=_("visitor_session_invalid", locale))
+
+
+@router.get("/visits", response_model=VisitorHistoryPage)
+@limiter.limit("60/minute")
+def list_visits(request: Request, limit: int = Query(default=25, ge=1, le=100),
+                business_id: int | None = Query(default=None, gt=0),
+                after_start: UtcDatetime | None = Query(default=None),
+                after_id: int | None = Query(default=None, gt=0),
+                session: VisitorSession = Depends(visitor_deps.get_visitor_session),
+                x_visitor_token: str | None = Header(default=None, alias="X-Visitor-Token"),
+                db: Session = Depends(deps.get_db), locale: str = Depends(deps.get_locale)) -> VisitorHistoryPage:
+    if (after_start is None) != (after_id is None):
+        raise HTTPException(status_code=422, detail=_("visitor_history_cursor_invalid", locale))
+    actor = (session.account_id, session.id)
+    cursor = VisitorHistoryCursor(date_start=after_start, id=after_id) if after_start is not None else None
+    result = visitor_history_views.list_visits(db, actor[0], limit=limit, cursor=cursor, business_id=business_id)
+    _require_same_session(db, x_visitor_token, actor, locale)
+    return result
+
+
+@router.get("/visits/{visit_id}", response_model=VisitorHistoryVisit)
+@limiter.limit("60/minute")
+def read_visit(request: Request, visit_id: int = Path(gt=0),
+               session: VisitorSession = Depends(visitor_deps.get_visitor_session),
+               x_visitor_token: str | None = Header(default=None, alias="X-Visitor-Token"),
+               db: Session = Depends(deps.get_db), locale: str = Depends(deps.get_locale)) -> VisitorHistoryVisit:
+    actor = (session.account_id, session.id)
+    result = visitor_history_views.get_visit(db, actor[0], visit_id)
+    _require_same_session(db, x_visitor_token, actor, locale)
+    if result is None:
+        raise HTTPException(status_code=404, detail=_("visitor_history_visit_unavailable", locale))
+    return result
