@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
+from app.api.core.clock import utcnow
 from app.db.models.business import Business
 from app.db.models.client import Client
 from app.db.models.visit import Visit
@@ -71,8 +72,9 @@ def _entry(row) -> VisitorHistoryEntry:
 
 def visit_page_query(account_id: int, *, limit: int = 25,
                      cursor: VisitorHistoryCursor | None = None,
-                     business_id: int | None = None):
-    """Limit authorized visits before a public projection joins their item rows."""
+                     business_id: int | None = None,
+                     category: str = "all", as_of: datetime | None = None):
+    """Limit exact grants and categories before item projection. Caller pins as_of across pages."""
     _positive_id(account_id)
     if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
         raise ValueError("Visit page limit must be between 1 and 100")
@@ -80,7 +82,24 @@ def visit_page_query(account_id: int, *, limit: int = 25,
         raise ValueError("A typed visitor history cursor is required")
     if business_id is not None:
         _positive_id(business_id)
+    if not isinstance(category, str) or category not in ("all", "upcoming", "past", "cancelled"):
+        raise ValueError("A supported history category is required")
+    if as_of is not None:
+        if not isinstance(as_of, datetime):
+            raise ValueError("A UTC history boundary is required")
+        if as_of.tzinfo is not None:
+            as_of = as_of.astimezone(timezone.utc).replace(tzinfo=None)
+    elif category != "all":
+        as_of = utcnow()
     query = authorized_visits_query(account_id)
+    if category == "cancelled":
+        query = query.where(Visit.status == "cancelled")
+    elif category in ("upcoming", "past"):
+        remaining = or_(Visit.status.is_(None), Visit.status.notin_(("cancelled", "completed")))
+        if category == "upcoming":
+            query = query.where(remaining, Visit.date_start >= as_of)
+        else:
+            query = query.where(or_(Visit.status == "completed", and_(remaining, Visit.date_start < as_of)))
     if business_id is not None:
         query = query.where(Visit.business_id == business_id)
     if cursor is not None:
@@ -98,9 +117,11 @@ def visit_detail_query(account_id: int, visit_id: int):
 
 def list_visits(db: Session, account_id: int, *, limit: int = 25,
                 cursor: VisitorHistoryCursor | None = None,
-                business_id: int | None = None) -> VisitorHistoryPage:
+                business_id: int | None = None,
+                category: str = "all", as_of: datetime | None = None) -> VisitorHistoryPage:
     """Return a descending time/ID page from exact active grants, without any writes."""
-    query = visit_page_query(account_id, limit=limit, cursor=cursor, business_id=business_id)
+    query = visit_page_query(account_id, limit=limit, cursor=cursor, business_id=business_id,
+                             category=category, as_of=as_of)
     # A reader must not accidentally flush the caller's unrelated pending mutations.
     with db.no_autoflush:
         rows = db.execute(query).all()
