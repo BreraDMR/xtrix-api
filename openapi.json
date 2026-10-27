@@ -17545,6 +17545,24 @@
         "title": "VisitorAccountOut",
         "type": "object"
       },
+      "VisitorEmailChangeConfirmIn": {
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "VisitorEmailChangeConfirmIn",
+        "type": "object"
+      },
       "VisitorGoogleLinkIn": {
         "additionalProperties": false,
         "properties": {
@@ -38543,6 +38561,74 @@
         "summary": "Unlock User Account",
         "tags": [
           "users"
+        ]
+      }
+    },
+    "/visitor/auth/email/change/confirm": {
+      "post": {
+        "operationId": "confirm_email_change_visitor_auth_email_change_confirm_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorEmailChangeConfirmIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Email Change",
+        "tags": [
+          "visitor-account"
         ]
       }
     },

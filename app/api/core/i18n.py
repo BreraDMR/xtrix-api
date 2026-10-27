@@ -1,6 +1,16 @@
 from typing import Dict, Any
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
+    "visitor_email_change_invalid": {
+        "en": "This email confirmation is invalid, expired or unavailable for your account.",
+        "ru": "Подтверждение почты недействительно, истекло или недоступно для вашего аккаунта.",
+        "cz": "Potvrzení e-mailu je neplatné, vypršelo nebo není pro váš účet dostupné.",
+    },
+    "visitor_email_change_conflict": {
+        "en": "The email change could not be completed. Try again or use a different address.",
+        "ru": "Не удалось изменить почту. Повторите попытку или используйте другой адрес.",
+        "cz": "E-mail se nepodařilo změnit. Zkuste to znovu nebo použijte jinou adresu.",
+    },
     "visitor_history_cursor_invalid": {
         "en": "Provide both the visit time and ID to continue the history page.",
         "ru": "Для продолжения истории укажите время и номер визита вместе.",

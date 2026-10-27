@@ -8,7 +8,8 @@ from app.api.core import visitor_challenges, visitor_google_credentials, visitor
 from app.api.core import visitor_login_guard, visitor_passwords, visitor_registration, visitor_sessions
 from app.api.core import visitor_registration_mail, visitor_password_reset, visitor_reset_mail, visitor_manage_claim
 from app.api.core import visitor_google_link, visitor_recent_auth
-from app.api.core import visitor_client_invite_accept
+from app.api.core import visitor_client_invite_accept, visitor_email_change
+from app.schemas.visitor_email_change import VisitorEmailChangeConfirmIn
 from app.schemas.visitor_invitations import ClientInviteAcceptIn
 from app.api.core.config import settings
 from app.api.core.i18n import _
@@ -228,6 +229,26 @@ def confirm_password_reset(request: Request, body: VisitorPasswordResetIn,
     except visitor_password_reset.InvalidResetPassword:
         db.rollback()
         raise HTTPException(status_code=422, detail=_("visitor_registration_password_invalid", locale)) from None
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.post("/auth/email/change/confirm", status_code=204, response_class=Response)
+@limiter.limit(PASSWORD_RESET_CONFIRM_LIMIT)
+def confirm_email_change(request: Request, body: VisitorEmailChangeConfirmIn,
+                         _actor: VisitorSession = Depends(visitor_deps.get_visitor_session),
+                         db: Session = Depends(deps.get_db), locale: str = Depends(deps.get_locale)) -> Response:
+    try:
+        visitor_email_change.confirm(db, request.headers.get("X-Visitor-Token"), body.token.get_secret_value())
+    except visitor_recent_auth.VisitorReauthenticationRequired:
+        db.rollback()
+        raise HTTPException(status_code=403, detail=_("visitor_recent_auth_required", locale)) from None
+    except visitor_email_change.InvalidEmailChangeProof:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=_("visitor_email_change_invalid", locale)) from None
+    except visitor_email_change.EmailChangeConflict:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=_("visitor_email_change_conflict", locale)) from None
     db.commit()
     return Response(status_code=204)
 
