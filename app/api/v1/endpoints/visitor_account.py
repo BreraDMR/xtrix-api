@@ -1,19 +1,16 @@
 """Visitor identity and sessions stay independent from CRM authentication."""
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
-from fastapi.exceptions import RequestValidationError
-from fastapi.routing import APIRoute
-from slowapi.errors import RateLimitExceeded
 from sqlalchemy.orm import Session
-from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import deps, visitor_deps
-from app.api.core import error_handlers, visitor_challenges, visitor_google_credentials, visitor_google_login
+from app.api.private_routes import NoStoreRoute
+from app.api.core import visitor_challenges, visitor_google_credentials, visitor_google_login
 from app.api.core import visitor_login_guard, visitor_passwords, visitor_registration, visitor_sessions
 from app.api.core import visitor_registration_mail, visitor_password_reset, visitor_reset_mail, visitor_manage_claim
 from app.api.core import visitor_google_link, visitor_recent_auth
 from app.api.core.config import settings
 from app.api.core.i18n import _
-from app.api.middleware.rate_limit import LOGIN_LIMIT, PASSWORD_RESET_CONFIRM_LIMIT, SIGNUP_LIMIT, client_ip, limiter, rate_limit_exceeded_handler
+from app.api.middleware.rate_limit import LOGIN_LIMIT, PASSWORD_RESET_CONFIRM_LIMIT, SIGNUP_LIMIT, client_ip, limiter
 from app.db.models.visitor_account import VisitorAccount, VisitorGoogleIdentity
 from app.db.models.visitor_auth import VisitorSession
 from app.schemas.visitor_account import VisitorAccountOut, VisitorLoginIn, VisitorLoginOut, VisitorRegistrationIn
@@ -23,28 +20,7 @@ from app.schemas.visitor_account import VisitorRegistrationRequestIn, VisitorReg
 from app.schemas.google_identity import GoogleConfigOut, GoogleNonceOut
 
 
-class _NoStoreRoute(APIRoute):
-    def get_route_handler(self):
-        original = super().get_route_handler()
-
-        async def private_response(request: Request) -> Response:
-            try:
-                response = await original(request)
-            except RequestValidationError as exc:
-                response = await error_handlers.validation_exception_handler(request, exc)
-            except RateLimitExceeded as exc:
-                response = rate_limit_exceeded_handler(request, exc)
-            except StarletteHTTPException as exc:
-                # Dependency failures use the same no-store policy as successful reads.
-                exc.headers = {**(exc.headers or {}), "Cache-Control": "no-store"}
-                raise
-            response.headers["Cache-Control"] = "no-store"
-            return response
-
-        return private_response
-
-
-router = APIRouter(route_class=_NoStoreRoute)
+router = APIRouter(route_class=NoStoreRoute)
 
 
 def _google_origin(request: Request, locale: str) -> str:
