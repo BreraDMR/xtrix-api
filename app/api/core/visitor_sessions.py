@@ -99,7 +99,7 @@ def get_valid_session(db: Session, raw_token: str | None) -> VisitorSession | No
     if not isinstance(raw_token, str) or _TOKEN_PATTERN.fullmatch(raw_token) is None:
         return None
     digest = hashlib.sha256(raw_token.encode("ascii")).hexdigest()
-    return (
+    row = (
         db.query(VisitorSession)
         .join(VisitorAccount, VisitorAccount.id == VisitorSession.account_id)
         .filter(
@@ -111,6 +111,11 @@ def get_valid_session(db: Session, raw_token: str | None) -> VisitorSession | No
         .populate_existing()
         .one_or_none()
     )
+
+    # The SQL predicate used the time before the read started.
+    if row is not None and row.expires_at <= utcnow():
+        return None
+    return row
 
 
 def revoke_session(db: Session, *, account_id: int, session_id: int) -> bool:
