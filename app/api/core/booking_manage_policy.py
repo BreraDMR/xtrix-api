@@ -4,10 +4,19 @@ The cutoff is one day before the visit. It is deliberately checked on the stored
 start instant rather than a calendar day, so it doesn't shift with DST.
 """
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Protocol
 
 from app.api.core.clock import utcnow
-from app.db.models.visit import Visit
+
+class BookingManageVisit(Protocol):
+    """Only the stored facts used by the shared guest/visitor action rules."""
+
+    @property
+    def status(self) -> Optional[str]: ...
+
+    @property
+    def date_start(self) -> datetime: ...
+
 
 CANCELLATION_CUTOFF = timedelta(hours=24)
 
@@ -20,7 +29,7 @@ class BookingActionNotAllowed(Exception):
         self.reason = reason
 
 
-def cancellation_block_reason(visit: Visit, now: Optional[datetime] = None) -> Optional[str]:
+def cancellation_block_reason(visit: BookingManageVisit, now: Optional[datetime] = None) -> Optional[str]:
     if visit.status == "completed":
         return "booking_cancel_completed"
     if visit.status == "in_progress":
@@ -37,13 +46,13 @@ def cancellation_block_reason(visit: Visit, now: Optional[datetime] = None) -> O
     return None
 
 
-def ensure_cancellation_allowed(visit: Visit, now: Optional[datetime] = None) -> None:
+def ensure_cancellation_allowed(visit: BookingManageVisit, now: Optional[datetime] = None) -> None:
     reason = cancellation_block_reason(visit, now)
     if reason:
         raise BookingActionNotAllowed(reason)
 
 
-def confirmation_block_reason(visit: Visit, now: Optional[datetime] = None) -> Optional[str]:
+def confirmation_block_reason(visit: BookingManageVisit, now: Optional[datetime] = None) -> Optional[str]:
     if visit.status == "completed":
         return "booking_confirm_completed"
     if visit.status == "in_progress":
@@ -57,13 +66,13 @@ def confirmation_block_reason(visit: Visit, now: Optional[datetime] = None) -> O
     return None
 
 
-def ensure_confirmation_allowed(visit: Visit, now: Optional[datetime] = None) -> None:
+def ensure_confirmation_allowed(visit: BookingManageVisit, now: Optional[datetime] = None) -> None:
     reason = confirmation_block_reason(visit, now)
     if reason:
         raise BookingActionNotAllowed(reason)
 
 
-def reschedule_block_reason(visit: Visit, now: Optional[datetime] = None) -> Optional[str]:
+def reschedule_block_reason(visit: BookingManageVisit, now: Optional[datetime] = None) -> Optional[str]:
     if visit.status == "completed":
         return "booking_reschedule_completed"
     if visit.status == "in_progress":
@@ -81,7 +90,7 @@ def reschedule_block_reason(visit: Visit, now: Optional[datetime] = None) -> Opt
     return None
 
 
-def ensure_reschedule_allowed(visit: Visit, now: Optional[datetime] = None) -> None:
+def ensure_reschedule_allowed(visit: BookingManageVisit, now: Optional[datetime] = None) -> None:
     reason = reschedule_block_reason(visit, now)
     if reason:
         raise BookingActionNotAllowed(reason)
