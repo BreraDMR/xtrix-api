@@ -110,9 +110,14 @@ def assert_no_conflict(db: Session, intervals, exclude_id: Optional[int] = None)
 def prospective_update_lines(db: Session, visit: Visit, update: VisitUpdate) -> list[ChainLine]:
     """The chain an update would save, without writing it (also used for the clash check)."""
     data = update.model_dump(exclude_unset=True)
-    if "items" in data:
-        return lines_from_items(db, update.items, visit.specialist_id)
     lines = existing_lines(visit)
+    if update.items is not None:
+        requested = [(item.service_id, item.specialist_id or visit.specialist_id)
+                     for item in update.items]
+        stored = [(line.service_id, line.specialist_id) for line in lines]
+        if requested == stored:
+            return lines
+        return lines_from_items(db, update.items, visit.specialist_id)
     new_service_id = data.get("service_id")
     if new_service_id is not None and new_service_id != visit.service_id:
         if len(lines) > 1:
@@ -250,12 +255,21 @@ def update_visit(
     owner_user_id = visit.specialist_id
     try:
         if structural:
+            stored = existing_lines(visit)
             lines = prospective_update_lines(db, visit, update)
+            same_chain = [(line.service_id, line.specialist_id) for line in lines] == [
+                (line.service_id, line.specialist_id) for line in stored
+            ]
+            explicit_price = (update.items is None and data.get("price") is not None
+                              and len(lines) == 1)
             start = data.get("date_start") or visit.date_start
             assert_no_conflict(
                 db, item_intervals(start, lines), exclude_id=visit.id
             )
             apply_chain(visit, lines, start)
+            if same_chain and not explicit_price:
+                # Moving a chain must not replace its historical total with an item sum.
+                visit.price = before["price"]
 
         computed = {"items", "service_id", "date_start", "date_end", "price"}
         for field, value in data.items():
