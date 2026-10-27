@@ -1,5 +1,5 @@
 """Explicit recipient and private proof for a salon's visitor invitation."""
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr, field_validator
 
 from app.db.models.visitor_account import canonical_visitor_email
 from app.schemas.base import InputModel
@@ -20,3 +20,9 @@ class ClientInviteIssueIn(InputModel):
 class ClientInviteIssueOut(BaseModel):
     token: str
     expires_at: UtcDatetime
+
+
+class ClientInviteAcceptIn(InputModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: SecretStr = Field(min_length=1, max_length=128, repr=False)

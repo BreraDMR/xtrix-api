@@ -8,6 +8,8 @@ from app.api.core import visitor_challenges, visitor_google_credentials, visitor
 from app.api.core import visitor_login_guard, visitor_passwords, visitor_registration, visitor_sessions
 from app.api.core import visitor_registration_mail, visitor_password_reset, visitor_reset_mail, visitor_manage_claim
 from app.api.core import visitor_google_link, visitor_recent_auth
+from app.api.core import visitor_client_invite_accept
+from app.schemas.visitor_invitations import ClientInviteAcceptIn
 from app.api.core.config import settings
 from app.api.core.i18n import _
 from app.api.middleware.rate_limit import LOGIN_LIMIT, PASSWORD_RESET_CONFIRM_LIMIT, SIGNUP_LIMIT, client_ip, limiter
@@ -248,6 +250,34 @@ def claim_guest_visit(request: Request, body: VisitorManageClaimIn,
     except visitor_manage_claim.ManageClaimConflict:
         db.rollback()
         raise HTTPException(status_code=409, detail=_("visitor_manage_claim_conflict", locale)) from None
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.post("/claims/client-invite", status_code=204, response_class=Response)
+@limiter.limit(LOGIN_LIMIT)
+def accept_client_invitation(request: Request, body: ClientInviteAcceptIn,
+                             _actor: VisitorSession = Depends(visitor_deps.get_visitor_session),
+                             db: Session = Depends(deps.get_db),
+                             locale: str = Depends(deps.get_locale)) -> Response:
+    try:
+        visitor_client_invite_accept.accept_client_invite(
+            db, request.headers.get("X-Visitor-Token"), body.token.get_secret_value())
+    except visitor_client_invite_accept.InvalidVisitorSession:
+        db.rollback()
+        raise HTTPException(status_code=401, detail=_("visitor_session_invalid", locale)) from None
+    except visitor_client_invite_accept.InvalidClientInvite:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=_("visitor_client_invite_invalid", locale)) from None
+    except visitor_client_invite_accept.ClientInviteAuthorityDenied:
+        db.rollback()
+        raise HTTPException(status_code=403, detail=_("visitor_client_invite_unavailable", locale)) from None
+    except visitor_client_invite_accept.ClientInviteConflict:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=_("visitor_client_invite_conflict", locale)) from None
+    except visitor_client_invite_accept.ClientInviteBusy:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=_("visitor_client_invite_retry", locale)) from None
     db.commit()
     return Response(status_code=204)
 

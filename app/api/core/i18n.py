@@ -280,6 +280,26 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Сессия посетителя истекла или недействительна. Войдите снова.",
         "cz": "Relace návštěvníka vypršela nebo není platná. Přihlaste se znovu.",
     },
+    "visitor_client_invite_invalid": {
+        "en": "This client invitation is invalid or unavailable for your account.",
+        "ru": "Приглашение недействительно или недоступно для вашего аккаунта.",
+        "cz": "Tato pozvánka je neplatná nebo pro váš účet nedostupná.",
+    },
+    "visitor_client_invite_unavailable": {
+        "en": "The salon can no longer confirm this invitation. Contact the salon.",
+        "ru": "Салон больше не может подтвердить приглашение. Обратитесь в салон.",
+        "cz": "Salon již nemůže potvrdit pozvánku. Kontaktujte salon.",
+    },
+    "visitor_client_invite_conflict": {
+        "en": "This history cannot be attached to your account. Contact the salon.",
+        "ru": "Не удалось присоединить историю к аккаунту. Обратитесь в салон.",
+        "cz": "Historii nelze připojit k účtu. Kontaktujte salon.",
+    },
+    "visitor_client_invite_retry": {
+        "en": "The salon permissions changed. Try accepting the invitation again.",
+        "ru": "Права в салоне изменились. Повторите принятие приглашения.",
+        "cz": "Oprávnění salonu se změnila. Zkuste pozvánku přijmout znovu.",
+    },
     "visitor_invite_recipient_invalid": {
         "en": "Enter a valid email address for the invitation.",
         "ru": "Укажите корректную почту получателя приглашения.",
