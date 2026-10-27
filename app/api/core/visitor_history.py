@@ -49,7 +49,9 @@ class VisitorHistoryPage:
     next_cursor: VisitorHistoryCursor | None
 
 
-def _authorized_visits(account_id: int):
+def authorized_visits_query(account_id: int):
+    """Build exact granted scope; the caller authenticates the account separately."""
+    _positive_id(account_id)
     grant = select(VisitorGrant.id).where(
         VisitorGrant.account_id == account_id,
         VisitorGrant.revoked_at.is_(None),
@@ -67,10 +69,10 @@ def _entry(row) -> VisitorHistoryEntry:
     return VisitorHistoryEntry(row.id, row.business_id, row.date_start, row.date_end, row.status)
 
 
-def list_visits(db: Session, account_id: int, *, limit: int = 25,
-                cursor: VisitorHistoryCursor | None = None,
-                business_id: int | None = None) -> VisitorHistoryPage:
-    """Return a descending time/ID page from exact active grants, without any writes."""
+def visit_page_query(account_id: int, *, limit: int = 25,
+                     cursor: VisitorHistoryCursor | None = None,
+                     business_id: int | None = None):
+    """Limit authorized visits before a public projection joins their item rows."""
     _positive_id(account_id)
     if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
         raise ValueError("Visit page limit must be between 1 and 100")
@@ -78,13 +80,27 @@ def list_visits(db: Session, account_id: int, *, limit: int = 25,
         raise ValueError("A typed visitor history cursor is required")
     if business_id is not None:
         _positive_id(business_id)
-    query = _authorized_visits(account_id)
+    query = authorized_visits_query(account_id)
     if business_id is not None:
         query = query.where(Visit.business_id == business_id)
     if cursor is not None:
         query = query.where(or_(Visit.date_start < cursor.date_start,
             and_(Visit.date_start == cursor.date_start, Visit.id < cursor.id)))
     query = query.order_by(Visit.date_start.desc(), Visit.id.desc()).limit(limit + 1)
+    return query
+
+
+def visit_detail_query(account_id: int, visit_id: int):
+    """Build one exact authorized visit, without a later unscoped ID lookup."""
+    _positive_id(visit_id)
+    return authorized_visits_query(account_id).where(Visit.id == visit_id)
+
+
+def list_visits(db: Session, account_id: int, *, limit: int = 25,
+                cursor: VisitorHistoryCursor | None = None,
+                business_id: int | None = None) -> VisitorHistoryPage:
+    """Return a descending time/ID page from exact active grants, without any writes."""
+    query = visit_page_query(account_id, limit=limit, cursor=cursor, business_id=business_id)
     # A reader must not accidentally flush the caller's unrelated pending mutations.
     with db.no_autoflush:
         rows = db.execute(query).all()
@@ -99,5 +115,5 @@ def get_visit(db: Session, account_id: int, visit_id: int) -> VisitorHistoryEntr
     _positive_id(account_id)
     _positive_id(visit_id)
     with db.no_autoflush:
-        row = db.execute(_authorized_visits(account_id).where(Visit.id == visit_id)).one_or_none()
+        row = db.execute(visit_detail_query(account_id, visit_id)).one_or_none()
     return _entry(row) if row is not None else None
