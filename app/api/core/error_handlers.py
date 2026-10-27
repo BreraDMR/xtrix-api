@@ -73,6 +73,9 @@ def create_error_response(
     detailed_mode = settings.environment == "development" or getattr(settings, 'detailed_errors', True)
     if detailed_mode and traceback_str:
         response_data["error"]["traceback"] = traceback_str.split("\n")
+    if request is not None and getattr(request.state, "no_store_response", False):
+        headers = {key: value for key, value in (headers or {}).items() if key.lower() != "cache-control"}
+        headers["Cache-Control"] = "no-store"
     return JSONResponse(
         status_code=status_code,
         content=response_data,

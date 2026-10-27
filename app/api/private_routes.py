@@ -14,6 +14,8 @@ class NoStoreRoute(APIRoute):
         original = super().get_route_handler()
 
         async def private_response(request: Request) -> Response:
+            # Global DB/general handlers share this request scope after an exception.
+            request.state.no_store_response = True
             try:
                 response = await original(request)
             except RequestValidationError as exc:
