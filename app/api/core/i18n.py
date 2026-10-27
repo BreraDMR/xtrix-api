@@ -280,6 +280,16 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Сессия посетителя истекла или недействительна. Войдите снова.",
         "cz": "Relace návštěvníka vypršela nebo není platná. Přihlaste se znovu.",
     },
+    "visitor_invite_recipient_invalid": {
+        "en": "Enter a valid email address for the invitation.",
+        "ru": "Укажите корректную почту получателя приглашения.",
+        "cz": "Zadejte platný e-mail příjemce pozvánky.",
+    },
+    "visitor_invite_retry": {
+        "en": "The invitation could not be prepared. Try again.",
+        "ru": "Не удалось подготовить приглашение. Повторите попытку.",
+        "cz": "Pozvánku se nepodařilo připravit. Zkuste to znovu.",
+    },
     "visitor_manage_claim_invalid": {
         "en": "This guest booking link cannot be attached to your account.",
         "ru": "Не удалось присоединить запись по этой гостевой ссылке.",

@@ -1896,6 +1896,41 @@
         "title": "ClientHistoryResponse",
         "type": "object"
       },
+      "ClientInviteIssueIn": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "format": "email",
+            "maxLength": 320,
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "ClientInviteIssueIn",
+        "type": "object"
+      },
+      "ClientInviteIssueOut": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "expires_at"
+        ],
+        "title": "ClientInviteIssueOut",
+        "type": "object"
+      },
       "ClientLoyaltyBalance": {
         "properties": {
           "business_id": {
@@ -26216,6 +26251,80 @@
           }
         ],
         "summary": "Generate Client Qr Code",
+        "tags": [
+          "clients"
+        ]
+      }
+    },
+    "/clients/{client_id}/visitor-invitations": {
+      "post": {
+        "operationId": "issue_visitor_invitation_clients__client_id__visitor_invitations_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Client Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientInviteIssueIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientInviteIssueOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Issue Visitor Invitation",
         "tags": [
           "clients"
         ]
