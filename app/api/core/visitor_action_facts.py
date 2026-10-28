@@ -3,15 +3,18 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.core import subscription_access
+from app.api.core import subscription_access, visitor_history
 from app.api.core.visitor_booking_policy import (
     BookingManageEligibility,
     BookingManageFacts,
     booking_manage_eligibility,
 )
 from app.api.crud import crud_public_booking
+from app.db.models.visit import Visit
+from app.db.models.visit_item import VisitItem
 
 
 @dataclass(frozen=True)
@@ -94,3 +97,48 @@ def read_booking_manage_eligibility(
         ),
         now=now,
     )
+
+
+def get_authorized_action_target(db: Session, account_id: int, visit_id: int) -> AuthorizedActionTarget | None:
+    """Read exact granted scope and stored item/legacy pairs in one SQL snapshot.
+
+    account_id is supplied by a separately verified visitor session, never by body
+    or query input. Do not reread the projected visit IDs through an ORM lookup.
+    Every stored item participates regardless of its scheduling active flag; only
+    visits without items use the parent service/master pair. No catalog prices,
+    client records, internal notes or payment state are projected here.
+    """
+    scoped = visitor_history.visit_detail_query(account_id, visit_id).add_columns(
+        Visit.service_id.label("parent_service_id"), Visit.specialist_id.label("parent_master_id"),
+    ).subquery("authorized_action_visit")
+    query = select(
+        scoped.c.id, scoped.c.business_id, scoped.c.status, scoped.c.date_start,
+        scoped.c.parent_service_id, scoped.c.parent_master_id,
+        VisitItem.id.label("item_id"), VisitItem.service_id.label("item_service_id"),
+        VisitItem.specialist_id.label("item_master_id"),
+    ).select_from(scoped).outerjoin(VisitItem, VisitItem.visit_id == scoped.c.id).order_by(
+        VisitItem.position.asc(), VisitItem.id.asc(),
+    )
+    with db.no_autoflush:
+        rows = db.execute(query).mappings().all()
+    if not rows:
+        return None
+    first = rows[0]
+    pairs = tuple(ServiceMasterPair(row["item_service_id"], row["item_master_id"])
+                  for row in rows if row["item_id"] is not None)
+    if not pairs:
+        pairs = (ServiceMasterPair(first["parent_service_id"], first["parent_master_id"]),)
+    return AuthorizedActionTarget(
+        visit_id=first["id"], business_id=first["business_id"], status=first["status"],
+        start=first["date_start"], service_master_pairs=pairs,
+    )
+
+
+def get_visit_actions(db: Session, account_id: int, visit_id: int, *, now: datetime) -> BookingManageEligibility | None:
+    """Reject an unavailable scope before consulting any business billing/catalog.
+
+    The authorized projection is one statement. Later eligibility reads are only
+    a hint; they do not promise a single snapshot or revocation linearization.
+    """
+    target = get_authorized_action_target(db, account_id, visit_id)
+    return read_booking_manage_eligibility(db, target, now=now) if target is not None else None

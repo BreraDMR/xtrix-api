@@ -1,16 +1,18 @@
-"""Read-only visitor history from exact grants, without CRM subscription gates."""
+"""Read-only visitor history and separate action hints from exact grants."""
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api import deps, visitor_deps
-from app.api.core import visitor_history_views, visitor_sessions
+from app.api.core import visitor_action_facts, visitor_history_views, visitor_sessions
+from app.api.core.clock import utcnow
 from app.api.core.i18n import _
 from app.api.middleware.rate_limit import limiter
 from app.api.private_routes import NoStoreRoute
 from app.db.models.visitor_auth import VisitorSession
 from app.schemas.datetimes import UtcDatetime
+from app.schemas.visitor_actions import VisitorBookingAction, VisitorBookingActions
 from app.schemas.visitor_history import VisitorHistoryCursor, VisitorHistoryPage, VisitorHistoryVisit
 
 router = APIRouter(route_class=NoStoreRoute)
@@ -58,3 +60,30 @@ def read_visit(request: Request, visit_id: int = Path(gt=0),
     if result is None:
         raise HTTPException(status_code=404, detail=_("visitor_history_visit_unavailable", locale))
     return result
+
+
+def _get_action_session(
+    x_visitor_token: str | None = Header(default=None, alias="X-Visitor-Token"),
+    db: Session = Depends(deps.get_db), locale: str = Depends(deps.get_locale),
+) -> VisitorSession:
+    # Reuse strict visitor authentication without flushing unrelated caller edits.
+    with db.no_autoflush:
+        return visitor_deps.get_visitor_session(x_visitor_token, db, locale)
+
+
+@router.get("/visits/{visit_id}/actions", response_model=VisitorBookingActions,
+            description="Current action hints. Commands recheck authority, time, billing and catalog; no slot is reserved.")
+@limiter.limit("60/minute")
+def read_visit_actions(request: Request, visit_id: int = Path(gt=0),
+                       session: VisitorSession = Depends(_get_action_session),
+                       x_visitor_token: str | None = Header(default=None, alias="X-Visitor-Token"),
+                       db: Session = Depends(deps.get_db), locale: str = Depends(deps.get_locale)) -> VisitorBookingActions:
+    actor = (session.account_id, session.id)
+    result = visitor_action_facts.get_visit_actions(db, actor[0], visit_id, now=utcnow())
+    _require_same_session(db, x_visitor_token, actor, locale)
+    if result is None:
+        raise HTTPException(status_code=404, detail=_("visitor_history_visit_unavailable", locale))
+    return VisitorBookingActions(**{
+        name: VisitorBookingAction(allowed=decision.allowed, reason=decision.reason)
+        for name, decision in (("confirm", result.confirm), ("cancel", result.cancel), ("reschedule", result.reschedule))
+    })

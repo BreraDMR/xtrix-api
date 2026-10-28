@@ -17545,6 +17545,72 @@
         "title": "VisitorAccountOut",
         "type": "object"
       },
+      "VisitorBookingAction": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed": {
+            "title": "Allowed",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "visitor_actions_unavailable",
+                  "booking_confirm_completed",
+                  "booking_confirm_in_progress",
+                  "booking_confirm_cancelled",
+                  "booking_confirm_unavailable",
+                  "booking_confirm_started",
+                  "booking_cancel_completed",
+                  "booking_cancel_in_progress",
+                  "booking_cancel_already",
+                  "booking_cancel_unavailable",
+                  "booking_cancel_too_late",
+                  "booking_reschedule_completed",
+                  "booking_reschedule_in_progress",
+                  "booking_reschedule_cancelled",
+                  "booking_reschedule_unavailable",
+                  "booking_reschedule_started",
+                  "booking_reschedule_too_late"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "allowed",
+          "reason"
+        ],
+        "title": "VisitorBookingAction",
+        "type": "object"
+      },
+      "VisitorBookingActions": {
+        "additionalProperties": false,
+        "properties": {
+          "cancel": {
+            "$ref": "#/components/schemas/VisitorBookingAction"
+          },
+          "confirm": {
+            "$ref": "#/components/schemas/VisitorBookingAction"
+          },
+          "reschedule": {
+            "$ref": "#/components/schemas/VisitorBookingAction"
+          }
+        },
+        "required": [
+          "confirm",
+          "cancel",
+          "reschedule"
+        ],
+        "title": "VisitorBookingActions",
+        "type": "object"
+      },
       "VisitorEmailChangeConfirmIn": {
         "additionalProperties": false,
         "properties": {
@@ -39821,6 +39887,82 @@
           }
         },
         "summary": "Read Visit",
+        "tags": [
+          "visitor-history"
+        ]
+      }
+    },
+    "/visitor/visits/{visit_id}/actions": {
+      "get": {
+        "description": "Current action hints. Commands recheck authority, time, billing and catalog; no slot is reserved.",
+        "operationId": "read_visit_actions_visitor_visits__visit_id__actions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Visit Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorBookingActions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Visit Actions",
         "tags": [
           "visitor-history"
         ]
