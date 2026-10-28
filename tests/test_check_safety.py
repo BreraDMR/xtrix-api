@@ -88,4 +88,4 @@ def test_check_cleans_only_owned_container_after_start_failure(tmp_path, create_
     assert result.returncode != 0
     calls = log.read_text().splitlines()
     removals = [call for call in calls if call.startswith('rm ')]
-    assert removals == ([] if create_fails else ['rm -f owned-test-container'])
+    assert removals == ([] if create_fails else ['rm -f -v owned-test-container'])

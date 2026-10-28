@@ -34,7 +34,7 @@ echo "==> openapi.json up to date"
 
 pg_id=""
 cleanup() {
-    if [ -n "$pg_id" ]; then docker rm -f "$pg_id" >/dev/null 2>&1 || true; fi
+    if [ -n "$pg_id" ]; then docker rm -f -v "$pg_id" >/dev/null 2>&1 || true; fi
 }
 trap cleanup EXIT
 
