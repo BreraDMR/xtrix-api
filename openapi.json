@@ -5155,6 +5155,245 @@
         "title": "ExpenseUpdate",
         "type": "object"
       },
+      "FinancialClientQuote": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "integer"
+          },
+          "client_name": {
+            "title": "Client Name",
+            "type": "string"
+          },
+          "requires_review": {
+            "default": false,
+            "title": "Requires Review",
+            "type": "boolean"
+          },
+          "visit_count": {
+            "title": "Visit Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_name",
+          "amount",
+          "visit_count"
+        ],
+        "title": "FinancialClientQuote",
+        "type": "object"
+      },
+      "FinancialCurrencyClients": {
+        "properties": {
+          "clients": {
+            "items": {
+              "$ref": "#/components/schemas/FinancialClientQuote"
+            },
+            "title": "Clients",
+            "type": "array"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          }
+        },
+        "required": [
+          "currency",
+          "clients"
+        ],
+        "title": "FinancialCurrencyClients",
+        "type": "object"
+      },
+      "FinancialCurrencyValue": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "average": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "requires_review": {
+            "default": false,
+            "title": "Requires Review",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "currency",
+          "amount",
+          "average",
+          "count"
+        ],
+        "title": "FinancialCurrencyValue",
+        "type": "object"
+      },
+      "FinancialQuotePeriod": {
+        "properties": {
+          "by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/FinancialCurrencyValue"
+            },
+            "title": "By Currency",
+            "type": "array"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "month": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month"
+          },
+          "period": {
+            "title": "Period",
+            "type": "string"
+          },
+          "revenue": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "required": [
+          "revenue",
+          "currency",
+          "count",
+          "by_currency",
+          "period"
+        ],
+        "title": "FinancialQuotePeriod",
+        "type": "object"
+      },
+      "FinancialQuoteSummary": {
+        "properties": {
+          "by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/FinancialCurrencyValue"
+            },
+            "title": "By Currency",
+            "type": "array"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "revenue": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue"
+          }
+        },
+        "required": [
+          "revenue",
+          "currency",
+          "count",
+          "by_currency"
+        ],
+        "title": "FinancialQuoteSummary",
+        "type": "object"
+      },
       "FinancialReportResponse": {
         "properties": {
           "average_revenue_per_visit": {
@@ -5168,18 +5407,34 @@
             ],
             "title": "Average Revenue Per Visit"
           },
+          "by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/FinancialCurrencyValue"
+            },
+            "title": "By Currency",
+            "type": "array"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
           "revenue_by_period": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/FinancialQuotePeriod"
             },
             "title": "Revenue By Period",
             "type": "array"
           },
           "revenue_by_status": {
             "additionalProperties": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/FinancialQuoteSummary"
             },
             "title": "Revenue By Status",
             "type": "object"
@@ -5192,9 +5447,29 @@
             "title": "Top Clients",
             "type": "array"
           },
+          "top_clients_by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/FinancialCurrencyClients"
+            },
+            "title": "Top Clients By Currency",
+            "type": "array"
+          },
           "total_revenue": {
-            "title": "Total Revenue",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Revenue"
+          },
+          "value_basis": {
+            "const": "quoted_service_price",
+            "default": "quoted_service_price",
+            "title": "Value Basis",
+            "type": "string"
           }
         },
         "required": [

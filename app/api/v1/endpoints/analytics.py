@@ -122,7 +122,7 @@ def get_financial_report_endpoint(
         'date_to': date_to.isoformat() if date_to is not None else None,
         'group_by': group_by,
     }
-    cached = get_cached_analytics('financial_report', **cache_key)
+    cached = get_cached_analytics('financial_report_v2', **cache_key)
     if cached:
         return FinancialReportResponse(**cached)
     report = get_financial_report(
@@ -133,8 +133,9 @@ def get_financial_report_endpoint(
         date_to=date_to,
         group_by=group_by,
     )
-    cache_analytics('financial_report', report, ttl_seconds=600, **cache_key)
-    return FinancialReportResponse(**report)
+    result = FinancialReportResponse(**report)
+    cache_analytics('financial_report_v2', result.model_dump(mode='json'), ttl_seconds=600, **cache_key)
+    return result
 @router.get("/services/popular", response_model=PopularServicesResponse)
 def get_popular_services_endpoint(
     specialist_id: Optional[int] = Query(None),
@@ -216,19 +217,20 @@ def export_report(
             date_to=payload.date_to,
             group_by="month",
         )
-        export_data = [
-            {
-                'Period': period['period'],
-                'Revenue': period['revenue'],
-                'Visit Count': period['count'],
+        # One currency per row; strings keep exact cents even in spreadsheet cells.
+        def currency_row(period, value):
+            return {
+                'Period': period,
+                'Currency': value['currency'] if value['currency'] is not None else 'UNKNOWN',
+                'Quoted Service Value': format(value['amount'], 'f') if value['amount'] is not None else None,
+                'Average Quoted Price': format(value['average'], 'f') if value['average'] is not None else None,
+                'Visit Count': value['count'],
+                'Requires Review': value['requires_review'],
+                'Value Basis': report['value_basis'],
             }
-            for period in report['revenue_by_period']
-        ]
-        export_data.insert(0, {
-            'Period': 'TOTAL',
-            'Revenue': report['total_revenue'],
-            'Visit Count': sum(p['count'] for p in report['revenue_by_period']),
-        })
+        export_data = [currency_row('TOTAL', value) for value in report['by_currency']]
+        export_data.extend(currency_row(period['period'], value)
+                           for period in report['revenue_by_period'] for value in period['by_currency'])
         filename = "financial_report"
         sheet_name = "Financial Report"
     elif payload.report_type == "visits":
@@ -287,10 +289,12 @@ def export_report(
         sheet_name = "Clients Report"
     else:
         raise HTTPException(status_code=400, detail=_("invalid_report_type", locale))
+    financial_columns = ['Period', 'Currency', 'Quoted Service Value', 'Average Quoted Price',
+                         'Visit Count', 'Requires Review', 'Value Basis'] if payload.report_type == 'financial' else None
     if payload.format == "csv":
-        return export_to_csv(export_data, filename=f"{filename}.csv")
+        return export_to_csv(export_data, filename=f"{filename}.csv", fieldnames=financial_columns)
     else:
-        return export_to_excel(export_data, filename=f"{filename}.xlsx", sheet_name=sheet_name)
+        return export_to_excel(export_data, filename=f"{filename}.xlsx", sheet_name=sheet_name, fieldnames=financial_columns)
 @router.get("/retention/metrics", response_model=RetentionMetricsResponse)
 def get_retention_metrics_endpoint(
     date_from: Optional[UtcDatetime] = Query(None),
