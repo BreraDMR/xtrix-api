@@ -31,6 +31,7 @@ from app.db.models.gift import (
 from app.db.models.public_booking import PublicBookingSettings
 from app.db.models.service import Service
 from app.db.models.visit import Visit
+from app.schemas.limits import ISO_4217
 
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 ACTIVE_STATUS = "active"
@@ -769,6 +770,20 @@ def redeem(
             -money(existing.amount_delta),
             -int(existing.units_delta),
         )
+
+    if certificate.kind == "money":
+        unit = visit.currency_snapshot
+        if unit not in ISO_4217 or certificate.currency != unit:
+            raise GiftError("gift_currency_mismatch")
+        # A previous mixed-unit ledger cannot be repaired by a new redemption.
+        foreign = db.query(GiftLedgerEntry.id).join(
+            GiftCertificate, GiftCertificate.id == GiftLedgerEntry.certificate_id).filter(
+                GiftLedgerEntry.visit_id == visit.id,
+                GiftLedgerEntry.entry_type.in_(["redeemed", "reversed"]),
+                GiftCertificate.kind == "money",
+                GiftCertificate.currency.is_distinct_from(unit)).first()
+        if foreign is not None:
+            raise GiftError("gift_currency_mismatch")
 
     if certificate.status == EXPIRED_STATUS:
         raise GiftError("gift_expired")

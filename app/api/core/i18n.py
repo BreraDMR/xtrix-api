@@ -1110,6 +1110,11 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Недостаточно остатка для этой суммы",
         "cz": "Na tuto částku není dostatečný zůstatek",
     },
+    "gift_currency_mismatch": {
+        "en": "The certificate, visit and previous redemptions must use the same known currency. Ask the salon to review the payment.",
+        "ru": "Валюта сертификата, визита и прежних списаний должна быть известна и совпадать. Обратитесь в салон для проверки расчёта.",
+        "cz": "Měna poukazu, návštěvy i předchozích čerpání musí být známá a stejná. Požádejte salon o kontrolu platby.",
+    },
     "gift_scope_mismatch": {
         "en": "This certificate does not cover the services in the visit",
         "ru": "Сертификат не покрывает услуги этого визита",
