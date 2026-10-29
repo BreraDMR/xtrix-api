@@ -139,9 +139,9 @@ def previous_columns_snapshot(bind):
     with bind.connect() as connection:
         result = {}
         for table in metadata.sorted_tables:
-            if table.name == "alembic_version":
+            if table.name in {"alembic_version", "client_cashback_balances"}:
                 continue
-            columns = [column for column in table.c if not (table.name == "visits" and column.name in {"currency_snapshot", "manual_payment_recorded_at"})]
+            columns = [column for column in table.c if not ((table.name == "visits" and column.name in {"currency_snapshot", "manual_payment_recorded_at"}) or (table.name == "loyalty_transactions" and column.name in {"cashback_currency", "cashback_amount_exact", "cashback_balance_after_exact"}))]
             result[table.name] = sorted(json.dumps(dict(row), sort_keys=True, default=str)
                 for row in connection.execute(select(*columns)).mappings())
         return result
@@ -150,7 +150,7 @@ def previous_columns_snapshot(bind):
 def test_0081_0082_roundtrip_preserves_every_old_column_payment_and_gift_and_backfills_nothing(db, financial_world):
     world = financial_world
     bind, config = db.get_bind(), Config("alembic.ini")
-    assert ScriptDirectory.from_config(config).get_heads() == ["0083_manual_payment_marker"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0084_cashback_currency_wallets"]
     db.rollback()
     before = previous_columns_snapshot(bind)
     try:

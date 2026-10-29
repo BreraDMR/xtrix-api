@@ -21,8 +21,8 @@ def before_auth_rows(bind):
     with bind.connect() as connection:
         return {table.name: sorted(json.dumps(dict(row), sort_keys=True, default=str)
                 for row in connection.execute(select(*[column for column in table.c
-                    if not (table.name == "visits" and column.name in {"currency_snapshot", "manual_payment_recorded_at"})])).mappings())
-                for table in metadata.sorted_tables if table.name not in NEW_TABLES | {"visitor_grants", "visitor_claims", "alembic_version"}}
+                    if not ((table.name == "visits" and column.name in {"currency_snapshot", "manual_payment_recorded_at"}) or (table.name == "loyalty_transactions" and column.name in {"cashback_currency", "cashback_amount_exact", "cashback_balance_after_exact"}))])).mappings())
+                for table in metadata.sorted_tables if table.name not in NEW_TABLES | {"visitor_grants", "visitor_claims", "alembic_version", "client_cashback_balances"}}
 
 
 def seed_identity(db, make_user):
@@ -57,7 +57,7 @@ def test_0079_0080_roundtrip_has_one_head_and_keeps_all_previous_rows(db, make_u
     bind = db.get_bind()
     before = before_auth_rows(bind)
     config = Config("alembic.ini")
-    assert ScriptDirectory.from_config(config).get_heads() == ["0083_manual_payment_marker"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0084_cashback_currency_wallets"]
     try:
         command.downgrade(config, "0079_visitor_accounts")
         assert not (NEW_TABLES & set(inspect(bind).get_table_names()))
