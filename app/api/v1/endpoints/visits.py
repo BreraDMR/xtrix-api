@@ -1,3 +1,4 @@
+from app.api.core import visit_settlement_guard
 from datetime import datetime, timedelta, time
 from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -379,7 +380,9 @@ def get_visit(
     if not check_visit_access(db, current_user, visit):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     return _visit_response(visit, can_view_financials(current_user, db))
-@router.put("/{visit_id}", response_model=VisitOut)
+@router.put("/{visit_id}", response_model=VisitOut, responses={
+    409: {"description": "A recorded settlement or pending payment blocks quote changes; busy bookings can be retried."},
+})
 def update_visit(
     visit_id: int,
     payload: VisitUpdate,
@@ -414,10 +417,18 @@ def update_visit(
             actor=current_user,
             request_id=audit_service.request_id_for(request),
         )
+    except visit_settlement_guard.VisitPriceChangeBlocked as exc:
+        raise HTTPException(status_code=409, detail={"code": exc.reason, "message": _(exc.reason, locale)}) from None
+    except (visit_settlement_guard.SettlementBusy, visit_settlement_guard.DirtySettlementState):
+        raise HTTPException(status_code=409, detail={"code": "visit_price_retry", "message": _("visit_price_retry", locale)}) from None
+    except visit_settlement_guard.SettlementTargetUnavailable:
+        raise HTTPException(status_code=404, detail=_("visit_not_found", locale)) from None
     except crud_visit.CompletedVisitPaymentRequired:
         raise HTTPException(status_code=400, detail=_("payment_method_required_for_completed_visits", locale)) from None
     except ChainError as exc:
         _chain_error(exc, locale)
+    old_status, old_start, old_service_id, old_specialist_id, old_business_id = getattr(
+        result, '_updated_from', (old_status, old_start, old_service_id, old_specialist_id, old_business_id))
     if old_status != 'completed' and result.status == 'completed':
         try:
             from app.api.core.loyalty_logic import award_bonus_for_visit

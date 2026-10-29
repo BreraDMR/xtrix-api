@@ -41199,6 +41199,9 @@
             },
             "description": "Successful Response"
           },
+          "409": {
+            "description": "A recorded settlement or pending payment blocks quote changes; busy bookings can be retried."
+          },
           "422": {
             "content": {
               "application/json": {

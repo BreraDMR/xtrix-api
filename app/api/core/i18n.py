@@ -1,6 +1,21 @@
 from typing import Dict, Any
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
+    "visit_price_settlement_required": {
+        "en": "This visit has recorded payments or bonuses. A separate settlement correction is required before changing its price.",
+        "ru": "По визиту уже есть оплата или бонусные операции. Для изменения цены сначала нужна отдельная корректировка расчёта.",
+        "cz": "U návštěvy jsou zaznamenány platby nebo bonusové operace. Před změnou ceny je nutná samostatná oprava vyúčtování.",
+    },
+    "visit_price_payment_pending": {
+        "en": "Finish or cancel the pending payment before changing this visit's price.",
+        "ru": "Перед изменением цены завершите или отмените незавершённую оплату визита.",
+        "cz": "Před změnou ceny návštěvy dokončete nebo zrušte nevyřízenou platbu.",
+    },
+    "visit_price_retry": {
+        "en": "The visit is being updated. Please try again.",
+        "ru": "Запись сейчас изменяется. Повторите попытку.",
+        "cz": "Návštěva se právě upravuje. Zkuste to prosím znovu.",
+    },
     "visitor_actions_unavailable": {
         "en": "Actions for this booking are temporarily unavailable. Contact the business.",
         "ru": "Действия с этой записью временно недоступны. Свяжитесь с салоном.",
