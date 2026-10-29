@@ -113,6 +113,8 @@ class LoyaltyTransactionOut(BaseModel):
     cashback_amount: Optional[float]
     points_balance_after: float
     cashback_balance_after: Optional[float]
+    discount_currency: Optional[str] = None
+    discount_amount_exact: Optional[Decimal] = None
     cashback_currency: Optional[str] = None
     cashback_amount_exact: Optional[Decimal] = None
     cashback_balance_after_exact: Optional[Decimal] = None

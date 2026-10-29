@@ -90,7 +90,7 @@ def test_commit_failure_rolls_back_wallet_points_and_exact_ledger_together(db,wo
     try:
         with pytest.raises(RuntimeError,match='simulated commit failure'):
             crud_loyalty.create_loyalty_transaction(db,world['client'],world['business'],'spent',-5,
-                cashback_amount=-5,visit_id=world['visit'])
+                cashback_amount=-5,visit_id=world['visit'],discount_amount=10)
     finally:event.remove(db,'before_commit',reject)
     with Session(engine) as observer:
         assert observer.query(ClientCashbackBalance).one().balance==100

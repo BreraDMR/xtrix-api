@@ -64,7 +64,18 @@ class LoyaltyTransaction(Base):
             AND cashback_amount_exact IS NOT NULL AND cashback_balance_after_exact IS NOT NULL
             AND cashback_amount_exact BETWEEN -9999999999999999.99 AND 9999999999999999.99
             AND cashback_balance_after_exact BETWEEN 0 AND 9999999999999999.99)""",
-        name='ck_loyalty_cashback_snapshot'),)
+        name='ck_loyalty_cashback_snapshot'), CheckConstraint(
+        """(discount_currency IS NULL AND discount_amount_exact IS NULL)
+        OR (discount_currency IS NOT NULL AND discount_currency COLLATE "C" ~ '^[A-Z]{3}$'
+            AND discount_amount_exact IS NOT NULL AND discount_amount_exact > 0
+            AND discount_amount_exact <= 9999999999999999.99 AND transaction_type = 'spent'
+            AND points_amount <= 0 AND coalesce(cashback_amount_exact, 0) <= 0
+        AND (points_amount < 0 OR coalesce(cashback_amount_exact, 0) < 0)
+            AND discount_amount_exact >= -coalesce(cashback_amount_exact, 0)
+            AND (cashback_currency IS NULL OR cashback_currency = discount_currency))""",
+        name='ck_loyalty_discount_snapshot'),)
+    discount_currency = Column(String(3), nullable=True)
+    discount_amount_exact = Column(Numeric(18, 2), nullable=True)
     # Legacy float amounts remain untouched and have no inferred unit.
     cashback_currency = Column(String(3), nullable=True)
     cashback_amount_exact = Column(Numeric(18, 2), nullable=True)

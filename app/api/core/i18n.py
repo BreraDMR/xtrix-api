@@ -1,6 +1,16 @@
 from typing import Dict, Any
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
+    "loyalty_payment_history_review": {
+        "en": "The price currency or past bonus payments need review. A reliable price after bonuses cannot be confirmed.",
+        "ru": "Валюта цены или прошлые бонусные операции требуют проверки. Достоверную цену после бонусов подтвердить нельзя.",
+        "cz": "Měna ceny nebo dřívější bonusové operace vyžadují kontrolu. Spolehlivou cenu po bonusech nelze potvrdit.",
+    },
+    "loyalty_payment_quote_required": {
+        "en": "The exact bonus payment amount must be confirmed against the saved visit price.",
+        "ru": "Точную сумму оплаты бонусами нужно подтвердить по сохранённой цене визита.",
+        "cz": "Přesnou částku platby bonusy je nutné potvrdit podle uložené ceny návštěvy.",
+    },
     "loyalty_payment_checkout_exists": {
         "en": "This visit already has an external checkout. Review that payment separately before applying bonuses.",
         "ru": "По визиту уже создана внешняя оплата. Перед списанием бонусов нужна отдельная проверка этого расчёта.",

@@ -1,4 +1,4 @@
-from app.schemas.visit_price import VisitPriceQuoteOut, VisitPriceChange
+from app.schemas.visit_price import VisitPriceQuoteOut, VisitPriceChange, VisitLoyaltyPriceOut
 from app.api.core import visit_price_access, visit_price_quote, visit_reprice
 from app.api.private_routes import NoStoreRoute
 from app.api.core import visit_settlement_guard
@@ -573,6 +573,24 @@ def write_visit_price(request: Request, payload: VisitPriceChange, visit_id: int
         invalidate_visit(response.visit_id)
     except Exception as exc:
         logger.warning('Post-reprice cache refresh failed for visit_id=%s: %s', response.visit_id, type(exc).__name__)
+    return response
+
+
+@price_router.get('/{visit_id}/loyalty-price', response_model=VisitLoyaltyPriceOut,
+                  summary='Read the saved service price after recorded bonus deductions')
+@limiter.limit('60/minute')
+def read_visit_loyalty_price(request: Request, visit_id: int = Path(gt=0),
+                             db: Session = Depends(deps.get_db),
+                             current_user: User = Depends(deps.role_required('admin', 'business_owner', 'specialist', 'employee')),
+                             locale: str = Depends(deps.get_locale)) -> VisitLoyaltyPriceOut:
+    from app.api.core.loyalty_price_projection import read_loyalty_price
+    target = _price_target(db, current_user, visit_id, locale)
+    result = read_loyalty_price(db, target)
+    if result is None:
+        raise HTTPException(404, detail=_("visit_not_found", locale))
+    response = VisitLoyaltyPriceOut.model_validate(result)
+    if result.requires_review:
+        response.message = _("loyalty_payment_history_review", locale)
     return response
 
 

@@ -182,17 +182,18 @@ def create_loyalty_transaction(
     description: Optional[str] = None,
     expiry_date: Optional[date] = None,
     cashback_currency: Optional[str] = None,
+    discount_amount=None,
 ) -> LoyaltyTransaction:
     try:
         return _write_loyalty_transaction(db, client_id, business_id, transaction_type, points_amount,
-            cashback_amount, program_id, visit_id, promotion_id, level_id, description, expiry_date, cashback_currency)
+            cashback_amount, program_id, visit_id, promotion_id, level_id, description, expiry_date, cashback_currency, discount_amount)
     except Exception:
         db.rollback()
         raise
 
 
 def _write_loyalty_transaction(db, client_id, business_id, transaction_type, points_amount,
-    cashback_amount, program_id, visit_id, promotion_id, level_id, description, expiry_date, cashback_currency):
+    cashback_amount, program_id, visit_id, promotion_id, level_id, description, expiry_date, cashback_currency, discount_amount):
     if visit_id is not None:
         locked_visit = lock_loyalty_visit(db, visit_id, client_id, business_id)
         if transaction_type == 'spent' and db.query(LoyaltyTransaction.id).filter(
@@ -208,7 +209,7 @@ def _write_loyalty_transaction(db, client_id, business_id, transaction_type, poi
                 raise cashback_wallets.CashbackError('loyalty_cashback_currency_unavailable')
             cashback_currency = locked_visit.currency_snapshot
     else:
-        if transaction_type == 'spent' and cashback_amount:
+        if transaction_type == 'spent' and (points_amount or cashback_amount):
             raise cashback_wallets.CashbackError('loyalty_cashback_visit_required')
         cashback_wallets.lock_money_references(db, client_id, business_id)
     with db.no_autoflush:
@@ -235,6 +236,23 @@ def _write_loyalty_transaction(db, client_id, business_id, transaction_type, poi
     new_points_balance = relation.loyalty_points + points_amount
     if transaction_type == 'spent' and new_points_balance < 0:
         raise ValueError('loyalty_balance_insufficient')
+    discount_unit = None
+    saved_discount = None
+    if transaction_type == 'spent' and (points_amount or cashback_amount):
+        if points_amount > 0 or (cashback_amount or 0) > 0:
+            raise cashback_wallets.CashbackError('loyalty_payment_quote_required')
+        discount_unit = cashback_wallets._unit(locked_visit.currency_snapshot)
+        cash = cashback_wallets._amount(cashback_amount or 0).copy_negate()
+        if discount_amount is None:
+            if points_amount:
+                raise cashback_wallets.CashbackError('loyalty_payment_quote_required')
+            discount_amount = cash
+        saved_discount = cashback_wallets._amount(discount_amount)
+        quote = cashback_wallets._amount(locked_visit.price)
+        if saved_discount <= 0 or saved_discount < cash or saved_discount > quote:
+            raise cashback_wallets.CashbackError('loyalty_payment_quote_required')
+    elif discount_amount is not None:
+        raise cashback_wallets.CashbackError('loyalty_payment_quote_required')
     movement = (cashback_wallets.move_balance(db, client_id, business_id, cashback_currency, cashback_amount)
                 if cashback_amount else None)
     new_cashback_balance = float(movement.balance_after) if movement is not None else 0.0
@@ -249,6 +267,8 @@ def _write_loyalty_transaction(db, client_id, business_id, transaction_type, poi
         cashback_amount=cashback_amount or 0.0,
         points_balance_after=new_points_balance,
         cashback_balance_after=new_cashback_balance,
+        discount_currency=discount_unit,
+        discount_amount_exact=saved_discount,
         cashback_currency=movement.currency if movement is not None else None,
         cashback_amount_exact=movement.amount if movement is not None else None,
         cashback_balance_after_exact=movement.balance_after if movement is not None else None,

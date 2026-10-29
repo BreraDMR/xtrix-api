@@ -94,3 +94,14 @@ class VisitPriceQuoteOut(BaseModel):
     items: tuple[VisitPriceItemQuoteOut, ...]
     expected_quote: str
     model_config = ConfigDict(from_attributes=True)
+
+
+class VisitLoyaltyPriceOut(BaseModel):
+    visit_id: int
+    currency: str | None
+    quoted_total: Decimal | None
+    loyalty_discount: Decimal | None
+    price_after_loyalty: Decimal | None = Field(description='Service price after bonuses; excludes gifts and received payments')
+    requires_review: bool
+    message: str | None = None
+    model_config = ConfigDict(from_attributes=True)

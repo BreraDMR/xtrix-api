@@ -376,6 +376,7 @@ def use_points_for_visit(
         points_amount=-points if points else 0.0,
         cashback_amount=cash.copy_negate() if cash else 0.0,
         program_id=program.id, visit_id=visit_id, description='Used loyalty balance for payment',
+        discount_amount=discount,
     )
     logger.info(f"Used loyalty bonus: client={client_id}, points={points}, cashback={cash}, discount={discount}")
     return True, float(discount), ""

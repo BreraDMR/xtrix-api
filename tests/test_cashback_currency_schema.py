@@ -29,7 +29,7 @@ from app.db.models.loyalty_program import LoyaltyTransaction
 from tests import test_visitor_confirm_core as core
 
 world=core.world
-NEW_COLUMNS={'cashback_currency','cashback_amount_exact','cashback_balance_after_exact'}
+NEW_COLUMNS={'cashback_currency','cashback_amount_exact','cashback_balance_after_exact','discount_currency','discount_amount_exact'}
 
 
 def old_rows(bind):
@@ -47,7 +47,7 @@ def test_0083_0084_roundtrip_keeps_legacy_amounts_and_does_not_guess_units(db,wo
     db.add(LoyaltyTransaction(client_id=world['client'],business_id=world['business'],visit_id=world['visit'],
         transaction_type='earned',points_amount=7,cashback_amount=old_amount,points_balance_after=7,cashback_balance_after=old_amount))
     db.commit();bind=db.get_bind();config=Config('alembic.ini');db.rollback()
-    assert ScriptDirectory.from_config(config).get_heads()==['0084_cashback_currency_wallets']
+    assert ScriptDirectory.from_config(config).get_heads()==['0085_loyalty_discount_snapshot']
     before=old_rows(bind)
     try:
         for _ in range(2):
@@ -86,7 +86,7 @@ def test_known_wallet_data_blocks_destructive_schema_downgrade(db,world):
     config=Config('alembic.ini')
     with pytest.raises(DBAPIError):command.downgrade(config,'0083_manual_payment_marker')
     with db.get_bind().connect() as conn:
-        assert conn.execute(text('SELECT version_num FROM alembic_version')).scalar_one()=='0084_cashback_currency_wallets'
+        assert conn.execute(text('SELECT version_num FROM alembic_version')).scalar_one()=='0085_loyalty_discount_snapshot'
         assert conn.execute(text('SELECT currency,balance FROM client_cashback_balances')).one()==('CZK',Decimal('12.34'))
 
 
