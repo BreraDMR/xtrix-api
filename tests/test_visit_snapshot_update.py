@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.api.crud.crud_visit import prospective_update_lines, update_visit
+from app.api.core.visit_settlement_guard import VisitPriceChangeBlocked
 from app.db.models.business import Business
 from app.db.models.client import Client
 from app.db.models.service import Service
@@ -122,7 +123,8 @@ def test_single_explicit_price_without_replacement_items_still_updates(db, world
 
 
 @pytest.mark.parametrize("change", ["order", "master", "service"])
-def test_changed_chain_keeps_existing_catalog_path(db, world, change):
+@pytest.mark.parametrize("unit", ["EUR", "CZK"])
+def test_changed_chain_requires_a_matching_catalog_unit(db, world, change, unit):
     visit, services, other = world
     items = [{"service_id": row.id} for row in services]
     if change == "order":
@@ -131,11 +133,21 @@ def test_changed_chain_keeps_existing_catalog_path(db, world, change):
         items[0]["specialist_id"] = other.id
     else:
         items = [{"service_id": services[1].id}]
+    visit.currency_snapshot = unit
+    db.commit()
+    before = (visit.price, visit.currency_snapshot, snapshot(visit))
+    if unit == "CZK":
+        with pytest.raises(VisitPriceChangeBlocked) as blocked:
+            update_visit(db, visit, VisitUpdate(items=items, price=123))
+        assert blocked.value.reason == "visit_price_currency_explicit_required"
+        db.expire_all()
+        assert (visit.price, visit.currency_snapshot, snapshot(visit)) == before
+        return
     result = update_visit(db, visit, VisitUpdate(items=items, price=123))
     assert result.price == (81 if change != "service" else 41)
     assert result.items[0].service_name.startswith("New EUR name")
     assert result.items[0].duration_minutes == 90
-    assert result.currency_snapshot == "CZK"  # Repricing changed chains is a separate card.
+    assert result.currency_snapshot == "EUR"
 
 
 def test_empty_items_remain_invalid():
@@ -160,10 +172,20 @@ def test_legacy_no_items_preserves_parent_total_and_unknown_unit(db, world, tota
     assert result.currency_snapshot is None
 
 
-def test_explicit_service_change_without_items_keeps_catalog_path(db, world):
+@pytest.mark.parametrize("unit", ["EUR", "CZK"])
+def test_explicit_service_change_without_items_requires_matching_unit(db, world, unit):
     visit, services, _ = world
     visit.items.pop()
+    visit.currency_snapshot = unit
     db.commit()
+    before = (visit.price, visit.currency_snapshot, snapshot(visit))
+    if unit == "CZK":
+        with pytest.raises(VisitPriceChangeBlocked) as blocked:
+            update_visit(db, visit, VisitUpdate(service_id=services[1].id))
+        assert blocked.value.reason == "visit_price_currency_explicit_required"
+        db.expire_all()
+        assert (visit.price, visit.currency_snapshot, snapshot(visit)) == before
+        return
     result = update_visit(db, visit, VisitUpdate(service_id=services[1].id))
     assert result.service_id == services[1].id
     assert result.price == 41

@@ -1,6 +1,11 @@
 from typing import Dict, Any
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
+    "visit_price_currency_explicit_required": {
+        "en": "The visit uses a different saved currency. Changing its services or staff requires an explicit new price and currency.",
+        "ru": "У визита сохранена другая валюта. Для смены услуги или мастера нужно явно задать новую цену и валюту.",
+        "cz": "Návštěva má uloženou jinou měnu. Změna služeb nebo pracovníka vyžaduje výslovné zadání nové ceny a měny.",
+    },
     "loyalty_payment_history_review": {
         "en": "The price currency or past bonus payments need review. A reliable price after bonuses cannot be confirmed.",
         "ru": "Валюта цены или прошлые бонусные операции требуют проверки. Достоверную цену после бонусов подтвердить нельзя.",

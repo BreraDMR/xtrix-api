@@ -19,10 +19,12 @@ from app.api.core.visit_chain import (
     total_price,
 )
 from app.api.core import audit_service, visit_currency, visit_settlement_guard
+from app.db.models.business import Business
 from app.db.models.client import Client
 from app.db.models.service import Service
 from app.db.models.visit import Visit
 from app.schemas.visit import VisitCreate, VisitUpdate
+from app.schemas.limits import ISO_4217
 
 class CompletedVisitPaymentRequired(ValueError):
     """The effective completed visit needs an existing payment method."""
@@ -281,6 +283,13 @@ def update_visit(
                         (line.service_id, line.specialist_id, line.price) for line in lines])
                 if quote_changed:
                     visit_settlement_guard.ensure_price_change_allowed(db, visit.id, visit.business_id)
+                if not same_chain and visit.business_id is not None and visit.currency_snapshot in ISO_4217:
+                    # The business anchor is already held. Read the unit as a scalar,
+                    # not from a caller's cached model, before copying catalog prices.
+                    catalog_currency = db.execute(select(Business.currency).where(
+                        Business.id == visit.business_id)).scalar_one_or_none()
+                    if visit.currency_snapshot != catalog_currency:
+                        raise visit_settlement_guard.VisitPriceChangeBlocked('visit_price_currency_explicit_required')
                 start = data.get("date_start") or visit.date_start
                 assert_no_conflict(db, item_intervals(start, lines), exclude_id=visit.id)
                 apply_chain(visit, lines, start)
