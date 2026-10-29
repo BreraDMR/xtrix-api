@@ -75,3 +75,21 @@ class VisitPriceChange(_PriceInput):
     def total(self) -> Decimal:
         prices = (item.price for item in self.items) if self.items is not None else (self.legacy_price,)
         return _total(prices)
+
+
+class VisitPriceItemQuoteOut(BaseModel):
+    item_id: int
+    position: int
+    service_id: int | None
+    specialist_id: int
+    price: Decimal | None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class VisitPriceQuoteOut(BaseModel):
+    visit_id: int
+    currency: str | None
+    total: Decimal | None
+    items: tuple[VisitPriceItemQuoteOut, ...]
+    expected_quote: str
+    model_config = ConfigDict(from_attributes=True)

@@ -1,7 +1,10 @@
+from app.schemas.visit_price import VisitPriceQuoteOut
+from app.api.core import visit_price_access, visit_price_quote
+from app.api.private_routes import NoStoreRoute
 from app.api.core import visit_settlement_guard
 from datetime import datetime, timedelta, time
 from typing import Literal, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Path
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core import audit_service
@@ -496,3 +499,34 @@ def restore_visit(
     enforce_visit_quota(db, visit.business_id, visit.specialist_id, visit.date_start, visit.status, exclude_id=visit.id)
     restore_soft_deleted(db, visit)
     return {"message": "Visit restored successfully"}
+
+
+
+price_router = APIRouter(route_class=NoStoreRoute)
+
+
+def _price_target(db, current_user, visit_id, locale):
+    from app.api.core.permissions import check_visit_access
+    visit = crud_visit.get_visit(db, visit_id, business_id=current_user.business_id)
+    if visit is None:
+        raise HTTPException(404, detail=_("visit_not_found", locale))
+    if not check_visit_access(db, current_user, visit) or not can_view_financials(current_user, db):
+        raise HTTPException(403, detail=_("not_allowed", locale))
+    return visit
+
+
+@price_router.get('/{visit_id}/price', response_model=VisitPriceQuoteOut,
+                  summary='Read the stored quote and its optimistic fingerprint')
+@limiter.limit('60/minute')
+def read_visit_price(request: Request, visit_id: int = Path(gt=0),
+                     db: Session = Depends(deps.get_db),
+                     current_user: User = Depends(deps.role_required('admin', 'business_owner', 'specialist', 'employee')),
+                     locale: str = Depends(deps.get_locale)) -> VisitPriceQuoteOut:
+    target = _price_target(db, current_user, visit_id, locale)
+    state = visit_price_access.read_stored_price(db, target)
+    if state is None:
+        raise HTTPException(404, detail=_("visit_not_found", locale))
+    return VisitPriceQuoteOut.model_validate(visit_price_quote.project_price(state))
+
+
+router.include_router(price_router)
