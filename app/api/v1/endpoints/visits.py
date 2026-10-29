@@ -401,15 +401,6 @@ def update_visit(
         if not service or not check_service_access(db, current_user, service):
             raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     _check_item_access(db, current_user, payload.items, visit.specialist_id, locale)
-    final_status = payload.status if payload.status is not None else visit.status
-    final_price = payload.price if payload.price is not None else visit.price
-    final_payment_method = payload.payment_method if payload.payment_method is not None else visit.payment_method
-    if final_status == 'completed' and final_price and final_price > 0:
-        if not final_payment_method or final_payment_method not in ['card', 'cash', 'other']:
-            raise HTTPException(
-                status_code=400,
-                detail=_("payment_method_required_for_completed_visits", locale)
-            )
     old_status = visit.status
     old_start = visit.date_start
     old_service_id = visit.service_id
@@ -423,6 +414,8 @@ def update_visit(
             actor=current_user,
             request_id=audit_service.request_id_for(request),
         )
+    except crud_visit.CompletedVisitPaymentRequired:
+        raise HTTPException(status_code=400, detail=_("payment_method_required_for_completed_visits", locale)) from None
     except ChainError as exc:
         _chain_error(exc, locale)
     if old_status != 'completed' and result.status == 'completed':

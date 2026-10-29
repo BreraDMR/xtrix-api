@@ -23,6 +23,10 @@ from app.db.models.service import Service
 from app.db.models.visit import Visit
 from app.schemas.visit import VisitCreate, VisitUpdate
 
+class CompletedVisitPaymentRequired(ValueError):
+    """The effective completed visit needs an existing payment method."""
+
+
 VISIT_AUDIT_VALUE_FIELDS = (
     "status",
     "date_start",
@@ -276,6 +280,10 @@ def update_visit(
             if field in computed:
                 continue
             setattr(visit, field, value)
+
+        if (visit.status == "completed" and visit.price and visit.price > 0
+                and visit.payment_method not in {"card", "cash", "other"}):
+            raise CompletedVisitPaymentRequired("Payment method is required for this completed visit")
 
         changes: dict[str, Any] = {}
         changed_fields = []
