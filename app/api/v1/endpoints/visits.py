@@ -1,5 +1,5 @@
-from app.schemas.visit_price import VisitPriceQuoteOut
-from app.api.core import visit_price_access, visit_price_quote
+from app.schemas.visit_price import VisitPriceQuoteOut, VisitPriceChange
+from app.api.core import visit_price_access, visit_price_quote, visit_reprice
 from app.api.private_routes import NoStoreRoute
 from app.api.core import visit_settlement_guard
 from datetime import datetime, timedelta, time
@@ -527,6 +527,48 @@ def read_visit_price(request: Request, visit_id: int = Path(gt=0),
     if state is None:
         raise HTTPException(404, detail=_("visit_not_found", locale))
     return VisitPriceQuoteOut.model_validate(visit_price_quote.project_price(state))
+
+
+@price_router.put('/{visit_id}/price', response_model=VisitPriceQuoteOut,
+                  summary='Replace an unsettled quote with explicit item prices and currency',
+                  responses={409: {'description': 'The quote changed, a payment is pending, or a separate settlement correction is required.'}})
+@limiter.limit('10/minute')
+def write_visit_price(request: Request, payload: VisitPriceChange, visit_id: int = Path(gt=0),
+                      db: Session = Depends(deps.get_db),
+                      current_user: User = Depends(deps.role_required('admin', 'business_owner', 'specialist', 'employee')),
+                      locale: str = Depends(deps.get_locale)) -> VisitPriceQuoteOut:
+    target = _price_target(db, current_user, visit_id, locale)
+    try:
+        result = visit_reprice.reprice_visit(db, target, payload, actor=current_user,
+                                            request_id=audit_service.request_id_for(request))
+        response = VisitPriceQuoteOut.model_validate(result)
+        db.commit()
+    except visit_reprice.QuoteChanged:
+        db.rollback()
+        raise HTTPException(409, detail={'code': 'visit_price_quote_changed',
+                                        'message': _('visit_price_quote_changed', locale)}) from None
+    except visit_reprice.QuoteItemsInvalid:
+        db.rollback()
+        raise HTTPException(422, detail={'code': 'visit_price_items_invalid',
+                                        'message': _('visit_price_items_invalid', locale)}) from None
+    except visit_settlement_guard.VisitPriceChangeBlocked as exc:
+        db.rollback()
+        raise HTTPException(409, detail={'code': exc.reason, 'message': _(exc.reason, locale)}) from None
+    except (visit_settlement_guard.SettlementBusy, visit_settlement_guard.DirtySettlementState):
+        db.rollback()
+        raise HTTPException(409, detail={'code': 'visit_price_retry', 'message': _('visit_price_retry', locale)}) from None
+    except visit_settlement_guard.SettlementTargetUnavailable:
+        db.rollback()
+        raise HTTPException(404, detail=_('visit_not_found', locale)) from None
+    except Exception:
+        db.rollback()
+        raise
+    try:
+        from app.api.core.redis_client import invalidate_visit
+        invalidate_visit(response.visit_id)
+    except Exception as exc:
+        logger.warning('Post-reprice cache refresh failed for visit_id=%s: %s', response.visit_id, type(exc).__name__)
+    return response
 
 
 router.include_router(price_router)

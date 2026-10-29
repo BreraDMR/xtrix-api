@@ -17159,6 +17159,33 @@
         "title": "VisitItemOut",
         "type": "object"
       },
+      "VisitItemPriceChange": {
+        "additionalProperties": false,
+        "properties": {
+          "item_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Item Id",
+            "type": "integer"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Price"
+          }
+        },
+        "required": [
+          "item_id",
+          "price"
+        ],
+        "title": "VisitItemPriceChange",
+        "type": "object"
+      },
       "VisitOut": {
         "properties": {
           "client_confirmed_at": {
@@ -17334,6 +17361,55 @@
           "created_at"
         ],
         "title": "VisitOut",
+        "type": "object"
+      },
+      "VisitPriceChange": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "pattern": "^[A-Za-z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          },
+          "expected_quote": {
+            "pattern": "^vprice1_[0-9a-f]{64}$",
+            "title": "Expected Quote",
+            "type": "string"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/VisitItemPriceChange"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items"
+          },
+          "legacy_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legacy Price"
+          }
+        },
+        "required": [
+          "currency",
+          "expected_quote"
+        ],
+        "title": "VisitPriceChange",
         "type": "object"
       },
       "VisitPriceItemQuoteOut": {
@@ -41380,6 +41456,81 @@
           }
         ],
         "summary": "Read the stored quote and its optimistic fingerprint",
+        "tags": [
+          "visits"
+        ]
+      },
+      "put": {
+        "operationId": "write_visit_price_visits__visit_id__price_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Visit Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitPriceChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitPriceQuoteOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "The quote changed, a payment is pending, or a separate settlement correction is required."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Replace an unsettled quote with explicit item prices and currency",
         "tags": [
           "visits"
         ]

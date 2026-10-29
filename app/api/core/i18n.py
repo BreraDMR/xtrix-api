@@ -6,6 +6,21 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Для этой оплаты недостаточно бонусных баллов или кешбэка.",
         "cz": "Na tuto platbu není dostatek bodů nebo cashbacku.",
     },
+    "visit_price_quote_changed": {
+        "en": "The stored price has changed. Refresh the quote and try again.",
+        "ru": "Цена записи уже изменилась. Обновите данные и повторите попытку.",
+        "cz": "Cena návštěvy se již změnila. Aktualizujte údaje a zkuste to znovu.",
+    },
+    "visit_price_items_invalid": {
+        "en": "Provide a price for every procedure in this visit, without replacing procedure IDs.",
+        "ru": "Укажите цену для каждой процедуры записи, сохранив её идентификатор.",
+        "cz": "Zadejte cenu pro každý úkon návštěvy a zachovejte jeho identifikátor.",
+    },
+    "visit_price_invalid": {
+        "en": "Check the currency and prices. Use nonnegative amounts with at most two decimal places.",
+        "ru": "Проверьте валюту и цены. Суммы должны быть неотрицательными, максимум с двумя знаками после запятой.",
+        "cz": "Zkontrolujte měnu a ceny. Částky musí být nezáporné, nejvýše se dvěma desetinnými místy.",
+    },
     "visit_price_settlement_required": {
         "en": "This visit has recorded payments or bonuses. A separate settlement correction is required before changing its price.",
         "ru": "По визиту уже есть оплата или бонусные операции. Для изменения цены сначала нужна отдельная корректировка расчёта.",
