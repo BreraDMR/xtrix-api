@@ -163,12 +163,12 @@ def reschedule_visit(request: Request, payload: PublicBookingRescheduleIn, visit
 def _after_released_slot(db, result):
     if result.changed:
         try:
-            from app.api.core import waitlist_service
-
             business = db.get(Business, result.business_id)
             if business is not None and business.deleted_at is None:
-                waitlist_service.release_slot_quietly(db, business, result.service_id,
-                                                     result.specialist_id, result.start)
+                from app.api.core import released_slots
+                slots = getattr(result, 'released_slots', ()) or (
+                    released_slots.ReleasedSlot(result.service_id,result.specialist_id,result.start),)
+                released_slots.match_quietly(db,business,slots)
         except Exception as exc:
             db.rollback()
             logger.warning('Post-booking-action slot matching failed for visit_id=%s: %s',

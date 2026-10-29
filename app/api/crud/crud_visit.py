@@ -259,6 +259,8 @@ def update_visit(
             visit = visit_settlement_guard.lock_quote_update_target(
                 db, visit, proposed_masters, getattr(actor, 'id', None))
             previous = (visit.status, visit.date_start, visit.service_id, visit.specialist_id, visit.business_id)
+            from app.api.core import released_slots
+            before_slots = released_slots.visit_slots(visit)
             structural = any(key in data for key in ("items", "service_id", "date_start", "date_end", "price"))
             before = {field: getattr(visit, field) for field in VISIT_AUDIT_NAME_FIELDS}
             before_items = _item_signature(visit)
@@ -331,9 +333,11 @@ def update_visit(
                     actor=actor,
                     request_id=request_id,
                 )
+        released = released_slots.changed_slots(before_slots, released_slots.visit_slots(visit), previous[0], visit.status)
         db.add(visit)
         db.commit()
         db.refresh(visit)
+        visit._released_slots = released
         visit._updated_from = previous
         return visit
     except Exception:

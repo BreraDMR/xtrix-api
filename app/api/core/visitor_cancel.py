@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.core import booking_manage_policy, notification_events, visitor_action_target as targets
 from app.api.core.visitor_action_facts import AuthorizedActionTarget, read_booking_manage_eligibility
 from app.api.core.visitor_pending_payments import cancel_pending_payments
+from app.api.core.released_slots import ReleasedSlot,cancellation_slots
 from app.db.models.business import Business
 from app.db.models.client import Client
 from app.db.models.notification_settings import NotificationSettings
@@ -24,6 +25,7 @@ class CancelVisitResult:
     service_id: int | None
     specialist_id: int
     start: datetime
+    released_slots: tuple[ReleasedSlot,...] = ()
 
 
 def _allowed(db, raw, original, *, after_change=False):
@@ -84,6 +86,7 @@ def cancel_visit(db: Session, raw_session: str | None, visit_id: int) -> CancelV
         if original.status == 'cancelled':
             return CancelVisitResult(visit_id, False, original.business_id, service_id,
                                      original.specialist_id, original.date_start)
+        released = cancellation_slots(db, original, service_id)
         cancel_pending_payments(db, raw_session, original)
         original = _allowed(db, raw_session, original)
         changed = db.execute(update(Visit).where(
@@ -100,4 +103,4 @@ def cancel_visit(db: Session, raw_session: str | None, visit_id: int) -> CancelV
         db.flush([event])
         _allowed(db, raw_session, original, after_change=True)
         return CancelVisitResult(visit_id, True, original.business_id, service_id,
-                                 original.specialist_id, original.date_start)
+                                 original.specialist_id, original.date_start, released)

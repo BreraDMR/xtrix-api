@@ -11,6 +11,7 @@ from app.api.core import availability, booking_manage_policy, notification_event
 from app.api.core import visitor_action_target as targets, visitor_reschedule_target as scheduling
 from app.api.core.visitor_action_facts import AuthorizedActionTarget, ServiceMasterPair, read_booking_manage_eligibility
 from app.api.core.visitor_cancel import _notification_facts
+from app.api.core.released_slots import ReleasedSlot,chain_slots
 from app.db.models.notification_outbox import NotificationOutbox
 from app.db.models.business import Business
 from app.db.models.visit import Visit
@@ -26,6 +27,7 @@ class RescheduleResult:
     service_id: int | None
     specialist_id: int
     start: datetime
+    released_slots: tuple[ReleasedSlot,...] = ()
 
 
 def _allowed(db, raw, locked, original, new_start):
@@ -114,7 +116,8 @@ def reschedule_visit(db: Session, raw_session: str | None, visit_id: int,
         _allowed(db, raw_session, locked, original, new_start)
         service_id, business, visit, person = _notification_facts(db, original)
         result = RescheduleResult(visit_id, new_start != original.date_start,
-            original.business_id, service_id, original.specialist_id, original.date_start)
+            original.business_id, service_id, original.specialist_id, original.date_start,
+            chain_slots(locked.lines, original.date_start) if new_start != original.date_start else ())
         if not result.changed:
             return result
         window = db.execute(select(Business.booking_horizon_days, Business.booking_lead_time_minutes)

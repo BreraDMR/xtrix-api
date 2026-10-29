@@ -444,15 +444,17 @@ def update_visit(
             result.loyalty_warning = _("visit_loyalty_review_required", locale)
             if isinstance(e, CashbackError):
                 result.loyalty_warning += " " + _(e.reason, locale)
-    became_cancelled = old_status != 'cancelled' and result.status == 'cancelled'
-    moved = result.date_start != old_start
-    if became_cancelled or (moved and old_status != 'cancelled'):
-        from app.api.core import waitlist_service
-        from app.db.models.business import Business
-        business = db.get(Business, old_business_id) if old_business_id else None
-        waitlist_service.release_slot_quietly(
-            db, business, old_service_id, old_specialist_id, old_start
-        )
+    released = getattr(result, '_released_slots', ())
+    if released:
+        try:
+            from app.api.core import released_slots
+            from app.db.models.business import Business
+            business = db.get(Business, old_business_id) if old_business_id else None
+            if business is not None and business.deleted_at is None:
+                released_slots.match_quietly(db,business,released)
+        except Exception as exc:
+            db.rollback()
+            logger.warning('Post-visit slot matching failed for visit_id=%s: %s',result.id,type(exc).__name__)
     return _visit_response(result, can_view_financials(current_user, db))
 @router.delete("/{visit_id}")
 def delete_visit(
