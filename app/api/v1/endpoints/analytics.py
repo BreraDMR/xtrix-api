@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from app.api import deps
+from app.api.private_routes import NoStoreRoute
 from app.schemas.datetimes import UtcDatetime
 from app.api.core.i18n import _
 from app.api.core.analytics import (
@@ -43,7 +44,16 @@ from app.schemas.analytics import (
 )
 from app.api.core.permissions import get_user_business_id
 from app.api.middleware.rate_limit import limiter, EXPORT_LIMIT
-router = APIRouter()
+router = APIRouter(route_class=NoStoreRoute)
+
+
+def _require_financials(current_user: User, db: Session, locale: str) -> None:
+    from app.api.core.permissions import can_view_financials
+
+    if not can_view_financials(current_user, db):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+
+
 def _scope(current_user: User, db: Session, requested_specialist_id: Optional[int] = None):
     """(specialist_id, business_id) whose numbers the caller may see.
 
@@ -103,9 +113,7 @@ def get_financial_report_endpoint(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    from app.api.core.permissions import can_view_financials
-    if not can_view_financials(current_user, db):
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    _require_financials(current_user, db, locale)
     specialist_id, business_id = _scope(current_user, db, specialist_id)
     cache_key = {
         'specialist_id': specialist_id,
@@ -137,6 +145,7 @@ def get_popular_services_endpoint(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
+    _require_financials(current_user, db, locale)
     specialist_id, business_id = _scope(current_user, db, specialist_id)
     services = get_popular_services(
         db,
@@ -155,6 +164,7 @@ def get_clients_statistics(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
+    _require_financials(current_user, db, locale)
     user_business_id = get_user_business_id(current_user, db)
     if user_business_id:
         business_id = user_business_id
@@ -172,6 +182,7 @@ def get_payments_statistics(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
+    _require_financials(current_user, db, locale)
     specialist_id, business_id = _scope(current_user, db, specialist_id)
     stats = get_payment_statistics(
         db,
@@ -190,6 +201,8 @@ def export_report(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
+    if payload.report_type in {'financial', 'services', 'clients'}:
+        _require_financials(current_user, db, locale)
     payload.specialist_id, business_id = _scope(current_user, db, payload.specialist_id)
     export_data = []
     filename = ""
@@ -308,6 +321,8 @@ def get_trends_endpoint(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
+    if metric in {'revenue', 'average_check'}:
+        _require_financials(current_user, db, locale)
     specialist_id, business_id = _scope(current_user, db)
     trends = get_trends_analysis(db, business_id=business_id, specialist_id=specialist_id, metric=metric, comparison_type=comparison_type)
     return TrendsAnalysisResponse(**trends)
@@ -319,6 +334,8 @@ def get_forecast_endpoint(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
+    if forecast_type == 'revenue':
+        _require_financials(current_user, db, locale)
     specialist_id, business_id = _scope(current_user, db)
     forecast = get_forecast(db, business_id=business_id, specialist_id=specialist_id, forecast_type=forecast_type, periods=periods)
     return ForecastResponse(**forecast)
@@ -330,6 +347,7 @@ def get_service_and_specialist_analytics_endpoint(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
+    _require_financials(current_user, db, locale)
     specialist_id, business_id = _scope(current_user, db)
     analytics = get_service_and_specialist_analytics(db, business_id=business_id, specialist_id=specialist_id, date_from=date_from, date_to=date_to
     )
@@ -340,6 +358,7 @@ def get_insights_endpoint(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
+    _require_financials(current_user, db, locale)
     specialist_id, business_id = _scope(current_user, db)
     insights = get_smart_insights(db, business_id=business_id, specialist_id=specialist_id, locale=locale)
     return SmartInsightsResponse(insights=insights)
@@ -351,5 +370,6 @@ def get_benchmarks_endpoint(
     current_user: User = Depends(deps.role_required("admin", "business_owner")),
     locale: str = Depends(deps.get_locale),
 ):
+    _require_financials(current_user, db, locale)
     benchmarks = get_anonymous_benchmarks(db, business_type=business_type, min_businesses=min_businesses, locale=locale)
     return AnonymousBenchmarksResponse(**benchmarks)
