@@ -1,7 +1,7 @@
 from typing import List, Optional
 from datetime import date
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, inspect
 from app.db.models.loyalty_program import (
     LoyaltyProgram,
     LoyaltyLevel,
@@ -138,6 +138,19 @@ def delete_loyalty_promotion(db: Session, promotion_id: int) -> bool:
     db.delete(promotion)
     db.commit()
     return True
+def lock_loyalty_visit(db: Session, visit_id: int, client_id: int, business_id: int):
+    """Take the visit anchor before calculating or changing any linked balance."""
+    from app.db.models.visit import Visit
+    with db.no_autoflush:
+        if any(isinstance(row, Visit) and row.id == visit_id for row in db.new.union(db.dirty).union(db.deleted)):
+            raise ValueError('visit_price_retry')
+        visit = db.query(Visit).filter(Visit.id == visit_id, Visit.client_id == client_id,
+            Visit.business_id == business_id, Visit.deleted_at.is_(None)).populate_existing().with_for_update().one_or_none()
+        if visit is None:
+            raise ValueError('visit_not_found')
+        return visit
+
+
 def create_loyalty_transaction(
     db: Session,
     client_id: int,
@@ -152,16 +165,21 @@ def create_loyalty_transaction(
     description: Optional[str] = None,
     expiry_date: Optional[date] = None,
 ) -> LoyaltyTransaction:
-    relation = (
-        db.query(ClientBusinessRelation)
-        .filter(
-            and_(
-                ClientBusinessRelation.client_id == client_id,
-                ClientBusinessRelation.business_id == business_id
-            )
+    if visit_id is not None:
+        lock_loyalty_visit(db, visit_id, client_id, business_id)
+    with db.no_autoflush:
+        relation = (
+            db.query(ClientBusinessRelation)
+            .filter(ClientBusinessRelation.client_id == client_id,
+                    ClientBusinessRelation.business_id == business_id)
+            .with_for_update().first()
         )
-        .first()
-    )
+        if relation is not None:
+            state = inspect(relation)
+            if any(state.attrs[name].history.has_changes() for name in ('loyalty_points', 'loyalty_cashback')):
+                raise ValueError('visit_price_retry')
+            # Keep pending nonfinancial relation edits, but use the locked balance.
+            db.refresh(relation, attribute_names=['loyalty_points', 'loyalty_cashback'])
     if not relation:
         relation = ClientBusinessRelation(
             client_id=client_id,
@@ -173,6 +191,8 @@ def create_loyalty_transaction(
         db.flush()
     new_points_balance = relation.loyalty_points + points_amount
     new_cashback_balance = relation.loyalty_cashback + (cashback_amount or 0.0)
+    if transaction_type == 'spent' and (new_points_balance < 0 or new_cashback_balance < 0):
+        raise ValueError('loyalty_balance_insufficient')
     relation.loyalty_points = new_points_balance
     relation.loyalty_cashback = new_cashback_balance
     transaction = LoyaltyTransaction(

@@ -1,6 +1,11 @@
 from typing import Dict, Any
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
+    "loyalty_balance_insufficient": {
+        "en": "There are not enough points or cashback for this payment.",
+        "ru": "Для этой оплаты недостаточно бонусных баллов или кешбэка.",
+        "cz": "Na tuto platbu není dostatek bodů nebo cashbacku.",
+    },
     "visit_price_settlement_required": {
         "en": "This visit has recorded payments or bonuses. A separate settlement correction is required before changing its price.",
         "ru": "По визиту уже есть оплата или бонусные операции. Для изменения цены сначала нужна отдельная корректировка расчёта.",

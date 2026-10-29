@@ -105,6 +105,15 @@ def award_bonus_for_visit(
 ) -> Optional[LoyaltyTransaction]:
     if not visit.business_id:
         return None
+    visit = crud_loyalty.lock_loyalty_visit(db, visit.id, visit.client_id, visit.business_id)
+    # Reopening and completing the same visit must not credit it a second time.
+    previous = db.query(LoyaltyTransaction).filter(
+        LoyaltyTransaction.visit_id == visit.id, LoyaltyTransaction.business_id == visit.business_id,
+        LoyaltyTransaction.client_id == visit.client_id, LoyaltyTransaction.transaction_type == 'earned',
+        or_(LoyaltyTransaction.points_amount != 0, LoyaltyTransaction.cashback_amount != 0)
+    ).order_by(LoyaltyTransaction.id).first()
+    if previous is not None:
+        return previous
     if not program:
         program = crud_loyalty.get_loyalty_program(db, visit.business_id)
     if not program or not program.is_active:
@@ -235,6 +244,9 @@ def use_points_for_visit(
     visit_amount: Optional[float] = None,
     program: Optional[LoyaltyProgram] = None,
 ) -> Tuple[bool, float, str]:
+    if visit_id is not None:
+        visit = crud_loyalty.lock_loyalty_visit(db, visit_id, client_id, business_id)
+        visit_amount = visit.price
     if not program:
         program = crud_loyalty.get_loyalty_program(db, business_id)
     if not program or not program.is_active:
@@ -259,27 +271,17 @@ def use_points_for_visit(
                 points_to_use = (discount_amount - cashback_to_use) / program.currency_per_point
             if cashback_to_use > discount_amount:
                 cashback_to_use = discount_amount
-    if points_to_use > 0:
+    if points_to_use > 0 or cashback_to_use > 0:
         crud_loyalty.create_loyalty_transaction(
             db,
             client_id=client_id,
             business_id=business_id,
             transaction_type='spent',
-            points_amount=-points_to_use,
+            points_amount=-points_to_use if points_to_use > 0 else 0.0,
+            cashback_amount=-cashback_to_use if cashback_to_use > 0 else 0.0,
             program_id=program.id,
             visit_id=visit_id,
-            description=f"Used {points_to_use} points for payment",
-        )
-    if cashback_to_use > 0:
-        crud_loyalty.create_loyalty_transaction(
-            db,
-            client_id=client_id,
-            business_id=business_id,
-            transaction_type='spent',
-            cashback_amount=-cashback_to_use,
-            program_id=program.id,
-            visit_id=visit_id,
-            description=f"Used {cashback_to_use} cashback for payment",
+            description='Used loyalty balance for payment',
         )
     logger.info(
         f"Used loyalty bonus: client={client_id}, points={points_to_use}, "
