@@ -153,3 +153,52 @@ def test_two_first_awards_create_one_relation_and_keep_both_credits(db,world):
     assert db.query(ClientBusinessRelation).one().loyalty_points==2
     assert db.query(ClientCashbackBalance).one().balance==Decimal('2.00')
     assert db.query(LoyaltyTransaction).count()==2
+
+
+@pytest.mark.parametrize('status',['pending','paid','failed','cancelled','refunded'])
+def test_existing_checkout_cannot_be_combined_with_a_new_loyalty_payment(db,world,status):
+    from tests.test_visitor_pending_payments import add_attempt
+    add_attempt(db,world,'loyalty-conflicting-checkout',status);db.commit()
+    with pytest.raises(cashback_wallets.CashbackError,match='loyalty_payment_'):
+        loyalty_logic.use_points_for_visit(db,world['client'],world['business'],0,10,visit_id=world['visit'])
+    db.rollback()
+    assert db.query(ClientCashbackBalance).one().balance==100
+    assert db.query(LoyaltyTransaction).count()==0
+
+
+def test_completed_cash_payment_cannot_be_paid_a_second_time_with_cashback(db,world):
+    visit=db.get(Visit,world['visit']);visit.status='completed';visit.payment_method='cash';db.commit()
+    assert visit.manual_payment_recorded_at is not None
+    with pytest.raises(cashback_wallets.CashbackError,match='loyalty_payment_settlement_required'):
+        loyalty_logic.use_points_for_visit(db,world['client'],world['business'],0,10,visit_id=visit.id)
+    db.rollback();assert db.query(ClientCashbackBalance).one().balance==100
+
+
+def test_busy_payment_attempt_gives_retry_and_rolls_back_all_money(db,world):
+    from tests.test_visitor_pending_payments import add_attempt
+    from app.db.models.service_payment import ServicePaymentAttempt
+    from sqlalchemy import select
+    attempt=add_attempt(db,world,'loyalty-busy-checkout','failed');db.commit()
+    with Session(db.get_bind()) as holder:
+        holder.execute(select(ServicePaymentAttempt.id).where(ServicePaymentAttempt.id==attempt).with_for_update())
+        with pytest.raises(cashback_wallets.CashbackError,match='visit_price_retry'):
+            crud_loyalty.create_loyalty_transaction(db,world['client'],world['business'],'spent',0,
+                cashback_amount=-10,visit_id=world['visit'])
+        # The writer's whole rollback released the Visit anchor despite Attempt-first contention.
+        with Session(db.get_bind()) as observer:
+            observer.execute(select(Visit.id).where(Visit.id==world['visit']).with_for_update(nowait=True))
+            assert observer.query(ClientCashbackBalance).one().balance==100
+    assert db.query(LoyaltyTransaction).count()==0
+
+
+def test_pending_item_reprice_cannot_flush_inside_a_bonus_calculation(db,world):
+    from app.db.models.visit_item import VisitItem
+    item=db.query(VisitItem).filter_by(visit_id=world['visit']).one();old=item.price
+    item.price=Decimal('1.00')
+    with pytest.raises(ValueError,match='visit_price_retry'):
+        loyalty_logic.award_bonus_for_visit(db,db.get(Visit,world['visit']))
+    assert item in db.dirty and item.price==1
+    with Session(db.get_bind()) as observer:
+        assert observer.get(VisitItem,item.id).price==old
+        assert observer.query(LoyaltyTransaction).count()==0
+    db.rollback()

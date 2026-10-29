@@ -328,6 +328,8 @@ def use_points_for_visit(
         or_(LoyaltyTransaction.points_amount != 0, LoyaltyTransaction.cashback_amount != 0)
     ).first() is not None:
         return False, 0.0, 'loyalty_payment_already_recorded'
+    from app.api.core.loyalty_settlement_guard import ensure_spend_allowed
+    ensure_spend_allowed(db, visit.id, business_id)
     unit = visit.currency_snapshot
     if points_to_use > 0:
         business_unit = db.query(Business.currency).filter(Business.id == business_id).scalar()

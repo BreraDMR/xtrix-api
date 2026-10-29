@@ -1,6 +1,16 @@
 from typing import Dict, Any
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
+    "loyalty_payment_checkout_exists": {
+        "en": "This visit already has an external checkout. Review that payment separately before applying bonuses.",
+        "ru": "По визиту уже создана внешняя оплата. Перед списанием бонусов нужна отдельная проверка этого расчёта.",
+        "cz": "Pro návštěvu již existuje externí platba. Před použitím bonusů je nutné samostatně zkontrolovat toto vyúčtování.",
+    },
+    "loyalty_payment_settlement_required": {
+        "en": "This visit already has a payment, gift or bonus record. A separate settlement correction is required.",
+        "ru": "По визиту уже есть оплата, сертификат или бонусная операция. Нужна отдельная корректировка расчёта.",
+        "cz": "U návštěvy je již zaznamenána platba, poukaz nebo bonusová operace. Je nutná samostatná oprava vyúčtování.",
+    },
     "visit_loyalty_review_required": {
         "en": "The visit was saved, but its bonus result could not be confirmed. Check the bonus history before retrying.",
         "ru": "Визит сохранён, но результат начисления бонусов не подтверждён. Проверьте историю бонусов перед повторной операцией.",

@@ -154,7 +154,10 @@ def delete_loyalty_promotion(db: Session, promotion_id: int) -> bool:
 def lock_loyalty_visit(db: Session, visit_id: int, client_id: int, business_id: int):
     """Take the visit anchor before calculating or changing any linked balance."""
     from app.db.models.visit import Visit
+    from app.db.models.visit_item import VisitItem
     with db.no_autoflush:
+        if any(isinstance(row, VisitItem) for row in db.new.union(db.dirty).union(db.deleted)):
+            raise ValueError('visit_price_retry')
         cashback_wallets.lock_money_references(db, client_id, business_id)
         if any(isinstance(row, Visit) and row.id == visit_id for row in db.new.union(db.dirty).union(db.deleted)):
             raise ValueError('visit_price_retry')
@@ -197,6 +200,9 @@ def _write_loyalty_transaction(db, client_id, business_id, transaction_type, poi
                 LoyaltyTransaction.client_id == client_id, LoyaltyTransaction.transaction_type == 'spent',
                 or_(LoyaltyTransaction.points_amount != 0, LoyaltyTransaction.cashback_amount != 0)).first() is not None:
             raise cashback_wallets.CashbackError('loyalty_payment_already_recorded')
+        if transaction_type == 'spent':
+            from app.api.core.loyalty_settlement_guard import ensure_spend_allowed
+            ensure_spend_allowed(db, visit_id, business_id)
         if cashback_amount:
             if cashback_currency is not None and cashback_currency != locked_visit.currency_snapshot:
                 raise cashback_wallets.CashbackError('loyalty_cashback_currency_unavailable')
