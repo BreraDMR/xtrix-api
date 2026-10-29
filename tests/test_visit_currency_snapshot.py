@@ -141,7 +141,7 @@ def previous_columns_snapshot(bind):
         for table in metadata.sorted_tables:
             if table.name == "alembic_version":
                 continue
-            columns = [column for column in table.c if not (table.name == "visits" and column.name == "currency_snapshot")]
+            columns = [column for column in table.c if not (table.name == "visits" and column.name in {"currency_snapshot", "manual_payment_recorded_at"})]
             result[table.name] = sorted(json.dumps(dict(row), sort_keys=True, default=str)
                 for row in connection.execute(select(*columns)).mappings())
         return result
@@ -150,7 +150,7 @@ def previous_columns_snapshot(bind):
 def test_0081_0082_roundtrip_preserves_every_old_column_payment_and_gift_and_backfills_nothing(db, financial_world):
     world = financial_world
     bind, config = db.get_bind(), Config("alembic.ini")
-    assert ScriptDirectory.from_config(config).get_heads() == [REVISION]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0083_manual_payment_marker"]
     db.rollback()
     before = previous_columns_snapshot(bind)
     try:

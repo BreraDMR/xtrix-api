@@ -23,6 +23,8 @@ class Visit(Base):
     price = Column(Float, nullable=True, index=True)
     # NULL means the currency of these stored prices is not known.
     currency_snapshot = Column(String(3), nullable=True)
+    # Database-owned evidence survives later status or payment-method edits.
+    manual_payment_recorded_at = Column(DateTime, nullable=True)
     status = Column(String, default="planned", index=True)
     client_confirmed_at = Column(DateTime, nullable=True)
     payment_method = Column(String, nullable=True, index=True)  

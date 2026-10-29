@@ -28,7 +28,7 @@ def previous_rows(bind):
     with bind.connect() as connection:
         return {table.name: sorted(json.dumps(dict(row), sort_keys=True, default=str)
                 for row in connection.execute(select(*[column for column in table.c
-                    if not (table.name == "visits" and column.name == "currency_snapshot")])).mappings())
+                    if not (table.name == "visits" and column.name in {"currency_snapshot", "manual_payment_recorded_at"})])).mappings())
                 for table in metadata.sorted_tables if table.name not in NEW_TABLES | {"alembic_version"}}
 
 
@@ -50,7 +50,7 @@ def test_0080_0081_roundtrip_preserves_all_previous_rows_and_never_backfills_ema
     seed_prior_credentials(db, access_world)
     bind, config = db.get_bind(), Config("alembic.ini")
     before = previous_rows(bind)
-    assert ScriptDirectory.from_config(config).get_heads() == ["0082_visit_currency_snapshot"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0083_manual_payment_marker"]
     try:
         for _ in range(2):
             command.downgrade(config, "0080_visitor_auth_credentials")

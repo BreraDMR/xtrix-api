@@ -19,7 +19,7 @@ def legacy_rows(bind):
     with bind.connect() as connection:
         return {table.name: sorted(json.dumps(dict(row), sort_keys=True, default=str)
                 for row in connection.execute(select(*[column for column in table.c
-                    if not (table.name == "visits" and column.name == "currency_snapshot")])).mappings())
+                    if not (table.name == "visits" and column.name in {"currency_snapshot", "manual_payment_recorded_at"})])).mappings())
                 for table in metadata.sorted_tables if table.name not in NEW_TABLES | {"visitor_challenges", "visitor_sessions", "visitor_grants", "visitor_claims", "alembic_version"}}
 
 
@@ -48,7 +48,7 @@ def test_0078_0079_roundtrip_has_one_head_and_preserves_all_legacy_rows(db, make
     bind = db.get_bind()
     before = legacy_rows(bind)
     config = Config("alembic.ini")
-    assert ScriptDirectory.from_config(config).get_heads() == ["0082_visit_currency_snapshot"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0083_manual_payment_marker"]
     try:
         command.downgrade(config, "0078_waitlist_open_range")
         assert not (NEW_TABLES & set(inspect(bind).get_table_names()))

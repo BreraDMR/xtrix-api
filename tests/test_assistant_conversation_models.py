@@ -80,7 +80,7 @@ def test_migration_roundtrip_preserves_existing_users(db, make_user):
     # make_user refreshes the row; release its read lock before DDL on FK tables.
     db.rollback()
     config = Config('alembic.ini')
-    assert ScriptDirectory.from_config(config).get_heads() == ['0082_visit_currency_snapshot']
+    assert ScriptDirectory.from_config(config).get_heads() == ['0083_manual_payment_marker']
     try:
         command.downgrade(config, '0044_stripe_checkout')
         assert not inspect(db.get_bind()).has_table('assistant_conversations')
