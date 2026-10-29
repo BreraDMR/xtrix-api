@@ -1,9 +1,11 @@
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import CheckConstraint, Numeric, UniqueConstraint, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 from app.api.core.clock import utcnow
 class Expense(Base):
     __tablename__ = "expenses"
+    __table_args__ = (UniqueConstraint('salary_payment_id', name='uq_expense_salary_payment'),)
+    salary_payment_id = Column(Integer(), ForeignKey('salary_payments.id', ondelete='RESTRICT'), nullable=True)
     id = Column(Integer, primary_key=True, index=True)
     business_id = Column(Integer, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
     category_id = Column(Integer, ForeignKey("expense_categories.id", ondelete="SET NULL"), nullable=True, index=True)

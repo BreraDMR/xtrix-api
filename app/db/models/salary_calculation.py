@@ -1,9 +1,21 @@
-from sqlalchemy import Column, DateTime, Integer, Float, ForeignKey, Boolean, Text, String
+from sqlalchemy import CheckConstraint, Numeric, UniqueConstraint, Column, DateTime, Integer, Float, ForeignKey, Boolean, Text, String
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 from app.api.core.clock import utcnow
 class SalaryCalculation(Base):
     __tablename__ = "salary_calculations"
+    __table_args__ = (CheckConstraint('(currency IS NULL AND total_revenue_exact IS NULL AND commission_amount_exact IS NULL AND base_salary_exact IS NULL AND total_salary_exact IS NULL AND adjustments_total_exact IS NULL AND total_with_adjustments_exact IS NULL AND paid_amount_exact IS NULL AND business_id_snapshot IS NULL AND salary_period_id IS NULL) OR (currency IS NOT NULL AND currency COLLATE "C" ~ \'^[A-Z]{3}$\'  AND total_revenue_exact IS NOT NULL AND total_revenue_exact BETWEEN 0 AND 9999999999999999.99 AND commission_amount_exact IS NOT NULL AND commission_amount_exact BETWEEN 0 AND 9999999999999999.99 AND base_salary_exact IS NOT NULL AND base_salary_exact BETWEEN 0 AND 9999999999999999.99 AND total_salary_exact IS NOT NULL AND total_salary_exact BETWEEN 0 AND 9999999999999999.99 AND adjustments_total_exact IS NOT NULL AND adjustments_total_exact BETWEEN -9999999999999999.99 AND 9999999999999999.99 AND total_with_adjustments_exact IS NOT NULL AND total_with_adjustments_exact BETWEEN 0 AND 9999999999999999.99 AND paid_amount_exact IS NOT NULL AND paid_amount_exact BETWEEN 0 AND 9999999999999999.99 AND business_id_snapshot IS NOT NULL AND salary_period_id IS NOT NULL AND total_salary_exact = commission_amount_exact + base_salary_exact AND total_with_adjustments_exact = total_salary_exact + adjustments_total_exact AND paid_amount_exact <= total_with_adjustments_exact)', name='ck_salary_calculation_snapshot'), UniqueConstraint('salary_period_id', 'currency', name='uq_salary_calculation_period_currency'))
+    salary_period_id = Column(Integer, ForeignKey('salary_periods.id', ondelete='RESTRICT'), nullable=True)
+    salary_period = relationship('SalaryPeriod', lazy='select')
+    currency = Column(String(3), nullable=True)
+    business_id_snapshot = Column(Integer(), ForeignKey('businesses.id', ondelete='RESTRICT'), nullable=True)
+    total_revenue_exact = Column(Numeric(18, 2), nullable=True)
+    commission_amount_exact = Column(Numeric(18, 2), nullable=True)
+    base_salary_exact = Column(Numeric(18, 2), nullable=True)
+    total_salary_exact = Column(Numeric(18, 2), nullable=True)
+    adjustments_total_exact = Column(Numeric(18, 2), nullable=True)
+    total_with_adjustments_exact = Column(Numeric(18, 2), nullable=True)
+    paid_amount_exact = Column(Numeric(18, 2), nullable=True)
     id = Column(Integer, primary_key=True, index=True)
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)  
     period_start = Column(DateTime, nullable=False, index=True)

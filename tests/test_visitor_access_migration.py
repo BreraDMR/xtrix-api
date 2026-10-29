@@ -28,8 +28,8 @@ def previous_rows(bind):
     with bind.connect() as connection:
         return {table.name: sorted(json.dumps(dict(row), sort_keys=True, default=str)
                 for row in connection.execute(select(*[column for column in table.c
-                    if not ((table.name == "visits" and column.name in {"currency_snapshot", "manual_payment_recorded_at"}) or (table.name == "loyalty_transactions" and column.name in {"cashback_currency", "cashback_amount_exact", "cashback_balance_after_exact", "discount_currency", "discount_amount_exact"}))])).mappings())
-                for table in metadata.sorted_tables if table.name not in NEW_TABLES | {"alembic_version", "client_cashback_balances"}}
+                    if not ((table.name == "visits" and column.name in {"currency_snapshot", "manual_payment_recorded_at"}) or (table.name == "loyalty_transactions" and column.name in {"cashback_currency", "cashback_amount_exact", "cashback_balance_after_exact", "discount_currency", "discount_amount_exact"}) or (table.name == "employees" and column.name in {"base_salary_currency", "base_salary_exact"}) or (table.name == "salary_calculations" and column.name in {"currency", "salary_period_id", "business_id_snapshot", "total_revenue_exact", "commission_amount_exact", "base_salary_exact", "total_salary_exact", "adjustments_total_exact", "total_with_adjustments_exact", "paid_amount_exact"}) or (table.name in {"salary_adjustments", "salary_payments"} and column.name in {"currency", "amount_exact"}) or (table.name == "expenses" and column.name == "salary_payment_id"))])).mappings())
+                for table in metadata.sorted_tables if table.name not in NEW_TABLES | {"alembic_version", "client_cashback_balances", "salary_periods"}}
 
 
 def seed_prior_credentials(db, world):
@@ -50,7 +50,7 @@ def test_0080_0081_roundtrip_preserves_all_previous_rows_and_never_backfills_ema
     seed_prior_credentials(db, access_world)
     bind, config = db.get_bind(), Config("alembic.ini")
     before = previous_rows(bind)
-    assert ScriptDirectory.from_config(config).get_heads() == ["0085_loyalty_discount_snapshot"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0086_payroll_currency_snapshot"]
     try:
         for _ in range(2):
             command.downgrade(config, "0080_visitor_auth_credentials")

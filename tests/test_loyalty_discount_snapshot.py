@@ -76,7 +76,7 @@ def test_downgrade_cannot_discard_a_recorded_bonus_payment_amount(db,world):
     with pytest.raises(DBAPIError,match='Bonus payment amounts exist'):
         command.downgrade(Config('alembic.ini'),'0084_cashback_currency_wallets')
     with db.get_bind().connect() as conn:
-        assert conn.execute(text('SELECT version_num FROM alembic_version')).scalar_one()=='0085_loyalty_discount_snapshot'
+        assert conn.execute(text('SELECT version_num FROM alembic_version')).scalar_one()=='0086_payroll_currency_snapshot'
         assert conn.execute(text('SELECT discount_currency,discount_amount_exact FROM loyalty_transactions')).one()==('EUR',Decimal('8.00'))
 
 

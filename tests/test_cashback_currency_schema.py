@@ -36,8 +36,8 @@ def old_rows(bind):
     metadata=MetaData();metadata.reflect(bind=bind)
     with bind.connect() as conn:
         return {table.name:sorted(json.dumps(dict(row),sort_keys=True,default=str) for row in conn.execute(
-            select(*[c for c in table.c if not(table.name=='loyalty_transactions' and c.name in NEW_COLUMNS)])).mappings())
-            for table in metadata.sorted_tables if table.name not in {'alembic_version','client_cashback_balances'}}
+            select(*[c for c in table.c if not(table.name=='loyalty_transactions' and c.name in NEW_COLUMNS or (table.name=='employees' and c.name in {'base_salary_currency','base_salary_exact'}) or (table.name=='salary_calculations' and c.name in {'currency','salary_period_id','business_id_snapshot','total_revenue_exact','commission_amount_exact','base_salary_exact','total_salary_exact','adjustments_total_exact','total_with_adjustments_exact','paid_amount_exact'}) or (table.name in {'salary_adjustments','salary_payments'} and c.name in {'currency','amount_exact'}) or (table.name=='expenses' and c.name=='salary_payment_id'))])).mappings())
+            for table in metadata.sorted_tables if table.name not in {'alembic_version','client_cashback_balances','salary_periods'}}
 
 
 def test_0083_0084_roundtrip_keeps_legacy_amounts_and_does_not_guess_units(db,world):
@@ -47,7 +47,7 @@ def test_0083_0084_roundtrip_keeps_legacy_amounts_and_does_not_guess_units(db,wo
     db.add(LoyaltyTransaction(client_id=world['client'],business_id=world['business'],visit_id=world['visit'],
         transaction_type='earned',points_amount=7,cashback_amount=old_amount,points_balance_after=7,cashback_balance_after=old_amount))
     db.commit();bind=db.get_bind();config=Config('alembic.ini');db.rollback()
-    assert ScriptDirectory.from_config(config).get_heads()==['0085_loyalty_discount_snapshot']
+    assert ScriptDirectory.from_config(config).get_heads()==['0086_payroll_currency_snapshot']
     before=old_rows(bind)
     try:
         for _ in range(2):
@@ -86,7 +86,7 @@ def test_known_wallet_data_blocks_destructive_schema_downgrade(db,world):
     config=Config('alembic.ini')
     with pytest.raises(DBAPIError):command.downgrade(config,'0083_manual_payment_marker')
     with db.get_bind().connect() as conn:
-        assert conn.execute(text('SELECT version_num FROM alembic_version')).scalar_one()=='0085_loyalty_discount_snapshot'
+        assert conn.execute(text('SELECT version_num FROM alembic_version')).scalar_one()=='0086_payroll_currency_snapshot'
         assert conn.execute(text('SELECT currency,balance FROM client_cashback_balances')).one()==('CZK',Decimal('12.34'))
 
 

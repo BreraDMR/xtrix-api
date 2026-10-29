@@ -60,9 +60,9 @@ def test_0082_0083_roundtrip_preserves_old_rows_and_backfills_only_proven_curren
         metadata=MetaData();metadata.reflect(bind=bind)
         with bind.connect() as conn:
             return {t.name:sorted(json.dumps(dict(r),default=str,sort_keys=True) for r in conn.execute(select(*[
-                c for c in t.c if not((t.name=='visits' and c.name=='manual_payment_recorded_at') or (t.name=='loyalty_transactions' and c.name in {'cashback_currency','cashback_amount_exact','cashback_balance_after_exact','discount_currency','discount_amount_exact'}))])).mappings())
-                for t in metadata.sorted_tables if t.name not in {'alembic_version','client_cashback_balances'}}
-    assert ScriptDirectory.from_config(config).get_heads()==['0085_loyalty_discount_snapshot']
+                c for c in t.c if not((t.name=='visits' and c.name=='manual_payment_recorded_at') or (t.name=='loyalty_transactions' and c.name in {'cashback_currency','cashback_amount_exact','cashback_balance_after_exact','discount_currency','discount_amount_exact'}) or (t.name=='employees' and c.name in {'base_salary_currency','base_salary_exact'}) or (t.name=='salary_calculations' and c.name in {'currency','salary_period_id','business_id_snapshot','total_revenue_exact','commission_amount_exact','base_salary_exact','total_salary_exact','adjustments_total_exact','total_with_adjustments_exact','paid_amount_exact'}) or (t.name in {'salary_adjustments','salary_payments'} and c.name in {'currency','amount_exact'}) or (t.name=='expenses' and c.name=='salary_payment_id'))])).mappings())
+                for t in metadata.sorted_tables if t.name not in {'alembic_version','client_cashback_balances','salary_periods'}}
+    assert ScriptDirectory.from_config(config).get_heads()==['0086_payroll_currency_snapshot']
     try:
         command.downgrade(config,'0082_visit_currency_snapshot')
         with bind.begin() as conn:

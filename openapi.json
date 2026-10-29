@@ -1169,6 +1169,20 @@
       },
       "CalculateSalaryRequest": {
         "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
           "notes": {
             "anyOf": [
               {
@@ -4001,6 +4015,20 @@
             "description": "Fixed part of the salary",
             "title": "Base Salary"
           },
+          "base_salary_currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Currency"
+          },
           "business_owner_id": {
             "anyOf": [
               {
@@ -4100,6 +4128,28 @@
             "default": 0.0,
             "description": "Fixed part of the salary",
             "title": "Base Salary"
+          },
+          "base_salary_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Currency"
+          },
+          "base_salary_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Exact"
           },
           "business_owner_id": {
             "title": "Business Owner Id",
@@ -4246,6 +4296,20 @@
             "default": 0.0,
             "title": "Base Salary"
           },
+          "base_salary_currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Currency"
+          },
           "business_id": {
             "anyOf": [
               {
@@ -4381,6 +4445,28 @@
             "description": "Fixed part of the salary",
             "title": "Base Salary"
           },
+          "base_salary_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Currency"
+          },
+          "base_salary_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Exact"
+          },
           "business_owner_id": {
             "title": "Business Owner Id",
             "type": "integer"
@@ -4512,6 +4598,20 @@
               }
             ],
             "title": "Base Salary"
+          },
+          "base_salary_currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Currency"
           },
           "commission_percentage": {
             "anyOf": [
@@ -13731,6 +13831,17 @@
             "title": "Amount",
             "type": "number"
           },
+          "amount_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Exact"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -13739,6 +13850,17 @@
           "created_by_id": {
             "title": "Created By Id",
             "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "description": {
             "anyOf": [
@@ -13794,11 +13916,44 @@
             "title": "Adjustments Total",
             "type": "number"
           },
+          "adjustments_total_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adjustments Total Exact"
+          },
           "base_salary": {
             "default": 0.0,
             "description": "Fixed part of the salary",
             "title": "Base Salary",
             "type": "number"
+          },
+          "base_salary_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Exact"
+          },
+          "business_id_snapshot": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Id Snapshot"
           },
           "calculated_at": {
             "format": "date-time",
@@ -13829,6 +13984,17 @@
             "title": "Commission Amount",
             "type": "number"
           },
+          "commission_amount_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commission Amount Exact"
+          },
           "commission_percentage": {
             "anyOf": [
               {
@@ -13851,6 +14017,17 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "employee_id": {
             "description": "Employee ID",
@@ -13885,6 +14062,17 @@
             "description": "Amount already paid",
             "title": "Paid Amount",
             "type": "number"
+          },
+          "paid_amount_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid Amount Exact"
           },
           "paid_at": {
             "anyOf": [
@@ -13925,17 +14113,60 @@
             "title": "Period Start",
             "type": "string"
           },
+          "salary_period": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SalaryPeriodOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "salary_period_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Period Id"
+          },
           "total_revenue": {
             "default": 0.0,
             "description": "Total visit revenue",
             "title": "Total Revenue",
             "type": "number"
           },
+          "total_revenue_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Revenue Exact"
+          },
           "total_salary": {
             "default": 0.0,
             "description": "Total salary",
             "title": "Total Salary",
             "type": "number"
+          },
+          "total_salary_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Salary Exact"
           },
           "total_visits": {
             "default": 0,
@@ -13948,6 +14179,17 @@
             "description": "Total salary incl. bonuses/penalties",
             "title": "Total With Adjustments",
             "type": "number"
+          },
+          "total_with_adjustments_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total With Adjustments Exact"
           },
           "updated_at": {
             "format": "date-time",
@@ -13975,11 +14217,44 @@
             "title": "Adjustments Total",
             "type": "number"
           },
+          "adjustments_total_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adjustments Total Exact"
+          },
           "base_salary": {
             "default": 0.0,
             "description": "Fixed part of the salary",
             "title": "Base Salary",
             "type": "number"
+          },
+          "base_salary_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Exact"
+          },
+          "business_id_snapshot": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Id Snapshot"
           },
           "calculated_at": {
             "format": "date-time",
@@ -14010,6 +14285,17 @@
             "title": "Commission Amount",
             "type": "number"
           },
+          "commission_amount_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commission Amount Exact"
+          },
           "commission_percentage": {
             "anyOf": [
               {
@@ -14032,6 +14318,17 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "employee_id": {
             "description": "Employee ID",
@@ -14067,6 +14364,17 @@
             "title": "Paid Amount",
             "type": "number"
           },
+          "paid_amount_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid Amount Exact"
+          },
           "paid_at": {
             "anyOf": [
               {
@@ -14098,17 +14406,60 @@
             "title": "Period Start",
             "type": "string"
           },
+          "salary_period": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SalaryPeriodOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "salary_period_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Period Id"
+          },
           "total_revenue": {
             "default": 0.0,
             "description": "Total visit revenue",
             "title": "Total Revenue",
             "type": "number"
           },
+          "total_revenue_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Revenue Exact"
+          },
           "total_salary": {
             "default": 0.0,
             "description": "Total salary",
             "title": "Total Salary",
             "type": "number"
+          },
+          "total_salary_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Salary Exact"
           },
           "total_visits": {
             "default": 0,
@@ -14121,6 +14472,17 @@
             "description": "Total salary incl. bonuses/penalties",
             "title": "Total With Adjustments",
             "type": "number"
+          },
+          "total_with_adjustments_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total With Adjustments Exact"
           },
           "updated_at": {
             "format": "date-time",
@@ -14237,6 +14599,17 @@
             "title": "Amount",
             "type": "number"
           },
+          "amount_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Exact"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -14245,6 +14618,17 @@
           "created_by_id": {
             "title": "Created By Id",
             "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "id": {
             "title": "Id",
@@ -14386,6 +14770,79 @@
           }
         },
         "title": "SalaryPaymentUpdate",
+        "type": "object"
+      },
+      "SalaryPeriodOut": {
+        "properties": {
+          "base_salary_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Currency"
+          },
+          "base_salary_exact": {
+            "title": "Base Salary Exact",
+            "type": "string"
+          },
+          "business_id": {
+            "title": "Business Id",
+            "type": "integer"
+          },
+          "commission_percentage": {
+            "title": "Commission Percentage",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Id"
+          },
+          "employee_id": {
+            "title": "Employee Id",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "period_end": {
+            "format": "date-time",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date-time",
+            "title": "Period Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "business_id",
+          "employee_id",
+          "period_start",
+          "period_end",
+          "base_salary_exact",
+          "commission_percentage",
+          "created_at"
+        ],
+        "title": "SalaryPeriodOut",
         "type": "object"
       },
       "SandboxPaymentOutcomeIn": {

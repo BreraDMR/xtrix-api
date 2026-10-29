@@ -19,8 +19,8 @@ def legacy_rows(bind):
     with bind.connect() as connection:
         return {table.name: sorted(json.dumps(dict(row), sort_keys=True, default=str)
                 for row in connection.execute(select(*[column for column in table.c
-                    if not ((table.name == "visits" and column.name in {"currency_snapshot", "manual_payment_recorded_at"}) or (table.name == "loyalty_transactions" and column.name in {"cashback_currency", "cashback_amount_exact", "cashback_balance_after_exact", "discount_currency", "discount_amount_exact"}))])).mappings())
-                for table in metadata.sorted_tables if table.name not in NEW_TABLES | {"visitor_challenges", "visitor_sessions", "visitor_grants", "visitor_claims", "alembic_version", "client_cashback_balances"}}
+                    if not ((table.name == "visits" and column.name in {"currency_snapshot", "manual_payment_recorded_at"}) or (table.name == "loyalty_transactions" and column.name in {"cashback_currency", "cashback_amount_exact", "cashback_balance_after_exact", "discount_currency", "discount_amount_exact"}) or (table.name == "employees" and column.name in {"base_salary_currency", "base_salary_exact"}) or (table.name == "salary_calculations" and column.name in {"currency", "salary_period_id", "business_id_snapshot", "total_revenue_exact", "commission_amount_exact", "base_salary_exact", "total_salary_exact", "adjustments_total_exact", "total_with_adjustments_exact", "paid_amount_exact"}) or (table.name in {"salary_adjustments", "salary_payments"} and column.name in {"currency", "amount_exact"}) or (table.name == "expenses" and column.name == "salary_payment_id"))])).mappings())
+                for table in metadata.sorted_tables if table.name not in NEW_TABLES | {"visitor_challenges", "visitor_sessions", "visitor_grants", "visitor_claims", "alembic_version", "client_cashback_balances", "salary_periods"}}
 
 
 def test_visitor_creation_does_not_create_or_modify_a_crm_identity(db, make_user):
@@ -48,7 +48,7 @@ def test_0078_0079_roundtrip_has_one_head_and_preserves_all_legacy_rows(db, make
     bind = db.get_bind()
     before = legacy_rows(bind)
     config = Config("alembic.ini")
-    assert ScriptDirectory.from_config(config).get_heads() == ["0085_loyalty_discount_snapshot"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0086_payroll_currency_snapshot"]
     try:
         command.downgrade(config, "0078_waitlist_open_range")
         assert not (NEW_TABLES & set(inspect(bind).get_table_names()))
