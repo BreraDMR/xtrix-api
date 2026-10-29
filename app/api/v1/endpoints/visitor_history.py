@@ -6,17 +6,20 @@ from sqlalchemy.orm import Session
 
 from app.api import deps, visitor_deps
 from app.api.core import booking_manage_policy, visitor_action_facts, visitor_action_target
-from app.api.core import visitor_confirm, visitor_history_views, visitor_sessions
+from app.api.core import visitor_cancel, visitor_confirm, visitor_history_views, visitor_pending_payments, visitor_sessions
 from app.api.core.clock import utcnow
 from app.api.core.i18n import _
+from app.api.core.logger import get_logger
 from app.api.middleware.rate_limit import PUBLIC_BOOKING_MANAGE_ACTION_LIMIT, limiter
 from app.api.private_routes import NoStoreRoute
 from app.db.models.visitor_auth import VisitorSession
+from app.db.models.business import Business
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.visitor_actions import VisitorBookingAction, VisitorBookingActions
 from app.schemas.visitor_history import VisitorHistoryCursor, VisitorHistoryPage, VisitorHistoryVisit
 
 router = APIRouter(route_class=NoStoreRoute)
+logger = get_logger('visitor-actions')
 
 
 def _require_same_session(db: Session, raw_token: str | None, actor: tuple[int, int], locale: str) -> None:
@@ -96,9 +99,14 @@ def read_visit_actions(request: Request, visit_id: int = Path(gt=0),
 def confirm_visit(request: Request, visit_id: int = Path(gt=0),
                   x_visitor_token: str | None = Header(default=None, alias="X-Visitor-Token"),
                   db: Session = Depends(deps.get_db), locale: str = Depends(deps.get_locale)) -> Response:
+    _commit_action(visitor_confirm.confirm_visit, db, x_visitor_token, visit_id, locale)
+    return Response(status_code=204)
+
+
+def _commit_action(command, db, raw_token, visit_id, locale):
     try:
         # The command authenticates the opaque token and rechecks the locked grant.
-        visitor_confirm.confirm_visit(db, x_visitor_token, visit_id)
+        result = command(db, raw_token, visit_id)
         db.commit()
     except visitor_action_target.InvalidActionSession:
         db.rollback()
@@ -110,10 +118,43 @@ def confirm_visit(request: Request, visit_id: int = Path(gt=0),
         db.rollback()
         raise HTTPException(409, detail={"code": "visitor_action_retry",
                                         "message": _("visitor_action_retry", locale)}) from None
+    except visitor_pending_payments.PendingPaymentConflict:
+        db.rollback()
+        raise HTTPException(409, detail={"code": "booking_cancel_unavailable",
+                                        "message": _("booking_cancel_unavailable", locale)}) from None
     except booking_manage_policy.BookingActionNotAllowed as exc:
         db.rollback()
         raise HTTPException(409, detail={"code": exc.reason, "message": _(exc.reason, locale)}) from None
     except Exception:
         db.rollback()
         raise
+    return result
+
+
+@router.post("/visits/{visit_id}/cancel", status_code=204,
+             summary="Cancel an explicitly granted visitor booking")
+@limiter.limit(PUBLIC_BOOKING_MANAGE_ACTION_LIMIT)
+def cancel_visit(request: Request, visit_id: int = Path(gt=0),
+                 x_visitor_token: str | None = Header(default=None, alias="X-Visitor-Token"),
+                 db: Session = Depends(deps.get_db), locale: str = Depends(deps.get_locale)) -> Response:
+    result = _commit_action(visitor_cancel.cancel_visit, db, x_visitor_token, visit_id, locale)
+    if result.changed:
+        try:
+            from app.api.core import waitlist_service
+
+            business = db.get(Business, result.business_id)
+            if business is not None and business.deleted_at is None:
+                waitlist_service.release_slot_quietly(db, business, result.service_id,
+                                                     result.specialist_id, result.start)
+        except Exception as exc:
+            db.rollback()
+            logger.warning('Post-cancellation slot matching failed for visit_id=%s: %s',
+                           result.id, type(exc).__name__)
+        try:
+            from app.api.core.redis_client import invalidate_visit
+
+            invalidate_visit(result.id)
+        except Exception as exc:
+            logger.warning('Post-cancellation cache refresh failed for visit_id=%s: %s',
+                           result.id, type(exc).__name__)
     return Response(status_code=204)
