@@ -1,14 +1,15 @@
-"""Read-only visitor history and separate action hints from exact grants."""
+"""Visitor history, action hints and explicit commands from exact grants."""
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from app.api import deps, visitor_deps
-from app.api.core import visitor_action_facts, visitor_history_views, visitor_sessions
+from app.api.core import booking_manage_policy, visitor_action_facts, visitor_action_target
+from app.api.core import visitor_confirm, visitor_history_views, visitor_sessions
 from app.api.core.clock import utcnow
 from app.api.core.i18n import _
-from app.api.middleware.rate_limit import limiter
+from app.api.middleware.rate_limit import PUBLIC_BOOKING_MANAGE_ACTION_LIMIT, limiter
 from app.api.private_routes import NoStoreRoute
 from app.db.models.visitor_auth import VisitorSession
 from app.schemas.datetimes import UtcDatetime
@@ -87,3 +88,32 @@ def read_visit_actions(request: Request, visit_id: int = Path(gt=0),
         name: VisitorBookingAction(allowed=decision.allowed, reason=decision.reason)
         for name, decision in (("confirm", result.confirm), ("cancel", result.cancel), ("reschedule", result.reschedule))
     })
+
+
+@router.post("/visits/{visit_id}/confirm", status_code=204,
+             summary="Confirm an explicitly granted visitor booking")
+@limiter.limit(PUBLIC_BOOKING_MANAGE_ACTION_LIMIT)
+def confirm_visit(request: Request, visit_id: int = Path(gt=0),
+                  x_visitor_token: str | None = Header(default=None, alias="X-Visitor-Token"),
+                  db: Session = Depends(deps.get_db), locale: str = Depends(deps.get_locale)) -> Response:
+    try:
+        # The command authenticates the opaque token and rechecks the locked grant.
+        visitor_confirm.confirm_visit(db, x_visitor_token, visit_id)
+        db.commit()
+    except visitor_action_target.InvalidActionSession:
+        db.rollback()
+        raise HTTPException(401, detail=_("visitor_session_invalid", locale)) from None
+    except visitor_action_target.ActionTargetUnavailable:
+        db.rollback()
+        raise HTTPException(404, detail=_("visitor_history_visit_unavailable", locale)) from None
+    except visitor_action_target.ActionBusy:
+        db.rollback()
+        raise HTTPException(409, detail={"code": "visitor_action_retry",
+                                        "message": _("visitor_action_retry", locale)}) from None
+    except booking_manage_policy.BookingActionNotAllowed as exc:
+        db.rollback()
+        raise HTTPException(409, detail={"code": exc.reason, "message": _(exc.reason, locale)}) from None
+    except Exception:
+        db.rollback()
+        raise
+    return Response(status_code=204)

@@ -1,6 +1,16 @@
 from typing import Dict, Any
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
+    "visitor_actions_unavailable": {
+        "en": "Actions for this booking are temporarily unavailable. Contact the business.",
+        "ru": "Действия с этой записью временно недоступны. Свяжитесь с салоном.",
+        "cz": "Akce u této rezervace nejsou nyní dostupné. Kontaktujte salon.",
+    },
+    "visitor_action_retry": {
+        "en": "This booking is being updated. Try again shortly.",
+        "ru": "Запись сейчас обновляется. Повторите попытку немного позже.",
+        "cz": "Rezervace se právě aktualizuje. Zkuste to za chvíli znovu.",
+    },
     "visitor_email_change_requested": {
         "en": "Your request to confirm the new email address has been accepted.",
         "ru": "Запрос подтверждения новой почты принят.",
