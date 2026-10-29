@@ -11753,8 +11753,15 @@
             "title": "Confirmed At"
           },
           "currency": {
-            "title": "Currency",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "end": {
             "format": "date-time",
@@ -11808,7 +11815,6 @@
           "end",
           "timezone",
           "status",
-          "currency",
           "token_expires_at"
         ],
         "title": "PublicBookingManageOut",

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.core import booking_manage_policy, notification_events, visitor_action_target as targets
 from app.api.core.visitor_action_facts import AuthorizedActionTarget, read_booking_manage_eligibility
 from app.api.core.visitor_pending_payments import cancel_pending_payments
+from app.api.core.visit_event_keys import cancellation_event_key
 from app.api.core.released_slots import ReleasedSlot,cancellation_slots
 from app.db.models.business import Business
 from app.db.models.client import Client
@@ -95,11 +96,12 @@ def cancel_visit(db: Session, raw_session: str | None, visit_id: int) -> CancelV
         ).values(status='cancelled').execution_options(synchronize_session=False))
         if changed.rowcount != 1:
             raise targets.ActionTargetUnavailable('Visitor action target is not available')
+        event_key = cancellation_event_key(visit_id)
         event = VisitEvent(business_id=original.business_id, visit_id=visit_id,
-            event_type='cancelled', actor='client', event_key=f'visit:{visit_id}:cancelled',
+            event_type='cancelled', actor='client', event_key=event_key,
             created_at=original.checked_at)
         db.add(event)
-        notification_events.queue_booking_cancelled(db, business, visit, person)
+        notification_events.queue_booking_cancelled(db, business, visit, person, event_key=event_key)
         db.flush([event])
         _allowed(db, raw_session, original, after_change=True)
         return CancelVisitResult(visit_id, True, original.business_id, service_id,
