@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional, List
 from app.schemas.limits import HexColor, PromotionType, LongText, LoyaltyProgramType, Money, Multiplier, Percent, Points, ShortText
-from pydantic import ConfigDict, BaseModel, Field, model_validator
+from pydantic import ConfigDict, BaseModel, Field, computed_field, model_validator
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.errors import invalid
 from app.schemas.base import InputModel
@@ -113,6 +113,15 @@ class LoyaltyTransactionOut(BaseModel):
     cashback_amount: Optional[float]
     points_balance_after: float
     cashback_balance_after: Optional[float]
+    cashback_currency: Optional[str] = None
+    cashback_amount_exact: Optional[Decimal] = None
+    cashback_balance_after_exact: Optional[Decimal] = None
+
+    @computed_field
+    @property
+    def cashback_requires_review(self) -> bool:
+        return self.cashback_currency is None and bool(self.cashback_amount or self.cashback_balance_after)
+
     visit_id: Optional[int]
     promotion_id: Optional[int]
     level_id: Optional[int]
@@ -120,22 +129,25 @@ class LoyaltyTransactionOut(BaseModel):
     expiry_date: Optional[date]
     created_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)
-class ClientLoyaltyBalance(BaseModel):
-    client_id: int
-    business_id: int
-    points: float
-    cashback: float
-    level: Optional[LoyaltyLevelOut] = None
-    level_id: Optional[int] = None
-class UsePointsRequest(InputModel):
-    points_to_use: Optional[float] = Field(None, ge=0, description="Points to use")
-    cashback_to_use: Optional[float] = Field(None, ge=0, description="Cashback to use")
-    visit_id: Optional[int] = Field(None, description="Visit ID if applicable")
 class CashbackBalanceOut(BaseModel):
     currency: str | None
     amount: Decimal | None
     requires_review: bool = False
 
+
+class ClientLoyaltyBalance(BaseModel):
+    client_id: int
+    business_id: int
+    points: float
+    cashback: Optional[float]
+    cashback_currency: Optional[str] = None
+    cashback_balances: List[CashbackBalanceOut] = Field(default_factory=list)
+    level: Optional[LoyaltyLevelOut] = None
+    level_id: Optional[int] = None
+class UsePointsRequest(InputModel):
+    points_to_use: Optional[Points] = Field(None, description="Points to use")
+    cashback_to_use: Optional[Decimal] = Field(None, ge=0, le=100_000_000, max_digits=18, decimal_places=2, allow_inf_nan=False, description="Cashback to use in the visit currency")
+    visit_id: Optional[int] = Field(None, description="Visit ID if applicable")
 
 class CashbackCurrencyStatistics(BaseModel):
     currency: str | None

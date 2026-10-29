@@ -131,6 +131,7 @@ class VisitUpdate(InputModel):
                 raise invalid("payment_method_required", "Payment method is required for completed visits with price")
         return v
 class VisitOut(VisitBase):
+    loyalty_warning: Optional[str] = Field(None, description="Localized result warning; check bonus history before retrying")
     client_name: Optional[str] = Field(default=None, validation_alias=AliasChoices("client_name", AliasPath("client", "full_name")))
     id: int
     created_at: UtcDatetime

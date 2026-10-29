@@ -12,6 +12,8 @@ from app.api.crud import crud_loyalty
 from app.db.models.client_business_relation import ClientBusinessRelation
 from app.db.models.loyalty_program import LoyaltyProgram,LoyaltyTransaction
 from app.db.models.visit import Visit
+from app.db.models.business import Business
+from app.db.models.client_cashback_balance import ClientCashbackBalance
 from tests import test_visitor_confirm_core as core
 from tests import test_visitor_action_target as locks
 
@@ -22,7 +24,10 @@ def world(db,monkeypatch):
     program=LoyaltyProgram(business_id=w['business'],program_type='hybrid',points_per_currency=1,
         cashback_percent=10,currency_per_point=1,max_bonus_payment_percent=50,is_active=True)
     db.add(program);db.add(ClientBusinessRelation(client_id=w['client'],business_id=w['business'],
-        loyalty_points=100,loyalty_cashback=100));db.commit();w['program']=program.id
+        loyalty_points=100,loyalty_cashback=0));
+    db.get(Business,w['business']).currency='EUR';db.get(Visit,w['visit']).currency_snapshot='EUR'
+    db.add(ClientCashbackBalance(client_id=w['client'],business_id=w['business'],currency='EUR',balance=100))
+    db.commit();w['program']=program.id
     return w
 
 

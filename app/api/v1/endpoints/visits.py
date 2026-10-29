@@ -437,8 +437,13 @@ def update_visit(
             from app.api.core.loyalty_logic import award_bonus_for_visit
             award_bonus_for_visit(db, result)
         except Exception as e:
+            from app.api.core.cashback_wallets import CashbackError
             from app.api.core.logger import logger
+            db.rollback()
             logger.error(f"Error awarding loyalty bonus for visit {result.id}: {e}")
+            result.loyalty_warning = _("visit_loyalty_review_required", locale)
+            if isinstance(e, CashbackError):
+                result.loyalty_warning += " " + _(e.reason, locale)
     became_cancelled = old_status != 'cancelled' and result.status == 'cancelled'
     moved = result.date_start != old_start
     if became_cancelled or (moved and old_status != 'cancelled'):

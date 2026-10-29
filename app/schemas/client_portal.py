@@ -3,6 +3,8 @@
 Nothing here exposes staff notes, payment methods or another client's data. A portal
 visit carries only what the visitor needs to recognise their own appointment.
 """
+from app.schemas.loyalty import CashbackBalanceOut
+
 from typing import Any, Optional
 
 from pydantic import BaseModel, EmailStr, Field
@@ -64,7 +66,9 @@ class ClientPortalVisitsOut(BaseModel):
 
 class ClientPortalLoyaltyOut(BaseModel):
     points: float
-    cashback: float
+    cashback: Optional[float]
+    cashback_currency: Optional[str] = None
+    cashback_balances: list[CashbackBalanceOut] = Field(default_factory=list)
     level_name: Optional[str] = None
     level_benefits: Optional[str] = None
 

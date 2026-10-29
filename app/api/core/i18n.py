@@ -1,6 +1,18 @@
 from typing import Dict, Any
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
+    "visit_loyalty_review_required": {
+        "en": "The visit was saved, but its bonus result could not be confirmed. Check the bonus history before retrying.",
+        "ru": "Визит сохранён, но результат начисления бонусов не подтверждён. Проверьте историю бонусов перед повторной операцией.",
+        "cz": "Návštěva byla uložena, ale výsledek připsání bonusů se nepodařilo potvrdit. Před opakováním zkontrolujte historii bonusů.",
+    },
+    "loyalty_cashback_visit_required": {"en": "Choose a visit before using points or cashback.", "ru": "Выберите визит перед списанием баллов или кешбэка.", "cz": "Vyberte návštěvu před použitím bodů nebo cashbacku."},
+    "loyalty_cashback_currency_unavailable": {"en": "This cashback has no confirmed currency for this visit. A separate balance correction is required.", "ru": "Валюта кешбэка для этого визита не подтверждена. Нужна отдельная корректировка баланса.", "cz": "Měna cashbacku pro tuto návštěvu není potvrzena. Je nutná samostatná oprava zůstatku."},
+    "loyalty_points_currency_unavailable": {"en": "Points cannot use the current conversion rate for a visit in another or unknown currency.", "ru": "Для визита в другой или неизвестной валюте нельзя применять текущий курс бонусных баллов.", "cz": "U návštěvy v jiné nebo neznámé měně nelze použít aktuální převodní kurz bodů."},
+    "loyalty_cashback_amount_invalid": {"en": "Check the cashback amount. Use a finite amount with at most two decimal places.", "ru": "Проверьте сумму кешбэка: укажите допустимое число максимум с двумя знаками после запятой.", "cz": "Zkontrolujte částku cashbacku: použijte platné číslo nejvýše se dvěma desetinnými místy."},
+    "loyalty_payment_already_recorded": {"en": "A loyalty payment is already recorded for this visit. Use a separate correction to change it.", "ru": "По визиту уже записано списание бонусов. Для изменения нужна отдельная корректировка.", "cz": "U návštěvy je již zaznamenána platba bonusy. Pro změnu je nutná samostatná oprava."},
+    "loyalty_payment_amount_unavailable": {"en": "There is no available amount for a loyalty payment. Check the visit price and the program limit.", "ru": "Нет доступной суммы для оплаты бонусами. Проверьте цену визита и лимит программы.", "cz": "Pro platbu bonusy není dostupná částka. Zkontrolujte cenu návštěvy a limit programu."},
+
     "loyalty_balance_insufficient": {
         "en": "There are not enough points or cashback for this payment.",
         "ru": "Для этой оплаты недостаточно бонусных баллов или кешбэка.",

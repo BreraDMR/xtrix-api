@@ -2,6 +2,8 @@ from typing import List, Optional
 from datetime import date
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, inspect
+from sqlalchemy.dialects.postgresql import insert
+from app.api.core import cashback_wallets
 from app.db.models.loyalty_program import (
     LoyaltyProgram,
     LoyaltyLevel,
@@ -25,6 +27,17 @@ def create_loyalty_program(db: Session, program_in: LoyaltyProgramCreate) -> Loy
     return program
 def get_loyalty_program(db: Session, business_id: int) -> Optional[LoyaltyProgram]:
     return db.query(LoyaltyProgram).filter(LoyaltyProgram.business_id == business_id).first()
+def lock_loyalty_program(db: Session, business_id: int, program_id: Optional[int] = None):
+    with db.no_autoflush:
+        if any(isinstance(row, LoyaltyProgram) and row.business_id == business_id
+               for row in db.new.union(db.dirty).union(db.deleted)):
+            raise cashback_wallets.CashbackError('visit_price_retry')
+        query = db.query(LoyaltyProgram).filter(LoyaltyProgram.business_id == business_id)
+        if program_id is not None:
+            query = query.filter(LoyaltyProgram.id == program_id)
+        return query.populate_existing().with_for_update(read=True).one_or_none()
+
+
 def update_loyalty_program(
     db: Session, program: LoyaltyProgram, program_in: LoyaltyProgramUpdate
 ) -> LoyaltyProgram:
@@ -142,6 +155,7 @@ def lock_loyalty_visit(db: Session, visit_id: int, client_id: int, business_id: 
     """Take the visit anchor before calculating or changing any linked balance."""
     from app.db.models.visit import Visit
     with db.no_autoflush:
+        cashback_wallets.lock_money_references(db, client_id, business_id)
         if any(isinstance(row, Visit) and row.id == visit_id for row in db.new.union(db.dirty).union(db.deleted)):
             raise ValueError('visit_price_retry')
         visit = db.query(Visit).filter(Visit.id == visit_id, Visit.client_id == client_id,
@@ -164,9 +178,33 @@ def create_loyalty_transaction(
     level_id: Optional[int] = None,
     description: Optional[str] = None,
     expiry_date: Optional[date] = None,
+    cashback_currency: Optional[str] = None,
 ) -> LoyaltyTransaction:
+    try:
+        return _write_loyalty_transaction(db, client_id, business_id, transaction_type, points_amount,
+            cashback_amount, program_id, visit_id, promotion_id, level_id, description, expiry_date, cashback_currency)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _write_loyalty_transaction(db, client_id, business_id, transaction_type, points_amount,
+    cashback_amount, program_id, visit_id, promotion_id, level_id, description, expiry_date, cashback_currency):
     if visit_id is not None:
-        lock_loyalty_visit(db, visit_id, client_id, business_id)
+        locked_visit = lock_loyalty_visit(db, visit_id, client_id, business_id)
+        if transaction_type == 'spent' and db.query(LoyaltyTransaction.id).filter(
+                LoyaltyTransaction.visit_id == visit_id, LoyaltyTransaction.business_id == business_id,
+                LoyaltyTransaction.client_id == client_id, LoyaltyTransaction.transaction_type == 'spent',
+                or_(LoyaltyTransaction.points_amount != 0, LoyaltyTransaction.cashback_amount != 0)).first() is not None:
+            raise cashback_wallets.CashbackError('loyalty_payment_already_recorded')
+        if cashback_amount:
+            if cashback_currency is not None and cashback_currency != locked_visit.currency_snapshot:
+                raise cashback_wallets.CashbackError('loyalty_cashback_currency_unavailable')
+            cashback_currency = locked_visit.currency_snapshot
+    else:
+        if transaction_type == 'spent' and cashback_amount:
+            raise cashback_wallets.CashbackError('loyalty_cashback_visit_required')
+        cashback_wallets.lock_money_references(db, client_id, business_id)
     with db.no_autoflush:
         relation = (
             db.query(ClientBusinessRelation)
@@ -180,21 +218,22 @@ def create_loyalty_transaction(
                 raise ValueError('visit_price_retry')
             # Keep pending nonfinancial relation edits, but use the locked balance.
             db.refresh(relation, attribute_names=['loyalty_points', 'loyalty_cashback'])
-    if not relation:
-        relation = ClientBusinessRelation(
-            client_id=client_id,
-            business_id=business_id,
-            loyalty_points=0.0,
-            loyalty_cashback=0.0,
-        )
-        db.add(relation)
-        db.flush()
+    if relation is None:
+        # An absent row cannot be locked. Two first awards may arrive together.
+        with db.no_autoflush:
+            db.execute(insert(ClientBusinessRelation).values(client_id=client_id, business_id=business_id,
+                loyalty_points=0.0, loyalty_cashback=0.0).on_conflict_do_nothing(
+                    index_elements=['client_id', 'business_id']))
+            relation = db.query(ClientBusinessRelation).filter_by(client_id=client_id,
+                business_id=business_id).populate_existing().with_for_update().one()
     new_points_balance = relation.loyalty_points + points_amount
-    new_cashback_balance = relation.loyalty_cashback + (cashback_amount or 0.0)
-    if transaction_type == 'spent' and (new_points_balance < 0 or new_cashback_balance < 0):
+    if transaction_type == 'spent' and new_points_balance < 0:
         raise ValueError('loyalty_balance_insufficient')
+    movement = (cashback_wallets.move_balance(db, client_id, business_id, cashback_currency, cashback_amount)
+                if cashback_amount else None)
+    new_cashback_balance = float(movement.balance_after) if movement is not None else 0.0
     relation.loyalty_points = new_points_balance
-    relation.loyalty_cashback = new_cashback_balance
+    # The legacy untyped cashback is evidence, never a source for known-unit spending.
     transaction = LoyaltyTransaction(
         client_id=client_id,
         business_id=business_id,
@@ -204,6 +243,9 @@ def create_loyalty_transaction(
         cashback_amount=cashback_amount or 0.0,
         points_balance_after=new_points_balance,
         cashback_balance_after=new_cashback_balance,
+        cashback_currency=movement.currency if movement is not None else None,
+        cashback_amount_exact=movement.amount if movement is not None else None,
+        cashback_balance_after_exact=movement.balance_after if movement is not None else None,
         visit_id=visit_id,
         promotion_id=promotion_id,
         level_id=level_id,

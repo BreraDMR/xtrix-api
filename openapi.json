@@ -2137,8 +2137,33 @@
             "type": "integer"
           },
           "cashback": {
-            "title": "Cashback",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback"
+          },
+          "cashback_balances": {
+            "items": {
+              "$ref": "#/components/schemas/CashbackBalanceOut"
+            },
+            "title": "Cashback Balances",
+            "type": "array"
+          },
+          "cashback_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Currency"
           },
           "client_id": {
             "title": "Client Id",
@@ -2616,8 +2641,33 @@
       "ClientPortalLoyaltyOut": {
         "properties": {
           "cashback": {
-            "title": "Cashback",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback"
+          },
+          "cashback_balances": {
+            "items": {
+              "$ref": "#/components/schemas/CashbackBalanceOut"
+            },
+            "title": "Cashback Balances",
+            "type": "array"
+          },
+          "cashback_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Currency"
           },
           "level_benefits": {
             "anyOf": [
@@ -8441,6 +8491,17 @@
             ],
             "title": "Cashback Amount"
           },
+          "cashback_amount_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Amount Exact"
+          },
           "cashback_balance_after": {
             "anyOf": [
               {
@@ -8451,6 +8512,33 @@
               }
             ],
             "title": "Cashback Balance After"
+          },
+          "cashback_balance_after_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Balance After Exact"
+          },
+          "cashback_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Currency"
+          },
+          "cashback_requires_review": {
+            "readOnly": true,
+            "title": "Cashback Requires Review",
+            "type": "boolean"
           },
           "client_id": {
             "title": "Client Id",
@@ -8560,7 +8648,8 @@
           "level_id",
           "description",
           "expiry_date",
-          "created_at"
+          "created_at",
+          "cashback_requires_review"
         ],
         "title": "LoyaltyTransactionOut",
         "type": "object"
@@ -16543,19 +16632,24 @@
           "cashback_to_use": {
             "anyOf": [
               {
+                "maximum": 100000000.0,
                 "minimum": 0.0,
                 "type": "number"
+              },
+              {
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Cashback to use",
+            "description": "Cashback to use in the visit currency",
             "title": "Cashback To Use"
           },
           "points_to_use": {
             "anyOf": [
               {
+                "maximum": 1000000.0,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -17556,6 +17650,18 @@
             },
             "title": "Items",
             "type": "array"
+          },
+          "loyalty_warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Localized result warning; check bonus history before retrying",
+            "title": "Loyalty Warning"
           },
           "note": {
             "anyOf": [
