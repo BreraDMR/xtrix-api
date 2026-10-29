@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import case, func, or_, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, DBAPIError
 from sqlalchemy.orm import Session
 
 from app.api.core.booking_slug import normalize_slug
@@ -31,6 +31,9 @@ from app.db.models.gift import (
 from app.db.models.public_booking import PublicBookingSettings
 from app.db.models.service import Service
 from app.db.models.visit import Visit
+from app.db.models.loyalty_program import LoyaltyTransaction
+from app.db.models.service_payment import ServicePaymentAttempt
+from app.schemas.limits import ISO_4217
 
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 ACTIVE_STATUS = "active"
@@ -769,6 +772,44 @@ def redeem(
             -money(existing.amount_delta),
             -int(existing.units_delta),
         )
+
+    if visit.manual_payment_recorded_at is not None:
+        raise GiftError("loyalty_payment_settlement_required")
+    try:
+        external = db.execute(select(ServicePaymentAttempt.id).where(
+            ServicePaymentAttempt.visit_id == visit.id).order_by(ServicePaymentAttempt.id)
+            .with_for_update(nowait=True)).all()
+    except DBAPIError as error:
+        code = getattr(error.orig, 'pgcode', None) or getattr(error.orig, 'sqlstate', None)
+        if code in {'55P03', '40P01'}:
+            raise GiftError("visit_price_retry") from None
+        raise
+    if external:
+        raise GiftError("loyalty_payment_checkout_exists")
+    # Keep old receipts replayable, but never add a second independent payment
+    # on top of loyalty money that this gift calculation does not allocate.
+    loyalty = db.query(LoyaltyTransaction.id).filter(LoyaltyTransaction.visit_id == visit.id, or_(
+        (LoyaltyTransaction.transaction_type == 'spent') & or_(
+            LoyaltyTransaction.points_amount != 0, LoyaltyTransaction.cashback_amount != 0,
+            func.coalesce(LoyaltyTransaction.cashback_amount_exact, 0) != 0),
+        LoyaltyTransaction.business_id.is_distinct_from(business_id),
+        LoyaltyTransaction.client_id.is_distinct_from(visit.client_id))).first()
+    if loyalty is not None:
+        raise GiftError("loyalty_payment_already_recorded")
+
+    if certificate.kind == "money":
+        unit = visit.currency_snapshot
+        if unit not in ISO_4217 or certificate.currency != unit:
+            raise GiftError("gift_currency_mismatch")
+        # A previous mixed-unit ledger cannot be repaired by a new redemption.
+        foreign = db.query(GiftLedgerEntry.id).join(
+            GiftCertificate, GiftCertificate.id == GiftLedgerEntry.certificate_id).filter(
+                GiftLedgerEntry.visit_id == visit.id,
+                GiftLedgerEntry.entry_type.in_(["redeemed", "reversed"]),
+                GiftCertificate.kind == "money",
+                GiftCertificate.currency.is_distinct_from(unit)).first()
+        if foreign is not None:
+            raise GiftError("gift_currency_mismatch")
 
     if certificate.status == EXPIRED_STATUS:
         raise GiftError("gift_expired")

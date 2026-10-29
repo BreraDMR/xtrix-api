@@ -1169,6 +1169,20 @@
       },
       "CalculateSalaryRequest": {
         "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
           "notes": {
             "anyOf": [
               {
@@ -1737,6 +1751,187 @@
         "title": "CancelVisitPlanned",
         "type": "object"
       },
+      "CashbackBalanceOut": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "requires_review": {
+            "default": false,
+            "title": "Requires Review",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "currency",
+          "amount"
+        ],
+        "title": "CashbackBalanceOut",
+        "type": "object"
+      },
+      "CashbackCurrencyAmount": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          }
+        },
+        "required": [
+          "currency",
+          "amount"
+        ],
+        "title": "CashbackCurrencyAmount",
+        "type": "object"
+      },
+      "CashbackCurrencyStatistics": {
+        "properties": {
+          "balance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "earned": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earned"
+          },
+          "redemption_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redemption Rate"
+          },
+          "spent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spent"
+          }
+        },
+        "required": [
+          "currency",
+          "earned",
+          "spent",
+          "balance",
+          "redemption_rate"
+        ],
+        "title": "CashbackCurrencyStatistics",
+        "type": "object"
+      },
+      "CashbackCurrencyTrend": {
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "earned": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earned"
+          },
+          "spent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spent"
+          }
+        },
+        "required": [
+          "currency",
+          "earned",
+          "spent"
+        ],
+        "title": "CashbackCurrencyTrend",
+        "type": "object"
+      },
       "ClientCreate": {
         "properties": {
           "birth_date": {
@@ -1896,6 +2091,59 @@
         "title": "ClientHistoryResponse",
         "type": "object"
       },
+      "ClientInviteAcceptIn": {
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "ClientInviteAcceptIn",
+        "type": "object"
+      },
+      "ClientInviteIssueIn": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "format": "email",
+            "maxLength": 320,
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "ClientInviteIssueIn",
+        "type": "object"
+      },
+      "ClientInviteIssueOut": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "expires_at"
+        ],
+        "title": "ClientInviteIssueOut",
+        "type": "object"
+      },
       "ClientLoyaltyBalance": {
         "properties": {
           "business_id": {
@@ -1903,8 +2151,33 @@
             "type": "integer"
           },
           "cashback": {
-            "title": "Cashback",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback"
+          },
+          "cashback_balances": {
+            "items": {
+              "$ref": "#/components/schemas/CashbackBalanceOut"
+            },
+            "title": "Cashback Balances",
+            "type": "array"
+          },
+          "cashback_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Currency"
           },
           "client_id": {
             "title": "Client Id",
@@ -2382,8 +2655,33 @@
       "ClientPortalLoyaltyOut": {
         "properties": {
           "cashback": {
-            "title": "Cashback",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback"
+          },
+          "cashback_balances": {
+            "items": {
+              "$ref": "#/components/schemas/CashbackBalanceOut"
+            },
+            "title": "Cashback Balances",
+            "type": "array"
+          },
+          "cashback_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Currency"
           },
           "level_benefits": {
             "anyOf": [
@@ -3717,6 +4015,20 @@
             "description": "Fixed part of the salary",
             "title": "Base Salary"
           },
+          "base_salary_currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Currency"
+          },
           "business_owner_id": {
             "anyOf": [
               {
@@ -3816,6 +4128,28 @@
             "default": 0.0,
             "description": "Fixed part of the salary",
             "title": "Base Salary"
+          },
+          "base_salary_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Currency"
+          },
+          "base_salary_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Exact"
           },
           "business_owner_id": {
             "title": "Business Owner Id",
@@ -3962,6 +4296,20 @@
             "default": 0.0,
             "title": "Base Salary"
           },
+          "base_salary_currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Currency"
+          },
           "business_id": {
             "anyOf": [
               {
@@ -4097,6 +4445,28 @@
             "description": "Fixed part of the salary",
             "title": "Base Salary"
           },
+          "base_salary_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Currency"
+          },
+          "base_salary_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Exact"
+          },
           "business_owner_id": {
             "title": "Business Owner Id",
             "type": "integer"
@@ -4228,6 +4598,20 @@
               }
             ],
             "title": "Base Salary"
+          },
+          "base_salary_currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Currency"
           },
           "commission_percentage": {
             "anyOf": [
@@ -4871,6 +5255,245 @@
         "title": "ExpenseUpdate",
         "type": "object"
       },
+      "FinancialClientQuote": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "integer"
+          },
+          "client_name": {
+            "title": "Client Name",
+            "type": "string"
+          },
+          "requires_review": {
+            "default": false,
+            "title": "Requires Review",
+            "type": "boolean"
+          },
+          "visit_count": {
+            "title": "Visit Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_name",
+          "amount",
+          "visit_count"
+        ],
+        "title": "FinancialClientQuote",
+        "type": "object"
+      },
+      "FinancialCurrencyClients": {
+        "properties": {
+          "clients": {
+            "items": {
+              "$ref": "#/components/schemas/FinancialClientQuote"
+            },
+            "title": "Clients",
+            "type": "array"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          }
+        },
+        "required": [
+          "currency",
+          "clients"
+        ],
+        "title": "FinancialCurrencyClients",
+        "type": "object"
+      },
+      "FinancialCurrencyValue": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "average": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "requires_review": {
+            "default": false,
+            "title": "Requires Review",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "currency",
+          "amount",
+          "average",
+          "count"
+        ],
+        "title": "FinancialCurrencyValue",
+        "type": "object"
+      },
+      "FinancialQuotePeriod": {
+        "properties": {
+          "by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/FinancialCurrencyValue"
+            },
+            "title": "By Currency",
+            "type": "array"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "month": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month"
+          },
+          "period": {
+            "title": "Period",
+            "type": "string"
+          },
+          "revenue": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "required": [
+          "revenue",
+          "currency",
+          "count",
+          "by_currency",
+          "period"
+        ],
+        "title": "FinancialQuotePeriod",
+        "type": "object"
+      },
+      "FinancialQuoteSummary": {
+        "properties": {
+          "by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/FinancialCurrencyValue"
+            },
+            "title": "By Currency",
+            "type": "array"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "revenue": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue"
+          }
+        },
+        "required": [
+          "revenue",
+          "currency",
+          "count",
+          "by_currency"
+        ],
+        "title": "FinancialQuoteSummary",
+        "type": "object"
+      },
       "FinancialReportResponse": {
         "properties": {
           "average_revenue_per_visit": {
@@ -4884,18 +5507,34 @@
             ],
             "title": "Average Revenue Per Visit"
           },
+          "by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/FinancialCurrencyValue"
+            },
+            "title": "By Currency",
+            "type": "array"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
           "revenue_by_period": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/FinancialQuotePeriod"
             },
             "title": "Revenue By Period",
             "type": "array"
           },
           "revenue_by_status": {
             "additionalProperties": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/FinancialQuoteSummary"
             },
             "title": "Revenue By Status",
             "type": "object"
@@ -4908,9 +5547,29 @@
             "title": "Top Clients",
             "type": "array"
           },
+          "top_clients_by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/FinancialCurrencyClients"
+            },
+            "title": "Top Clients By Currency",
+            "type": "array"
+          },
           "total_revenue": {
-            "title": "Total Revenue",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Revenue"
+          },
+          "value_basis": {
+            "const": "quoted_service_price",
+            "default": "quoted_service_price",
+            "title": "Value Basis",
+            "type": "string"
           }
         },
         "required": [
@@ -8094,28 +8753,74 @@
       "LoyaltyStatisticsResponse": {
         "properties": {
           "active_cashback_balance": {
-            "title": "Active Cashback Balance",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Cashback Balance"
           },
           "active_points_balance": {
             "title": "Active Points Balance",
             "type": "number"
           },
+          "cashback_by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/CashbackCurrencyStatistics"
+            },
+            "title": "Cashback By Currency",
+            "type": "array"
+          },
+          "cashback_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Currency"
+          },
           "cashback_redemption_rate": {
-            "title": "Cashback Redemption Rate",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Redemption Rate"
           },
           "points_redemption_rate": {
             "title": "Points Redemption Rate",
             "type": "number"
           },
           "total_cashback_earned": {
-            "title": "Total Cashback Earned",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Cashback Earned"
           },
           "total_cashback_spent": {
-            "title": "Total Cashback Spent",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Cashback Spent"
           },
           "total_participants": {
             "title": "Total Participants",
@@ -8161,6 +8866,17 @@
             ],
             "title": "Cashback Amount"
           },
+          "cashback_amount_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Amount Exact"
+          },
           "cashback_balance_after": {
             "anyOf": [
               {
@@ -8171,6 +8887,33 @@
               }
             ],
             "title": "Cashback Balance After"
+          },
+          "cashback_balance_after_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Balance After Exact"
+          },
+          "cashback_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Currency"
+          },
+          "cashback_requires_review": {
+            "readOnly": true,
+            "title": "Cashback Requires Review",
+            "type": "boolean"
           },
           "client_id": {
             "title": "Client Id",
@@ -8191,6 +8934,28 @@
               }
             ],
             "title": "Description"
+          },
+          "discount_amount_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Amount Exact"
+          },
+          "discount_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Currency"
           },
           "expiry_date": {
             "anyOf": [
@@ -8280,7 +9045,8 @@
           "level_id",
           "description",
           "expiry_date",
-          "created_at"
+          "created_at",
+          "cashback_requires_review"
         ],
         "title": "LoyaltyTransactionOut",
         "type": "object"
@@ -9983,13 +10749,45 @@
       },
       "PointsUsageTrendItem": {
         "properties": {
+          "cashback_by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/CashbackCurrencyTrend"
+            },
+            "title": "Cashback By Currency",
+            "type": "array"
+          },
+          "cashback_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Currency"
+          },
           "cashback_earned": {
-            "title": "Cashback Earned",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Earned"
           },
           "cashback_spent": {
-            "title": "Cashback Spent",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Spent"
           },
           "period": {
             "title": "Period",
@@ -10748,6 +11546,24 @@
       },
       "PromotionEffectivenessItem": {
         "properties": {
+          "cashback_by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/CashbackCurrencyAmount"
+            },
+            "title": "Cashback By Currency",
+            "type": "array"
+          },
+          "cashback_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Currency"
+          },
           "end_date": {
             "title": "End Date",
             "type": "string"
@@ -10773,8 +11589,15 @@
             "type": "string"
           },
           "total_cashback_awarded": {
-            "title": "Total Cashback Awarded",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Cashback Awarded"
           },
           "total_points_awarded": {
             "title": "Total Points Awarded",
@@ -11030,8 +11853,15 @@
             "title": "Confirmed At"
           },
           "currency": {
-            "title": "Currency",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "end": {
             "format": "date-time",
@@ -11085,7 +11915,6 @@
           "end",
           "timezone",
           "status",
-          "currency",
           "token_expires_at"
         ],
         "title": "PublicBookingManageOut",
@@ -13002,6 +13831,17 @@
             "title": "Amount",
             "type": "number"
           },
+          "amount_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Exact"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -13010,6 +13850,17 @@
           "created_by_id": {
             "title": "Created By Id",
             "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "description": {
             "anyOf": [
@@ -13065,11 +13916,44 @@
             "title": "Adjustments Total",
             "type": "number"
           },
+          "adjustments_total_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adjustments Total Exact"
+          },
           "base_salary": {
             "default": 0.0,
             "description": "Fixed part of the salary",
             "title": "Base Salary",
             "type": "number"
+          },
+          "base_salary_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Exact"
+          },
+          "business_id_snapshot": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Id Snapshot"
           },
           "calculated_at": {
             "format": "date-time",
@@ -13100,6 +13984,17 @@
             "title": "Commission Amount",
             "type": "number"
           },
+          "commission_amount_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commission Amount Exact"
+          },
           "commission_percentage": {
             "anyOf": [
               {
@@ -13122,6 +14017,17 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "employee_id": {
             "description": "Employee ID",
@@ -13156,6 +14062,17 @@
             "description": "Amount already paid",
             "title": "Paid Amount",
             "type": "number"
+          },
+          "paid_amount_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid Amount Exact"
           },
           "paid_at": {
             "anyOf": [
@@ -13196,17 +14113,60 @@
             "title": "Period Start",
             "type": "string"
           },
+          "salary_period": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SalaryPeriodOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "salary_period_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Period Id"
+          },
           "total_revenue": {
             "default": 0.0,
             "description": "Total visit revenue",
             "title": "Total Revenue",
             "type": "number"
           },
+          "total_revenue_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Revenue Exact"
+          },
           "total_salary": {
             "default": 0.0,
             "description": "Total salary",
             "title": "Total Salary",
             "type": "number"
+          },
+          "total_salary_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Salary Exact"
           },
           "total_visits": {
             "default": 0,
@@ -13219,6 +14179,17 @@
             "description": "Total salary incl. bonuses/penalties",
             "title": "Total With Adjustments",
             "type": "number"
+          },
+          "total_with_adjustments_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total With Adjustments Exact"
           },
           "updated_at": {
             "format": "date-time",
@@ -13246,11 +14217,44 @@
             "title": "Adjustments Total",
             "type": "number"
           },
+          "adjustments_total_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adjustments Total Exact"
+          },
           "base_salary": {
             "default": 0.0,
             "description": "Fixed part of the salary",
             "title": "Base Salary",
             "type": "number"
+          },
+          "base_salary_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Exact"
+          },
+          "business_id_snapshot": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Id Snapshot"
           },
           "calculated_at": {
             "format": "date-time",
@@ -13281,6 +14285,17 @@
             "title": "Commission Amount",
             "type": "number"
           },
+          "commission_amount_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commission Amount Exact"
+          },
           "commission_percentage": {
             "anyOf": [
               {
@@ -13303,6 +14318,17 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "employee_id": {
             "description": "Employee ID",
@@ -13338,6 +14364,17 @@
             "title": "Paid Amount",
             "type": "number"
           },
+          "paid_amount_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid Amount Exact"
+          },
           "paid_at": {
             "anyOf": [
               {
@@ -13369,17 +14406,60 @@
             "title": "Period Start",
             "type": "string"
           },
+          "salary_period": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SalaryPeriodOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "salary_period_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Period Id"
+          },
           "total_revenue": {
             "default": 0.0,
             "description": "Total visit revenue",
             "title": "Total Revenue",
             "type": "number"
           },
+          "total_revenue_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Revenue Exact"
+          },
           "total_salary": {
             "default": 0.0,
             "description": "Total salary",
             "title": "Total Salary",
             "type": "number"
+          },
+          "total_salary_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Salary Exact"
           },
           "total_visits": {
             "default": 0,
@@ -13392,6 +14472,17 @@
             "description": "Total salary incl. bonuses/penalties",
             "title": "Total With Adjustments",
             "type": "number"
+          },
+          "total_with_adjustments_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total With Adjustments Exact"
           },
           "updated_at": {
             "format": "date-time",
@@ -13508,6 +14599,17 @@
             "title": "Amount",
             "type": "number"
           },
+          "amount_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Exact"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -13516,6 +14618,17 @@
           "created_by_id": {
             "title": "Created By Id",
             "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "id": {
             "title": "Id",
@@ -13657,6 +14770,79 @@
           }
         },
         "title": "SalaryPaymentUpdate",
+        "type": "object"
+      },
+      "SalaryPeriodOut": {
+        "properties": {
+          "base_salary_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Salary Currency"
+          },
+          "base_salary_exact": {
+            "title": "Base Salary Exact",
+            "type": "string"
+          },
+          "business_id": {
+            "title": "Business Id",
+            "type": "integer"
+          },
+          "commission_percentage": {
+            "title": "Commission Percentage",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Id"
+          },
+          "employee_id": {
+            "title": "Employee Id",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "period_end": {
+            "format": "date-time",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date-time",
+            "title": "Period Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "business_id",
+          "employee_id",
+          "period_start",
+          "period_end",
+          "base_salary_exact",
+          "commission_percentage",
+          "created_at"
+        ],
+        "title": "SalaryPeriodOut",
         "type": "object"
       },
       "SandboxPaymentOutcomeIn": {
@@ -15770,8 +16956,33 @@
       "TopClientItem": {
         "properties": {
           "cashback": {
-            "title": "Cashback",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback"
+          },
+          "cashback_balances": {
+            "items": {
+              "$ref": "#/components/schemas/CashbackBalanceOut"
+            },
+            "title": "Cashback Balances",
+            "type": "array"
+          },
+          "cashback_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Currency"
           },
           "client_id": {
             "title": "Client Id",
@@ -16181,19 +17392,24 @@
           "cashback_to_use": {
             "anyOf": [
               {
+                "maximum": 100000000.0,
                 "minimum": 0.0,
                 "type": "number"
+              },
+              {
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Cashback to use",
+            "description": "Cashback to use in the visit currency",
             "title": "Cashback To Use"
           },
           "points_to_use": {
             "anyOf": [
               {
+                "maximum": 1000000.0,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -17106,6 +18322,111 @@
         "title": "VisitItemOut",
         "type": "object"
       },
+      "VisitItemPriceChange": {
+        "additionalProperties": false,
+        "properties": {
+          "item_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Item Id",
+            "type": "integer"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Price"
+          }
+        },
+        "required": [
+          "item_id",
+          "price"
+        ],
+        "title": "VisitItemPriceChange",
+        "type": "object"
+      },
+      "VisitLoyaltyPriceOut": {
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "loyalty_discount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loyalty Discount"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "price_after_loyalty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Service price after bonuses; excludes gifts and received payments",
+            "title": "Price After Loyalty"
+          },
+          "quoted_total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quoted Total"
+          },
+          "requires_review": {
+            "title": "Requires Review",
+            "type": "boolean"
+          },
+          "visit_id": {
+            "title": "Visit Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "visit_id",
+          "currency",
+          "quoted_total",
+          "loyalty_discount",
+          "price_after_loyalty",
+          "requires_review"
+        ],
+        "title": "VisitLoyaltyPriceOut",
+        "type": "object"
+      },
       "VisitOut": {
         "properties": {
           "client_confirmed_at": {
@@ -17167,6 +18488,18 @@
             },
             "title": "Items",
             "type": "array"
+          },
+          "loyalty_warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Localized result warning; check bonus history before retrying",
+            "title": "Loyalty Warning"
           },
           "note": {
             "anyOf": [
@@ -17281,6 +18614,152 @@
           "created_at"
         ],
         "title": "VisitOut",
+        "type": "object"
+      },
+      "VisitPriceChange": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "pattern": "^[A-Za-z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          },
+          "expected_quote": {
+            "pattern": "^vprice1_[0-9a-f]{64}$",
+            "title": "Expected Quote",
+            "type": "string"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/VisitItemPriceChange"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items"
+          },
+          "legacy_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legacy Price"
+          }
+        },
+        "required": [
+          "currency",
+          "expected_quote"
+        ],
+        "title": "VisitPriceChange",
+        "type": "object"
+      },
+      "VisitPriceItemQuoteOut": {
+        "properties": {
+          "item_id": {
+            "title": "Item Id",
+            "type": "integer"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "service_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Id"
+          },
+          "specialist_id": {
+            "title": "Specialist Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "item_id",
+          "position",
+          "service_id",
+          "specialist_id",
+          "price"
+        ],
+        "title": "VisitPriceItemQuoteOut",
+        "type": "object"
+      },
+      "VisitPriceQuoteOut": {
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "expected_quote": {
+            "title": "Expected Quote",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/VisitPriceItemQuoteOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          },
+          "visit_id": {
+            "title": "Visit Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "visit_id",
+          "currency",
+          "total",
+          "items",
+          "expected_quote"
+        ],
+        "title": "VisitPriceQuoteOut",
         "type": "object"
       },
       "VisitStatisticsResponse": {
@@ -17450,6 +18929,675 @@
           }
         },
         "title": "VisitUpdate",
+        "type": "object"
+      },
+      "VisitorAccountOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "email_verified_at": {
+            "format": "date-time",
+            "title": "Email Verified At",
+            "type": "string"
+          },
+          "google_connected": {
+            "title": "Google Connected",
+            "type": "boolean"
+          },
+          "has_password": {
+            "title": "Has Password",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "email_verified_at",
+          "created_at",
+          "has_password",
+          "google_connected"
+        ],
+        "title": "VisitorAccountOut",
+        "type": "object"
+      },
+      "VisitorBookingAction": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed": {
+            "title": "Allowed",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "visitor_actions_unavailable",
+                  "booking_confirm_completed",
+                  "booking_confirm_in_progress",
+                  "booking_confirm_cancelled",
+                  "booking_confirm_unavailable",
+                  "booking_confirm_started",
+                  "booking_cancel_completed",
+                  "booking_cancel_in_progress",
+                  "booking_cancel_already",
+                  "booking_cancel_unavailable",
+                  "booking_cancel_too_late",
+                  "booking_reschedule_completed",
+                  "booking_reschedule_in_progress",
+                  "booking_reschedule_cancelled",
+                  "booking_reschedule_unavailable",
+                  "booking_reschedule_started",
+                  "booking_reschedule_too_late"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "allowed",
+          "reason"
+        ],
+        "title": "VisitorBookingAction",
+        "type": "object"
+      },
+      "VisitorBookingActions": {
+        "additionalProperties": false,
+        "properties": {
+          "cancel": {
+            "$ref": "#/components/schemas/VisitorBookingAction"
+          },
+          "confirm": {
+            "$ref": "#/components/schemas/VisitorBookingAction"
+          },
+          "reschedule": {
+            "$ref": "#/components/schemas/VisitorBookingAction"
+          }
+        },
+        "required": [
+          "confirm",
+          "cancel",
+          "reschedule"
+        ],
+        "title": "VisitorBookingActions",
+        "type": "object"
+      },
+      "VisitorEmailChangeConfirmIn": {
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "VisitorEmailChangeConfirmIn",
+        "type": "object"
+      },
+      "VisitorEmailChangeRequestIn": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "maxLength": 320,
+            "minLength": 1,
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "VisitorEmailChangeRequestIn",
+        "type": "object"
+      },
+      "VisitorGoogleLinkIn": {
+        "additionalProperties": false,
+        "properties": {
+          "credential": {
+            "format": "password",
+            "maxLength": 16384,
+            "minLength": 1,
+            "title": "Credential",
+            "type": "string",
+            "writeOnly": true
+          },
+          "nonce": {
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Nonce",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "credential",
+          "nonce"
+        ],
+        "title": "VisitorGoogleLinkIn",
+        "type": "object"
+      },
+      "VisitorGoogleLoginIn": {
+        "additionalProperties": false,
+        "properties": {
+          "credential": {
+            "format": "password",
+            "maxLength": 16384,
+            "minLength": 1,
+            "title": "Credential",
+            "type": "string",
+            "writeOnly": true
+          },
+          "nonce": {
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Nonce",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "credential",
+          "nonce"
+        ],
+        "title": "VisitorGoogleLoginIn",
+        "type": "object"
+      },
+      "VisitorGoogleNonceIn": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "VisitorGoogleNonceIn",
+        "type": "object"
+      },
+      "VisitorHistoryBusiness": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
+          }
+        },
+        "required": [
+          "name",
+          "address",
+          "phone",
+          "email",
+          "timezone"
+        ],
+        "title": "VisitorHistoryBusiness",
+        "type": "object"
+      },
+      "VisitorHistoryCursor": {
+        "additionalProperties": false,
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "date_start": {
+            "format": "date-time",
+            "title": "Date Start",
+            "type": "string"
+          },
+          "id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date_start",
+          "id"
+        ],
+        "title": "VisitorHistoryCursor",
+        "type": "object"
+      },
+      "VisitorHistoryItem": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_minutes": {
+            "title": "Duration Minutes",
+            "type": "integer"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisitorHistoryMoney"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "service_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Name"
+          },
+          "staff_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Name"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "position",
+          "service_name",
+          "start",
+          "end",
+          "duration_minutes",
+          "staff_name",
+          "price"
+        ],
+        "title": "VisitorHistoryItem",
+        "type": "object"
+      },
+      "VisitorHistoryMoney": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "currency": {
+            "pattern": "^[A-Za-z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "title": "VisitorHistoryMoney",
+        "type": "object"
+      },
+      "VisitorHistoryPage": {
+        "additionalProperties": false,
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/VisitorHistoryVisit"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisitorHistoryCursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "entries",
+          "next_cursor"
+        ],
+        "title": "VisitorHistoryPage",
+        "type": "object"
+      },
+      "VisitorHistoryVisit": {
+        "additionalProperties": false,
+        "properties": {
+          "business": {
+            "$ref": "#/components/schemas/VisitorHistoryBusiness"
+          },
+          "business_id": {
+            "title": "Business Id",
+            "type": "integer"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/VisitorHistoryItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisitorHistoryMoney"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "service_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Name"
+          },
+          "staff_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Name"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "id",
+          "business_id",
+          "business",
+          "start",
+          "end",
+          "service_name",
+          "status",
+          "confirmed_at",
+          "staff_name",
+          "price",
+          "items"
+        ],
+        "title": "VisitorHistoryVisit",
+        "type": "object"
+      },
+      "VisitorLoginIn": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "maxLength": 320,
+            "minLength": 1,
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "VisitorLoginIn",
+        "type": "object"
+      },
+      "VisitorLoginOut": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "session_token": {
+            "title": "Session Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_token",
+          "expires_at"
+        ],
+        "title": "VisitorLoginOut",
+        "type": "object"
+      },
+      "VisitorManageClaimIn": {
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "VisitorManageClaimIn",
+        "type": "object"
+      },
+      "VisitorPasswordResetIn": {
+        "additionalProperties": false,
+        "properties": {
+          "new_password": {
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "New Password",
+            "type": "string",
+            "writeOnly": true
+          },
+          "token": {
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "token",
+          "new_password"
+        ],
+        "title": "VisitorPasswordResetIn",
+        "type": "object"
+      },
+      "VisitorRegistrationIn": {
+        "additionalProperties": false,
+        "properties": {
+          "new_password": {
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "New Password",
+            "type": "string",
+            "writeOnly": true
+          },
+          "token": {
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "token",
+          "new_password"
+        ],
+        "title": "VisitorRegistrationIn",
+        "type": "object"
+      },
+      "VisitorRegistrationRequestIn": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "maxLength": 320,
+            "minLength": 1,
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "VisitorRegistrationRequestIn",
+        "type": "object"
+      },
+      "VisitorRegistrationRequestOut": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "VisitorRegistrationRequestOut",
         "type": "object"
       },
       "WaitlistEntryOut": {
@@ -25971,6 +28119,80 @@
           }
         ],
         "summary": "Generate Client Qr Code",
+        "tags": [
+          "clients"
+        ]
+      }
+    },
+    "/clients/{client_id}/visitor-invitations": {
+      "post": {
+        "operationId": "issue_visitor_invitation_clients__client_id__visitor_invitations_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Client Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientInviteIssueIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientInviteIssueOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Issue Visitor Invitation",
         "tags": [
           "clients"
         ]
@@ -37862,6 +40084,1530 @@
         ]
       }
     },
+    "/visitor/auth/email/change/confirm": {
+      "post": {
+        "operationId": "confirm_email_change_visitor_auth_email_change_confirm_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorEmailChangeConfirmIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Email Change",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/auth/email/change/request": {
+      "post": {
+        "operationId": "request_email_change_visitor_auth_email_change_request_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorEmailChangeRequestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorRegistrationRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Request Email Change",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/auth/google/config": {
+      "get": {
+        "operationId": "google_config_visitor_auth_google_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Google Config",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/auth/google/link": {
+      "post": {
+        "operationId": "google_link_visitor_auth_google_link_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorGoogleLinkIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Google Link",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/auth/google/link/nonce": {
+      "post": {
+        "operationId": "google_link_nonce_visitor_auth_google_link_nonce_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorGoogleNonceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleNonceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Google Link Nonce",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/auth/google/login": {
+      "post": {
+        "operationId": "google_login_visitor_auth_google_login_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorGoogleLoginIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorLoginOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Google Login",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/auth/google/nonce": {
+      "post": {
+        "operationId": "google_nonce_visitor_auth_google_nonce_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorGoogleNonceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleNonceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Google Nonce",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/auth/login": {
+      "post": {
+        "operationId": "login_visitor_auth_login_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorLoginIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorLoginOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/auth/logout": {
+      "post": {
+        "operationId": "logout_visitor_auth_logout_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Logout",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/auth/logout-all": {
+      "post": {
+        "operationId": "logout_all_visitor_auth_logout_all_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Logout All",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/auth/password/reset/confirm": {
+      "post": {
+        "operationId": "confirm_password_reset_visitor_auth_password_reset_confirm_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorPasswordResetIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Password Reset",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/auth/password/reset/request": {
+      "post": {
+        "operationId": "request_password_reset_visitor_auth_password_reset_request_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorRegistrationRequestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorRegistrationRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Request Password Reset",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/auth/register/complete": {
+      "post": {
+        "operationId": "complete_registration_visitor_auth_register_complete_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorRegistrationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorLoginOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Complete Registration",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/auth/register/request": {
+      "post": {
+        "operationId": "request_registration_visitor_auth_register_request_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorRegistrationRequestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorRegistrationRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Request Registration",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/claims/client-invite": {
+      "post": {
+        "operationId": "accept_client_invitation_visitor_claims_client_invite_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientInviteAcceptIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Accept Client Invitation",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/claims/manage": {
+      "post": {
+        "operationId": "claim_guest_visit_visitor_claims_manage_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitorManageClaimIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Claim Guest Visit",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/me": {
+      "get": {
+        "operationId": "read_account_visitor_me_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorAccountOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Account",
+        "tags": [
+          "visitor-account"
+        ]
+      }
+    },
+    "/visitor/visits": {
+      "get": {
+        "operationId": "list_visits_visitor_visits_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "business_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Business Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "all",
+                "upcoming",
+                "past",
+                "cancelled"
+              ],
+              "title": "Category",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after_start",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After Start"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorHistoryPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Visits",
+        "tags": [
+          "visitor-history"
+        ]
+      }
+    },
+    "/visitor/visits/{visit_id}": {
+      "get": {
+        "operationId": "read_visit_visitor_visits__visit_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Visit Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorHistoryVisit"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Visit",
+        "tags": [
+          "visitor-history"
+        ]
+      }
+    },
+    "/visitor/visits/{visit_id}/actions": {
+      "get": {
+        "description": "Current action hints. Commands recheck authority, time, billing and catalog; no slot is reserved.",
+        "operationId": "read_visit_actions_visitor_visits__visit_id__actions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Visit Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorBookingActions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Visit Actions",
+        "tags": [
+          "visitor-history"
+        ]
+      }
+    },
+    "/visitor/visits/{visit_id}/cancel": {
+      "post": {
+        "operationId": "cancel_visit_visitor_visits__visit_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Visit Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel an explicitly granted visitor booking",
+        "tags": [
+          "visitor-history"
+        ]
+      }
+    },
+    "/visitor/visits/{visit_id}/confirm": {
+      "post": {
+        "operationId": "confirm_visit_visitor_visits__visit_id__confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Visit Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm an explicitly granted visitor booking",
+        "tags": [
+          "visitor-history"
+        ]
+      }
+    },
+    "/visitor/visits/{visit_id}/reschedule": {
+      "post": {
+        "operationId": "reschedule_visit_visitor_visits__visit_id__reschedule_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Visit Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicBookingRescheduleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move an explicitly granted visitor booking without changing its stored quote",
+        "tags": [
+          "visitor-history"
+        ]
+      }
+    },
     "/visits/": {
       "get": {
         "operationId": "visits_list_visits__get",
@@ -38879,6 +42625,9 @@
             },
             "description": "Successful Response"
           },
+          "409": {
+            "description": "A recorded settlement or pending payment blocks quote changes; busy bookings can be retried."
+          },
           "422": {
             "content": {
               "application/json": {
@@ -38896,6 +42645,209 @@
           }
         ],
         "summary": "Update Visit",
+        "tags": [
+          "visits"
+        ]
+      }
+    },
+    "/visits/{visit_id}/loyalty-price": {
+      "get": {
+        "operationId": "read_visit_loyalty_price_visits__visit_id__loyalty_price_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Visit Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitLoyaltyPriceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Read the saved service price after recorded bonus deductions",
+        "tags": [
+          "visits"
+        ]
+      }
+    },
+    "/visits/{visit_id}/price": {
+      "get": {
+        "operationId": "read_visit_price_visits__visit_id__price_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Visit Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitPriceQuoteOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Read the stored quote and its optimistic fingerprint",
+        "tags": [
+          "visits"
+        ]
+      },
+      "put": {
+        "operationId": "write_visit_price_visits__visit_id__price_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Visit Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitPriceChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitPriceQuoteOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "The quote changed, a payment is pending, or a separate settlement correction is required."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Replace an unsettled quote with explicit item prices and currency",
         "tags": [
           "visits"
         ]

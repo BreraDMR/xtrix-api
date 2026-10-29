@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Optional, Dict, Any, List
 from app.schemas.limits import MAX_MONEY
 from pydantic import ConfigDict, BaseModel, Field, field_validator
@@ -31,8 +32,10 @@ class EmployeeBase(BaseModel):
             raise invalid("invalid_permissions", "permissions must be a dictionary")
         return v
 class EmployeeCreate(InputModel, EmployeeBase):
+    base_salary_currency: Optional[str] = Field(None, pattern=r"^[A-Z]{3}$", min_length=3, max_length=3)
     business_owner_id: Optional[int] = Field(None, description="Business owner ID (optional, admin only)")
 class EmployeeCreateWithUser(InputModel):
+    base_salary_currency: Optional[str] = Field(None, pattern=r"^[A-Z]{3}$", min_length=3, max_length=3)
     full_name: str = Field(..., min_length=1, max_length=255, description="Employee's full name")
     phone: Optional[str] = Field(None, max_length=50, description="Employee phone")
     email: Optional[str] = Field(None, max_length=255, description="Employee email")
@@ -44,6 +47,7 @@ class EmployeeCreateWithUser(InputModel):
     base_salary: Optional[float] = Field(0.0, ge=0.0, le=MAX_MONEY)
     notes: Optional[str] = Field(None, max_length=5000, description="Notes")
 class EmployeeUpdate(InputModel):
+    base_salary_currency: Optional[str] = Field(None, pattern=r"^[A-Z]{3}$", min_length=3, max_length=3)
     position: Optional[str] = Field(None, max_length=100)
     permissions: Optional[Dict[str, Any]] = Field(None)
     commission_percentage: Optional[float] = Field(None, ge=0.0, le=100.0)
@@ -51,6 +55,8 @@ class EmployeeUpdate(InputModel):
     is_active: Optional[bool] = None
     notes: Optional[str] = Field(None, max_length=5000)
 class EmployeeOut(EmployeeBase):
+    base_salary_currency: Optional[str] = None
+    base_salary_exact: Optional[Decimal] = None
     id: int
     business_owner_id: int
     hired_at: Optional[UtcDatetime] = None

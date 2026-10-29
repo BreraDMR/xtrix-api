@@ -241,7 +241,7 @@ class PublicBookingManageOut(BaseModel):
     timezone: str
     status: str
     price: Optional[float] = None
-    currency: str
+    currency: Optional[str] = None
     token_expires_at: UtcDatetime
     confirmed_at: Optional[UtcDatetime] = None
 

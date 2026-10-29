@@ -4,6 +4,8 @@ Every route is scoped by the opaque session to one business and one client. The
 response never contains staff notes, payment methods, another client's visits or
 business finance. Sign-in links are single-use and delivered through the outbox.
 """
+from app.api.core.loyalty_balance_view import balance_payload
+
 from datetime import timedelta
 from typing import Optional
 
@@ -12,6 +14,7 @@ from sqlalchemy import func, and_, case
 from sqlalchemy.orm import Session, joinedload
 
 from app.api import deps
+from app.api.private_routes import NoStoreRoute
 from app.api.core import booking_manage_access
 from app.api.core.client_portal_email import KIND as PORTAL_LOGIN_KIND
 from app.api.core.client_portal_email import queue_portal_login
@@ -47,7 +50,7 @@ from app.schemas.client_portal import (
     ClientPortalVisitsOut,
 )
 
-router = APIRouter()
+router = APIRouter(route_class=NoStoreRoute)
 REQUEST_COOLDOWN = timedelta(seconds=60)
 
 
@@ -314,12 +317,13 @@ def read_portal_loyalty(
         )
         .first()
     )
+    wallet_payload = balance_payload(db, session.client_id, session.business_id)
     if relation is None:
-        return ClientPortalLoyaltyOut(points=0.0, cashback=0.0)
+        return ClientPortalLoyaltyOut(points=0.0, **wallet_payload)
     level = db.get(LoyaltyLevel, relation.loyalty_level_id) if relation.loyalty_level_id else None
     return ClientPortalLoyaltyOut(
         points=relation.loyalty_points or 0.0,
-        cashback=relation.loyalty_cashback or 0.0,
+        **wallet_payload,
         level_name=level.name if level else None,
         level_benefits=level.benefits if level else None,
     )

@@ -17,6 +17,7 @@ from app.api.core.clock import utcnow
 from app.api.core.i18n import _
 from app.api.crud import crud_public_booking, crud_visit
 from app.api.core.visit_chain import apply_chain
+from app.api.core.visit_event_keys import cancellation_event_key
 from app.api.middleware.rate_limit import (
     PUBLIC_BOOKING_MANAGE_ACTION_LIMIT,
     PUBLIC_BOOKING_MANAGE_LIMIT,
@@ -58,7 +59,7 @@ def _summary(token: BookingManageToken, visit: Visit) -> PublicBookingManageOut:
         timezone=business.timezone,
         status=visit.status or "planned",
         price=visit.price,
-        currency=business.currency,
+        currency=visit.currency_snapshot,
         token_expires_at=token.expires_at,
         confirmed_at=visit.client_confirmed_at,
     )
@@ -223,16 +224,17 @@ def cancel_managed_booking(
         from app.api.core import service_payment_service as payments
 
         payments.mark_attempt_cancelled(db, visit)
+        event_key = cancellation_event_key(visit.id)
         db.add(
             VisitEvent(
                 business_id=visit.business_id,
                 visit_id=visit.id,
                 event_type="cancelled",
                 actor="client",
-                event_key=f"visit:{visit.id}:cancelled",
+                event_key=event_key,
             )
         )
-        notification_events.queue_booking_cancelled(db, visit.business, visit)
+        notification_events.queue_booking_cancelled(db, visit.business, visit, event_key=event_key)
         db.commit()
         db.refresh(visit)
         from app.api.core import waitlist_service

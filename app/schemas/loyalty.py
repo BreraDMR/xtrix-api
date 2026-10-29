@@ -1,7 +1,8 @@
 from datetime import date
+from decimal import Decimal
 from typing import Optional, List
 from app.schemas.limits import HexColor, PromotionType, LongText, LoyaltyProgramType, Money, Multiplier, Percent, Points, ShortText
-from pydantic import ConfigDict, BaseModel, Field, model_validator
+from pydantic import ConfigDict, BaseModel, Field, computed_field, model_validator
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.errors import invalid
 from app.schemas.base import InputModel
@@ -112,6 +113,17 @@ class LoyaltyTransactionOut(BaseModel):
     cashback_amount: Optional[float]
     points_balance_after: float
     cashback_balance_after: Optional[float]
+    discount_currency: Optional[str] = None
+    discount_amount_exact: Optional[Decimal] = None
+    cashback_currency: Optional[str] = None
+    cashback_amount_exact: Optional[Decimal] = None
+    cashback_balance_after_exact: Optional[Decimal] = None
+
+    @computed_field
+    @property
+    def cashback_requires_review(self) -> bool:
+        return self.cashback_currency is None and bool(self.cashback_amount or self.cashback_balance_after)
+
     visit_id: Optional[int]
     promotion_id: Optional[int]
     level_id: Optional[int]
@@ -119,27 +131,57 @@ class LoyaltyTransactionOut(BaseModel):
     expiry_date: Optional[date]
     created_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)
+class CashbackBalanceOut(BaseModel):
+    currency: str | None
+    amount: Decimal | None
+    requires_review: bool = False
+
+
 class ClientLoyaltyBalance(BaseModel):
     client_id: int
     business_id: int
     points: float
-    cashback: float
+    cashback: Optional[float]
+    cashback_currency: Optional[str] = None
+    cashback_balances: List[CashbackBalanceOut] = Field(default_factory=list)
     level: Optional[LoyaltyLevelOut] = None
     level_id: Optional[int] = None
 class UsePointsRequest(InputModel):
-    points_to_use: Optional[float] = Field(None, ge=0, description="Points to use")
-    cashback_to_use: Optional[float] = Field(None, ge=0, description="Cashback to use")
+    points_to_use: Optional[Points] = Field(None, description="Points to use")
+    cashback_to_use: Optional[Decimal] = Field(None, ge=0, le=100_000_000, max_digits=18, decimal_places=2, allow_inf_nan=False, description="Cashback to use in the visit currency")
     visit_id: Optional[int] = Field(None, description="Visit ID if applicable")
+
+class CashbackCurrencyStatistics(BaseModel):
+    currency: str | None
+    earned: Decimal | None
+    spent: Decimal | None
+    balance: Decimal | None
+    redemption_rate: float | None
+
+
+class CashbackCurrencyAmount(BaseModel):
+    currency: str | None
+    amount: Decimal | None
+
+
+class CashbackCurrencyTrend(BaseModel):
+    currency: str | None
+    earned: Decimal | None
+    spent: Decimal | None
+
+
 class LoyaltyStatisticsResponse(BaseModel):
     total_participants: int
     total_points_earned: float
     total_points_spent: float
-    total_cashback_earned: float
-    total_cashback_spent: float
+    total_cashback_earned: Decimal | None
+    total_cashback_spent: Decimal | None
     active_points_balance: float
-    active_cashback_balance: float
+    active_cashback_balance: Decimal | None
     points_redemption_rate: float
-    cashback_redemption_rate: float
+    cashback_redemption_rate: float | None
+    cashback_currency: str | None = None
+    cashback_by_currency: List[CashbackCurrencyStatistics] = Field(default_factory=list)
 class LevelDistributionItem(BaseModel):
     level_id: Optional[int]
     level_name: str
@@ -153,7 +195,9 @@ class TopClientItem(BaseModel):
     client_id: int
     client_name: str
     points: float
-    cashback: float
+    cashback: Decimal | None
+    cashback_currency: str | None = None
+    cashback_balances: List[CashbackBalanceOut] = Field(default_factory=list)
     level_id: Optional[int] = None
 class TopClientsResponse(BaseModel):
     clients: List[TopClientItem]
@@ -167,15 +211,19 @@ class PromotionEffectivenessItem(BaseModel):
     usage_count: int
     unique_clients: int
     total_points_awarded: float
-    total_cashback_awarded: float
+    total_cashback_awarded: Decimal | None
+    cashback_currency: str | None = None
+    cashback_by_currency: List[CashbackCurrencyAmount] = Field(default_factory=list)
 class PromotionEffectivenessResponse(BaseModel):
     promotions: List[PromotionEffectivenessItem]
 class PointsUsageTrendItem(BaseModel):
     period: str
     points_earned: float
     points_spent: float
-    cashback_earned: float
-    cashback_spent: float
+    cashback_earned: Decimal | None
+    cashback_spent: Decimal | None
+    cashback_currency: str | None = None
+    cashback_by_currency: List[CashbackCurrencyTrend] = Field(default_factory=list)
     transaction_count: int
 class PointsUsageTrendsResponse(BaseModel):
     trends: List[PointsUsageTrendItem]

@@ -1,9 +1,12 @@
-from sqlalchemy import Column, DateTime, Integer, String, Boolean, ForeignKey, Float, JSON, Text
+from sqlalchemy import CheckConstraint, Numeric, UniqueConstraint, Column, DateTime, Integer, String, Boolean, ForeignKey, Float, JSON, Text
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 from app.api.core.clock import utcnow
 class Employee(Base):
     __tablename__ = "employees"
+    __table_args__ = (CheckConstraint('(base_salary_currency IS NULL AND base_salary_exact IS NULL) OR (base_salary_currency IS NOT NULL AND base_salary_currency COLLATE "C" ~ \'^[A-Z]{3}$\'  AND base_salary_exact IS NOT NULL AND base_salary_exact BETWEEN 0 AND 9999999999999999.99)', name='ck_employee_salary_snapshot'),)
+    base_salary_currency = Column(String(3), nullable=True)
+    base_salary_exact = Column(Numeric(18, 2), nullable=True)
     id = Column(Integer, primary_key=True, index=True)
     business_owner_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)  
     employee_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)  

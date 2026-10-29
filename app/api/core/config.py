@@ -80,6 +80,7 @@ class Settings(BaseSettings):
     gmail_delivery_enabled: bool = False
     gmail_allowed_recipients: str = ""
     pilot_email_delivery_enabled: bool = False
+    visitor_auth_mail_mode: Literal["disabled", "capture"] = "disabled"
 
     @property
     def email_provider_configured(self) -> bool:

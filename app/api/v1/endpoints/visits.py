@@ -1,6 +1,10 @@
+from app.schemas.visit_price import VisitPriceQuoteOut, VisitPriceChange, VisitLoyaltyPriceOut
+from app.api.core import visit_price_access, visit_price_quote, visit_reprice
+from app.api.private_routes import NoStoreRoute
+from app.api.core import visit_settlement_guard
 from datetime import datetime, timedelta, time
 from typing import Literal, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Path
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core import audit_service
@@ -379,7 +383,9 @@ def get_visit(
     if not check_visit_access(db, current_user, visit):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     return _visit_response(visit, can_view_financials(current_user, db))
-@router.put("/{visit_id}", response_model=VisitOut)
+@router.put("/{visit_id}", response_model=VisitOut, responses={
+    409: {"description": "A recorded settlement or pending payment blocks quote changes; busy bookings can be retried."},
+})
 def update_visit(
     visit_id: int,
     payload: VisitUpdate,
@@ -401,15 +407,6 @@ def update_visit(
         if not service or not check_service_access(db, current_user, service):
             raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     _check_item_access(db, current_user, payload.items, visit.specialist_id, locale)
-    final_status = payload.status if payload.status is not None else visit.status
-    final_price = payload.price if payload.price is not None else visit.price
-    final_payment_method = payload.payment_method if payload.payment_method is not None else visit.payment_method
-    if final_status == 'completed' and final_price and final_price > 0:
-        if not final_payment_method or final_payment_method not in ['card', 'cash', 'other']:
-            raise HTTPException(
-                status_code=400,
-                detail=_("payment_method_required_for_completed_visits", locale)
-            )
     old_status = visit.status
     old_start = visit.date_start
     old_service_id = visit.service_id
@@ -423,24 +420,41 @@ def update_visit(
             actor=current_user,
             request_id=audit_service.request_id_for(request),
         )
+    except visit_settlement_guard.VisitPriceChangeBlocked as exc:
+        raise HTTPException(status_code=409, detail={"code": exc.reason, "message": _(exc.reason, locale)}) from None
+    except (visit_settlement_guard.SettlementBusy, visit_settlement_guard.DirtySettlementState):
+        raise HTTPException(status_code=409, detail={"code": "visit_price_retry", "message": _("visit_price_retry", locale)}) from None
+    except visit_settlement_guard.SettlementTargetUnavailable:
+        raise HTTPException(status_code=404, detail=_("visit_not_found", locale)) from None
+    except crud_visit.CompletedVisitPaymentRequired:
+        raise HTTPException(status_code=400, detail=_("payment_method_required_for_completed_visits", locale)) from None
     except ChainError as exc:
         _chain_error(exc, locale)
+    old_status, old_start, old_service_id, old_specialist_id, old_business_id = getattr(
+        result, '_updated_from', (old_status, old_start, old_service_id, old_specialist_id, old_business_id))
     if old_status != 'completed' and result.status == 'completed':
         try:
             from app.api.core.loyalty_logic import award_bonus_for_visit
             award_bonus_for_visit(db, result)
         except Exception as e:
+            from app.api.core.cashback_wallets import CashbackError
             from app.api.core.logger import logger
+            db.rollback()
             logger.error(f"Error awarding loyalty bonus for visit {result.id}: {e}")
-    became_cancelled = old_status != 'cancelled' and result.status == 'cancelled'
-    moved = result.date_start != old_start
-    if became_cancelled or (moved and old_status != 'cancelled'):
-        from app.api.core import waitlist_service
-        from app.db.models.business import Business
-        business = db.get(Business, old_business_id) if old_business_id else None
-        waitlist_service.release_slot_quietly(
-            db, business, old_service_id, old_specialist_id, old_start
-        )
+            result.loyalty_warning = _("visit_loyalty_review_required", locale)
+            if isinstance(e, CashbackError):
+                result.loyalty_warning += " " + _(e.reason, locale)
+    released = getattr(result, '_released_slots', ())
+    if released:
+        try:
+            from app.api.core import released_slots
+            from app.db.models.business import Business
+            business = db.get(Business, old_business_id) if old_business_id else None
+            if business is not None and business.deleted_at is None:
+                released_slots.match_quietly(db,business,released)
+        except Exception as exc:
+            db.rollback()
+            logger.warning('Post-visit slot matching failed for visit_id=%s: %s',result.id,type(exc).__name__)
     return _visit_response(result, can_view_financials(current_user, db))
 @router.delete("/{visit_id}")
 def delete_visit(
@@ -492,3 +506,94 @@ def restore_visit(
     enforce_visit_quota(db, visit.business_id, visit.specialist_id, visit.date_start, visit.status, exclude_id=visit.id)
     restore_soft_deleted(db, visit)
     return {"message": "Visit restored successfully"}
+
+
+
+price_router = APIRouter(route_class=NoStoreRoute)
+
+
+def _price_target(db, current_user, visit_id, locale):
+    from app.api.core.permissions import check_visit_access
+    visit = crud_visit.get_visit(db, visit_id, business_id=current_user.business_id)
+    if visit is None:
+        raise HTTPException(404, detail=_("visit_not_found", locale))
+    if not check_visit_access(db, current_user, visit) or not can_view_financials(current_user, db):
+        raise HTTPException(403, detail=_("not_allowed", locale))
+    return visit
+
+
+@price_router.get('/{visit_id}/price', response_model=VisitPriceQuoteOut,
+                  summary='Read the stored quote and its optimistic fingerprint')
+@limiter.limit('60/minute')
+def read_visit_price(request: Request, visit_id: int = Path(gt=0),
+                     db: Session = Depends(deps.get_db),
+                     current_user: User = Depends(deps.role_required('admin', 'business_owner', 'specialist', 'employee')),
+                     locale: str = Depends(deps.get_locale)) -> VisitPriceQuoteOut:
+    target = _price_target(db, current_user, visit_id, locale)
+    state = visit_price_access.read_stored_price(db, target)
+    if state is None:
+        raise HTTPException(404, detail=_("visit_not_found", locale))
+    return VisitPriceQuoteOut.model_validate(visit_price_quote.project_price(state))
+
+
+@price_router.put('/{visit_id}/price', response_model=VisitPriceQuoteOut,
+                  summary='Replace an unsettled quote with explicit item prices and currency',
+                  responses={409: {'description': 'The quote changed, a payment is pending, or a separate settlement correction is required.'}})
+@limiter.limit('10/minute')
+def write_visit_price(request: Request, payload: VisitPriceChange, visit_id: int = Path(gt=0),
+                      db: Session = Depends(deps.get_db),
+                      current_user: User = Depends(deps.role_required('admin', 'business_owner', 'specialist', 'employee')),
+                      locale: str = Depends(deps.get_locale)) -> VisitPriceQuoteOut:
+    target = _price_target(db, current_user, visit_id, locale)
+    try:
+        result = visit_reprice.reprice_visit(db, target, payload, actor=current_user,
+                                            request_id=audit_service.request_id_for(request))
+        response = VisitPriceQuoteOut.model_validate(result)
+        db.commit()
+    except visit_reprice.QuoteChanged:
+        db.rollback()
+        raise HTTPException(409, detail={'code': 'visit_price_quote_changed',
+                                        'message': _('visit_price_quote_changed', locale)}) from None
+    except visit_reprice.QuoteItemsInvalid:
+        db.rollback()
+        raise HTTPException(422, detail={'code': 'visit_price_items_invalid',
+                                        'message': _('visit_price_items_invalid', locale)}) from None
+    except visit_settlement_guard.VisitPriceChangeBlocked as exc:
+        db.rollback()
+        raise HTTPException(409, detail={'code': exc.reason, 'message': _(exc.reason, locale)}) from None
+    except (visit_settlement_guard.SettlementBusy, visit_settlement_guard.DirtySettlementState):
+        db.rollback()
+        raise HTTPException(409, detail={'code': 'visit_price_retry', 'message': _('visit_price_retry', locale)}) from None
+    except visit_settlement_guard.SettlementTargetUnavailable:
+        db.rollback()
+        raise HTTPException(404, detail=_('visit_not_found', locale)) from None
+    except Exception:
+        db.rollback()
+        raise
+    try:
+        from app.api.core.redis_client import invalidate_visit
+        invalidate_visit(response.visit_id)
+    except Exception as exc:
+        logger.warning('Post-reprice cache refresh failed for visit_id=%s: %s', response.visit_id, type(exc).__name__)
+    return response
+
+
+@price_router.get('/{visit_id}/loyalty-price', response_model=VisitLoyaltyPriceOut,
+                  summary='Read the saved service price after recorded bonus deductions')
+@limiter.limit('60/minute')
+def read_visit_loyalty_price(request: Request, visit_id: int = Path(gt=0),
+                             db: Session = Depends(deps.get_db),
+                             current_user: User = Depends(deps.role_required('admin', 'business_owner', 'specialist', 'employee')),
+                             locale: str = Depends(deps.get_locale)) -> VisitLoyaltyPriceOut:
+    from app.api.core.loyalty_price_projection import read_loyalty_price
+    target = _price_target(db, current_user, visit_id, locale)
+    result = read_loyalty_price(db, target)
+    if result is None:
+        raise HTTPException(404, detail=_("visit_not_found", locale))
+    response = VisitLoyaltyPriceOut.model_validate(result)
+    if result.requires_review:
+        response.message = _("loyalty_payment_history_review", locale)
+    return response
+
+
+router.include_router(price_router)

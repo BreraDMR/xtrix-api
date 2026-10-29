@@ -2,6 +2,7 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
+from app.api.private_routes import NoStoreRoute
 from app.api.core.i18n import _
 from app.api.core.logger import get_logger
 from app.api.core.pagination import MAX_PAGE, PaginationParams
@@ -21,7 +22,7 @@ from app.schemas.salary import (
     SalaryPaymentOut
 )
 from app.api.core.clock import utcnow
-router = APIRouter()
+router = APIRouter(route_class=NoStoreRoute)
 logger = get_logger("employees")
 def can_manage_employees(current_user: User) -> bool:
     return current_user.role in ["admin", "business_owner"]
@@ -812,6 +813,9 @@ def delete_salary_adjustment(
     employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
     if not employee:
         raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
+    salary = crud_salary.get_salary_calculation(db=db, salary_id=salary_id, employee_id=employee_id)
+    if not salary:
+        raise HTTPException(status_code=404, detail=_("salary_calculation_not_found", locale))
     success = crud_salary.delete_salary_adjustment(db=db, adjustment_id=adjustment_id, salary_calculation_id=salary_id)
     if not success:
         raise HTTPException(status_code=404, detail=_("adjustment_not_found", locale))
@@ -891,6 +895,9 @@ def update_salary_payment(
     employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
     if not employee:
         raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
+    salary = crud_salary.get_salary_calculation(db=db, salary_id=salary_id, employee_id=employee_id)
+    if not salary:
+        raise HTTPException(status_code=404, detail=_("salary_calculation_not_found", locale))
     payment = crud_salary.get_salary_payment(db=db, payment_id=payment_id, salary_calculation_id=salary_id)
     if not payment:
         raise HTTPException(status_code=404, detail=_("payment_not_found", locale))
@@ -909,6 +916,9 @@ def delete_salary_payment(
     employee = crud_employee.get_employee(db=db, employee_id=employee_id, business_owner_id=owner_id)
     if not employee:
         raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
+    salary = crud_salary.get_salary_calculation(db=db, salary_id=salary_id, employee_id=employee_id)
+    if not salary:
+        raise HTTPException(status_code=404, detail=_("salary_calculation_not_found", locale))
     success = crud_salary.delete_salary_payment(db=db, payment_id=payment_id, salary_calculation_id=salary_id)
     if not success:
         raise HTTPException(status_code=404, detail=_("payment_not_found", locale))

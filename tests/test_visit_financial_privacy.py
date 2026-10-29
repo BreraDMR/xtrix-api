@@ -73,7 +73,7 @@ def test_list_and_detail_hide_finances_without_mutating_storage(client, db, salo
 
 
 @pytest.mark.parametrize('chain', [False, True])
-def test_create_and_update_hide_response_but_keep_existing_write_policy(client, db, salon, chain):
+def test_create_and_update_hide_response_and_keep_allowed_unsettled_write_policy(client, db, salon, chain):
     body = dict(salon['body'], status='completed')
     if chain:
         body['items'] = [{'service_id': service['id']} for service in salon['services']]
@@ -86,11 +86,21 @@ def test_create_and_update_hide_response_but_keep_existing_write_policy(client, 
     assert sum(item['price'] for item in owner_view['items']) == pytest.approx(owner_view['price'])
     assert owner_view['payment_method'] == 'cash'
     assert owner_view['note'] == 'Changed nonfinancial note'
-    # This checkbox controls reading. An explicit price edit keeps its existing policy.
+    # Reading permission does not override the settlement rule.
     if not chain:
-        hidden(ok(client.put(f"/visits/{created['id']}", json={'price': 98.76}, headers=salon['eh'])))
+        blocked = client.put(f"/visits/{created['id']}", json={'price': 98.76}, headers=salon['eh'])
+        assert blocked.status_code == 409, blocked.text
+        assert blocked.json()['error']['detail']['code'] == 'visit_price_settlement_required'
         db.expire_all()
-        assert float(db.get(Visit, created['id']).price) == 98.76
+        assert float(db.get(Visit, created['id']).price) == 123.45
+        hidden(ok(client.get(f"/visits/{created['id']}", headers=salon['eh'])))
+        from datetime import datetime
+        unpaid_body = dict(salon['body'], date_start=(datetime.fromisoformat(
+            salon['body']['date_start']) + timedelta(days=2)).isoformat())
+        unpaid = ok(client.post('/visits/', json=unpaid_body, headers=salon['eh']))
+        hidden(ok(client.put(f"/visits/{unpaid['id']}", json={'price': 98.76}, headers=salon['eh'])))
+        db.expire_all()
+        assert float(db.get(Visit, unpaid['id']).price) == 98.76
 
 
 def test_granted_staff_owner_and_admin_keep_finances(client, db, salon, make_user, headers_for):

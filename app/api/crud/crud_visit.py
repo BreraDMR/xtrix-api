@@ -16,12 +16,19 @@ from app.api.core.visit_chain import (
     lines_from_items,
     money,
     service_line,
+    total_price,
 )
-from app.api.core import audit_service
+from app.api.core import audit_service, visit_currency, visit_settlement_guard
+from app.db.models.business import Business
 from app.db.models.client import Client
 from app.db.models.service import Service
 from app.db.models.visit import Visit
 from app.schemas.visit import VisitCreate, VisitUpdate
+from app.schemas.limits import ISO_4217
+
+class CompletedVisitPaymentRequired(ValueError):
+    """The effective completed visit needs an existing payment method."""
+
 
 VISIT_AUDIT_VALUE_FIELDS = (
     "status",
@@ -110,9 +117,14 @@ def assert_no_conflict(db: Session, intervals, exclude_id: Optional[int] = None)
 def prospective_update_lines(db: Session, visit: Visit, update: VisitUpdate) -> list[ChainLine]:
     """The chain an update would save, without writing it (also used for the clash check)."""
     data = update.model_dump(exclude_unset=True)
-    if "items" in data:
-        return lines_from_items(db, update.items, visit.specialist_id)
     lines = existing_lines(visit)
+    if update.items is not None:
+        requested = [(item.service_id, item.specialist_id or visit.specialist_id)
+                     for item in update.items]
+        stored = [(line.service_id, line.specialist_id) for line in lines]
+        if requested == stored:
+            return lines
+        return lines_from_items(db, update.items, visit.specialist_id)
     new_service_id = data.get("service_id")
     if new_service_id is not None and new_service_id != visit.service_id:
         if len(lines) > 1:
@@ -146,11 +158,21 @@ def create_visit(
 
     logger = get_logger("visits")
     data = visit_in.model_dump(exclude={"used_products", "items"})
-    service = db.query(Service).filter(Service.id == data["service_id"]).first() if data.get("service_id") else None
     resolved_business_id = _business_for_visit(db, data["specialist_id"], business_id)
 
     from app.api.core.crm_metering import enforce_visit_quota
     enforce_visit_quota(db, resolved_business_id, data["specialist_id"], data["date_start"], data.get("status") or "planned")
+    user_ids = [data["specialist_id"], getattr(actor, "id", None)]
+    if visit_in.items is not None:
+        user_ids.extend(item.specialist_id or data["specialist_id"] for item in visit_in.items)
+    visit_currency.lock_user_references(db, user_ids)
+    currency = visit_currency.lock_business_currency(db, resolved_business_id)
+    service_ids = ({item.service_id for item in visit_in.items} if visit_in.items is not None
+                   else {data["service_id"]} if data.get("service_id") else set())
+    catalog = visit_currency.fresh_catalog(db, service_ids)
+    service = catalog.get(data.get("service_id"))
+    currency = (visit_currency.currency_for_catalog(currency, resolved_business_id, catalog.values())
+                if service_ids.issubset(catalog) else None)
     if visit_in.items is not None:
         lines = lines_from_items(db, visit_in.items, data["specialist_id"])
     else:
@@ -174,6 +196,7 @@ def create_visit(
         specialist_id=data["specialist_id"],
         service_id=data.get("service_id"),
         business_id=resolved_business_id,
+        currency_snapshot=currency,
         date_start=data["date_start"],
         date_end=data.get("date_end"),
         service_name=data.get("service_name"),
@@ -229,72 +252,107 @@ def update_visit(
     """Patch the visit. A chain is rebuilt only when its shape, time or price changes."""
     data = update.model_dump(exclude_unset=True)
     from app.api.core.crm_metering import enforce_visit_quota
-    enforce_visit_quota(db, visit.business_id, visit.specialist_id, data.get("date_start") or visit.date_start,
-                        data.get("status", visit.status), exclude_id=visit.id)
-    structural = any(
-        key in data for key in ("items", "service_id", "date_start", "date_end", "price")
-    )
-    before = {field: getattr(visit, field) for field in VISIT_AUDIT_NAME_FIELDS}
-    before_items = _item_signature(visit)
-    owner_user_id = visit.specialist_id
     try:
-        if structural:
-            lines = prospective_update_lines(db, visit, update)
-            start = data.get("date_start") or visit.date_start
-            assert_no_conflict(
-                db, item_intervals(start, lines), exclude_id=visit.id
-            )
-            apply_chain(visit, lines, start)
+        with db.no_autoflush:
+            enforce_visit_quota(db, visit.business_id, visit.specialist_id,
+                data.get("date_start") or visit.date_start, data.get("status", visit.status), exclude_id=visit.id)
+            proposed_masters = [item.specialist_id or visit.specialist_id for item in (update.items or [])]
+            proposed_masters.append(data.get('specialist_id'))
+            visit = visit_settlement_guard.lock_quote_update_target(
+                db, visit, proposed_masters, getattr(actor, 'id', None))
+            previous = (visit.status, visit.date_start, visit.service_id, visit.specialist_id, visit.business_id)
+            from app.api.core import released_slots
+            before_slots = released_slots.visit_slots(visit)
+            structural = any(key in data for key in ("items", "service_id", "date_start", "date_end", "price"))
+            before = {field: getattr(visit, field) for field in VISIT_AUDIT_NAME_FIELDS}
+            before_items = _item_signature(visit)
+            owner_user_id = visit.specialist_id
+            if structural:
+                catalog_ids = [item.service_id for item in (update.items or [])]
+                if data.get('service_id'):
+                    catalog_ids.append(data['service_id'])
+                visit_currency.fresh_catalog(db, catalog_ids)
+                stored = existing_lines(visit)
+                lines = prospective_update_lines(db, visit, update)
+                same_chain = [(line.service_id, line.specialist_id) for line in lines] == [
+                    (line.service_id, line.specialist_id) for line in stored]
+                explicit_price = (update.items is None and data.get("price") is not None and len(lines) == 1)
+                prospective_total = before['price'] if same_chain and not explicit_price else total_price(lines)
+                quote_changed = (not _audit_equal(before['price'], prospective_total)
+                    or [(line.service_id, line.specialist_id, line.price) for line in stored] != [
+                        (line.service_id, line.specialist_id, line.price) for line in lines])
+                if quote_changed:
+                    visit_settlement_guard.ensure_price_change_allowed(db, visit.id, visit.business_id)
+                if not same_chain and visit.business_id is not None and visit.currency_snapshot in ISO_4217:
+                    # The business anchor is already held. Read the unit as a scalar,
+                    # not from a caller's cached model, before copying catalog prices.
+                    catalog_currency = db.execute(select(Business.currency).where(
+                        Business.id == visit.business_id)).scalar_one_or_none()
+                    if visit.currency_snapshot != catalog_currency:
+                        raise visit_settlement_guard.VisitPriceChangeBlocked('visit_price_currency_explicit_required')
+                start = data.get("date_start") or visit.date_start
+                assert_no_conflict(db, item_intervals(start, lines), exclude_id=visit.id)
+                apply_chain(visit, lines, start)
+                if same_chain and not explicit_price:
+                    visit.price = before["price"]
 
-        computed = {"items", "service_id", "date_start", "date_end", "price"}
-        for field, value in data.items():
-            if field in computed:
-                continue
-            setattr(visit, field, value)
+            computed = {"items", "service_id", "date_start", "date_end", "price"}
+            for field, value in data.items():
+                if field in computed:
+                    continue
+                setattr(visit, field, value)
 
-        changes: dict[str, Any] = {}
-        changed_fields = []
-        for field in VISIT_AUDIT_NAME_FIELDS:
-            new_value = getattr(visit, field)
-            if _audit_equal(before[field], new_value):
-                continue
-            changed_fields.append(field)
-            if field in VISIT_AUDIT_VALUE_FIELDS:
-                changes[field] = {"old": before[field], "new": new_value}
+            if (visit.status == "completed" and visit.price and visit.price > 0
+                    and visit.payment_method not in {"card", "cash", "other"}):
+                raise CompletedVisitPaymentRequired("Payment method is required for this completed visit")
 
-        after_items = _item_signature(visit)
-        if "items" in data and after_items != before_items:
-            changed_fields.append("items")
-            changes["items_count"] = {"old": len(before_items), "new": len(after_items)}
+            changes: dict[str, Any] = {}
+            changed_fields = []
+            for field in VISIT_AUDIT_NAME_FIELDS:
+                new_value = getattr(visit, field)
+                if _audit_equal(before[field], new_value):
+                    continue
+                changed_fields.append(field)
+                if field in VISIT_AUDIT_VALUE_FIELDS:
+                    changes[field] = {"old": before[field], "new": new_value}
 
-        if changed_fields:
-            changes["fields"] = changed_fields
-            if before["status"] != "cancelled" and visit.status == "cancelled":
-                action = "visit.cancelled"
-            elif (
-                "date_start" in changed_fields or "date_end" in changed_fields
-            ):
-                action = "visit.moved"
-            else:
-                action = "visit.updated"
-            audit_service.record_event(
-                db,
-                action=action,
-                entity_type="visit",
-                entity_id=visit.id,
-                business_id=visit.business_id,
-                owner_user_id=owner_user_id if visit.business_id is None else None,
-                changes=changes,
-                actor=actor,
-                request_id=request_id,
-            )
+            after_items = _item_signature(visit)
+            if "items" in data and after_items != before_items:
+                changed_fields.append("items")
+                changes["items_count"] = {"old": len(before_items), "new": len(after_items)}
+
+            if changed_fields:
+                changes["fields"] = changed_fields
+                if before["status"] != "cancelled" and visit.status == "cancelled":
+                    action = "visit.cancelled"
+                elif (
+                    "date_start" in changed_fields or "date_end" in changed_fields
+                ):
+                    action = "visit.moved"
+                else:
+                    action = "visit.updated"
+                audit_service.record_event(
+                    db,
+                    action=action,
+                    entity_type="visit",
+                    entity_id=visit.id,
+                    business_id=visit.business_id,
+                    owner_user_id=owner_user_id if visit.business_id is None else None,
+                    changes=changes,
+                    actor=actor,
+                    request_id=request_id,
+                )
+        released = released_slots.changed_slots(before_slots, released_slots.visit_slots(visit), previous[0], visit.status)
         db.add(visit)
         db.commit()
         db.refresh(visit)
+        visit._released_slots = released
+        visit._updated_from = previous
         return visit
     except Exception:
         db.rollback()
         raise
+
 def _no_business_but_ours(business_id: int):
     # visits with no business are a solo specialist's - only count them when that specialist
     # is in this business now (e.g. the owner's own visits from before the business existed)

@@ -19,10 +19,12 @@ from app.api.core.availability import (
     salon_zone,
 )
 from app.api.core.clock import utcnow
-from app.api.core import campaign_service, notification_events, service_payment_service as payments
+from app.api.core import campaign_service, notification_events, service_payment_service as payments, visit_currency
 from app.api.core.visit_chain import apply_chain, service_line, total_minutes
 from app.api.crud import crud_public_booking
 from app.db.models.public_booking import PublicBookingRequest
+from app.db.models.business import Business
+from app.db.models.service import Service
 from app.db.models.user import User
 from app.db.models.visit import Visit
 from app.schemas.public_booking import (
@@ -182,8 +184,6 @@ def submit_booking(
             db, business.id, service
         ):
             raise StaffUnavailable()
-    lines = [service_line(service, payload.staff_id) for service in services]
-
     claim = PublicBookingRequest(
         business_id=business.id,
         request_id=payload.client_request_id,
@@ -219,6 +219,24 @@ def submit_booking(
         db.rollback()
         raise StaffUnavailable()
 
+    currency = visit_currency.lock_business_currency(db, business.id)
+    business = db.query(Business).filter(Business.id == business.id).populate_existing().one_or_none()
+    if business is None or business.deleted_at is not None:
+        db.rollback()
+        raise ServiceUnavailable()
+    # Both objects may have been loaded before the Staff/Business lock wait.
+    visit_currency.fresh_catalog(db, service_ids)
+    services = [crud_public_booking.get_public_service(db, business.id, service_id) for service_id in service_ids]
+    if any(service is None for service in services):
+        db.rollback()
+        raise ServiceUnavailable()
+    for service in services:
+        if payload.staff_id not in crud_public_booking.public_service_master_ids(db, business.id, service):
+            db.rollback()
+            raise StaffUnavailable()
+    currency = visit_currency.currency_for_catalog(currency, business.id, services)
+    lines = [service_line(service, payload.staff_id) for service in services]
+
     start = payload.start
     if start.tzinfo is not None:
         start = start.astimezone(timezone.utc).replace(tzinfo=None)
@@ -233,6 +251,7 @@ def submit_booking(
         client_id=client.id,
         specialist_id=staff.id,
         business_id=business.id,
+        currency_snapshot=currency,
         status="planned",
     )
     apply_chain(visit, lines, start)

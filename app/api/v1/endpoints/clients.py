@@ -1,6 +1,6 @@
 from datetime import date
 from typing import Literal, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core import audit_service
@@ -14,6 +14,9 @@ from app.schemas.client import ClientCreate, ClientOut, ClientUpdate, ClientSear
 from app.schemas.qr_code import QRCodeGenerateResponse, QRCodeAccessRequest, ClientHistoryResponse
 from app.api.middleware.rate_limit import limiter, EXPORT_LIMIT, SENSITIVE_LIMIT
 from app.schemas.datetimes import utc_iso
+from app.api.private_routes import NoStoreRoute
+from app.api.core import visitor_client_invite_issue, visitor_invite_authorization
+from app.schemas.visitor_invitations import ClientInviteIssueIn, ClientInviteIssueOut
 router = APIRouter()
 logger = get_logger("clients")
 @router.post(
@@ -465,3 +468,38 @@ def access_client_history_by_qr(
         total_spending=total_spending,
         last_visit_date=last_visit_date,
     )
+
+
+@limiter.limit(SENSITIVE_LIMIT)
+def issue_visitor_invitation(request: Request, body: ClientInviteIssueIn,
+                              client_id: int = Path(gt=0),
+                              current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+                              token: str = Depends(deps.oauth2_scheme),
+                              db: Session = Depends(deps.get_db),
+                              locale: str = Depends(deps.get_locale)) -> ClientInviteIssueOut:
+    try:
+        prepared = visitor_client_invite_issue.issue_client_invite(db, current_user.id, client_id, body.email)
+        # Reset/logout may have revoked this same credential while User was locked elsewhere.
+        fresh = deps.get_current_user(request=request, token=token, db=db)
+        if fresh.id != current_user.id:
+            raise HTTPException(status_code=401, detail=_("invalid_credentials", locale))
+    except visitor_client_invite_issue.InvalidInviteRecipient:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=_("visitor_invite_recipient_invalid", locale)) from None
+    except visitor_invite_authorization.InviteAuthorizationDenied:
+        db.rollback()
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale)) from None
+    except (visitor_invite_authorization.InviteAuthorizationBusy, visitor_client_invite_issue.InviteIssueUnavailable):
+        db.rollback()
+        raise HTTPException(status_code=409, detail=_("visitor_invite_retry", locale)) from None
+    except HTTPException:
+        db.rollback()
+        raise
+    db.commit()
+    return ClientInviteIssueOut(token=prepared.raw_token, expires_at=prepared.expires_at)
+
+
+router.add_api_route(
+    "/{client_id}/visitor-invitations", issue_visitor_invitation, methods=["POST"],
+    status_code=201, response_model=ClientInviteIssueOut, route_class_override=NoStoreRoute,
+)

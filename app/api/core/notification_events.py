@@ -162,8 +162,9 @@ def queue_booking_changed(
 
 
 def queue_booking_cancelled(
-    db: Session, business: Business, visit: Visit, client: Optional[Client] = None
+    db: Session, business: Business, visit: Visit, client: Optional[Client] = None,
+    *, event_key: Optional[str] = None,
 ) -> None:
     client = client or visit.client
     cancel_pending_reminders(db, visit.id)
-    _queue(db, business, visit, client, KIND_CANCELLED, f"visit:{visit.id}:cancelled")
+    _queue(db, business, visit, client, KIND_CANCELLED, event_key or f"visit:{visit.id}:cancelled")

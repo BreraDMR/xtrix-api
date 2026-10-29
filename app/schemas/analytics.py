@@ -1,4 +1,5 @@
 from typing import Literal, Optional, List, Dict, Any
+from decimal import Decimal
 from pydantic import ConfigDict, BaseModel, Field
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.base import InputModel
@@ -7,12 +8,52 @@ class VisitStatisticsResponse(BaseModel):
     visits_by_status: Dict[str, int]
     monthly_visits: List[Dict[str, Any]]
     average_duration_minutes: Optional[float] = None
+class FinancialCurrencyValue(BaseModel):
+    currency: str | None
+    amount: Decimal | None
+    average: Decimal | None
+    count: int
+    requires_review: bool = False
+
+
+class FinancialQuoteSummary(BaseModel):
+    revenue: float | None
+    currency: str | None
+    count: int
+    by_currency: List[FinancialCurrencyValue]
+
+
+class FinancialQuotePeriod(FinancialQuoteSummary):
+    period: str
+    year: int | None = None
+    month: int | None = None
+
+
+class FinancialClientQuote(BaseModel):
+    client_id: int
+    client_name: str
+    amount: Decimal | None
+    visit_count: int
+    requires_review: bool = False
+
+
+class FinancialCurrencyClients(BaseModel):
+    currency: str | None
+    clients: List[FinancialClientQuote]
+
+
 class FinancialReportResponse(BaseModel):
-    total_revenue: float
-    average_revenue_per_visit: Optional[float] = None
-    revenue_by_status: Dict[str, Dict[str, Any]]
-    revenue_by_period: List[Dict[str, Any]]
+    value_basis: Literal['quoted_service_price'] = 'quoted_service_price'
+    currency: str | None = None
+    total_revenue: float | None
+    average_revenue_per_visit: float | None = None
+    by_currency: List[FinancialCurrencyValue] = Field(default_factory=list)
+    revenue_by_status: Dict[str, FinancialQuoteSummary]
+    revenue_by_period: List[FinancialQuotePeriod]
     top_clients: List[Dict[str, Any]]
+    top_clients_by_currency: List[FinancialCurrencyClients] = Field(default_factory=list)
+
+
 class PopularServicesResponse(BaseModel):
     services: List[Dict[str, Any]]
 class ClientStatisticsResponse(BaseModel):

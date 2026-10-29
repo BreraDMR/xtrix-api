@@ -1,8 +1,22 @@
+from decimal import Decimal
 from typing import Optional
 from app.schemas.limits import MAX_MONEY, LongText, PaymentMethod, PaymentStatus, PositiveMoney
 from pydantic import ConfigDict, BaseModel, Field
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.base import InputModel
+class SalaryPeriodOut(BaseModel):
+    id: int
+    business_id: int
+    employee_id: int
+    period_start: UtcDatetime
+    period_end: UtcDatetime
+    base_salary_currency: Optional[str] = None
+    base_salary_exact: Decimal
+    commission_percentage: Decimal
+    created_at: UtcDatetime
+    created_by_id: Optional[int] = None
+    model_config = ConfigDict(from_attributes=True)
+
 class SalaryCalculationBase(BaseModel):
     employee_id: int = Field(..., description="Employee ID")
     period_start: UtcDatetime = Field(..., description="Period start")
@@ -14,6 +28,17 @@ class SalaryCalculationUpdate(InputModel):
     is_paid: Optional[bool] = Field(None, description="Mark as paid")
     notes: Optional[LongText] = Field(None, description="Calculation notes")
 class SalaryCalculationOut(SalaryCalculationBase):
+    salary_period_id: Optional[int] = None
+    salary_period: Optional[SalaryPeriodOut] = None
+    currency: Optional[str] = None
+    business_id_snapshot: Optional[int] = None
+    total_revenue_exact: Optional[Decimal] = None
+    commission_amount_exact: Optional[Decimal] = None
+    base_salary_exact: Optional[Decimal] = None
+    total_salary_exact: Optional[Decimal] = None
+    adjustments_total_exact: Optional[Decimal] = None
+    total_with_adjustments_exact: Optional[Decimal] = None
+    paid_amount_exact: Optional[Decimal] = None
     id: int
     total_visits: int = Field(default=0, description="Total visits")
     completed_visits: int = Field(default=0, description="Completed visits")
@@ -37,6 +62,7 @@ class SalaryCalculationOut(SalaryCalculationBase):
 class SalaryCalculationWithEmployee(SalaryCalculationOut):
     employee: Optional[dict] = Field(None, description="Employee info")
 class CalculateSalaryRequest(InputModel):
+    currency: Optional[str] = Field(None, pattern=r"^[A-Z]{3}$", min_length=3, max_length=3)
     period_start: UtcDatetime = Field(..., description="Period start")
     period_end: UtcDatetime = Field(..., description="Period end")
     notes: Optional[LongText] = Field(None, description="Calculation notes")
@@ -47,6 +73,8 @@ class SalaryAdjustmentBase(BaseModel):
 class SalaryAdjustmentCreate(InputModel, SalaryAdjustmentBase):
     pass
 class SalaryAdjustmentOut(SalaryAdjustmentBase):
+    currency: Optional[str] = None
+    amount_exact: Optional[Decimal] = None
     id: int
     salary_calculation_id: int
     created_by_id: int
@@ -67,6 +95,8 @@ class SalaryPaymentUpdate(InputModel):
     status: Optional[PaymentStatus] = None
     notes: Optional[LongText] = None
 class SalaryPaymentOut(SalaryPaymentBase):
+    currency: Optional[str] = None
+    amount_exact: Optional[Decimal] = None
     id: int
     salary_calculation_id: int
     created_by_id: int

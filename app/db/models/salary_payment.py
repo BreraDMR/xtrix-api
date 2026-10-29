@@ -1,9 +1,12 @@
-from sqlalchemy import Column, DateTime, Integer, Float, ForeignKey, String, Text
+from sqlalchemy import CheckConstraint, Numeric, UniqueConstraint, Column, DateTime, Integer, Float, ForeignKey, String, Text
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 from app.api.core.clock import utcnow
 class SalaryPayment(Base):
     __tablename__ = "salary_payments"
+    __table_args__ = (CheckConstraint('(currency IS NULL AND amount_exact IS NULL) OR (currency IS NOT NULL AND currency COLLATE "C" ~ \'^[A-Z]{3}$\'  AND amount_exact IS NOT NULL AND amount_exact BETWEEN 0 AND 9999999999999999.99)', name='ck_salary_payment_snapshot'),)
+    currency = Column(String(3), nullable=True)
+    amount_exact = Column(Numeric(18, 2), nullable=True)
     id = Column(Integer, primary_key=True, index=True)
     salary_calculation_id = Column(Integer, ForeignKey("salary_calculations.id", ondelete="CASCADE"), nullable=False, index=True)
     amount = Column(Float, nullable=False)

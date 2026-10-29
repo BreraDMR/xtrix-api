@@ -34,7 +34,7 @@ echo "==> openapi.json up to date"
 
 pg_id=""
 cleanup() {
-    if [ -n "$pg_id" ]; then docker rm -f "$pg_id" >/dev/null 2>&1 || true; fi
+    if [ -n "$pg_id" ]; then docker rm -f -v "$pg_id" >/dev/null 2>&1 || true; fi
 }
 trap cleanup EXIT
 
@@ -43,10 +43,18 @@ if [ -z "${DATABASE_URL:-}" ]; then
     pg_id=$(docker create --name "$PG_NAME" -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=xtrix_test \
         -p "127.0.0.1:$PG_PORT:5432" postgres:15)
     docker start "$pg_id" >/dev/null
+    pg_ready=false
     for _ in $(seq 1 30); do
-        docker exec "$pg_id" pg_isready -U postgres -d xtrix_test >/dev/null 2>&1 && break
+        if docker exec "$pg_id" pg_isready -h 127.0.0.1 -U postgres -d xtrix_test >/dev/null 2>&1; then
+            pg_ready=true
+            break
+        fi
         sleep 1
     done
+    if [ "$pg_ready" != true ]; then
+        echo "Postgres did not become ready over TCP; refusing to run pytest." >&2
+        exit 1
+    fi
     export DATABASE_URL="postgresql://postgres:postgres@localhost:$PG_PORT/xtrix_test"
 fi
 

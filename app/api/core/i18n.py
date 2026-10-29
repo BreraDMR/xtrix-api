@@ -1,6 +1,123 @@
 from typing import Dict, Any
 SUPPORTED_LOCALES = ("en", "ru", "cz")
 messages: Dict[str, Dict[str, str]] = {
+    "visit_price_currency_explicit_required": {
+        "en": "The visit uses a different saved currency. Changing its services or staff requires an explicit new price and currency.",
+        "ru": "У визита сохранена другая валюта. Для смены услуги или мастера нужно явно задать новую цену и валюту.",
+        "cz": "Návštěva má uloženou jinou měnu. Změna služeb nebo pracovníka vyžaduje výslovné zadání nové ceny a měny.",
+    },
+    "loyalty_payment_history_review": {
+        "en": "The price currency or past bonus payments need review. A reliable price after bonuses cannot be confirmed.",
+        "ru": "Валюта цены или прошлые бонусные операции требуют проверки. Достоверную цену после бонусов подтвердить нельзя.",
+        "cz": "Měna ceny nebo dřívější bonusové operace vyžadují kontrolu. Spolehlivou cenu po bonusech nelze potvrdit.",
+    },
+    "loyalty_payment_quote_required": {
+        "en": "The exact bonus payment amount must be confirmed against the saved visit price.",
+        "ru": "Точную сумму оплаты бонусами нужно подтвердить по сохранённой цене визита.",
+        "cz": "Přesnou částku platby bonusy je nutné potvrdit podle uložené ceny návštěvy.",
+    },
+    "loyalty_payment_checkout_exists": {
+        "en": "This visit already has an external checkout. Review that payment separately before applying bonuses.",
+        "ru": "По визиту уже создана внешняя оплата. Перед списанием бонусов нужна отдельная проверка этого расчёта.",
+        "cz": "Pro návštěvu již existuje externí platba. Před použitím bonusů je nutné samostatně zkontrolovat toto vyúčtování.",
+    },
+    "loyalty_payment_settlement_required": {
+        "en": "This visit already has a payment, gift or bonus record. A separate settlement correction is required.",
+        "ru": "По визиту уже есть оплата, сертификат или бонусная операция. Нужна отдельная корректировка расчёта.",
+        "cz": "U návštěvy je již zaznamenána platba, poukaz nebo bonusová operace. Je nutná samostatná oprava vyúčtování.",
+    },
+    "visit_loyalty_review_required": {
+        "en": "The visit was saved, but its bonus result could not be confirmed. Check the bonus history before retrying.",
+        "ru": "Визит сохранён, но результат начисления бонусов не подтверждён. Проверьте историю бонусов перед повторной операцией.",
+        "cz": "Návštěva byla uložena, ale výsledek připsání bonusů se nepodařilo potvrdit. Před opakováním zkontrolujte historii bonusů.",
+    },
+    "loyalty_cashback_visit_required": {"en": "Choose a visit before using points or cashback.", "ru": "Выберите визит перед списанием баллов или кешбэка.", "cz": "Vyberte návštěvu před použitím bodů nebo cashbacku."},
+    "loyalty_cashback_currency_unavailable": {"en": "This cashback has no confirmed currency for this visit. A separate balance correction is required.", "ru": "Валюта кешбэка для этого визита не подтверждена. Нужна отдельная корректировка баланса.", "cz": "Měna cashbacku pro tuto návštěvu není potvrzena. Je nutná samostatná oprava zůstatku."},
+    "loyalty_points_currency_unavailable": {"en": "Points cannot use the current conversion rate for a visit in another or unknown currency.", "ru": "Для визита в другой или неизвестной валюте нельзя применять текущий курс бонусных баллов.", "cz": "U návštěvy v jiné nebo neznámé měně nelze použít aktuální převodní kurz bodů."},
+    "loyalty_cashback_amount_invalid": {"en": "Check the cashback amount. Use a finite amount with at most two decimal places.", "ru": "Проверьте сумму кешбэка: укажите допустимое число максимум с двумя знаками после запятой.", "cz": "Zkontrolujte částku cashbacku: použijte platné číslo nejvýše se dvěma desetinnými místy."},
+    "loyalty_payment_already_recorded": {"en": "A loyalty payment is already recorded for this visit. Use a separate correction to change it.", "ru": "По визиту уже записано списание бонусов. Для изменения нужна отдельная корректировка.", "cz": "U návštěvy je již zaznamenána platba bonusy. Pro změnu je nutná samostatná oprava."},
+    "loyalty_payment_amount_unavailable": {"en": "There is no available amount for a loyalty payment. Check the visit price and the program limit.", "ru": "Нет доступной суммы для оплаты бонусами. Проверьте цену визита и лимит программы.", "cz": "Pro platbu bonusy není dostupná částka. Zkontrolujte cenu návštěvy a limit programu."},
+
+    "loyalty_balance_insufficient": {
+        "en": "There are not enough points or cashback for this payment.",
+        "ru": "Для этой оплаты недостаточно бонусных баллов или кешбэка.",
+        "cz": "Na tuto platbu není dostatek bodů nebo cashbacku.",
+    },
+    "visit_price_quote_changed": {
+        "en": "The stored price has changed. Refresh the quote and try again.",
+        "ru": "Цена записи уже изменилась. Обновите данные и повторите попытку.",
+        "cz": "Cena návštěvy se již změnila. Aktualizujte údaje a zkuste to znovu.",
+    },
+    "visit_price_items_invalid": {
+        "en": "Provide a price for every procedure in this visit, without replacing procedure IDs.",
+        "ru": "Укажите цену для каждой процедуры записи, сохранив её идентификатор.",
+        "cz": "Zadejte cenu pro každý úkon návštěvy a zachovejte jeho identifikátor.",
+    },
+    "visit_price_invalid": {
+        "en": "Check the currency and prices. Use nonnegative amounts with at most two decimal places.",
+        "ru": "Проверьте валюту и цены. Суммы должны быть неотрицательными, максимум с двумя знаками после запятой.",
+        "cz": "Zkontrolujte měnu a ceny. Částky musí být nezáporné, nejvýše se dvěma desetinnými místy.",
+    },
+    "visit_price_settlement_required": {
+        "en": "This visit has recorded payments or bonuses. A separate settlement correction is required before changing its price.",
+        "ru": "По визиту уже есть оплата или бонусные операции. Для изменения цены сначала нужна отдельная корректировка расчёта.",
+        "cz": "U návštěvy jsou zaznamenány platby nebo bonusové operace. Před změnou ceny je nutná samostatná oprava vyúčtování.",
+    },
+    "visit_price_payment_pending": {
+        "en": "Finish or cancel the pending payment before changing this visit's price.",
+        "ru": "Перед изменением цены завершите или отмените незавершённую оплату визита.",
+        "cz": "Před změnou ceny návštěvy dokončete nebo zrušte nevyřízenou platbu.",
+    },
+    "visit_price_retry": {
+        "en": "The visit is being updated. Please try again.",
+        "ru": "Запись сейчас изменяется. Повторите попытку.",
+        "cz": "Návštěva se právě upravuje. Zkuste to prosím znovu.",
+    },
+    "visitor_actions_unavailable": {
+        "en": "Actions for this booking are temporarily unavailable. Contact the business.",
+        "ru": "Действия с этой записью временно недоступны. Свяжитесь с салоном.",
+        "cz": "Akce u této rezervace nejsou nyní dostupné. Kontaktujte salon.",
+    },
+    "visitor_action_retry": {
+        "en": "This booking is being updated. Try again shortly.",
+        "ru": "Запись сейчас обновляется. Повторите попытку немного позже.",
+        "cz": "Rezervace se právě aktualizuje. Zkuste to za chvíli znovu.",
+    },
+    "visitor_email_change_requested": {
+        "en": "Your request to confirm the new email address has been accepted.",
+        "ru": "Запрос подтверждения новой почты принят.",
+        "cz": "Žádost o potvrzení nové e-mailové adresy byla přijata.",
+    },
+    "visitor_email_change_mail_unavailable": {
+        "en": "Email change confirmation mail is unavailable. Try again later.",
+        "ru": "Письмо для подтверждения смены почты пока недоступно. Повторите попытку позже.",
+        "cz": "E-mail pro potvrzení změny adresy není dostupný. Zkuste to později.",
+    },
+    "visitor_email_change_recipient_invalid": {
+        "en": "Enter a valid new email address.",
+        "ru": "Укажите корректный новый адрес почты.",
+        "cz": "Zadejte platnou novou e-mailovou adresu.",
+    },
+    "visitor_email_change_invalid": {
+        "en": "This email confirmation is invalid, expired or unavailable for your account.",
+        "ru": "Подтверждение почты недействительно, истекло или недоступно для вашего аккаунта.",
+        "cz": "Potvrzení e-mailu je neplatné, vypršelo nebo není pro váš účet dostupné.",
+    },
+    "visitor_email_change_conflict": {
+        "en": "The email change could not be completed. Try again or use a different address.",
+        "ru": "Не удалось изменить почту. Повторите попытку или используйте другой адрес.",
+        "cz": "E-mail se nepodařilo změnit. Zkuste to znovu nebo použijte jinou adresu.",
+    },
+    "visitor_history_cursor_invalid": {
+        "en": "Refresh the history and try again.",
+        "ru": "Обновите историю и повторите попытку.",
+        "cz": "Obnovte historii a zkuste to znovu.",
+    },
+    "visitor_history_visit_unavailable": {
+        "en": "The visit is not available.",
+        "ru": "Визит недоступен.",
+        "cz": "Návštěva není dostupná.",
+    },
     "concurrent_update": {
         "en": "The record changed. Refresh the page and try again.",
         "ru": "Запись изменилась. Обновите страницу и повторите попытку.",
@@ -274,6 +391,126 @@ messages: Dict[str, Dict[str, str]] = {
         "en": "This sign-in link is invalid, has expired, or has already been used",
         "ru": "Ссылка для входа недействительна, истекла или уже использована",
         "cz": "Tento odkaz pro přihlášení je neplatný, vypršel nebo byl již použit",
+    },
+    "visitor_session_invalid": {
+        "en": "Your visitor session has expired or is invalid. Sign in again.",
+        "ru": "Сессия посетителя истекла или недействительна. Войдите снова.",
+        "cz": "Relace návštěvníka vypršela nebo není platná. Přihlaste se znovu.",
+    },
+    "visitor_client_invite_invalid": {
+        "en": "This client invitation is invalid or unavailable for your account.",
+        "ru": "Приглашение недействительно или недоступно для вашего аккаунта.",
+        "cz": "Tato pozvánka je neplatná nebo pro váš účet nedostupná.",
+    },
+    "visitor_client_invite_unavailable": {
+        "en": "The salon can no longer confirm this invitation. Contact the salon.",
+        "ru": "Салон больше не может подтвердить приглашение. Обратитесь в салон.",
+        "cz": "Salon již nemůže potvrdit pozvánku. Kontaktujte salon.",
+    },
+    "visitor_client_invite_conflict": {
+        "en": "This history cannot be attached to your account. Contact the salon.",
+        "ru": "Не удалось присоединить историю к аккаунту. Обратитесь в салон.",
+        "cz": "Historii nelze připojit k účtu. Kontaktujte salon.",
+    },
+    "visitor_client_invite_retry": {
+        "en": "The salon permissions changed. Try accepting the invitation again.",
+        "ru": "Права в салоне изменились. Повторите принятие приглашения.",
+        "cz": "Oprávnění salonu se změnila. Zkuste pozvánku přijmout znovu.",
+    },
+    "visitor_invite_recipient_invalid": {
+        "en": "Enter a valid email address for the invitation.",
+        "ru": "Укажите корректную почту получателя приглашения.",
+        "cz": "Zadejte platný e-mail příjemce pozvánky.",
+    },
+    "visitor_invite_retry": {
+        "en": "The invitation could not be prepared. Try again.",
+        "ru": "Не удалось подготовить приглашение. Повторите попытку.",
+        "cz": "Pozvánku se nepodařilo připravit. Zkuste to znovu.",
+    },
+    "visitor_manage_claim_invalid": {
+        "en": "This guest booking link cannot be attached to your account.",
+        "ru": "Не удалось присоединить запись по этой гостевой ссылке.",
+        "cz": "Rezervaci z tohoto odkazu nelze připojit k vašemu účtu.",
+    },
+    "visitor_manage_claim_conflict": {
+        "en": "This booking cannot be attached to your account. Contact the salon.",
+        "ru": "Не удалось присоединить запись к аккаунту. Обратитесь в салон.",
+        "cz": "Rezervaci nelze připojit k účtu. Kontaktujte salon.",
+    },
+    "visitor_password_reset_requested": {
+        "en": "Your password reset request has been accepted.",
+        "ru": "Запрос восстановления пароля принят.",
+        "cz": "Žádost o obnovení hesla byla přijata.",
+    },
+    "visitor_password_reset_unavailable": {
+        "en": "Password recovery is temporarily unavailable. Try again later.",
+        "ru": "Восстановление пароля временно недоступно. Попробуйте позже.",
+        "cz": "Obnovení hesla je dočasně nedostupné. Zkuste to později.",
+    },
+    "visitor_password_reset_invalid": {
+        "en": "The password reset link is invalid, expired or has already been used.",
+        "ru": "Ссылка восстановления пароля недействительна, истекла или уже использована.",
+        "cz": "Odkaz pro obnovu hesla je neplatný, vypršel nebo již byl použit.",
+    },
+    "visitor_registration_invalid": {
+        "en": "The registration link is invalid, expired or has already been used.",
+        "ru": "Ссылка регистрации недействительна, истекла или уже использована.",
+        "cz": "Registrační odkaz je neplatný, vypršel nebo již byl použit.",
+    },
+    "visitor_registration_requested": {
+        "en": "Your registration request has been accepted.",
+        "ru": "Запрос регистрации принят.",
+        "cz": "Žádost o registraci byla přijata.",
+    },
+    "visitor_registration_mail_unavailable": {
+        "en": "Email registration is temporarily unavailable. Try again later.",
+        "ru": "Регистрация по почте временно недоступна. Попробуйте позже.",
+        "cz": "Registrace e-mailem je dočasně nedostupná. Zkuste to později.",
+    },
+    "visitor_registration_password_invalid": {
+        "en": "The password does not meet the requirements. Choose another password.",
+        "ru": "Пароль не соответствует требованиям. Выберите другой пароль.",
+        "cz": "Heslo nesplňuje požadavky. Zvolte jiné heslo.",
+    },
+    "visitor_registration_unavailable": {
+        "en": "Registration could not be completed. Sign in or recover your account.",
+        "ru": "Не удалось завершить регистрацию. Войдите или восстановите доступ.",
+        "cz": "Registraci nelze dokončit. Přihlaste se nebo obnovte přístup.",
+    },
+    "visitor_google_unavailable": {
+        "en": "Google sign-in is temporarily unavailable. Try again later.",
+        "ru": "Вход через Google временно недоступен. Попробуйте позже.",
+        "cz": "Přihlášení přes Google je dočasně nedostupné. Zkuste to později.",
+    },
+    "visitor_google_origin_invalid": {
+        "en": "This website is not allowed to use Google sign-in.",
+        "ru": "Этот адрес сайта не разрешён для входа через Google.",
+        "cz": "Tato webová adresa nemá povolené přihlášení přes Google.",
+    },
+    "visitor_google_invalid": {
+        "en": "Google sign-in could not be verified. Try signing in again.",
+        "ru": "Не удалось подтвердить вход через Google. Повторите вход.",
+        "cz": "Přihlášení přes Google nelze ověřit. Přihlaste se znovu.",
+    },
+    "visitor_google_link_required": {
+        "en": "Sign in to your existing account before linking Google.",
+        "ru": "Сначала войдите в существующий аккаунт, затем привяжите Google.",
+        "cz": "Nejprve se přihlaste ke stávajícímu účtu a pak propojte Google.",
+    },
+    "visitor_google_retry": {
+        "en": "The account changed during sign-in. Try signing in again.",
+        "ru": "Аккаунт изменился во время входа. Повторите вход.",
+        "cz": "Účet se během přihlašování změnil. Přihlaste se znovu.",
+    },
+    "visitor_recent_auth_required": {
+        "en": "Sign in again before changing your account security settings.",
+        "ru": "Повторите вход перед изменением настроек безопасности аккаунта.",
+        "cz": "Před změnou zabezpečení účtu se přihlaste znovu.",
+    },
+    "visitor_google_identity_in_use": {
+        "en": "This Google account is already linked to another visitor account.",
+        "ru": "Этот Google-аккаунт уже привязан к другому аккаунту посетителя.",
+        "cz": "Tento účet Google je již propojen s jiným účtem návštěvníka.",
     },
     "portal_session_invalid": {
         "en": "The client session is invalid or has expired",
@@ -944,6 +1181,11 @@ messages: Dict[str, Dict[str, str]] = {
         "en": "Not enough balance for this amount",
         "ru": "Недостаточно остатка для этой суммы",
         "cz": "Na tuto částku není dostatečný zůstatek",
+    },
+    "gift_currency_mismatch": {
+        "en": "The certificate, visit and previous redemptions must use the same known currency. Ask the salon to review the payment.",
+        "ru": "Валюта сертификата, визита и прежних списаний должна быть известна и совпадать. Обратитесь в салон для проверки расчёта.",
+        "cz": "Měna poukazu, návštěvy i předchozích čerpání musí být známá a stejná. Požádejte salon o kontrolu platby.",
     },
     "gift_scope_mismatch": {
         "en": "This certificate does not cover the services in the visit",

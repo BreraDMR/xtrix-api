@@ -1,9 +1,15 @@
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import CheckConstraint, Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 from app.api.core.clock import utcnow
 class Visit(Base):
     __tablename__ = "visits"
+    __table_args__ = (
+        CheckConstraint(
+            """currency_snapshot IS NULL OR currency_snapshot COLLATE "C" ~ '^[A-Z]{3}$'""",
+            name="ck_visits_currency_snapshot",
+        ),
+    )
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False, index=True)
     specialist_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
@@ -15,6 +21,10 @@ class Visit(Base):
     note = Column(String, nullable=True)
     photo_url = Column(String, nullable=True)
     price = Column(Float, nullable=True, index=True)
+    # NULL means the currency of these stored prices is not known.
+    currency_snapshot = Column(String(3), nullable=True)
+    # Database-owned evidence survives later status or payment-method edits.
+    manual_payment_recorded_at = Column(DateTime, nullable=True)
     status = Column(String, default="planned", index=True)
     client_confirmed_at = Column(DateTime, nullable=True)
     payment_method = Column(String, nullable=True, index=True)  
