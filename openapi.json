@@ -1737,6 +1737,187 @@
         "title": "CancelVisitPlanned",
         "type": "object"
       },
+      "CashbackBalanceOut": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "requires_review": {
+            "default": false,
+            "title": "Requires Review",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "currency",
+          "amount"
+        ],
+        "title": "CashbackBalanceOut",
+        "type": "object"
+      },
+      "CashbackCurrencyAmount": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          }
+        },
+        "required": [
+          "currency",
+          "amount"
+        ],
+        "title": "CashbackCurrencyAmount",
+        "type": "object"
+      },
+      "CashbackCurrencyStatistics": {
+        "properties": {
+          "balance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "earned": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earned"
+          },
+          "redemption_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redemption Rate"
+          },
+          "spent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spent"
+          }
+        },
+        "required": [
+          "currency",
+          "earned",
+          "spent",
+          "balance",
+          "redemption_rate"
+        ],
+        "title": "CashbackCurrencyStatistics",
+        "type": "object"
+      },
+      "CashbackCurrencyTrend": {
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "earned": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earned"
+          },
+          "spent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spent"
+          }
+        },
+        "required": [
+          "currency",
+          "earned",
+          "spent"
+        ],
+        "title": "CashbackCurrencyTrend",
+        "type": "object"
+      },
       "ClientCreate": {
         "properties": {
           "birth_date": {
@@ -8147,28 +8328,74 @@
       "LoyaltyStatisticsResponse": {
         "properties": {
           "active_cashback_balance": {
-            "title": "Active Cashback Balance",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Cashback Balance"
           },
           "active_points_balance": {
             "title": "Active Points Balance",
             "type": "number"
           },
+          "cashback_by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/CashbackCurrencyStatistics"
+            },
+            "title": "Cashback By Currency",
+            "type": "array"
+          },
+          "cashback_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Currency"
+          },
           "cashback_redemption_rate": {
-            "title": "Cashback Redemption Rate",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Redemption Rate"
           },
           "points_redemption_rate": {
             "title": "Points Redemption Rate",
             "type": "number"
           },
           "total_cashback_earned": {
-            "title": "Total Cashback Earned",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Cashback Earned"
           },
           "total_cashback_spent": {
-            "title": "Total Cashback Spent",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Cashback Spent"
           },
           "total_participants": {
             "title": "Total Participants",
@@ -10036,13 +10263,45 @@
       },
       "PointsUsageTrendItem": {
         "properties": {
+          "cashback_by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/CashbackCurrencyTrend"
+            },
+            "title": "Cashback By Currency",
+            "type": "array"
+          },
+          "cashback_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Currency"
+          },
           "cashback_earned": {
-            "title": "Cashback Earned",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Earned"
           },
           "cashback_spent": {
-            "title": "Cashback Spent",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Spent"
           },
           "period": {
             "title": "Period",
@@ -10801,6 +11060,24 @@
       },
       "PromotionEffectivenessItem": {
         "properties": {
+          "cashback_by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/CashbackCurrencyAmount"
+            },
+            "title": "Cashback By Currency",
+            "type": "array"
+          },
+          "cashback_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Currency"
+          },
           "end_date": {
             "title": "End Date",
             "type": "string"
@@ -10826,8 +11103,15 @@
             "type": "string"
           },
           "total_cashback_awarded": {
-            "title": "Total Cashback Awarded",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Cashback Awarded"
           },
           "total_points_awarded": {
             "title": "Total Points Awarded",
@@ -15823,8 +16107,33 @@
       "TopClientItem": {
         "properties": {
           "cashback": {
-            "title": "Cashback",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback"
+          },
+          "cashback_balances": {
+            "items": {
+              "$ref": "#/components/schemas/CashbackBalanceOut"
+            },
+            "title": "Cashback Balances",
+            "type": "array"
+          },
+          "cashback_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashback Currency"
           },
           "client_id": {
             "title": "Client Id",
