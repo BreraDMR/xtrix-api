@@ -27,6 +27,8 @@ from tests import test_visitor_action_target as author
 @pytest.fixture
 def world(db,monkeypatch):
     w=author.world.__wrapped__(db,monkeypatch)
+    # Billing must use the same clock as the visitor session and visit fixture.
+    monkeypatch.setattr(subscription_access, 'utcnow', lambda: w['clock'][0])
     plan=db.query(SubscriptionPlan).first()
     sub=Subscription(user_id=w['staff'],plan_id=plan.id,status='active',current_period_end=author.NOW+timedelta(days=5))
     db.add(sub);db.commit();w['sub']=sub.id;db.rollback()

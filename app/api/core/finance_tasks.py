@@ -13,8 +13,10 @@ def run_monthly_finance_archive():
         archives = archive_all_businesses_last_month(db)
         from app.db.models.audit_log import AuditLog
         audit_log = AuditLog(
+            entity_type='finance_archive_job',
+            entity_id=0,
             action='monthly_finance_archive',
-            details={'archived_businesses': len(archives)},
+            changes={'archived_businesses': len(archives)},
             created_at=utcnow(),
         )
         db.add(audit_log)

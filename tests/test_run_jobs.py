@@ -24,3 +24,19 @@ def test_one_failing_job_does_not_stop_the_rest(monkeypatch):
 def test_every_job_runs_on_an_empty_database():
     jobs = _load()
     assert jobs.run(list(jobs.JOBS)) is True
+
+
+def test_monthly_archive_completion_audit_is_valid_on_the_first_day(db, monkeypatch):
+    from datetime import datetime
+    from app.api.core import finance_archive, finance_tasks
+    from app.db.models.audit_log import AuditLog
+
+    now = datetime(2031, 1, 1, 12)
+    monkeypatch.setattr(finance_archive, 'utcnow', lambda: now)
+    monkeypatch.setattr(finance_tasks, 'utcnow', lambda: now)
+    assert finance_tasks.run_monthly_finance_archive() == 0
+    row = db.query(AuditLog).filter_by(action='monthly_finance_archive').one()
+    assert (row.entity_type, row.entity_id) == ('finance_archive_job', 0)
+    assert row.changes == {'archived_businesses': 0}
+    assert finance_tasks.run_monthly_finance_archive() == 0
+    assert db.query(AuditLog).filter_by(action='monthly_finance_archive').count() == 1
