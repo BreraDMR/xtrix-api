@@ -7,6 +7,7 @@ import secrets
 import bcrypt
 from app.api.core.config import settings
 from app.api.core.clock import utcnow
+from app.api.core import crm_passwords
 def _truncate_password_bytes(password_bytes: bytes) -> bytes:
     if len(password_bytes) <= 72:
         return password_bytes
@@ -15,16 +16,20 @@ def _truncate_password_bytes(password_bytes: bytes) -> bytes:
         truncated = truncated[:-1]
     return truncated
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    # every hash we store is bcrypt ($2b$...), the old passlib wrapper made the same format
-    if not hashed_password or not hashed_password.startswith("$2"):
+    if not isinstance(hashed_password, str):
+        return False
+    if hashed_password.startswith("$xtrix-crm-scrypt$"):
+        return crm_passwords.verify_password(plain_password, hashed_password)
+    # Preserve the exact old truncation for existing bcrypt records. Never rehash a
+    # legacy match here: its unverified suffix cannot establish a new full password.
+    if not isinstance(plain_password, str) or not hashed_password.startswith("$2"):
         return False
     try:
         return bcrypt.checkpw(_truncate_password_bytes(plain_password.encode("utf-8")), hashed_password.encode("utf-8"))
     except ValueError:
         return False
 def get_password_hash(password: str) -> str:
-    # bcrypt only looks at 72 bytes; cut on a character boundary so we never split a UTF-8 char
-    return bcrypt.hashpw(_truncate_password_bytes(password.encode("utf-8")), bcrypt.gensalt()).decode("utf-8")
+    return crm_passwords.hash_password(password)
 def validate_password_strength(password: str) -> tuple[bool, str]:
     if len(password) < 8:
         return False, "Password must be at least 8 characters long"

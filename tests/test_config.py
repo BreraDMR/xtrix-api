@@ -34,10 +34,10 @@ def test_passwords_hash_and_verify_without_passlib():
     from app.api.core.security import get_password_hash, verify_password
 
     h = get_password_hash("Str0ng!Pass-word")
-    assert h.startswith("$2b$") and verify_password("Str0ng!Pass-word", h) and not verify_password("nope", h)
+    assert h.startswith("$xtrix-crm-scrypt$v1$") and verify_password("Str0ng!Pass-word", h) and not verify_password("nope", h)
     # a hash stored earlier ($2b$12$..., same format the old passlib wrapper wrote) still works
     assert verify_password("Str0ng!Pass-word", "$2b$12$iETjsUJfkQ2FZHlfipfIFe1n3yUP6vt6JbR355j42m43ce0OE5S.y")
-    # long non-ASCII passwords: bcrypt sees 72 bytes, cut on a char boundary
+    # New hashes preserve the complete non-ASCII password.
     long_pw = "пароль" * 20
     assert verify_password(long_pw, get_password_hash(long_pw))
     assert not verify_password("anything", "not-a-hash")
