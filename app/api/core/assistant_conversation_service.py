@@ -17,6 +17,7 @@ from app.db.models.user import User
 
 MAX_HISTORY_MESSAGES = 6
 MAX_HISTORY_CHARS = 1800
+MAX_HISTORY_QUESTION_CHARS = 1500
 
 
 def generation_scope_snapshot(db: Session, user: User, locale: str = 'en') -> str:
@@ -184,13 +185,30 @@ def get_conversation_context(
         AssistantMessage.request_id != current_request_id,
     ).order_by(AssistantMessage.ordinal.desc()).limit(MAX_HISTORY_MESSAGES).all()
 
-    messages.reverse()
     history = []
     total_chars = 0
+    question_chars = 0
     for m in messages:
         snippet = m.text[:300] if m.text else ''
         if total_chars + len(snippet) > MAX_HISTORY_CHARS:
             break
-        history.append({'role': m.role, 'text': snippet})
+        item = {'role': m.role, 'text': snippet}
+        # Keep the exact recent questions as well as the short narrative summary.
+        # A separate budget preserves the existing six-message text allowance.
+        if m.role == 'assistant' and isinstance(m.plan_payload, dict):
+            questions = m.plan_payload.get('questions')
+            if isinstance(questions, list):
+                included = []
+                for question in questions[:5]:
+                    if not isinstance(question, str) or not 1 <= len(question) <= 300:
+                        continue
+                    if question_chars + len(question) > MAX_HISTORY_QUESTION_CHARS:
+                        continue
+                    included.append(question)
+                    question_chars += len(question)
+                if included:
+                    item['questions'] = included
+        history.append(item)
         total_chars += len(snippet)
+    history.reverse()
     return history

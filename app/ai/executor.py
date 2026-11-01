@@ -9,6 +9,7 @@ permission helpers. The model never touches the database.
 Actions run in order and the run stops at the first failure; the result says what was done.
 """
 from dataclasses import asdict, dataclass, field
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Literal, Optional
 from zoneinfo import ZoneInfo
@@ -22,6 +23,7 @@ from starlette.requests import Request
 from app.ai import client_search
 from app.ai import plan as p
 from app.api.core.clock import utcnow
+from app.api.core.i18n import _
 from app.api.core.logger import get_logger
 from app.api.core.permissions import (
     check_service_access,
@@ -82,6 +84,41 @@ class ActionFailed(Exception):
 
 
 _CODES = {400: "bad_request", 403: "not_allowed", 404: "not_found", 409: "conflict", 422: "invalid"}
+
+_DIALOGUE_ERRORS = {
+    'client_not_found': {
+        'ru': 'Клиент не найден. Уточните имя или телефон клиента.',
+        'en': 'Client not found. Please specify their name or phone number.',
+        'cz': 'Klient nebyl nalezen. Upřesněte jméno nebo telefon klienta.',
+    },
+    'ambiguous': {
+        'ru': 'Найдено несколько клиентов. Уточните, кого нужно выбрать.',
+        'en': 'Several clients match. Please specify which client to choose.',
+        'cz': 'Bylo nalezeno více klientů. Upřesněte, kterého vybrat.',
+    },
+    'no_slot': {
+        'ru': 'В указанном диапазоне нет свободного времени. Выберите другое время или мастера.',
+        'en': 'No free time was found in the requested range. Choose another time or specialist.',
+        'cz': 'V požadovaném období není volný termín. Vyberte jiný čas nebo pracovníka.',
+    },
+    'conflict': {
+        'ru': 'Данные изменились. Обновите запрос и подтвердите новый вариант.',
+        'en': 'The details have changed. Update the request and confirm the new proposal.',
+        'cz': 'Údaje se změnily. Upravte požadavek a potvrďte nový návrh.',
+    },
+    'fallback': {
+        'ru': 'Не удалось выполнить действие. Уточните запрос и попробуйте ещё раз.',
+        'en': 'The action could not be completed. Clarify your request and try again.',
+        'cz': 'Akci se nepodařilo dokončit. Upřesněte požadavek a zkuste to znovu.',
+    },
+}
+
+
+def _dialogue_error(code: str, locale: str) -> str:
+    if code == 'not_allowed':
+        return _('not_allowed', locale)
+    messages = _DIALOGUE_ERRORS.get(code, _DIALOGUE_ERRORS['fallback'])
+    return messages.get(locale, messages['en'])
 
 
 def _from_http(exc: HTTPException) -> ActionFailed:
@@ -299,10 +336,15 @@ def execute_plan(db: Session, user: User, plan: p.AssistantPlan, *, locale: str 
             results.append(ActionResult(i, action.action, "done", data))
         except Exception as exc:
             db.rollback()
+            public_message = None
             if isinstance(exc, ActionFailed):
                 failed = exc
             elif isinstance(exc, HTTPException):
                 failed = _from_http(exc)
+                # Endpoint messages are already written for the user and their locale.
+                # Keep that guidance, but never display a bare machine identifier.
+                if exc.status_code < 500 and not re.fullmatch(r'[a-z][a-z0-9_.-]*', failed.message):
+                    public_message = failed.message
             elif isinstance(exc, ValidationError):
                 failed = _from_validation(exc)
             elif isinstance(exc, IntegrityError):
@@ -315,7 +357,8 @@ def execute_plan(db: Session, user: User, plan: p.AssistantPlan, *, locale: str 
                              type(exc).__name__)
                 failed = ActionFailed(500, "error")
             results.append(ActionResult(i, action.action, "failed", failed.data,
-                                        {"status": failed.status, "code": failed.code, "message": failed.message}))
+                                        {"status": failed.status, "code": failed.code,
+                                         "message": public_message or _dialogue_error(failed.code, locale)}))
             stopped = True
         logger.info("ai action: user=%s index=%s action=%s status=%s", user.id, i, action.action,
                     results[-1].status)

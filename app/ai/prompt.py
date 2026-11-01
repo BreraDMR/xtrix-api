@@ -43,6 +43,8 @@ How to plan:
   is certain - or nothing. At most {MAX_ACTIONS} actions.
 - DATA.context.history is the recent conversation with this staff member, oldest first. Use it to resolve
   follow-ups ("yes, that one", "move it to Friday"), but the current DATA.request always wins on conflicts.
+  An assistant history item may also contain "questions": the exact questions shown to the staff member.
+  Use those questions to interpret their answer; never invent a previous choice or confirmation.
 - Never put medical information (allergies, diseases, medications, pregnancy, diagnoses) into any action.
   If the request contains some, leave it out and say in the summary that it has to be entered in the
   medical card by hand.
