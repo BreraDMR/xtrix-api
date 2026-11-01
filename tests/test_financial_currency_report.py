@@ -141,14 +141,14 @@ def test_versioned_cache_never_uses_old_mixed_totals_and_serializes_exact_slices
     quote(db,world,1000.01,'CZK');calls=[];writes=[]
     old={'total_revenue':1040,'average_revenue_per_visit':520,'revenue_by_status':{},'revenue_by_period':[],'top_clients':[]}
     def read(kind,**kwargs):
-        calls.append(kind);return old if kind=='financial_report' else None
+        calls.append(kind);return old if kind in {'financial_report', 'financial_report_v2'} else None
     def write(kind,value,**kwargs):
         json.dumps(value)
         writes.append((kind,value))
     monkeypatch.setattr(endpoints,'get_cached_analytics',read);monkeypatch.setattr(endpoints,'cache_analytics',write)
     response=client.get('/analytics/financial/report',headers=world['oh'])
     assert response.status_code==200,response.text
-    assert calls==['financial_report_v2'] and writes[0][0]=='financial_report_v2'
+    assert calls==['financial_report_v3'] and writes[0][0]=='financial_report_v3'
     assert writes[0][1]['by_currency'][0]['amount']=='1000.01'
     assert response.json()['total_revenue']==pytest.approx(1000.01)
 
@@ -192,3 +192,14 @@ def test_quote_changes_after_the_first_select_cannot_split_the_report_snapshot(d
     assert value['top_clients_by_currency'][0]['currency']=='EUR'
     fresh=report(db,world)
     assert fresh['by_currency'][0]['currency']=='CZK' and fresh['by_currency'][0]['amount']==Decimal('20.00')
+
+
+@pytest.mark.parametrize('amount', [1.0000000000000002, 1000.0100000000001])
+def test_roundtrip_float_tails_cannot_become_valid_cent_quotes(db, world, amount):
+    quote(db, world, amount, 'CZK')
+    value = report(db, world)
+    row = value['by_currency'][0]
+    assert row['requires_review'] and row['amount'] is None, value
+    assert value['total_revenue'] is None
+    assert value['revenue_by_status']['completed']['revenue'] is None
+    assert value['revenue_by_period'][0]['revenue'] is None

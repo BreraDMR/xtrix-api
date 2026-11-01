@@ -4905,6 +4905,13 @@
       },
       "ExpenseCategoryTotal": {
         "properties": {
+          "by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/ExpenseCurrencyTotal"
+            },
+            "title": "By Currency",
+            "type": "array"
+          },
           "category_code": {
             "anyOf": [
               {
@@ -4917,12 +4924,26 @@
             "title": "Category Code"
           },
           "category_id": {
-            "title": "Category Id",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
           },
           "category_name": {
-            "title": "Category Name",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Name"
           },
           "color": {
             "anyOf": [
@@ -4935,16 +4956,34 @@
             ],
             "title": "Color"
           },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "requires_review": {
+            "default": false,
+            "title": "Requires Review",
+            "type": "boolean"
+          },
           "total": {
-            "title": "Total",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
           }
         },
-        "required": [
-          "category_id",
-          "category_name",
-          "total"
-        ],
         "title": "ExpenseCategoryTotal",
         "type": "object"
       },
@@ -5061,6 +5100,46 @@
           "business_id"
         ],
         "title": "ExpenseCreate",
+        "type": "object"
+      },
+      "ExpenseCurrencyTotal": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "requires_review": {
+            "default": false,
+            "title": "Requires Review",
+            "type": "boolean"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          }
+        },
+        "required": [
+          "count"
+        ],
+        "title": "ExpenseCurrencyTotal",
         "type": "object"
       },
       "ExpenseOut": {
@@ -11465,31 +11544,150 @@
         "title": "ProductUsageOut",
         "type": "object"
       },
+      "ProfitCurrencySlice": {
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "expense_count": {
+            "title": "Expense Count",
+            "type": "integer"
+          },
+          "expenses": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expenses"
+          },
+          "profit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit"
+          },
+          "profit_margin": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit Margin"
+          },
+          "quote_count": {
+            "title": "Quote Count",
+            "type": "integer"
+          },
+          "requires_review": {
+            "default": false,
+            "title": "Requires Review",
+            "type": "boolean"
+          },
+          "revenue": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue"
+          }
+        },
+        "required": [
+          "quote_count",
+          "expense_count"
+        ],
+        "title": "ProfitCurrencySlice",
+        "type": "object"
+      },
       "ProfitDay": {
         "properties": {
+          "by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/ProfitCurrencySlice"
+            },
+            "title": "By Currency",
+            "type": "array"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
           "date": {
             "format": "date",
             "title": "Date",
             "type": "string"
           },
           "expenses": {
-            "title": "Expenses",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expenses"
           },
           "profit": {
-            "title": "Profit",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit"
+          },
+          "requires_review": {
+            "default": false,
+            "title": "Requires Review",
+            "type": "boolean"
           },
           "revenue": {
-            "title": "Revenue",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue"
           }
         },
         "required": [
-          "date",
-          "revenue",
-          "expenses",
-          "profit"
+          "date"
         ],
         "title": "ProfitDay",
         "type": "object"
@@ -11516,6 +11714,24 @@
       },
       "ProfitReportResponse": {
         "properties": {
+          "by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/ProfitCurrencySlice"
+            },
+            "title": "By Currency",
+            "type": "array"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
           "daily": {
             "items": {
               "$ref": "#/components/schemas/ProfitDay"
@@ -11524,8 +11740,15 @@
             "type": "array"
           },
           "expenses": {
-            "title": "Expenses",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expenses"
           },
           "expenses_by_category": {
             "items": {
@@ -11538,25 +11761,53 @@
             "$ref": "#/components/schemas/ProfitReportPeriod"
           },
           "profit": {
-            "title": "Profit",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit"
           },
           "profit_margin": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Profit as a percent of revenue, 0 when there is no revenue",
-            "title": "Profit Margin",
-            "type": "number"
+            "title": "Profit Margin"
+          },
+          "requires_review": {
+            "default": false,
+            "title": "Requires Review",
+            "type": "boolean"
           },
           "revenue": {
-            "title": "Revenue",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue"
+          },
+          "value_basis": {
+            "const": "quoted_service_price",
+            "default": "quoted_service_price",
+            "title": "Value Basis",
+            "type": "string"
           }
         },
         "required": [
           "period",
-          "revenue",
-          "expenses",
-          "profit",
-          "profit_margin",
           "expenses_by_category",
           "daily"
         ],

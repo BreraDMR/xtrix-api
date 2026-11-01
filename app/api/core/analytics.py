@@ -110,7 +110,7 @@ def get_financial_report(
     # CASE protects the cast and arithmetic from legacy NaN/infinity. Numeric
     # keeps the decimal value PostgreSQL reads, without a double precision SUM.
     price = case((and_(Visit.price.is_not(None), Visit.price >= 0,
-                       Visit.price < float('inf')), cast(Visit.price, Numeric())), else_=None)
+                       Visit.price < float('inf')), cast(cast(Visit.price, String()), Numeric())), else_=None)
     cents = case((and_(currency.is_not(None), price == func.trunc(price, 2)), price * 100), else_=None)
     filters = [Visit.deleted_at.is_(None)]
     if specialist_id:

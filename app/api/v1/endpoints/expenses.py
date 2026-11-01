@@ -225,80 +225,17 @@ def get_profit_report(
     locale: str = Depends(deps.get_locale),
 ):
     from datetime import datetime, timedelta
-    from app.db.models.visit import Visit
-    from sqlalchemy import func
+    from app.api.core.expense_reports import get_profit_projection
     business_id = _finance_business_id(current_user, db, locale)
     if not date_from or not date_to:
         now = utcnow()
         date_from = datetime(now.year, now.month, 1)
         if now.month == 12:
-            date_to = datetime(now.year + 1, 1, 1) - timedelta(seconds=1)
+            date_to = datetime(now.year + 1, 1, 1) - timedelta(microseconds=1)
         else:
-            date_to = datetime(now.year, now.month + 1, 1) - timedelta(seconds=1)
-    revenue_query = db.query(func.sum(Visit.price)).filter(
-        Visit.business_id == business_id,
-        Visit.status == 'completed',
-        Visit.date_start >= date_from,
-        Visit.date_start <= date_to,
-        Visit.price.isnot(None),
-    )
-    revenue = float(revenue_query.scalar() or 0.0)
-    expenses = crud_expense.get_expenses_total(
-        db,
-        business_id=business_id,
-        date_from=date_from,
-        date_to=date_to,
-    )
-    profit = revenue - expenses
-    expenses_by_category = crud_expense.get_expenses_by_category(
-        db,
-        business_id=business_id,
-        date_from=date_from,
-        date_to=date_to,
-    )
-    expenses_daily = crud_expense.get_expenses_daily(
-        db,
-        business_id=business_id,
-        date_from=date_from,
-        date_to=date_to,
-    )
-    revenue_daily_query = db.query(
-        func.date(Visit.date_start).label('date'),
-        func.sum(Visit.price).label('total')
-    ).filter(
-        Visit.business_id == business_id,
-        Visit.status == 'completed',
-        Visit.date_start >= date_from,
-        Visit.date_start <= date_to,
-        Visit.price.isnot(None),
-    ).group_by(func.date(Visit.date_start)).order_by(func.date(Visit.date_start))
-    revenue_daily = [
-        {
-            "date": r.date.isoformat() if hasattr(r.date, 'isoformat') else str(r.date),
-            "total": float(r.total) if r.total else 0.0
-        }
-        for r in revenue_daily_query.all()
-    ]
-    profit_daily = []
-    expense_dict = {e["date"]: e["total"] for e in expenses_daily}
-    revenue_dict = {r["date"]: r["total"] for r in revenue_daily}
-    all_dates = set(list(expense_dict.keys()) + list(revenue_dict.keys()))
-    for date in sorted(all_dates):
-        profit_daily.append({
-            "date": date,
-            "revenue": revenue_dict.get(date, 0.0),
-            "expenses": expense_dict.get(date, 0.0),
-            "profit": revenue_dict.get(date, 0.0) - expense_dict.get(date, 0.0),
-        })
-    return {
-        "period": {"from": date_from, "to": date_to},
-        "revenue": revenue,
-        "expenses": expenses,
-        "profit": profit,
-        "profit_margin": (profit / revenue * 100) if revenue > 0 else 0.0,
-        "expenses_by_category": expenses_by_category,
-        "daily": profit_daily,
-    }
+            date_to = datetime(now.year, now.month + 1, 1) - timedelta(microseconds=1)
+    return {"period": {"from": date_from, "to": date_to},
+            **get_profit_projection(db, business_id, date_from, date_to)}
 @router.get("/reports/expenses-by-category", response_model=List[ExpenseCategoryTotal])
 def get_expenses_by_category(
     date_from: Optional[UtcDatetime] = Query(None),
@@ -308,10 +245,5 @@ def get_expenses_by_category(
     locale: str = Depends(deps.get_locale),
 ):
     business_id = _finance_business_id(current_user, db, locale)
-    result = crud_expense.get_expenses_by_category(
-        db,
-        business_id=business_id,
-        date_from=date_from,
-        date_to=date_to,
-    )
-    return result
+    from app.api.core.expense_reports import get_profit_projection
+    return get_profit_projection(db, business_id, date_from, date_to, include_quotes=False)['expenses_by_category']

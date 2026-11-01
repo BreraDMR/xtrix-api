@@ -1,5 +1,7 @@
 from app.schemas.datetimes import UtcDatetime
 from datetime import date
+from decimal import Decimal
+from typing import Literal
 from typing import List, Optional
 from pydantic import ConfigDict, BaseModel, Field
 from app.schemas.limits import Currency, LongText, PositiveMoney
@@ -32,27 +34,54 @@ class ExpenseOut(ExpenseBase):
     updated_at: UtcDatetime
     category: Optional["ExpenseCategoryOut"] = None
     model_config = ConfigDict(from_attributes=True)
+class ExpenseCurrencyTotal(BaseModel):
+    currency: Optional[str] = None
+    total: Optional[Decimal] = None
+    count: int
+    requires_review: bool = False
+
 class ExpenseCategoryTotal(BaseModel):
-    category_id: int
-    category_name: str
+    category_id: Optional[int] = None
+    category_name: Optional[str] = None
     category_code: Optional[str] = None
     color: Optional[str] = None
-    total: float
+    total: Optional[float] = None
+    currency: Optional[str] = None
+    requires_review: bool = False
+    by_currency: List[ExpenseCurrencyTotal] = Field(default_factory=list)
+
+class ProfitCurrencySlice(BaseModel):
+    currency: Optional[str] = None
+    revenue: Optional[Decimal] = None
+    expenses: Optional[Decimal] = None
+    profit: Optional[Decimal] = None
+    profit_margin: Optional[float] = None
+    quote_count: int
+    expense_count: int
+    requires_review: bool = False
+
 class ProfitReportPeriod(BaseModel):
     # "from" is a python keyword, hence the alias
     from_: UtcDatetime = Field(..., alias="from")
     to: UtcDatetime
 class ProfitDay(BaseModel):
+    currency: Optional[str] = None
+    requires_review: bool = False
+    by_currency: List[ProfitCurrencySlice] = Field(default_factory=list)
     date: date
-    revenue: float
-    expenses: float
-    profit: float
+    revenue: Optional[float] = None
+    expenses: Optional[float] = None
+    profit: Optional[float] = None
 class ProfitReportResponse(BaseModel):
+    value_basis: Literal["quoted_service_price"] = "quoted_service_price"
+    currency: Optional[str] = None
+    requires_review: bool = False
+    by_currency: List[ProfitCurrencySlice] = Field(default_factory=list)
     period: ProfitReportPeriod
-    revenue: float
-    expenses: float
-    profit: float
-    profit_margin: float = Field(..., description="Profit as a percent of revenue, 0 when there is no revenue")
+    revenue: Optional[float] = None
+    expenses: Optional[float] = None
+    profit: Optional[float] = None
+    profit_margin: Optional[float] = Field(None, description="Profit as a percent of revenue, 0 when there is no revenue")
     expenses_by_category: List[ExpenseCategoryTotal]
     daily: List[ProfitDay]
 from app.schemas.expense_category import ExpenseCategoryOut

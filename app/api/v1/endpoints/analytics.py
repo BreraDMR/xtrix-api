@@ -122,7 +122,7 @@ def get_financial_report_endpoint(
         'date_to': date_to.isoformat() if date_to is not None else None,
         'group_by': group_by,
     }
-    cached = get_cached_analytics('financial_report_v2', **cache_key)
+    cached = get_cached_analytics('financial_report_v3', **cache_key)
     if cached:
         return FinancialReportResponse(**cached)
     report = get_financial_report(
@@ -134,7 +134,7 @@ def get_financial_report_endpoint(
         group_by=group_by,
     )
     result = FinancialReportResponse(**report)
-    cache_analytics('financial_report_v2', result.model_dump(mode='json'), ttl_seconds=600, **cache_key)
+    cache_analytics('financial_report_v3', result.model_dump(mode='json'), ttl_seconds=600, **cache_key)
     return result
 @router.get("/services/popular", response_model=PopularServicesResponse)
 def get_popular_services_endpoint(

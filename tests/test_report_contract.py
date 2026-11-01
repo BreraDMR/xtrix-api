@@ -40,12 +40,12 @@ def test_cohort_rows_keep_their_shape(client, make_user, headers_for, db):
 def test_profit_report_has_a_model():
     ref = _response_ref("/expenses/reports/profit")
     props = _schema(ref)["properties"]
-    assert set(props) == {"period", "revenue", "expenses", "profit", "profit_margin", "expenses_by_category", "daily"}
+    assert set(props) == {"period", "revenue", "expenses", "profit", "profit_margin", "expenses_by_category", "daily", "currency", "requires_review", "by_currency", "value_basis"}
     assert set(_schema(props["period"]["$ref"].rsplit("/", 1)[-1])["properties"]) == {"from", "to"}
     cat = _schema(props["expenses_by_category"]["items"]["$ref"].rsplit("/", 1)[-1])
-    assert set(cat["properties"]) == {"category_id", "category_name", "category_code", "color", "total"}
+    assert set(cat["properties"]) == {"category_id", "category_name", "category_code", "color", "total", "currency", "requires_review", "by_currency"}
     day = _schema(props["daily"]["items"]["$ref"].rsplit("/", 1)[-1])
-    assert set(day["properties"]) == {"date", "revenue", "expenses", "profit"}
+    assert set(day["properties"]) == {"date", "revenue", "expenses", "profit", "currency", "requires_review", "by_currency"}
 
 
 def test_profit_report_keeps_its_shape(client, make_user, headers_for, db):
@@ -53,7 +53,7 @@ def test_profit_report_keeps_its_shape(client, make_user, headers_for, db):
     a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
     biz, owner, cl = a["business"]["id"], a["owner"], a["client"]["id"]
     db.add(Visit(client_id=cl, specialist_id=owner.id, business_id=biz,
-                 date_start=datetime(2026, 3, 5, 10), status="completed", price=200))
+                 date_start=datetime(2026, 3, 5, 10), status="completed", price=200, currency_snapshot="EUR"))
     db.commit()
     from app.db.models.expense import Expense
     exp = db.get(Expense, a["expense"]["id"])
@@ -63,7 +63,11 @@ def test_profit_report_keeps_its_shape(client, make_user, headers_for, db):
     r = client.get("/expenses/reports/profit", params={
         "date_from": "2026-03-01T00:00:00Z", "date_to": "2026-03-31T23:59:59Z"}, headers=a["headers"])
     assert r.status_code == 200, r.text
+    currency_slice = {"currency": "EUR", "revenue": "200.00", "expenses": "123.00", "profit": "77.00",
+                      "profit_margin": 38.5, "quote_count": 1, "expense_count": 1, "requires_review": False}
     assert r.json() == {
+        "currency": "EUR", "requires_review": False, "by_currency": [currency_slice],
+        "value_basis": "quoted_service_price",
         "period": {"from": "2026-03-01T00:00:00Z", "to": "2026-03-31T23:59:59Z"},
         "revenue": 200.0,
         "expenses": 123.0,
@@ -72,8 +76,11 @@ def test_profit_report_keeps_its_shape(client, make_user, headers_for, db):
         "expenses_by_category": [{
             "category_id": a["category"]["id"], "category_name": "Alpha Rent",
             "category_code": a["category"].get("code"), "color": a["category"].get("color"), "total": 123.0,
+            "currency": "EUR", "requires_review": False, "by_currency": [
+                {"currency": "EUR", "total": "123.00", "count": 1, "requires_review": False}],
         }],
-        "daily": [{"date": "2026-03-05", "revenue": 200.0, "expenses": 123.0, "profit": 77.0}],
+        "daily": [{"date": "2026-03-05", "revenue": 200.0, "expenses": 123.0, "profit": 77.0,
+                   "currency": "EUR", "requires_review": False, "by_currency": [currency_slice]}],
     }
 
 
