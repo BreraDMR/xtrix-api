@@ -39,6 +39,7 @@ class SettlementFacts:
     provider_net: Decimal | None
     gift_money_coverage: Decimal | None
     gift_units_coverage: int | None
+    gift_package_coverage: Decimal | None
     manual_payment_recorded: bool
     has_pending_checkout: bool
     has_reconciliation: bool
@@ -70,7 +71,8 @@ def _snapshot(scope):
     gifts = select(_array('id', g.id, 'certificate', g.certificate_id, 'business', g.business_id,
         'type', g.entry_type, 'amount', cast(g.amount_delta, String), 'units', g.units_delta,
         'reverses', g.redeems_entry_id, 'certificate_business', c.business_id, 'kind', c.kind,
-        'currency', c.currency)).select_from(g).outerjoin(c, c.id == g.certificate_id).where(
+        'currency', c.currency, 'coverage_currency', g.coverage_currency,
+        'coverage_amount', cast(g.coverage_amount_exact, String))).select_from(g).outerjoin(c, c.id == g.certificate_id).where(
             g.visit_id == Visit.id).correlate(Visit).scalar_subquery()
     loyalty = select(_array('business', l.business_id, 'client', l.client_id, 'type', l.transaction_type,
         'points', cast(l.points_amount, String), 'cashback', cast(l.cashback_amount, String),
@@ -204,7 +206,7 @@ def _provider(attempts, events, refunds, business, currency):
 def _gifts(rows, business, currency):
     entries = {row['id']: row for row in rows}
     reversals = set()
-    money_cents = units = 0
+    money_cents = units = package_cents = unknown_units = 0
     try:
         for row in rows:
             if row['business'] != business or row['certificate_business'] != business:
@@ -216,8 +218,17 @@ def _gifts(rows, business, currency):
             if row['kind'] == 'money':
                 if currency is None or row['currency'] != currency or count != 0:
                     raise ValueError
+                if row['coverage_currency'] is not None or row['coverage_amount'] is not None:
+                    raise ValueError
             elif value != 0:
                 raise ValueError
+            coverage = None
+            if row['kind'] == 'package' and (row['coverage_currency'] is not None or row['coverage_amount'] is not None):
+                if currency is None or row['coverage_currency'] != currency:
+                    raise ValueError
+                coverage = _cents(row['coverage_amount'])
+                if coverage <= 0:
+                    raise ValueError
             if row['type'] == 'redeemed':
                 if row['reverses'] is not None or (row['kind'] == 'money' and value >= 0) or (
                         row['kind'] == 'package' and count != -1):
@@ -228,16 +239,25 @@ def _gifts(rows, business, currency):
                         or original['certificate'] != row['certificate'] or row['reverses'] in reversals
                         or value != -_cents(original['amount'], signed=True) or count != -original['units']):
                     raise ValueError
+                if (row['coverage_currency'] != original['coverage_currency']
+                        or (coverage is None) != (original['coverage_amount'] is None)
+                        or (coverage is not None and coverage != _cents(original['coverage_amount']))):
+                    raise ValueError
                 reversals.add(row['reverses'])
             else:
                 raise ValueError
             money_cents -= value
             units -= count
-        if money_cents < 0 or units < 0:
+            if row['kind'] == 'package':
+                if coverage is None:
+                    unknown_units -= count
+                else:
+                    package_cents -= count * coverage
+        if money_cents < 0 or not 0 <= units <= 1 or unknown_units < 0 or package_cents < 0:
             raise ValueError
-        return _total(money_cents), units, False
+        return _total(money_cents), units, None if unknown_units else _total(package_cents), False
     except (ValueError, money.CashbackError):
-        return None, None, True
+        return None, None, None, True
 
 
 def read_settlement(db, scope: SettlementScope) -> SettlementFacts | None:
@@ -266,10 +286,10 @@ def read_settlement(db, scope: SettlementScope) -> SettlementFacts | None:
         row['attempts'], row['events'], row['refunds'], scope.business_id, currency)
     if received is None or refunded is None or net is None:
         reasons.add('provider_history_review')
-    gift_money, gift_units, gift_review = _gifts(row['gifts'], scope.business_id, currency)
+    gift_money, gift_units, gift_package, gift_review = _gifts(row['gifts'], scope.business_id, currency)
     if gift_review:
         reasons.add('gift_history_review')
-    if gift_units:
+    if gift_units and gift_package is None:
         reasons.add('gift_package_value_unknown')
     manual = row['manual_payment_recorded_at'] is not None
     if manual:
@@ -277,5 +297,5 @@ def read_settlement(db, scope: SettlementScope) -> SettlementFacts | None:
     if sum((bool(row['attempts']), bool(row['gifts']), bool(loyalty_active), manual)) > 1:
         reasons.add('mixed_settlement_history')
     return SettlementFacts(row['id'], currency, gross_value, discount, price_after,
-        received, refunded, net, gift_money, gift_units, manual, pending, reconciliation,
+        received, refunded, net, gift_money, gift_units, gift_package, manual, pending, reconciliation,
         bool(reasons), tuple(sorted(reasons)))

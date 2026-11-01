@@ -68,7 +68,7 @@ def bonus(db,w,value='10.01',kind='spent',**overrides):
     db.add(row);db.commit();return row
 
 
-def gift(db,w,key='gift',value='7.01',kind='money'):
+def gift(db,w,key='gift',value='7.01',kind='money',coverage=None,certificate_unit='EUR'):
     scope=w['scope']
     offer=GiftOffer(business_id=scope.business_id,name=key,kind=kind,price=10,currency='EUR',validity_days=365)
     db.add(offer);db.flush()
@@ -78,19 +78,22 @@ def gift(db,w,key='gift',value='7.01',kind='money'):
     db.add(order);db.flush()
     certificate=GiftCertificate(business_id=scope.business_id,offer_id=offer.id,order_id=order.id,
         code=key,code_hash=key,code_last4=key[-4:],kind=kind,status='active',issuer_name='Issuer',
-        offer_name=key,currency='EUR',face_value=100,visits_total=10,recipient_name='Recipient',
+        offer_name=key,currency=certificate_unit,face_value=100,visits_total=10,recipient_name='Recipient',
         buyer_name='Buyer',buyer_email='buyer@example.com',expires_at=NOW+timedelta(days=365))
     db.add(certificate);db.flush()
     row=GiftLedgerEntry(certificate_id=certificate.id,business_id=scope.business_id,entry_type='redeemed',
         amount_delta=-Decimal(value) if kind=='money' else 0,units_delta=0 if kind=='money' else -1,
-        request_key=key,visit_id=scope.id)
+        request_key=key,visit_id=scope.id,
+        coverage_currency=coverage[0] if coverage else None,
+        coverage_amount_exact=Decimal(coverage[1]) if coverage else None)
     db.add(row);db.commit();return certificate,row
 
 
 def reverse(db,row,value=None):
     entry=GiftLedgerEntry(certificate_id=row.certificate_id,business_id=row.business_id,entry_type='reversed',
         amount_delta=-row.amount_delta if value is None else Decimal(value),units_delta=-row.units_delta,
-        request_key='reverse-'+str(row.id),visit_id=row.visit_id,redeems_entry_id=row.id)
+        request_key='reverse-'+str(row.id),visit_id=row.visit_id,redeems_entry_id=row.id,
+        coverage_currency=row.coverage_currency,coverage_amount_exact=row.coverage_amount_exact)
     db.add(entry);db.commit();return entry
 
 
@@ -99,6 +102,7 @@ def test_empty_known_quote_is_factual_and_immutable(db,world):
     assert result.gross_quote==result.price_after_loyalty==Decimal('1000.01')
     assert result.loyalty_discount==result.provider_received==result.provider_refunded==result.provider_net==0
     assert result.gift_money_coverage==result.gift_units_coverage==0
+    assert result.gift_package_coverage == 0
     assert not result.requires_review and result.reasons==()
     assert result.outstanding is None and result.overpayment is None
     assert result.outstanding_reason=='outstanding_not_projected'
@@ -301,3 +305,60 @@ def test_dirty_financial_identity_is_not_flushed_or_committed(db,world,monkeypat
 def test_an_orm_hint_is_not_an_authorized_scalar_scope(db,world):
     with pytest.raises(ValueError):read_settlement(db,world['visit'])
     with pytest.raises(ValueError):SettlementScope(True,1,1,1)
+
+
+def test_saved_package_value_is_not_the_certificate_price_or_current_business_currency(db, world):
+    certificate, receipt = gift(db, world, kind='package', coverage=('EUR', '1000.01'), certificate_unit='CZK')
+    db.get(Business, world['scope'].business_id).currency = 'CZK'
+    certificate.face_value = 999
+    db.commit()
+    facts = read_settlement(db, world['scope'])
+    assert facts.gift_package_coverage == Decimal('1000.01')
+    assert facts.gift_units_coverage == 1 and facts.gift_money_coverage == 0
+    assert 'gift_package_value_unknown' not in facts.reasons
+    assert not facts.requires_review
+    assert facts.outstanding is None and facts.overpayment is None
+    assert receipt.coverage_currency == facts.currency == 'EUR'
+
+
+def test_reversed_package_has_zero_active_coverage_without_repricing_the_receipt(db, world):
+    _, receipt = gift(db, world, kind='package', coverage=('EUR', '1000.01'))
+    reverse(db, receipt)
+    world['visit'].price = 20
+    db.commit()
+    facts = read_settlement(db, world['scope'])
+    assert facts.gross_quote == 20
+    assert facts.gift_units_coverage == facts.gift_package_coverage == 0
+    assert not facts.requires_review and facts.outstanding is None
+    assert receipt.coverage_amount_exact == Decimal('1000.01')
+
+
+def test_legacy_package_value_remains_unknown_until_its_exact_reversal(db, world):
+    _, receipt = gift(db, world, kind='package')
+    first = read_settlement(db, world['scope'])
+    assert first.gift_package_coverage is None
+    assert 'gift_package_value_unknown' in first.reasons
+    reverse(db, receipt)
+    second = read_settlement(db, world['scope'])
+    assert second.gift_package_coverage == second.gift_units_coverage == 0
+    assert not second.requires_review
+
+
+@pytest.mark.parametrize('case', ['missing_amount', 'missing_unit', 'wrong_unit', 'zero', 'subcent',
+                                  'money_metadata', 'wrong_reversal', 'duplicate_unit'])
+def test_broken_package_coverage_is_reviewed_without_guessing(case):
+    from app.api.core.visit_settlement_projection import _gifts
+    row = {'id': 1, 'certificate': 1, 'business': 7, 'certificate_business': 7,
+           'type': 'redeemed', 'amount': '0.00', 'units': -1, 'reverses': None,
+           'kind': 'package', 'currency': 'CZK', 'coverage_currency': 'EUR', 'coverage_amount': '1000.01'}
+    rows = [row]
+    if case == 'missing_amount': row['coverage_amount'] = None
+    elif case == 'missing_unit': row['coverage_currency'] = None
+    elif case == 'wrong_unit': row['coverage_currency'] = 'CZK'
+    elif case == 'zero': row['coverage_amount'] = '0.00'
+    elif case == 'subcent': row['coverage_amount'] = '1.0000000000000002'
+    elif case == 'money_metadata': row.update(kind='money', amount='-1.00', units=0, currency='EUR')
+    elif case == 'wrong_reversal': rows.append({**row, 'id': 2, 'type': 'reversed', 'units': 1,
+                                               'reverses': 1, 'coverage_amount': '1.00'})
+    else: rows.append({**row, 'id': 2})
+    assert _gifts(rows, 7, 'EUR') == (None, None, None, True)
