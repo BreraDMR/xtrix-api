@@ -1,11 +1,47 @@
 from typing import Optional, List, Tuple
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import and_
+from sqlalchemy import and_, select
+from app.api.core import payroll_money
+from app.db.models.business import Business
 from app.api.core.pagination import PaginationParams
 from app.db.models.employee import Employee
 from app.db.models.user import User
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeePermissions
 from app.api.core.clock import utcnow
+def salary_terms(db, data, business_owner_id=None, employee=None):
+    """Validate fresh terms without assigning a unit to legacy amounts."""
+    values = dict(data)
+    if "commission_percentage" in values:
+        values["commission_percentage"] = float(payroll_money.rate(values["commission_percentage"]))
+    has_amount = "base_salary" in values
+    has_currency = "base_salary_currency" in values
+    if employee is not None and not has_amount and not has_currency:
+        return values
+    if employee is not None and has_currency and not has_amount:
+        raise payroll_money.PayrollError('payroll_invalid_amount')
+    exact = payroll_money.amount(values.get("base_salary", 0))
+    if has_currency and values["base_salary_currency"] is not None:
+        unit = payroll_money.currency(values["base_salary_currency"])
+    elif employee is not None:
+        unit = employee.base_salary_currency
+        if unit is not None:
+            unit = payroll_money.currency(unit)
+        if has_currency and unit is not None:
+            raise payroll_money.PayrollError('payroll_currency_review')
+    else:
+        with db.no_autoflush:
+            business_id = db.execute(select(User.business_id).where(User.id == business_owner_id)).scalar_one_or_none()
+            unit = db.execute(select(Business.currency).where(Business.id == business_id).with_for_update(read=True)).scalar_one_or_none() if business_id else None
+        if unit is not None:
+            unit = payroll_money.currency(unit)
+    if employee is None and unit is None and exact != 0:
+        raise payroll_money.PayrollError('payroll_currency_review')
+    values["base_salary"] = float(exact)
+    values["base_salary_currency"] = unit
+    values["base_salary_exact"] = exact if unit is not None else None
+    return values
+
+
 def create_employee(
     db: Session,
     employee_in: EmployeeCreate,
@@ -29,6 +65,7 @@ def create_employee(
         default_permissions = EmployeePermissions()
         permissions = default_permissions.model_dump(exclude_none=True)
     employee_data = employee_in.model_dump(exclude={"permissions"})
+    employee_data = salary_terms(db, employee_data, business_owner_id=business_owner_id)
     employee_data["business_owner_id"] = business_owner_id
     employee_data["permissions"] = permissions
     employee = Employee(**employee_data)
@@ -85,7 +122,9 @@ def update_employee(
     employee: Employee,
     employee_update: EmployeeUpdate
 ) -> Employee:
-    update_data = employee_update.model_dump(exclude_unset=True)
+    with db.no_autoflush:
+        employee = db.query(Employee).filter(Employee.id == employee.id).populate_existing().with_for_update().one()
+    update_data = salary_terms(db, employee_update.model_dump(exclude_unset=True), employee=employee)
     if "permissions" in update_data and update_data["permissions"] is None:
         default_permissions = EmployeePermissions()
         update_data["permissions"] = default_permissions.model_dump()

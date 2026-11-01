@@ -7,6 +7,7 @@ from app.api.core.i18n import _
 from app.api.core.logger import get_logger
 from app.api.core.pagination import MAX_PAGE, PaginationParams
 from app.api.crud import crud_employee, crud_salary
+from app.api.core.payroll_money import PayrollError
 from app.db.models.user import User
 from app.db.models.employee import Employee
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeOut, EmployeeCreateWithUser, EmployeeCreateResponse
@@ -24,6 +25,16 @@ from app.schemas.salary import (
 from app.api.core.clock import utcnow
 router = APIRouter(route_class=NoStoreRoute)
 logger = get_logger("employees")
+def _employee_payroll_error(db, exc, locale):
+    db.rollback()
+    local = {
+        'en': {'payroll_invalid_amount': 'Enter a finite amount with at most two decimal places.', 'payroll_invalid_rate': 'Commission must be between 0 and 100.', 'payroll_currency_review': 'Choose a supported ISO 4217 currency.', 'payroll_currency_required': 'Choose a payroll currency.'},
+        'ru': {'payroll_invalid_amount': 'Укажите конечную сумму с точностью до копейки.', 'payroll_invalid_rate': 'Процент комиссии должен быть от 0 до 100.', 'payroll_currency_review': 'Укажите поддерживаемую валюту ISO 4217.', 'payroll_currency_required': 'Выберите валюту расчёта зарплаты.'},
+        'cz': {'payroll_invalid_amount': 'Zadejte konečnou částku s nejvýše dvěma desetinnými místy.', 'payroll_invalid_rate': 'Provize musí být od 0 do 100.', 'payroll_currency_review': 'Vyberte podporovanou měnu ISO 4217.', 'payroll_currency_required': 'Vyberte měnu výpočtu mzdy.'},
+    }
+    messages = {**globals().get('_SALARY_MESSAGES', {}).get(locale, {}), **local.get(locale, local['en'])}
+    return HTTPException(status_code=400, detail={'reason': exc.reason, 'message': messages.get(exc.reason, _(exc.reason, locale)), **exc.context})
+
 def can_manage_employees(current_user: User) -> bool:
     return current_user.role in ["admin", "business_owner"]
 def get_business_owner_id(current_user: User) -> Optional[int]:
@@ -101,6 +112,8 @@ def create_employee(
             "permissions": employee_with_user.permissions,
             "commission_percentage": employee_with_user.commission_percentage or 0.0,
             "base_salary": employee_with_user.base_salary or 0.0,
+            "base_salary_currency": employee_with_user.base_salary_currency,
+            "base_salary_exact": employee_with_user.base_salary_exact,
             "is_active": employee_with_user.is_active,
             "notes": employee_with_user.notes,
             "hired_at": employee_with_user.hired_at,
@@ -118,6 +131,8 @@ def create_employee(
                 "business_id": getattr(employee_with_user.employee_user, 'business_id', None),
             }
         return EmployeeOut(**emp_dict)
+    except PayrollError as exc:
+        raise _employee_payroll_error(db, exc, locale)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 @router.post("/create-with-user", response_model=EmployeeCreateResponse, summary="Create employee with new user")
@@ -166,6 +181,10 @@ def create_employee_with_user(
             status_code=400,
             detail=_("business_owner_id_required", locale)
         )
+    try:
+        validated_salary_terms = crud_employee.salary_terms(db, employee_data.model_dump(include={'base_salary', 'base_salary_currency', 'commission_percentage'}, exclude_unset=True), business_owner_id=business_owner_id)
+    except PayrollError as exc:
+        raise _employee_payroll_error(db, exc, locale)
     from app.api.core.security import generate_secure_password
     generated_password = generate_secure_password(12)
     phone_for_validation = employee_data.phone
@@ -209,6 +228,7 @@ def create_employee_with_user(
         permissions=employee_data.permissions,
         commission_percentage=employee_data.commission_percentage,
         base_salary=employee_data.base_salary,
+        base_salary_currency=validated_salary_terms["base_salary_currency"],
         notes=employee_data.notes,
         business_owner_id=business_owner_id,
     )
@@ -251,6 +271,8 @@ def create_employee_with_user(
         "permissions": new_employee.permissions,
         "commission_percentage": new_employee.commission_percentage or 0.0,
         "base_salary": new_employee.base_salary or 0.0,
+        "base_salary_currency": new_employee.base_salary_currency,
+        "base_salary_exact": new_employee.base_salary_exact,
         "is_active": new_employee.is_active,
         "notes": new_employee.notes,
         "hired_at": new_employee.hired_at,
@@ -324,6 +346,8 @@ def list_employees(
             "permissions": emp.permissions,
             "commission_percentage": emp.commission_percentage or 0.0,
             "base_salary": emp.base_salary or 0.0,
+            "base_salary_currency": emp.base_salary_currency,
+            "base_salary_exact": emp.base_salary_exact,
             "is_active": emp.is_active,
             "notes": emp.notes,
             "hired_at": emp.hired_at,
@@ -344,13 +368,17 @@ def list_employees(
     return result
 @router.get("/me/salary/current", response_model=SalaryCalculationDetail, summary="Get current unpaid salary")
 def get_my_current_salary(
+    currency: Optional[str] = Query(None),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
     if current_user.role not in ("employee", "specialist"):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    salary = crud_salary.get_current_unpaid_salary(db=db, employee_user_id=current_user.id)
+    try:
+        salary = crud_salary.get_current_unpaid_salary(db=db, employee_user_id=current_user.id, currency=currency)
+    except PayrollError as exc:
+        raise _employee_payroll_error(db, exc, locale)
     if not salary:
         raise HTTPException(status_code=404, detail=_("no_unpaid_salary", locale))
     employee = crud_employee.get_employee_by_user_id(db, current_user.id)
@@ -358,9 +386,10 @@ def get_my_current_salary(
     payments = crud_salary.list_salary_payments(db, salary.id)
     salary_dict = {
         **salary.__dict__,
+        'salary_period': salary.salary_period,
         'adjustments': adjustments,
         'payments': payments,
-        'commission_percentage': employee.commission_percentage or 0.0 if employee else 0.0  
+        'commission_percentage': (salary.salary_period.commission_percentage if salary.salary_period is not None else (employee.commission_percentage or 0.0 if employee else 0.0))
     }
     return SalaryCalculationDetail(**salary_dict)
 @router.get("/me/salary/history", response_model=List[SalaryCalculationOut], summary="Get my salary history")
@@ -435,6 +464,8 @@ def get_employee(
         "permissions": employee.permissions,
         "commission_percentage": employee.commission_percentage or 0.0,
         "base_salary": employee.base_salary or 0.0,
+        "base_salary_currency": employee.base_salary_currency,
+        "base_salary_exact": employee.base_salary_exact,
         "is_active": employee.is_active,
         "notes": employee.notes,
         "hired_at": employee.hired_at,
@@ -478,11 +509,11 @@ def update_employee(
     )
     if not employee:
         raise HTTPException(status_code=404, detail=_("employee_not_found", locale))
-    updated_employee = crud_employee.update_employee(
-        db=db,
-        employee=employee,
-        employee_update=employee_update
-    )
+    try:
+        updated_employee = crud_employee.update_employee(
+            db=db, employee=employee, employee_update=employee_update)
+    except PayrollError as exc:
+        raise _employee_payroll_error(db, exc, locale)
     emp_dict = {
         "id": updated_employee.id,
         "employee_user_id": updated_employee.employee_user_id,
@@ -491,6 +522,8 @@ def update_employee(
         "permissions": updated_employee.permissions,
         "commission_percentage": updated_employee.commission_percentage or 0.0,
         "base_salary": updated_employee.base_salary or 0.0,
+        "base_salary_currency": updated_employee.base_salary_currency,
+        "base_salary_exact": updated_employee.base_salary_exact,
         "is_active": updated_employee.is_active,
         "notes": updated_employee.notes,
         "hired_at": updated_employee.hired_at,
@@ -560,6 +593,8 @@ def fire_employee(
         "permissions": fired_employee.permissions,
         "commission_percentage": fired_employee.commission_percentage or 0.0,
         "base_salary": fired_employee.base_salary or 0.0,
+        "base_salary_currency": fired_employee.base_salary_currency,
+        "base_salary_exact": fired_employee.base_salary_exact,
         "is_active": fired_employee.is_active,
         "notes": fired_employee.notes,
         "hired_at": fired_employee.hired_at,
@@ -584,8 +619,8 @@ def get_employee_by_user_id(
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
-    if current_user.role == "employee" and current_user.id != user_id:
-        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    if current_user.id != user_id:
+        _manager_owner_id(current_user, locale)
     owner_id = None
     if current_user.role == "business_owner":
         owner_id = current_user.id
@@ -610,6 +645,8 @@ def get_employee_by_user_id(
         "permissions": employee.permissions,
         "commission_percentage": employee.commission_percentage or 0.0,
         "base_salary": employee.base_salary or 0.0,
+        "base_salary_currency": employee.base_salary_currency,
+        "base_salary_exact": employee.base_salary_exact,
         "is_active": employee.is_active,
         "notes": employee.notes,
         "hired_at": employee.hired_at,
@@ -627,7 +664,102 @@ def get_employee_by_user_id(
             "business_id": getattr(employee.employee_user, 'business_id', None),
         }
     return EmployeeOut(**emp_dict)
+from functools import wraps as _salary_wraps
+from app.api.core.payroll_money import PayrollError as _PayrollError
+
+
+_SALARY_MESSAGES = {
+    'ru': {
+        'payroll_invalid_amount': 'Укажите конечную сумму с точностью до копейки.',
+        'payroll_invalid_rate': 'Процент комиссии должен быть от 0 до 100.',
+        'payroll_currency_review': 'Укажите поддерживаемую валюту ISO 4217.',
+        'payroll_employee_missing': 'Сотрудник не найден.',
+        'payroll_employee_inactive': 'Расчёт недоступен для неактивного сотрудника.',
+        'payroll_invalid_period': 'Начало периода должно быть раньше окончания.',
+        'payroll_business_missing': 'Сотрудник должен относиться к бизнесу.',
+        'payroll_business_mismatch': 'Бизнес выплаты должен совпадать с расчётом.',
+        'payroll_calculation_missing': 'Расчёт зарплаты не найден.',
+        'payroll_snapshot_review': 'Условия и суммы расчёта зарплаты требуют проверки.',
+        'payroll_currency_required': 'Выберите валюту расчёта зарплаты.',
+        'payroll_visit_review': 'Проверьте валюту и суммы завершённых визитов.',
+        'payroll_legacy_review': 'Старые денежные данные требуют проверки перед изменением.',
+        'payroll_correction_required': 'Завершённые выплаты требуют отдельной финансовой корректировки.',
+        'payroll_payment_required': 'Для изменения оплаты создайте выплату через журнал платежей.',
+        'payroll_period_overlap': 'Период пересекается с существующим расчётом зарплаты.',
+        'payroll_payment_exceeds_remaining': 'Сумма выплаты превышает остаток зарплаты.',
+        'payroll_total_below_paid': 'Итог зарплаты не может быть отрицательным или меньше выплаченной суммы.',
+        'payroll_currency_mismatch': 'Валюта должна совпадать с валютой расчёта зарплаты.',
+        'payroll_transaction_failed': 'Не удалось сохранить зарплату и связанный расход. Изменения отменены.',
+    },
+    'cz': {
+        'payroll_invalid_amount': 'Zadejte konečnou částku s nejvýše dvěma desetinnými místy.',
+        'payroll_invalid_rate': 'Provize musí být od 0 do 100.',
+        'payroll_currency_review': 'Vyberte podporovanou měnu ISO 4217.',
+        'payroll_employee_missing': 'Zaměstnanec nebyl nalezen.',
+        'payroll_employee_inactive': 'Pro neaktivního zaměstnance nelze vypočítat mzdu.',
+        'payroll_invalid_period': 'Začátek období musí předcházet konci.',
+        'payroll_business_missing': 'Zaměstnanec musí patřit k firmě.',
+        'payroll_business_mismatch': 'Firma výplaty musí odpovídat výpočtu mzdy.',
+        'payroll_calculation_missing': 'Výpočet mzdy nebyl nalezen.',
+        'payroll_snapshot_review': 'Zkontrolujte podmínky a částky výpočtu mzdy.',
+        'payroll_currency_required': 'Vyberte měnu výpočtu mzdy.',
+        'payroll_visit_review': 'Zkontrolujte měnu a částky dokončených návštěv.',
+        'payroll_legacy_review': 'Původní finanční údaje vyžadují kontrolu.',
+        'payroll_correction_required': 'Dokončená výplata vyžaduje samostatnou finanční opravu.',
+        'payroll_payment_required': 'Platbu zadejte do evidence výplat.',
+        'payroll_period_overlap': 'Období se překrývá s existujícím výpočtem mzdy.',
+        'payroll_payment_exceeds_remaining': 'Výplata převyšuje zbývající mzdu.',
+        'payroll_total_below_paid': 'Mzda nesmí být záporná ani nižší než vyplacená částka.',
+        'payroll_currency_mismatch': 'Měna musí odpovídat výpočtu mzdy.',
+        'payroll_transaction_failed': 'Mzdu a výdaj se nepodařilo uložit. Změny byly vráceny.',
+    },
+    'en': {
+        'payroll_invalid_amount': 'Enter a finite amount with at most two decimal places.',
+        'payroll_invalid_rate': 'Commission must be between 0 and 100.',
+        'payroll_currency_review': 'Choose a supported ISO 4217 currency.',
+        'payroll_employee_missing': 'Employee not found.',
+        'payroll_employee_inactive': 'Cannot calculate payroll for an inactive employee.',
+        'payroll_invalid_period': 'Period start must be before its end.',
+        'payroll_business_missing': 'Employee must belong to a business.',
+        'payroll_business_mismatch': 'Payment business must match the payroll calculation.',
+        'payroll_calculation_missing': 'Payroll calculation not found.',
+        'payroll_snapshot_review': 'Review payroll calculation terms and amounts.',
+        'payroll_currency_required': 'Choose a payroll currency.',
+        'payroll_visit_review': 'Review currency and amounts of completed visits.',
+        'payroll_legacy_review': 'Review legacy financial data before changing it.',
+        'payroll_correction_required': 'Completed payments require a separate financial correction.',
+        'payroll_payment_required': 'Create a payment through the payment ledger.',
+        'payroll_period_overlap': 'The period overlaps an existing payroll calculation.',
+        'payroll_payment_exceeds_remaining': 'The payment exceeds the remaining salary.',
+        'payroll_total_below_paid': 'Salary cannot be negative or below the paid amount.',
+        'payroll_currency_mismatch': 'Currency must match the payroll calculation.',
+        'payroll_transaction_failed': 'Payroll and expense could not be saved. Changes were rolled back.',
+    },
+}
+
+
+def _salary_operation(fn):
+    @_salary_wraps(fn)
+    def operation(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            db = kwargs.get('db')
+            if db is not None:
+                db.rollback()
+            reason = exc.reason if isinstance(exc, _PayrollError) else 'payroll_transaction_failed'
+            messages = _SALARY_MESSAGES.get(kwargs.get('locale'), _SALARY_MESSAGES['en'])
+            detail = {'reason': reason, 'message': messages.get(reason, messages['payroll_transaction_failed'])}
+            if isinstance(exc, _PayrollError):
+                detail.update(exc.context)
+            raise HTTPException(status_code=400, detail=detail) from None
+    return operation
+
+
 @router.post("/{employee_id}/salary/calculate", response_model=SalaryCalculationOut, summary="Calculate salary for employee")
+@_salary_operation
 def calculate_employee_salary(
     employee_id: int,
     request: CalculateSalaryRequest,
@@ -654,31 +786,37 @@ def calculate_employee_salary(
             period_start=request.period_start,
             period_end=request.period_end,
             calculated_by_id=current_user.id,
-            notes=request.notes
+            notes=request.notes,
+            currency=request.currency
         )
         return salary_calculation
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise
 @router.get("/{employee_id}/salary/current", response_model=SalaryCalculationDetail, summary="Get current unpaid salary for employee")
+@_salary_operation
 def get_employee_current_salary(
     employee_id: int,
+    currency: Optional[str] = Query(None, pattern=r"^[A-Z]{3}$"),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
     locale: str = Depends(deps.get_locale),
 ):
     _employee_for_viewer(db, current_user, employee_id, locale)
-    salary = crud_salary.get_current_unpaid_salary(db=db, employee_id=employee_id)
+    salary = crud_salary.get_current_unpaid_salary(db=db, employee_id=employee_id, currency=currency)
     if not salary:
         raise HTTPException(status_code=404, detail=_("no_unpaid_salary", locale))
     adjustments = crud_salary.list_salary_adjustments(db, salary.id)
     payments = crud_salary.list_salary_payments(db, salary.id)
     salary_dict = {
         **salary.__dict__,
+        'salary_period': salary.salary_period,
         'adjustments': adjustments,
-        'payments': payments
+        'payments': payments,
+        'commission_percentage': salary.salary_period.commission_percentage if salary.salary_period else None
     }
     return SalaryCalculationDetail(**salary_dict)
 @router.get("/{employee_id}/salary/history", response_model=List[SalaryCalculationOut], summary="Get salary history for employee")
+@_salary_operation
 def get_employee_salary_history(
     employee_id: int,
     is_paid: Optional[bool] = Query(None, description="Filter by paid status"),
@@ -716,6 +854,7 @@ def get_employee_salary_history(
     )
     return salaries
 @router.get("/{employee_id}/salary/{salary_id}", response_model=SalaryCalculationDetail, summary="Get salary calculation details")
+@_salary_operation
 def get_salary_calculation(
     employee_id: int,
     salary_id: int,
@@ -732,12 +871,14 @@ def get_salary_calculation(
     from app.schemas.salary import SalaryCalculationDetail
     salary_dict = {
         **salary.__dict__,
+        'salary_period': salary.salary_period,
         'adjustments': adjustments,
         'payments': payments,
-        'commission_percentage': employee.commission_percentage or 0.0 if employee else 0.0  
+        'commission_percentage': salary.salary_period.commission_percentage if salary.salary_period else None
     }
     return SalaryCalculationDetail(**salary_dict)
 @router.put("/{employee_id}/salary/{salary_id}", response_model=SalaryCalculationOut, summary="Update salary calculation (mark as paid)")
+@_salary_operation
 def update_salary_calculation(
     employee_id: int,
     salary_id: int,
@@ -760,6 +901,7 @@ def update_salary_calculation(
     updated_salary = crud_salary.update_salary_calculation(db=db, salary_calculation=salary, update=update)
     return updated_salary
 @router.post("/{employee_id}/salary/{salary_id}/adjustments", response_model=SalaryAdjustmentOut, summary="Add salary adjustment (bonus/penalty)")
+@_salary_operation
 def create_salary_adjustment(
     employee_id: int,
     salary_id: int,
@@ -786,6 +928,7 @@ def create_salary_adjustment(
     )
     return result
 @router.get("/{employee_id}/salary/{salary_id}/adjustments", response_model=List[SalaryAdjustmentOut], summary="Get salary adjustments")
+@_salary_operation
 def get_salary_adjustments(
     employee_id: int,
     salary_id: int,
@@ -801,6 +944,7 @@ def get_salary_adjustments(
     adjustments = crud_salary.list_salary_adjustments(db, salary_id, adjustment_type)
     return adjustments
 @router.delete("/{employee_id}/salary/{salary_id}/adjustments/{adjustment_id}", summary="Delete salary adjustment")
+@_salary_operation
 def delete_salary_adjustment(
     employee_id: int,
     salary_id: int,
@@ -821,6 +965,7 @@ def delete_salary_adjustment(
         raise HTTPException(status_code=404, detail=_("adjustment_not_found", locale))
     return {"message": _("adjustment_deleted", locale)}
 @router.post("/{employee_id}/salary/{salary_id}/payments", response_model=SalaryPaymentOut, summary="Create salary payment")
+@_salary_operation
 def create_salary_payment(
     employee_id: int,
     salary_id: int,
@@ -836,22 +981,6 @@ def create_salary_payment(
     salary = crud_salary.get_salary_calculation(db=db, salary_id=salary_id, employee_id=employee_id)
     if not salary:
         raise HTTPException(status_code=404, detail=_("salary_calculation_not_found", locale))
-    remaining_amount = salary.total_with_adjustments - salary.paid_amount
-    if remaining_amount <= 0:
-        raise HTTPException(
-            status_code=400,
-            detail=_("salary_already_paid", locale) or f"Salary is already fully paid. Remaining amount: {remaining_amount}"
-        )
-    if payment.amount > remaining_amount:
-        raise HTTPException(
-            status_code=400,
-            detail=_("payment_amount_exceeds_remaining", locale) or f"Payment amount ({payment.amount}) exceeds remaining amount ({remaining_amount})"
-        )
-    if payment.amount <= 0:
-        raise HTTPException(
-            status_code=400,
-            detail=_("payment_amount_invalid", locale)
-        )
     from app.api.core.permissions import get_user_business_id
     business_id = get_user_business_id(current_user, db)
     if not business_id and employee.business_owner_id:
@@ -867,6 +996,7 @@ def create_salary_payment(
     )
     return result
 @router.get("/{employee_id}/salary/{salary_id}/payments", response_model=List[SalaryPaymentOut], summary="Get salary payments")
+@_salary_operation
 def get_salary_payments(
     employee_id: int,
     salary_id: int,
@@ -882,6 +1012,7 @@ def get_salary_payments(
     payments = crud_salary.list_salary_payments(db, salary_id, status)
     return payments
 @router.put("/{employee_id}/salary/{salary_id}/payments/{payment_id}", response_model=SalaryPaymentOut, summary="Update salary payment")
+@_salary_operation
 def update_salary_payment(
     employee_id: int,
     salary_id: int,
@@ -904,6 +1035,7 @@ def update_salary_payment(
     result = crud_salary.update_salary_payment(db=db, payment=payment, update=update)
     return result
 @router.delete("/{employee_id}/salary/{salary_id}/payments/{payment_id}", summary="Delete salary payment")
+@_salary_operation
 def delete_salary_payment(
     employee_id: int,
     salary_id: int,

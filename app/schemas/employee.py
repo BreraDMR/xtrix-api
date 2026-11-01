@@ -32,6 +32,7 @@ class EmployeeBase(BaseModel):
             raise invalid("invalid_permissions", "permissions must be a dictionary")
         return v
 class EmployeeCreate(InputModel, EmployeeBase):
+    commission_percentage: Optional[Decimal] = Field(Decimal("0"), ge=0, le=100)
     base_salary_currency: Optional[str] = Field(None, pattern=r"^[A-Z]{3}$", min_length=3, max_length=3)
     business_owner_id: Optional[int] = Field(None, description="Business owner ID (optional, admin only)")
 class EmployeeCreateWithUser(InputModel):
@@ -43,14 +44,14 @@ class EmployeeCreateWithUser(InputModel):
     business_id: Optional[int] = Field(None, description="Business to attach to (taken from the caller by default)")
     position: Optional[str] = Field(None, max_length=100, description="Position")
     permissions: Optional[Dict[str, Any]] = Field(None, description="Permissions")
-    commission_percentage: Optional[float] = Field(0.0, ge=0.0, le=100.0)
+    commission_percentage: Optional[Decimal] = Field(Decimal("0"), ge=0, le=100)
     base_salary: Optional[float] = Field(0.0, ge=0.0, le=MAX_MONEY)
     notes: Optional[str] = Field(None, max_length=5000, description="Notes")
 class EmployeeUpdate(InputModel):
     base_salary_currency: Optional[str] = Field(None, pattern=r"^[A-Z]{3}$", min_length=3, max_length=3)
     position: Optional[str] = Field(None, max_length=100)
     permissions: Optional[Dict[str, Any]] = Field(None)
-    commission_percentage: Optional[float] = Field(None, ge=0.0, le=100.0)
+    commission_percentage: Optional[Decimal] = Field(None, ge=0, le=100)
     base_salary: Optional[float] = Field(None, ge=0.0, le=MAX_MONEY)
     is_active: Optional[bool] = None
     notes: Optional[str] = Field(None, max_length=5000)

@@ -2,6 +2,8 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api import deps
+from app.api.private_routes import NoStoreRoute
+from app.api.core.payroll_money import PayrollError
 from app.schemas.datetimes import UtcDatetime
 from app.api.core.i18n import _
 from app.api.core.pagination import MAX_PAGE, PaginatedResponse
@@ -12,7 +14,22 @@ from app.api.crud import crud_expense, crud_expense_category
 from app.api.core.logger import logger
 from app.api.core.clock import utcnow
 from app.api.core.permissions import can_view_financials, require_business_id
-router = APIRouter()
+router = APIRouter(route_class=NoStoreRoute)
+
+
+_SALARY_EXPENSE_CORRECTION_MESSAGES = {
+    'ru': 'Расход связан с завершённой выплатой зарплаты. Используйте отдельную финансовую корректировку.',
+    'cz': 'Výdaj je spojen s dokončenou výplatou mzdy. Použijte samostatnou finanční opravu.',
+    'en': 'This expense belongs to a completed salary payment. Use a separate financial correction.',
+}
+
+
+def _salary_expense_correction(locale: str) -> HTTPException:
+    return HTTPException(status_code=400, detail={
+        'reason': 'payroll_correction_required',
+        'message': _SALARY_EXPENSE_CORRECTION_MESSAGES.get(locale, _SALARY_EXPENSE_CORRECTION_MESSAGES['en']),
+    })
+
 def _finance_business_id(current_user: User, db: Session, locale: str) -> int:
     # money is for the owner, admins and staff with the "view financials" box ticked
     if not can_view_financials(current_user, db):
@@ -176,6 +193,9 @@ def update_expense(
         result = crud_expense.update_expense(db, db_expense, expense)
         logger.info(f"Updated expense {expense_id} by user {current_user.id}")
         return result
+    except PayrollError:
+        db.rollback()
+        raise _salary_expense_correction(locale) from None
     except ValueError as e:
         logger.error(f"Error updating expense: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -187,7 +207,11 @@ def delete_expense(
     locale: str = Depends(deps.get_locale),
 ):
     business_id = _finance_business_id(current_user, db, locale)
-    success = crud_expense.delete_expense(db, expense_id, business_id)
+    try:
+        success = crud_expense.delete_expense(db, expense_id, business_id)
+    except PayrollError:
+        db.rollback()
+        raise _salary_expense_correction(locale) from None
     if not success:
         raise HTTPException(status_code=404, detail=_("expense_not_found", locale))
     logger.info(f"Deleted expense {expense_id} by user {current_user.id}")

@@ -15,6 +15,35 @@ def test_upgrade_recovers_paid_terms_from_the_issued_certificate(client, db, gif
     offer_id = world["money_offer"]["id"]
     original_name = world["money_offer"]["name"]
     db.execute(text("UPDATE gift_offers SET name='Changed offer', face_value=9, validity_days=2 WHERE id=:id"), {"id": offer_id})
+    # This migration fixture represents rows written before the 0086 payroll snapshots.
+    # Keep its old amounts, but remove only this tenant's newer payroll metadata.
+    db.execute(
+        text("UPDATE expenses SET salary_payment_id = NULL WHERE salary_payment_id = :id"),
+        {"id": world["payment"]["id"]},
+    )
+    db.execute(
+        text("UPDATE salary_payments SET currency = NULL, amount_exact = NULL WHERE id = :id"),
+        {"id": world["payment"]["id"]},
+    )
+    db.execute(
+        text("UPDATE salary_adjustments SET currency = NULL, amount_exact = NULL WHERE id = :id"),
+        {"id": world["adjustment"]["id"]},
+    )
+    db.execute(
+        text("""UPDATE salary_calculations SET salary_period_id = NULL, currency = NULL,
+            business_id_snapshot = NULL, total_revenue_exact = NULL, commission_amount_exact = NULL,
+            base_salary_exact = NULL, total_salary_exact = NULL, adjustments_total_exact = NULL,
+            total_with_adjustments_exact = NULL, paid_amount_exact = NULL WHERE id = :id"""),
+        {"id": world["salary"]["id"]},
+    )
+    db.execute(
+        text("DELETE FROM salary_periods WHERE employee_id = :id"),
+        {"id": world["employee"]["id"]},
+    )
+    db.execute(
+        text("UPDATE employees SET base_salary_currency = NULL, base_salary_exact = NULL WHERE id = :id"),
+        {"id": world["employee"]["id"]},
+    )
     db.commit()
     db.close()
     config = Config("alembic.ini")

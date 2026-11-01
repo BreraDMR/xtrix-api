@@ -21,6 +21,7 @@ class ExpenseUpdate(InputModel):
     expense_date: Optional[UtcDatetime] = None
     payment_method: Optional[str] = Field(None, pattern="^(cash|card|transfer|other)$")
 class ExpenseOut(ExpenseBase):
+    salary_payment_id: Optional[int] = None
     id: int
     currency: str  # whatever is stored, older rows predate the ISO check
     business_id: int

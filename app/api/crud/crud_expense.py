@@ -10,15 +10,21 @@ def create_expense(
     created_by_id: Optional[int] = None,
     source: Optional[str] = None,
     employee_id: Optional[int] = None,
+    salary_payment_id: Optional[int] = None,
+    commit: bool = True,
 ) -> Expense:
     expense_data = expense_in.model_dump()
     expense_data["created_by_id"] = created_by_id
     expense_data["source"] = source
     expense_data["employee_id"] = employee_id
+    expense_data["salary_payment_id"] = salary_payment_id
     expense = Expense(**expense_data)
     db.add(expense)
-    db.commit()
-    db.refresh(expense)
+    if commit:
+        db.commit()
+        db.refresh(expense)
+    else:
+        db.flush()
     return expense
 def get_expense(db: Session, expense_id: int, business_id: Optional[int] = None) -> Optional[Expense]:
     query = db.query(Expense).filter(Expense.id == expense_id)
@@ -68,6 +74,9 @@ def list_expenses(
         date_to=date_to, payment_method=payment_method, min_amount=min_amount, max_amount=max_amount,
     ).offset(skip).limit(limit).all()
 def update_expense(db: Session, expense: Expense, expense_in: ExpenseUpdate) -> Expense:
+    if expense.salary_payment_id is not None:
+        from app.api.core.payroll_money import PayrollError
+        raise PayrollError("payroll_correction_required")
     update_data = expense_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(expense, field, value)
@@ -78,6 +87,9 @@ def delete_expense(db: Session, expense_id: int, business_id: Optional[int] = No
     expense = get_expense(db, expense_id, business_id)
     if not expense:
         return False
+    if expense.salary_payment_id is not None:
+        from app.api.core.payroll_money import PayrollError
+        raise PayrollError("payroll_correction_required")
     db.delete(expense)
     db.commit()
     return True

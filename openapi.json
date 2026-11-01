@@ -4049,11 +4049,13 @@
                 "type": "number"
               },
               {
+                "type": "string"
+              },
+              {
                 "type": "null"
               }
             ],
-            "default": 0.0,
-            "description": "Commission % per visit",
+            "default": "0",
             "title": "Commission Percentage"
           },
           "employee_user_id": {
@@ -4330,10 +4332,13 @@
                 "type": "number"
               },
               {
+                "type": "string"
+              },
+              {
                 "type": "null"
               }
             ],
-            "default": 0.0,
+            "default": "0",
             "title": "Commission Percentage"
           },
           "email": {
@@ -4619,6 +4624,9 @@
                 "maximum": 100.0,
                 "minimum": 0.0,
                 "type": "number"
+              },
+              {
+                "type": "string"
               },
               {
                 "type": "null"
@@ -5146,6 +5154,17 @@
             "pattern": "^(cash|card|transfer|other)$",
             "title": "Payment Method",
             "type": "string"
+          },
+          "salary_payment_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Payment Id"
           },
           "source": {
             "anyOf": [
@@ -13790,11 +13809,29 @@
       "SalaryAdjustmentCreate": {
         "properties": {
           "amount": {
-            "description": "Can be negative (penalty)",
-            "maximum": 100000000.0,
-            "minimum": -100000000.0,
-            "title": "Amount",
-            "type": "number"
+            "anyOf": [
+              {
+                "maximum": 100000000.0,
+                "minimum": -100000000.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "description": {
             "anyOf": [
@@ -14536,11 +14573,29 @@
       "SalaryPaymentCreate": {
         "properties": {
           "amount": {
-            "description": "Payment amount",
-            "exclusiveMinimum": 0.0,
-            "maximum": 100000000.0,
-            "title": "Amount",
-            "type": "number"
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100000000.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "notes": {
             "anyOf": [
@@ -14706,10 +14761,25 @@
                 "type": "number"
               },
               {
+                "type": "string"
+              },
+              {
                 "type": "null"
               }
             ],
             "title": "Amount"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "notes": {
             "anyOf": [
@@ -28528,6 +28598,22 @@
         "operationId": "get_my_current_salary_employees_me_salary_current_get",
         "parameters": [
           {
+            "in": "query",
+            "name": "currency",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currency"
+            }
+          },
+          {
             "in": "header",
             "name": "Accept-Language",
             "required": false,
@@ -28946,6 +29032,23 @@
             "schema": {
               "title": "Employee Id",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "currency",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{3}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currency"
             }
           },
           {

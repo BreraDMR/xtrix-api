@@ -1,6 +1,6 @@
 from decimal import Decimal
 from typing import Optional
-from app.schemas.limits import MAX_MONEY, LongText, PaymentMethod, PaymentStatus, PositiveMoney
+from app.schemas.limits import MAX_MONEY, Currency, LongText, PaymentMethod, PaymentStatus, PositiveMoney
 from pydantic import ConfigDict, BaseModel, Field
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.base import InputModel
@@ -71,7 +71,8 @@ class SalaryAdjustmentBase(BaseModel):
     amount: float = Field(..., ge=-MAX_MONEY, le=MAX_MONEY, description="Can be negative (penalty)")
     description: Optional[LongText] = Field(None, description="Description")
 class SalaryAdjustmentCreate(InputModel, SalaryAdjustmentBase):
-    pass
+    amount: Decimal = Field(..., ge=-MAX_MONEY, le=MAX_MONEY, max_digits=18, decimal_places=2)
+    currency: Optional[Currency] = None
 class SalaryAdjustmentOut(SalaryAdjustmentBase):
     currency: Optional[str] = None
     amount_exact: Optional[Decimal] = None
@@ -87,9 +88,11 @@ class SalaryPaymentBase(BaseModel):
     status: PaymentStatus = Field(default="completed")
     notes: Optional[LongText] = Field(None, description="Notes")
 class SalaryPaymentCreate(InputModel, SalaryPaymentBase):
-    pass
+    amount: Decimal = Field(..., gt=0, le=MAX_MONEY, max_digits=18, decimal_places=2)
+    currency: Optional[Currency] = None
 class SalaryPaymentUpdate(InputModel):
-    amount: Optional[PositiveMoney] = None
+    amount: Optional[Decimal] = Field(None, gt=0, le=MAX_MONEY, max_digits=18, decimal_places=2)
+    currency: Optional[Currency] = None
     payment_date: Optional[UtcDatetime] = None
     payment_method: Optional[PaymentMethod] = None
     status: Optional[PaymentStatus] = None

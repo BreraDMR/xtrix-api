@@ -75,6 +75,24 @@ def test_migration_turns_old_russian_rows_into_codes(client, make_user, headers_
     # Dropping foreign keys needs a lock on users; release the fixture's read
     # transaction before Alembic runs DDL through another connection.
     db.rollback()
+    # This fixture represents rows from before 0040, without later payroll snapshots.
+    # The 0086 tests separately require downgrade to refuse any new exact-money data.
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE expenses SET salary_payment_id = NULL WHERE salary_payment_id = :id"),
+                     {"id": a["payment"]["id"]})
+        conn.execute(text("UPDATE salary_payments SET currency = NULL, amount_exact = NULL WHERE id = :id"),
+                     {"id": a["payment"]["id"]})
+        conn.execute(text("UPDATE salary_adjustments SET currency = NULL, amount_exact = NULL WHERE id = :id"),
+                     {"id": a["adjustment"]["id"]})
+        conn.execute(text("""UPDATE salary_calculations SET salary_period_id = NULL, currency = NULL,
+            business_id_snapshot = NULL, total_revenue_exact = NULL, commission_amount_exact = NULL,
+            base_salary_exact = NULL, total_salary_exact = NULL, adjustments_total_exact = NULL,
+            total_with_adjustments_exact = NULL, paid_amount_exact = NULL WHERE id = :id"""),
+                     {"id": a["salary"]["id"]})
+        conn.execute(text("DELETE FROM salary_periods WHERE employee_id = :id"),
+                     {"id": a["employee"]["id"]})
+        conn.execute(text("UPDATE employees SET base_salary_currency = NULL, base_salary_exact = NULL WHERE id = :id"),
+                     {"id": a["employee"]["id"]})
     cfg = Config("alembic.ini")
     before = ScriptDirectory.from_config(cfg).get_revision("0040_data_codes").down_revision
     command.downgrade(cfg, before)
