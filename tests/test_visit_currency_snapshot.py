@@ -141,7 +141,7 @@ def previous_columns_snapshot(bind):
         for table in metadata.sorted_tables:
             if table.name in {"alembic_version", "client_cashback_balances", "salary_periods"}:
                 continue
-            columns = [column for column in table.c if not ((table.name == "visits" and column.name in {"currency_snapshot", "manual_payment_recorded_at"}) or (table.name == "loyalty_transactions" and column.name in {"cashback_currency", "cashback_amount_exact", "cashback_balance_after_exact", "discount_currency", "discount_amount_exact"}) or (table.name == "employees" and column.name in {"base_salary_currency", "base_salary_exact"}) or (table.name == "salary_calculations" and column.name in {"currency", "salary_period_id", "business_id_snapshot", "total_revenue_exact", "commission_amount_exact", "base_salary_exact", "total_salary_exact", "adjustments_total_exact", "total_with_adjustments_exact", "paid_amount_exact"}) or (table.name in {"salary_adjustments", "salary_payments"} and column.name in {"currency", "amount_exact"}) or (table.name == "expenses" and column.name == "salary_payment_id"))]
+            columns = [column for column in table.c if not ((table.name == "visits" and column.name in {"currency_snapshot", "manual_payment_recorded_at"}) or (table.name == "loyalty_transactions" and column.name in {"cashback_currency", "cashback_amount_exact", "cashback_balance_after_exact", "discount_currency", "discount_amount_exact"}) or (table.name == "employees" and column.name in {"base_salary_currency", "base_salary_exact"}) or (table.name == "salary_calculations" and column.name in {"currency", "salary_period_id", "business_id_snapshot", "total_revenue_exact", "commission_amount_exact", "base_salary_exact", "total_salary_exact", "adjustments_total_exact", "total_with_adjustments_exact", "paid_amount_exact"}) or (table.name in {"salary_adjustments", "salary_payments"} and column.name in {"currency", "amount_exact"}) or (table.name == "expenses" and column.name == "salary_payment_id") or (table.name == "gift_ledger_entries" and column.name in {"coverage_currency", "coverage_amount_exact"}))]
             result[table.name] = sorted(json.dumps(dict(row), sort_keys=True, default=str)
                 for row in connection.execute(select(*columns)).mappings())
         return result
@@ -150,7 +150,7 @@ def previous_columns_snapshot(bind):
 def test_0081_0082_roundtrip_preserves_every_old_column_payment_and_gift_and_backfills_nothing(db, financial_world):
     world = financial_world
     bind, config = db.get_bind(), Config("alembic.ini")
-    assert ScriptDirectory.from_config(config).get_heads() == ["0086_payroll_currency_snapshot"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0087_package_coverage"]
     db.rollback()
     before = previous_columns_snapshot(bind)
     try:

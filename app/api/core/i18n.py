@@ -1162,6 +1162,11 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Списание не найдено",
         "cz": "Čerpání nebylo nalezeno",
     },
+    "gift_package_quote_review": {
+        "en": "Review the stored visit price, currency and package service coverage before redeeming a unit.",
+        "ru": "Проверьте сохранённую положительную цену, валюту визита и услуги пакета перед списанием посещения.",
+        "cz": "Před čerpáním návštěvy zkontrolujte uloženou kladnou cenu, měnu a služby balíčku.",
+    },
     "gift_visit_invalid": {
         "en": "Choose a visit of this salon with a positive price",
         "ru": "Выберите визит этого салона с положительной стоимостью",

@@ -50,7 +50,7 @@ def test_0080_0081_roundtrip_preserves_all_previous_rows_and_never_backfills_ema
     seed_prior_credentials(db, access_world)
     bind, config = db.get_bind(), Config("alembic.ini")
     before = previous_rows(bind)
-    assert ScriptDirectory.from_config(config).get_heads() == ["0086_payroll_currency_snapshot"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0087_package_coverage"]
     try:
         for _ in range(2):
             command.downgrade(config, "0080_visitor_auth_credentials")

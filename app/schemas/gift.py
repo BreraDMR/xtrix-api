@@ -5,6 +5,7 @@ number of visits sold, never both. Every balance in an output is computed from t
 ledger, so the browser cannot choose it.
 """
 from typing import Literal, Optional
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
@@ -135,6 +136,8 @@ class GiftOrderOut(BaseModel):
 
 
 class GiftLedgerEntryOut(BaseModel):
+    coverage_currency: Optional[str] = None
+    coverage_amount_exact: Optional[Decimal] = None
     id: int
     entry_type: str
     amount_delta: float
@@ -173,6 +176,8 @@ class GiftRedemptionIn(InputModel):
 
 
 class GiftRedemptionOut(BaseModel):
+    coverage_currency: Optional[str] = None
+    coverage_amount_exact: Optional[Decimal] = None
     certificate: GiftCertificateOut
     entry_id: int
     applied_amount: float
@@ -193,6 +198,8 @@ class GiftReversalIn(InputModel):
 
 
 class GiftReversalOut(BaseModel):
+    coverage_currency: Optional[str] = None
+    coverage_amount_exact: Optional[Decimal] = None
     certificate: GiftCertificateOut
     entry_id: int
     restored_amount: float

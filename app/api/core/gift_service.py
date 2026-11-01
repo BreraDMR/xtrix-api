@@ -8,6 +8,7 @@ import json
 import re
 import secrets
 from dataclasses import dataclass
+from functools import wraps
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Optional
@@ -31,6 +32,8 @@ from app.db.models.gift import (
 from app.db.models.public_booking import PublicBookingSettings
 from app.db.models.service import Service
 from app.db.models.visit import Visit
+from app.db.models.visit_item import VisitItem
+from app.api.core import cashback_wallets as exact_money
 from app.db.models.loyalty_program import LoyaltyTransaction
 from app.db.models.service_payment import ServicePaymentAttempt
 from app.schemas.limits import ISO_4217
@@ -455,6 +458,8 @@ def certificate_detail_out(db: Session, certificate: GiftCertificate) -> dict:
         {
             "id": row.id,
             "entry_type": row.entry_type,
+            "coverage_currency": row.coverage_currency,
+            "coverage_amount_exact": row.coverage_amount_exact,
             "amount_delta": float(row.amount_delta),
             "units_delta": int(row.units_delta),
             "request_key": row.request_key,
@@ -723,6 +728,49 @@ def _existing_entry(
     )
 
 
+def _gift_transaction(fn):
+    @wraps(fn)
+    def operation(db, *args, **kwargs):
+        try:
+            return fn(db, *args, **kwargs)
+        except Exception:
+            db.rollback()
+            raise
+    return operation
+
+
+def _package_coverage(db, visit, certificate):
+    # The Visit lock already serializes supported quote writers. Ignore cached item collections.
+    rows = db.execute(select(Visit.price, Visit.currency_snapshot, Visit.service_id.label('parent_service'),
+        VisitItem.id.label('item_id'), VisitItem.service_id.label('item_service')).outerjoin(
+            VisitItem, VisitItem.visit_id == Visit.id).where(
+                Visit.id == visit.id, Visit.business_id == visit.business_id,
+                Visit.client_id == visit.client_id, Visit.deleted_at.is_(None))).mappings().all()
+    if not rows:
+        raise GiftError('gift_package_quote_review')
+    first = rows[0]
+    unit = first['currency_snapshot']
+    try:
+        value = exact_money._amount(first['price'])
+        if unit not in ISO_4217 or value <= 0:
+            raise ValueError
+        value = exact_money._from_cents(exact_money._cents(value))
+    except (exact_money.CashbackError, ValueError):
+        raise GiftError('gift_package_quote_review') from None
+    scope = set(_service_ids(certificate.service_ids))
+    if scope:
+        used = {first['parent_service']} if first['parent_service'] else set()
+        for row in rows:
+            if row['item_id'] is not None:
+                if row['item_service'] is None:
+                    raise GiftError('gift_package_quote_review')
+                used.add(row['item_service'])
+        if not used or not used.issubset(scope):
+            raise GiftError('gift_scope_mismatch')
+    return unit, value
+
+
+@_gift_transaction
 def redeem(
     db: Session,
     business_id: int,
@@ -826,6 +874,7 @@ def redeem(
     available_money, available_units = _totals(db, certificate.id)
     spend_money = Decimal("0.00")
     spend_units = 0
+    coverage_currency = coverage_amount = None
     if certificate.kind == "money":
         if visit.price is None or money(visit.price) <= 0:
             raise GiftError("gift_visit_invalid")
@@ -837,6 +886,7 @@ def redeem(
     else:
         if available_units <= 0 or paid_units > 0 or paid_money > 0:
             raise GiftError("gift_insufficient_balance")
+        coverage_currency, coverage_amount = _package_coverage(db, visit, certificate)
         spend_units = 1
 
     entry = GiftLedgerEntry(
@@ -845,6 +895,8 @@ def redeem(
         entry_type="redeemed",
         amount_delta=-spend_money,
         units_delta=-spend_units,
+        coverage_currency=coverage_currency,
+        coverage_amount_exact=coverage_amount,
         request_key=request_key,
         visit_id=visit.id,
         actor_user_id=actor_user_id,
@@ -874,6 +926,7 @@ def redeem(
     return certificate, entry, spend_money, spend_units
 
 
+@_gift_transaction
 def reverse(
     db: Session,
     business_id: int,
@@ -929,12 +982,23 @@ def reverse(
             return certificate, duplicate
         raise GiftError("gift_request_conflict")
 
+    if original.coverage_currency is not None or original.coverage_amount_exact is not None:
+        try:
+            saved_coverage = exact_money._amount(original.coverage_amount_exact)
+            if (certificate.kind != 'package' or original.coverage_currency not in ISO_4217
+                    or saved_coverage <= 0 or original.amount_delta != 0 or original.units_delta != -1):
+                raise ValueError
+        except (exact_money.CashbackError, ValueError):
+            raise GiftError('gift_package_quote_review') from None
+
     entry = GiftLedgerEntry(
         certificate_id=certificate.id,
         business_id=business_id,
         entry_type="reversed",
         amount_delta=-money(original.amount_delta),
         units_delta=-int(original.units_delta),
+        coverage_currency=original.coverage_currency,
+        coverage_amount_exact=original.coverage_amount_exact,
         request_key=request_key,
         visit_id=original.visit_id,
         redeems_entry_id=original.id,

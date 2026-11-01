@@ -8,6 +8,7 @@ from sqlalchemy import (
     JSON,
     Boolean,
     Column,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Integer,
@@ -171,6 +172,7 @@ class GiftCertificate(Base):
 class GiftLedgerEntry(Base):
     __tablename__ = "gift_ledger_entries"
     __table_args__ = (
+        CheckConstraint('(coverage_currency IS NULL AND coverage_amount_exact IS NULL) OR (coverage_currency IS NOT NULL AND coverage_amount_exact IS NOT NULL AND coverage_currency COLLATE "C" ~ \'^[A-Z]{3}$\' AND coverage_amount_exact BETWEEN 0 AND 9999999999999999.99 AND amount_delta = 0 AND visit_id IS NOT NULL AND ((entry_type = \'redeemed\' AND units_delta = -1 AND redeems_entry_id IS NULL) OR (entry_type = \'reversed\' AND units_delta = 1 AND redeems_entry_id IS NOT NULL)))', name="ck_gift_package_coverage"),
         UniqueConstraint("certificate_id", "request_key", name="uq_gift_ledger_request"),
         UniqueConstraint("certificate_id", "redeems_entry_id", name="uq_gift_ledger_reversal"),
     )
@@ -210,6 +212,9 @@ class GiftLedgerEntry(Base):
     )
     reason = Column(String(255), nullable=True)
     created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
+
+    coverage_currency = Column(String(3), nullable=True)
+    coverage_amount_exact = Column(Numeric(18, 2), nullable=True)
 
     certificate = relationship(
         "GiftCertificate", back_populates="entries", lazy="select"

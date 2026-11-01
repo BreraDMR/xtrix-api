@@ -68,12 +68,20 @@ def test_same_stored_currency_works_after_salon_currency_change_and_replays(clie
 
 
 @pytest.mark.parametrize('unit',['EUR',None])
-def test_package_units_do_not_require_money_currency(client,db,gift_world,unit):
+def test_package_new_coverage_requires_known_visit_currency(client,db,gift_world,unit):
     w=gift_world;_,paid=gifts._pay(client,w,offer_id=w['package_offer']['id'],request_key='package-unit-purchase')
     code=gifts._certificate(db,paid).code;visit_id=w['visit']['id']
     db.get(Visit,visit_id).currency_snapshot=unit;db.commit()
-    _,entry,amount,units=gift_service.redeem(db,w['business']['id'],code,visit_id,None,None,'package-unit-redeem',w['owner'].id)
-    assert units==1 and amount==0 and entry.units_delta==-1
+    if unit is None:
+        before=db.query(GiftLedgerEntry).count()
+        with pytest.raises(gift_service.GiftError) as exc:
+            gift_service.redeem(db,w['business']['id'],code,visit_id,None,None,'package-unit-redeem',w['owner'].id)
+        assert exc.value.reason=='gift_package_quote_review'
+        assert db.query(GiftLedgerEntry).count()==before
+    else:
+        _,entry,amount,units=gift_service.redeem(db,w['business']['id'],code,visit_id,None,None,'package-unit-redeem',w['owner'].id)
+        assert units==1 and amount==0 and entry.units_delta==-1
+        assert entry.coverage_currency==unit
 
 
 @pytest.mark.parametrize('locale',['en','ru','cz'])

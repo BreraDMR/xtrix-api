@@ -6160,6 +6160,28 @@
             "title": "Amount Delta",
             "type": "number"
           },
+          "coverage_amount_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Amount Exact"
+          },
+          "coverage_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Currency"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -6651,6 +6673,28 @@
           "certificate": {
             "$ref": "#/components/schemas/GiftCertificateOut"
           },
+          "coverage_amount_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Amount Exact"
+          },
+          "coverage_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Currency"
+          },
           "entry_id": {
             "title": "Entry Id",
             "type": "integer"
@@ -6704,6 +6748,28 @@
         "properties": {
           "certificate": {
             "$ref": "#/components/schemas/GiftCertificateOut"
+          },
+          "coverage_amount_exact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Amount Exact"
+          },
+          "coverage_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Currency"
           },
           "entry_id": {
             "title": "Entry Id",

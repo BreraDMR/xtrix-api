@@ -368,6 +368,8 @@ def redeem_gift_certificate(
     return {
         "certificate": gifts.certificate_out(db, certificate, reveal_code=True),
         "entry_id": entry.id,
+        "coverage_currency": entry.coverage_currency,
+        "coverage_amount_exact": entry.coverage_amount_exact,
         "applied_amount": float(amount),
         "applied_visits": visits,
     }
@@ -401,6 +403,8 @@ def reverse_gift_redemption(
     return {
         "certificate": gifts.certificate_out(db, certificate, reveal_code=True),
         "entry_id": entry.id,
+        "coverage_currency": entry.coverage_currency,
+        "coverage_amount_exact": entry.coverage_amount_exact,
         "restored_amount": float(entry.amount_delta),
         "restored_visits": int(entry.units_delta),
     }

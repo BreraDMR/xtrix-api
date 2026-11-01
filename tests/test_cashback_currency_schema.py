@@ -47,7 +47,7 @@ def test_0083_0084_roundtrip_keeps_legacy_amounts_and_does_not_guess_units(db,wo
     db.add(LoyaltyTransaction(client_id=world['client'],business_id=world['business'],visit_id=world['visit'],
         transaction_type='earned',points_amount=7,cashback_amount=old_amount,points_balance_after=7,cashback_balance_after=old_amount))
     db.commit();bind=db.get_bind();config=Config('alembic.ini');db.rollback()
-    assert ScriptDirectory.from_config(config).get_heads()==['0086_payroll_currency_snapshot']
+    assert ScriptDirectory.from_config(config).get_heads()==['0087_package_coverage']
     before=old_rows(bind)
     try:
         for _ in range(2):
@@ -86,7 +86,7 @@ def test_known_wallet_data_blocks_destructive_schema_downgrade(db,world):
     config=Config('alembic.ini')
     with pytest.raises(DBAPIError):command.downgrade(config,'0083_manual_payment_marker')
     with db.get_bind().connect() as conn:
-        assert conn.execute(text('SELECT version_num FROM alembic_version')).scalar_one()=='0086_payroll_currency_snapshot'
+        assert conn.execute(text('SELECT version_num FROM alembic_version')).scalar_one()=='0087_package_coverage'
         assert conn.execute(text('SELECT currency,balance FROM client_cashback_balances')).one()==('CZK',Decimal('12.34'))
 
 
