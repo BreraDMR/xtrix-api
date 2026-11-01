@@ -1,41 +1,23 @@
-from sqlalchemy.orm import Session
+"""The scheduled entrypoint only runs the persistent archive queue."""
 from app.db.session import SessionLocal
-from app.api.core.logger import logger
 from app.api.core.finance_archive import archive_all_businesses_last_month, should_run_monthly_archive
-from app.api.core.clock import utcnow
+from app.api.core.logger import logger
+
+
 def run_monthly_finance_archive():
-    db: Session = SessionLocal()
+    db = SessionLocal()
     try:
         if not should_run_monthly_archive(db):
-            logger.info("Monthly archive not needed (not first day of month or already archived)")
             return 0
-        logger.info("Starting monthly finance archive...")
         archives = archive_all_businesses_last_month(db)
-        from app.db.models.audit_log import AuditLog
-        audit_log = AuditLog(
-            entity_type='finance_archive_job',
-            entity_id=0,
-            action='monthly_finance_archive',
-            changes={'archived_businesses': len(archives)},
-            created_at=utcnow(),
-        )
-        db.add(audit_log)
-        db.commit()
-        logger.info(f"Monthly finance archive completed: {len(archives)} businesses archived")
+        logger.info('Monthly finance archive: saved %s documents', len(archives))
         return len(archives)
-    except Exception as e:
-        logger.error(f"Error running monthly finance archive: {e}", exc_info=True)
+    except Exception:
+        db.rollback()
         raise
     finally:
         db.close()
+
+
 def check_and_run_monthly_archive():
-    db: Session = SessionLocal()
-    try:
-        if should_run_monthly_archive(db):
-            return run_monthly_finance_archive()
-        return 0
-    except Exception as e:
-        logger.error(f"Error checking monthly archive: {e}", exc_info=True)
-        raise
-    finally:
-        db.close()
+    return run_monthly_finance_archive()

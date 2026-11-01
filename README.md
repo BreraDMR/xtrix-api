@@ -51,9 +51,15 @@ finance archive don't run by themselves. Either start the worker (`docker compos
     */15 * * * *  python scripts/run_jobs.py reminders followups
     0 8 * * *     python scripts/run_jobs.py birthdays subscriptions low_stock finance_archive
 
-Running a job twice is harmless: sent messages are recorded in `notification_log`.
+Message jobs record sent messages in `notification_log`.
 Messages to clients use the client's own `language`, e-mails to staff use their UI language
 from preferences.
+
+Monthly financial archives save one immutable document per business and month, with exact currency
+slices and visit counts from one SQL snapshot. They describe quoted service values minus explicit
+expenses, not cash receipts. Unfinished business/month jobs remain in Postgres and retry on later
+runs, including after a month rollover. Repeating a run reuses saved documents; it does not reprice
+history or backfill older months. Archive migrations refuse rollback while documents or jobs exist.
 
 ## Stripe checkout
 

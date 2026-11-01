@@ -69,7 +69,8 @@ def _summary(groups):
             'requires_review': bool(slices) and (single is None), 'by_currency': slices}
 
 
-def get_profit_projection(db, business_id, date_from=None, date_to=None, include_quotes=True):
+def get_profit_projection(db, business_id, date_from=None, date_to=None, include_quotes=True,
+                          include_visit_counts=False):
     """All dimensions share one statement snapshot, including under READ COMMITTED."""
     empty_id = cast(null(), Integer())
     empty_text = cast(null(), String())
@@ -120,7 +121,18 @@ def get_profit_projection(db, business_id, date_from=None, date_to=None, include
             query = query.where(base.c.source == 'expense')
         return query.group_by(*grouping)
 
-    statement = union_all(aggregate('total', []), aggregate('day', ['day']), aggregate('category', ['category']))
+    dimensions = [aggregate('total', []), aggregate('day', ['day']), aggregate('category', ['category'])]
+    if include_visit_counts:
+        visit_filters = [Visit.business_id == business_id, Visit.deleted_at.is_(None)]
+        if date_from is not None:
+            visit_filters.append(Visit.date_start >= date_from)
+        if date_to is not None:
+            visit_filters.append(Visit.date_start <= date_to)
+        dimensions.append(select(literal('visit_counts'), literal('visits'), empty_text,
+            cast(null(), Date()), empty_id, empty_text, empty_text, empty_text,
+            func.count(), func.count().filter(Visit.status == 'completed'), cast(null(), Numeric()))
+            .select_from(Visit).where(*visit_filters))
+    statement = union_all(*dimensions)
     with db.no_autoflush:
         rows = db.execute(statement).mappings().all()
     result = _summary([row for row in rows if row['kind'] == 'total'])
@@ -141,4 +153,8 @@ def get_profit_projection(db, business_id, date_from=None, date_to=None, include
                 {'currency': row['currency'], 'total': row['expenses'], 'count': row['expense_count'],
                  'requires_review': row['requires_review']} for row in summary['by_currency']]})
     result['value_basis'] = 'quoted_service_price'
+    if include_visit_counts:
+        counts = next(row for row in rows if row['kind'] == 'visit_counts')
+        result['total_visits'] = int(counts['count'])
+        result['completed_visits'] = int(counts['valid_count'])
     return result

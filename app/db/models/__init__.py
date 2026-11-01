@@ -5,6 +5,7 @@ from app.db.models.client_business_relation import ClientBusinessRelation
 from app.db.models.client_note import ClientNote
 from app.db.models.medical_profile import MedicalProfile
 from app.db.models.business import Business
+from app.db.models.financial_archive import FinancialArchive, FinancialArchiveJob
 from app.db.models.public_booking import PublicBookingRequest, PublicBookingSettings
 from app.db.models.booking_manage_token import BookingManageToken
 from app.db.models.visit_event import VisitEvent
