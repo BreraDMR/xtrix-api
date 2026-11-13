@@ -9,6 +9,8 @@ that are obviously off, and turns them into a plain question instead:
   the person said 10:00, so we keep the wall clock and take the salon's offset for that day.
   A plain UTC time (or any offset the salon never uses) is a real instant and stays as it is.
 - a booking or reschedule that's already in the past, beyond a short grace - dropped with a question.
+- a find_client that finds nobody, or several people - the executor would fail on it after the person
+  confirmed, so it becomes "nobody called X" or "which one: A, B?" right away.
 - a plan with nothing to do whose summary is a question: the summary goes into questions too.
 
 Reads only, through the same permission helpers as the API.
@@ -62,12 +64,53 @@ _TEXT = {
             "cz": "Tento čas už uplynul. Na jaký den a čas to mám zapsat?",
         },
     },
+    "no_client": {
+        "note": {
+            "en": "That client isn't in your list, so the step is not in the plan.",
+            "ru": "Такого клиента в вашей базе нет, поэтому этого шага нет в плане.",
+            "cz": "Takový klient ve vašem seznamu není, proto tento krok v plánu není.",
+        },
+        "question": {
+            "en": "No client called \u201c{who}\u201d was found. Could you check the name or give a phone "
+                  "number - or should a new client be added?",
+            "ru": "Клиента \u00ab{who}\u00bb не нашлось. Уточните имя или телефон - или добавить нового клиента?",
+            "cz": "Klient \u201e{who}\u201c se nenašel. Upřesněte jméno nebo telefon - nebo mám přidat nového klienta?",
+        },
+    },
+    "many_clients": {
+        "note": {
+            "en": "Several clients fit the name, so the step is not in the plan yet.",
+            "ru": "Под это имя подходят несколько клиентов, поэтому шага пока нет в плане.",
+            "cz": "Jménu odpovídá víc klientů, proto krok zatím v plánu není.",
+        },
+        "question": {
+            "en": "Several clients match \u201c{who}\u201d: {names}. Which one did you mean?",
+            "ru": "Под \u00ab{who}\u00bb подходят несколько клиентов: {names}. Кого именно вы имели в виду?",
+            "cz": "Na \u201e{who}\u201c sedí víc klientů: {names}. Kterého jste měli na mysli?",
+        },
+    },
 }
+MAX_NAMES = 5
 
 
-def _say(kind: str, part: str, locale: str) -> str:
+def _say(kind: str, part: str, locale: str, **values) -> str:
     texts = _TEXT[kind][part]
-    return texts.get(locale, texts["en"])
+    return texts.get(locale, texts["en"]).format(**values)
+
+
+def _lookup(db: Session, user: User, action) -> tuple[Optional[str], dict]:
+    """A find_client the executor would not resolve to exactly one client: why, and what to say."""
+    from app.ai.client_search import find_clients
+
+    who = (action.name or action.phone or action.email or "").strip()
+    rows = find_clients(db, user, name=action.name, phone=action.phone, email=action.email)
+    who = who.replace("\u00ab", "").replace("\u00bb", "").replace('"', "")[:60]
+    if not rows:
+        return "no_client", {"who": who}
+    if len(rows) > 1:
+        names = ", ".join(name for _, name in rows[:MAX_NAMES]) + ("..." if len(rows) > MAX_NAMES else "")
+        return "many_clients", {"who": who, "names": names}
+    return None, {}
 
 
 def _salon_offsets(zone: ZoneInfo, year: int) -> set:
@@ -129,6 +172,7 @@ def review_plan(db: Session, user: User, plan: AssistantPlan, *, locale: str, tz
     now_utc = (now or datetime.now(timezone.utc).replace(tzinfo=None)).replace(tzinfo=timezone.utc)
     scope = _Scope(db, user)
     kept, dropped_refs, why = [], set(), []
+    asked = []  # (kind, values) for find_client questions, they name who was looked for
 
     for action in plan.actions:
         problem = None
@@ -145,6 +189,10 @@ def review_plan(db: Session, user: User, plan: AssistantPlan, *, locale: str, tz
         if problem is None and action.action in BOOKINGS and start is not None \
                 and start < now_utc - PAST_GRACE:
             problem = "past"
+        if problem is None and action.action == "find_client":
+            problem, values = _lookup(db, user, action)
+            if problem:
+                asked.append((problem, values))
         if problem:
             if getattr(action, "ref", None):
                 dropped_refs.add(action.ref)
@@ -162,9 +210,13 @@ def review_plan(db: Session, user: User, plan: AssistantPlan, *, locale: str, tz
         return AssistantPlan.model_validate_json(plan.model_copy(update=update).model_dump_json())
 
     questions = list(plan.questions)
+    for kind, values in asked:
+        # the concrete "who did you mean" goes first, the model's own questions may be about other things
+        questions.insert(0, _say(kind, "question", locale, **values)[:QUESTION_MAX])
     for kind in why:
-        if len(questions) < MAX_QUESTIONS:
+        if kind not in ("no_client", "many_clients") and len(questions) < MAX_QUESTIONS:
             questions.append(_say(kind, "question", locale))
+    questions = questions[:MAX_QUESTIONS]
     notes = " ".join(_say(kind, "note", locale) for kind in why)
     writes_left = any(a.action not in ("find_client", "find_free_slot") for a in kept)
     # the model's summary describes the steps we just took out, so it only stays next to steps that remain

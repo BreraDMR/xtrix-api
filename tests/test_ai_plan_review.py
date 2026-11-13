@@ -116,3 +116,37 @@ def test_the_prompt_does_not_book_through_a_free_slot_when_only_the_time_is_miss
     from app.ai.prompt import system_prompt
     text = system_prompt()
     assert "only the time is missing" in text and "matching clients or services)" in text
+
+
+# --- find_client that can't work as asked (dialog evals 13.11) ---
+
+def test_find_client_nobody_matches_becomes_a_question(db, ab):
+    _, b = ab
+    plan = plan_for(db, b, {"action": "find_client", "ref": "c", "name": "Zinaida Pupkina"},
+                    {"action": "create_visit", "client_ref": "c", "start": "2026-10-20T10:00:00+02:00"},
+                    summary="I'll book Zinaida Pupkina", locale="ru")
+    assert plan.actions == []
+    assert plan.questions and "Zinaida Pupkina" in plan.questions[0]
+    assert "I'll book" not in plan.summary
+
+
+def test_find_client_with_several_matches_asks_which_one(db, ab, client):
+    _, b = ab
+    r = client.post("/clients/", json={"full_name": "Beta Klientka Druhá"}, headers=b["headers"])
+    assert r.status_code == 200, r.text
+    second = r.json()
+    plan = plan_for(db, b, {"action": "find_client", "ref": "c", "name": "Klientka"},
+                    {"action": "create_visit", "client_ref": "c", "start": "2026-10-20T10:00:00+02:00"},
+                    summary="Booking", locale="en")
+    assert plan.actions == []
+    question = plan.questions[0]
+    assert b["client"]["full_name"] in question and second["full_name"] in question
+    assert "Which one" in question
+
+
+def test_find_client_that_resolves_stays(db, ab):
+    _, b = ab
+    plan = plan_for(db, b, {"action": "find_client", "ref": "c", "name": b["client"]["full_name"]},
+                    {"action": "create_visit", "client_ref": "c", "start": "2026-10-20T10:00:00+02:00"},
+                    summary="Booking")
+    assert [x.action for x in plan.actions] == ["find_client", "create_visit"]
