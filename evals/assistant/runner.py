@@ -192,7 +192,9 @@ def run(cases: list[Case], *, config: AIConfig, slots: list[SlotConfig], mode: O
                     started = time.monotonic()
                     try:
                         draft = make_plan(db, owner, text, locale=case.locale, tz=case.tz, now=case.now_utc,
-                                          role=role, router=router, store=PlanStore(), config=router.config)
+                                          role=role, router=router, store=PlanStore(), config=router.config,
+                                          # fake-bad checks the scorer, so it must see the broken plan as is
+                                          review=mode != "fake-bad")
                     except AIBusy as busy:
                         if attempt == 1 and busy.retry_after <= max_wait:
                             log(f"    {case.id}: slot busy, waiting {busy.retry_after}s")

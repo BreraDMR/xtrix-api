@@ -177,7 +177,9 @@ def test_model_talked_into_another_business_is_still_refused(db, ab):
                                {"action": "update_client", "client_id": a["client"]["id"], "full_name": "x"}]})
     kit = setup(model)
     owner = fresh(db, b["owner"])
-    draft = assistant.make_plan(db, owner, INJECTION, locale="en", **kit)
+    # review=False: make_plan would drop these steps before showing them (test_ai_plan_review),
+    # here we check the executor refuses them even if they got through
+    draft = assistant.make_plan(db, owner, INJECTION, locale="en", review=False, **kit)
     result = assistant.execute_saved_plan(db, owner, draft.plan_id, locale="en", store=kit["store"])
     assert [r.status for r in result.results] == ["failed", "skipped"]
     assert visit_status(db, a["visit"]["id"]) == "planned"

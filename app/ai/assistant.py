@@ -26,6 +26,7 @@ from app.ai.errors import AIError, AINotConfigured
 from app.ai.executor import ExecutionResult, execute_plan
 from app.ai.persona import AssistantPersona, effective_assistant
 from app.ai.plan import AssistantPlan
+from app.ai.plan_review import review_plan
 from app.ai.prompt import build_messages
 from app.ai.router import LLMRouter, Role, get_router
 from app.ai.shared import shared_redis
@@ -193,8 +194,10 @@ def user_timezone(db: Session, user: User, config: AIConfig) -> str:
 def make_plan(db: Session, user: User, text: str, *, locale: str, tz: Optional[str] = None,
               role: Role = "fast", router: Optional[LLMRouter] = None, store: Optional[Store] = None,
               config: Optional[AIConfig] = None, now: Optional[datetime] = None,
-              history: Optional[list] = None, expected_scope: Optional[str] = None) -> PlanDraft:
-    # now: naive UTC, only the evals pin it so relative dates in their phrases stay put
+              history: Optional[list] = None, expected_scope: Optional[str] = None,
+              review: bool = True) -> PlanDraft:
+    # now: naive UTC, only the evals pin it so relative dates in their phrases stay put.
+    # review=False shows the raw model plan - only the evals' --fake-bad check uses it
     text = (text or "").strip()
     if not text:
         raise ValueError("empty request")
@@ -232,12 +235,13 @@ def make_plan(db: Session, user: User, text: str, *, locale: str, tz: Optional[s
     settle(db, usage, provider=result.provider, slot_index=result.slot_index, model=result.model,
            prompt_tokens=result.prompt_tokens, completion_tokens=result.completion_tokens,
            cost_estimate=result.cost_estimate, succeeded=True)
-    plan_id, expires_at = store.save(user_id=user.id, plan=result.value, scope_fingerprint=scope)
+    plan = review_plan(db, user, result.value, locale=locale, tz=tz, now=now) if review else result.value
+    plan_id, expires_at = store.save(user_id=user.id, plan=plan, scope_fingerprint=scope)
     business_id = get_user_business_id(user, db)
     business = crud_business.get_business(db, business_id) if business_id else None
     logger.info("ai plan: user=%s business=%s actions=%s questions=%s chars=%s",
-                user.id, business_id, len(result.value.actions), len(result.value.questions), len(text))
-    return PlanDraft(plan_id, result.value, effective_assistant(business, locale), expires_at)
+                user.id, business_id, len(plan.actions), len(plan.questions), len(text))
+    return PlanDraft(plan_id, plan, effective_assistant(business, locale), expires_at)
 
 
 def execute_saved_plan(db: Session, user: User, plan_id: str, *, locale: str, tz: Optional[str] = None,

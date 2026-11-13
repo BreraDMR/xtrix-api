@@ -1,0 +1,100 @@
+"""What make_plan fixes in the model's plan before anybody sees it (duty plan item 8).
+
+The executor still refuses foreign ids on its own (test_ai_assistant), this is about the person not
+being shown a step that can never work, a time an hour off after the clock change, or a booking in
+the past - they get a concrete question instead.
+"""
+from datetime import datetime
+
+import pytest
+
+from app.ai import assistant
+from tests import test_ai_assistant as base
+from tests.test_ai_assistant import Model, fresh, setup
+
+ab = base.ab
+
+# Monday 19.10.2026 09:15 in Prague (still summer time, +02:00), as naive UTC
+NOW = datetime(2026, 10, 19, 7, 15)
+WRITES = ("create_client", "update_client", "create_visit", "reschedule_visit", "cancel_visit", "add_note")
+
+
+def plan_for(db, who, *actions, summary="ok", questions=(), locale="en", now=NOW):
+    kit = setup(Model({"summary": summary, "questions": list(questions), "actions": list(actions)}))
+    return assistant.make_plan(db, fresh(db, who["owner"]), "request", locale=locale,
+                               tz="Europe/Prague", now=now, **kit).plan
+
+
+def test_foreign_ids_are_dropped_before_the_plan_is_shown(db, ab):
+    a, b = ab
+    plan = plan_for(db, b, {"action": "cancel_visit", "visit_id": a["visit"]["id"]},
+                    {"action": "update_client", "client_id": a["client"]["id"], "full_name": "x"},
+                    {"action": "add_note", "visit_id": 2_000_000_000, "text": "hi"},
+                    summary="I'll cancel the visit and rename the client")
+    assert plan.actions == []
+    assert len(plan.questions) == 1 and "Which client or visit" in plan.questions[0]
+    assert "outside your salon" in plan.summary and "cancel" not in plan.summary
+
+
+def test_own_steps_stay_and_steps_built_on_a_dropped_one_go_too(db, ab):
+    a, b = ab
+    plan = plan_for(db, b,
+                    {"action": "find_free_slot", "ref": "s", "specialist_id": a["owner"].id},
+                    {"action": "create_visit", "client_id": b["client"]["id"], "slot_ref": "s"},
+                    {"action": "add_note", "visit_id": b["visit"]["id"], "text": "bring towels"},
+                    summary="Note and booking", locale="ru")
+    assert [x.action for x in plan.actions] == ["add_note"]
+    assert plan.actions[0].visit_id == b["visit"]["id"]
+    assert plan.questions and "Уточните" in plan.questions[0]
+    assert plan.summary.endswith("Note and booking")
+
+
+def test_foreign_service_or_specialist_in_a_booking_is_dropped(db, ab):
+    a, b = ab
+    plan = plan_for(db, b, {"action": "create_visit", "client_id": b["client"]["id"],
+                            "service_id": a["service"]["id"], "start": "2026-10-20T10:00:00+02:00"})
+    assert plan.actions == []
+
+
+@pytest.mark.parametrize("given, fixed", [
+    ("2026-10-27T10:00:00+02:00", "2026-10-27T10:00:00+01:00"),   # summer offset on a winter date
+    ("2026-10-20T10:00:00+01:00", "2026-10-20T10:00:00+02:00"),   # and the other way round
+    ("2026-10-27T10:00:00+01:00", "2026-10-27T10:00:00+01:00"),   # already right
+    ("2026-10-27T09:00:00+00:00", "2026-10-27T09:00:00+00:00"),   # plain UTC is an instant, kept
+])
+def test_the_salon_wall_clock_wins_over_a_wrong_dst_offset(db, ab, given, fixed):
+    _, b = ab
+    plan = plan_for(db, b, {"action": "create_visit", "client_id": b["client"]["id"], "start": given},
+                    {"action": "reschedule_visit", "visit_id": b["visit"]["id"], "start": given},
+                    {"action": "find_free_slot", "specialist_id": b["owner"].id, "not_before": given})
+    want = datetime.fromisoformat(fixed)
+    assert [x.action for x in plan.actions] == ["create_visit", "reschedule_visit", "find_free_slot"]
+    for got in (plan.actions[0].start, plan.actions[1].start, plan.actions[2].not_before):
+        assert got == want and got.utcoffset() == want.utcoffset()
+    assert plan.questions == []
+
+
+@pytest.mark.parametrize("locale, word", [("en", "already passed"), ("ru", "уже прошло"), ("cz", "už uplynul")])
+def test_a_booking_in_the_past_becomes_a_question(db, ab, locale, word):
+    _, b = ab
+    plan = plan_for(db, b, {"action": "create_visit", "client_id": b["client"]["id"],
+                            "start": "2026-10-19T08:00:00+02:00"},
+                    {"action": "reschedule_visit", "visit_id": b["visit"]["id"],
+                     "start": "2026-10-18T15:00:00+02:00"}, locale=locale)
+    assert plan.actions == []
+    assert len(plan.questions) == 1 and word in plan.questions[0]
+
+
+def test_a_booking_that_just_started_is_still_fine(db, ab):
+    _, b = ab
+    # 09:00 when it's 09:15 - the client is sitting in the chair, that's not a mistake
+    plan = plan_for(db, b, {"action": "create_visit", "client_id": b["client"]["id"],
+                            "start": "2026-10-19T09:00:00+02:00"})
+    assert [x.action for x in plan.actions] == ["create_visit"] and plan.questions == []
+
+
+def test_questions_stay_within_the_limit(db, ab):
+    a, b = ab
+    asked = [f"q{i}" for i in range(5)]
+    plan = plan_for(db, b, {"action": "cancel_visit", "visit_id": a["visit"]["id"]}, questions=asked)
+    assert plan.questions == asked and plan.actions == []
