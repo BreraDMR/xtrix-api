@@ -558,6 +558,13 @@ Payroll errors are `400` with `error.detail.reason`:
     (before it was only rows tied to the owner personally). A `specialist_id` or `client_id` from
     another salon gets `403`, same as the list; bad filter values get `422`.
 
+- Assistant (`POST /assistant/plan`): more answers now come back as **questions with no actions**
+  instead of a plan that only failed after "confirm" - the master is already booked at that time
+  (the question lists the next free times), the client isn't found or several match ("which one: A,
+  B?"), or a new card would duplicate a client the salon already has ("you already have X - is it
+  her?"). Nothing new for the UI: show `questions` and let the person answer in the same chat.
+  Record numbers are no longer shown in `summary`/`questions`.
+
 ## 10. Stop sending
 
 - `null` in `commission_percentage` / `base_salary` on employee forms is accepted (create = 0,
