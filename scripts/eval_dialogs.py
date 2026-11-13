@@ -28,7 +28,10 @@ os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--slot", type=int, action="append", metavar="N", required=True, help="model slot (repeatable)")
+    p.add_argument("--slot", type=int, action="append", metavar="N", default=[], help="model slot (repeatable)")
+    p.add_argument("--cli", metavar="CMD", help='a local CLI as the model instead of slots, e.g. '
+                   '"claude --print --tools \'\' --setting-sources \'\' --strict-mcp-config --no-session-persistence"')
+    p.add_argument("--cli-model", default="", help="model name passed to the CLI with --model")
     p.add_argument("--dialog", help="only this dialog id")
     p.add_argument("--locale", choices=("ru", "cz", "en"))
     p.add_argument("--tag", help="only dialogs with this tag")
@@ -67,6 +70,11 @@ def main(argv=None) -> int:
                and (not args.tag or args.tag in d.tags)]
     if not dialogs:
         print("no dialog matches the filters")
+        return 2
+    if args.cli:
+        return run_cli(args, config, dialogs)
+    if not args.slot:
+        print("give --slot N or --cli CMD")
         return 2
     known = {s.index: s for s in config.slots}
     missing = [n for n in args.slot if n not in known]
@@ -114,6 +122,45 @@ def main(argv=None) -> int:
         print(f"<-- slot {n}: {passed}/{total} passed ({pct} %), {errors} errors this run")
         failed |= passed != total
     return 1 if failed else 0
+
+
+def run_cli(args, config, dialogs) -> int:
+    """Same dialogs with a logged-in coding CLI as the model - a strong model, so whatever still
+    fails is more likely our code than the model. Local only: it runs on someone's own subscription."""
+    from app.ai.cooldown import CooldownBoard
+    from app.ai.router import build_router
+    from app.db.session import SessionLocal
+    from evals.assistant.dialogs import DialogRunner
+    from evals.assistant.runner import _eval_config
+
+    router = build_router(replace(_eval_config(config), provider="cli", cli_command=args.cli,
+                                  cli_model=args.cli_model), board=CooldownBoard())
+    out = args.report_dir / ("cli" + (f"-{re.sub(r'[^A-Za-z0-9.]+', '-', args.cli_model)}" if args.cli_model else ""))
+    out.mkdir(parents=True, exist_ok=True)
+    runner = DialogRunner(router, session_factory=SessionLocal, pace=args.pace, max_wait=args.max_wait,
+                          give_up=args.give_up)
+    passed = total = 0
+    print(f"--> cli ({args.cli_model or 'default model'}): {len(dialogs)} dialogs")
+    try:
+        for dialog in dialogs:
+            path = out / f"{dialog.id}.json"
+            if path.exists() and not args.rerun and json.loads(path.read_text()).get("status") in ("pass", "fail"):
+                old = json.loads(path.read_text())
+                total += 1
+                passed += old["status"] == "pass"
+                continue
+            result = runner.run(dialog)
+            data = {**asdict(result), "slot": "cli", "model": args.cli_model or "cli"}
+            path.write_text(json.dumps(data, ensure_ascii=False, indent=1, default=str))
+            total += 1
+            passed += result.status == "pass"
+            mark = {"pass": "ok  ", "fail": "FAIL", "error": "ERR "}[result.status]
+            print(f"    {mark} {dialog.id}" + (f": {'; '.join(result.reasons)[:300]}" if result.reasons else ""),
+                  flush=True)
+    finally:
+        runner.close()
+    print(f"<-- cli: {passed}/{total} passed")
+    return 0 if passed == total else 1
 
 
 if __name__ == "__main__":
