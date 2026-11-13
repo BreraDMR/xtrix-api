@@ -88,6 +88,36 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Корректировка цены доступна только для визитов салона.",
         "cz": "Opravu ceny lze provést jen u návštěv podniku.",
     },
+    "visit_settlement_amount_invalid": {
+        "en": "Enter an amount above zero with at most two decimal places.",
+        "ru": "Укажите сумму больше нуля, максимум с двумя знаками после запятой.",
+        "cz": "Zadejte částku vyšší než nula, nejvýše se dvěma desetinnými místy.",
+    },
+    "visit_settlement_reason_invalid": {
+        "en": "Explain the entry in a few words.",
+        "ru": "Коротко поясните, что это за запись.",
+        "cz": "Krátce vysvětlete, o jaký záznam jde.",
+    },
+    "visit_settlement_entry_key_conflict": {
+        "en": "This entry was already saved with different details. Reload the visit and try again.",
+        "ru": "Эта запись уже сохранена с другими данными. Обновите визит и попробуйте снова.",
+        "cz": "Tento záznam už byl uložen s jinými údaji. Načtěte návštěvu znovu a zkuste to znovu.",
+    },
+    "visit_settlement_currency_mismatch": {
+        "en": "The amount must be in the currency of the visit price. Change the visit price first if the currency is wrong.",
+        "ru": "Сумма должна быть в валюте цены визита. Если валюта неверная, сначала исправьте цену визита.",
+        "cz": "Částka musí být v měně ceny návštěvy. Pokud je měna špatně, nejdřív opravte cenu návštěvy.",
+    },
+    "visit_settlement_currency_unknown": {
+        "en": "This visit has no currency yet. Confirm the visit currency before recording money.",
+        "ru": "У визита ещё нет валюты. Подтвердите валюту визита, прежде чем записывать суммы.",
+        "cz": "Návštěva zatím nemá měnu. Před zapsáním částky potvrďte měnu návštěvy.",
+    },
+    "visit_settlement_unavailable": {
+        "en": "Payments and charges can be recorded only for visits of a business.",
+        "ru": "Оплаты и начисления можно записывать только для визитов салона.",
+        "cz": "Platby a poplatky lze zapisovat jen u návštěv podniku.",
+    },
     "legacy_currency_count_changed": {
         "en": "The number of visits without a currency changed. Check the preview again.",
         "ru": "Количество визитов без валюты изменилось. Проверьте предпросмотр ещё раз.",

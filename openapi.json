@@ -20188,6 +20188,155 @@
         "title": "VisitPriceQuoteOut",
         "type": "object"
       },
+      "VisitSettlementEntryIn": {
+        "additionalProperties": false,
+        "description": "One charge, manual receipt or manual refund. Same key + same body = the saved entry back.",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "pattern": "^[A-Za-z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "pattern": "^[A-Za-z0-9_-]{8,80}$",
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "charge",
+              "manual_receipt",
+              "manual_refund"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Receipt or document number, if there is one",
+            "title": "Reference"
+          }
+        },
+        "required": [
+          "kind",
+          "amount",
+          "currency",
+          "reason",
+          "idempotency_key"
+        ],
+        "title": "VisitSettlementEntryIn",
+        "type": "object"
+      },
+      "VisitSettlementEntryOut": {
+        "properties": {
+          "actor_user_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor User Id"
+          },
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "visit_id": {
+            "title": "Visit Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "visit_id",
+          "kind",
+          "amount",
+          "currency",
+          "reason",
+          "reference",
+          "actor_user_id",
+          "created_at"
+        ],
+        "title": "VisitSettlementEntryOut",
+        "type": "object"
+      },
+      "VisitSettlementEntryResultOut": {
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/VisitSettlementEntryOut"
+          },
+          "replayed": {
+            "title": "Replayed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "entry",
+          "replayed"
+        ],
+        "title": "VisitSettlementEntryResultOut",
+        "type": "object"
+      },
       "VisitStatisticsResponse": {
         "properties": {
           "average_duration_minutes": {
@@ -44826,6 +44975,150 @@
           }
         ],
         "summary": "Restore Visit",
+        "tags": [
+          "visits"
+        ]
+      }
+    },
+    "/visits/{visit_id}/settlement-entries": {
+      "get": {
+        "operationId": "list_visit_settlement_entries_visits__visit_id__settlement_entries_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Visit Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VisitSettlementEntryOut"
+                  },
+                  "title": "Response List Visit Settlement Entries Visits  Visit Id  Settlement Entries Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Charges and manual receipts/refunds of one visit, oldest first",
+        "tags": [
+          "visits"
+        ]
+      },
+      "post": {
+        "description": "The amount must be in the currency of the current visit price. Retrying with the same idempotency_key and body returns the saved entry.",
+        "operationId": "record_visit_settlement_entry_visits__visit_id__settlement_entries_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Visit Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitSettlementEntryIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitSettlementEntryResultOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "Currency differs or is unknown, the key was reused, or the visit is busy."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Record an explicit charge, or a manual receipt/refund with its exact amount",
         "tags": [
           "visits"
         ]

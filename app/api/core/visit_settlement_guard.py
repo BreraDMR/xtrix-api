@@ -11,6 +11,7 @@ from app.db.models.gift import GiftLedgerEntry
 from app.db.models.loyalty_program import LoyaltyTransaction
 from app.db.models.service_payment import ServicePaymentAttempt, ServicePaymentEvent, ServicePaymentRefund
 from app.db.models.visit import Visit
+from app.db.models.visit_settlement_entry import VisitSettlementEntry
 
 
 class SettlementBusy(ValueError):
@@ -31,7 +32,8 @@ class VisitPriceChangeBlocked(ValueError):
         self.reason = reason
 
 
-_FINANCIAL = (ServicePaymentAttempt, ServicePaymentEvent, ServicePaymentRefund, GiftLedgerEntry, LoyaltyTransaction)
+_FINANCIAL = (ServicePaymentAttempt, ServicePaymentEvent, ServicePaymentRefund, GiftLedgerEntry, LoyaltyTransaction,
+              VisitSettlementEntry)
 
 
 def settlement_reason(db: Session, visit_id: int, business_id: int | None) -> str | None:
@@ -70,7 +72,9 @@ def settlement_reason(db: Session, visit_id: int, business_id: int | None) -> st
                     (LoyaltyTransaction.points_amount != 0) | (func.coalesce(LoyaltyTransaction.cashback_amount, 0) != 0))),
                 LoyaltyTransaction.business_id.is_distinct_from(business_id),
                 LoyaltyTransaction.client_id.is_distinct_from(visit.client_id))))
-            settled, pending = db.execute(select(or_(paid, events, refunds, gifts, loyalty),
+            # an explicit charge or manual receipt/refund is a money fact too
+            entries = exists(select(1).where(VisitSettlementEntry.visit_id == visit_id))
+            settled, pending = db.execute(select(or_(paid, events, refunds, gifts, loyalty, entries),
                 exists(select(1).where(ServicePaymentAttempt.visit_id == visit_id,
                                       ServicePaymentAttempt.status == 'pending')))).one()
             if visit.manual_payment_recorded_at is not None or settled:

@@ -1,6 +1,8 @@
 from app.schemas.visit_price import (VisitPriceQuoteOut, VisitPriceChange, VisitLoyaltyPriceOut,
     VisitPriceCorrectionIn, VisitPriceCorrectionOut, VisitPriceCorrectionResultOut)
 from app.api.core import visit_price_access, visit_price_quote, visit_reprice
+from app.schemas.visit_settlement import (VisitSettlementEntryIn, VisitSettlementEntryOut,
+    VisitSettlementEntryResultOut)
 from app.api.private_routes import NoStoreRoute
 from app.api.core import visit_settlement_guard
 from datetime import datetime, timedelta, time
@@ -663,6 +665,66 @@ def list_visit_price_corrections(request: Request, visit_id: int = Path(gt=0),
     from app.api.core import visit_price_correction as corrections
     target = _price_target(db, current_user, visit_id, locale)
     return [VisitPriceCorrectionOut.model_validate(row) for row in corrections.list_corrections(db, target)]
+
+
+@price_router.post('/{visit_id}/settlement-entries', response_model=VisitSettlementEntryResultOut,
+                   summary='Record an explicit charge, or a manual receipt/refund with its exact amount',
+                   description='The amount must be in the currency of the current visit price. Retrying with '
+                               'the same idempotency_key and body returns the saved entry.',
+                   responses={409: {'description': 'Currency differs or is unknown, the key was reused, or the visit is busy.'}})
+@limiter.limit('10/minute')
+def record_visit_settlement_entry(request: Request, payload: VisitSettlementEntryIn, visit_id: int = Path(gt=0),
+                                  db: Session = Depends(deps.get_db),
+                                  current_user: User = Depends(deps.role_required('admin', 'business_owner', 'specialist', 'employee')),
+                                  locale: str = Depends(deps.get_locale)) -> VisitSettlementEntryResultOut:
+    from app.api.core import visit_settlement_entries as entries
+    target = _price_target(db, current_user, visit_id, locale)
+    try:
+        result = entries.record_entry(db, target, payload, actor=current_user,
+                                      request_id=audit_service.request_id_for(request))
+        response = VisitSettlementEntryResultOut(entry=VisitSettlementEntryOut.model_validate(result.entry),
+                                                 replayed=result.replayed)
+        if result.replayed:
+            db.rollback()
+        else:
+            db.commit()
+    except entries.EntryKeyConflict:
+        db.rollback()
+        raise _correction_error('visit_settlement_entry_key_conflict', locale) from None
+    except entries.EntryCurrencyMismatch:
+        db.rollback()
+        raise _correction_error('visit_settlement_currency_mismatch', locale) from None
+    except entries.EntryCurrencyUnknown:
+        db.rollback()
+        raise _correction_error('visit_settlement_currency_unknown', locale) from None
+    except entries.EntryUnavailable:
+        db.rollback()
+        raise _correction_error('visit_settlement_unavailable', locale) from None
+    except visit_settlement_guard.VisitPriceChangeBlocked as exc:
+        db.rollback()
+        raise _correction_error(exc.reason, locale) from None
+    except (visit_settlement_guard.SettlementBusy, visit_settlement_guard.DirtySettlementState):
+        db.rollback()
+        raise _correction_error('visit_price_retry', locale) from None
+    except visit_settlement_guard.SettlementTargetUnavailable:
+        db.rollback()
+        raise HTTPException(404, detail=_('visit_not_found', locale)) from None
+    except Exception:
+        db.rollback()
+        raise
+    return response
+
+
+@price_router.get('/{visit_id}/settlement-entries', response_model=list[VisitSettlementEntryOut],
+                  summary='Charges and manual receipts/refunds of one visit, oldest first')
+@limiter.limit('60/minute')
+def list_visit_settlement_entries(request: Request, visit_id: int = Path(gt=0),
+                                  db: Session = Depends(deps.get_db),
+                                  current_user: User = Depends(deps.role_required('admin', 'business_owner', 'specialist', 'employee')),
+                                  locale: str = Depends(deps.get_locale)) -> list[VisitSettlementEntryOut]:
+    from app.api.core import visit_settlement_entries as entries
+    target = _price_target(db, current_user, visit_id, locale)
+    return [VisitSettlementEntryOut.model_validate(row) for row in entries.list_entries(db, target)]
 
 
 @price_router.get('/{visit_id}/loyalty-price', response_model=VisitLoyaltyPriceOut,
