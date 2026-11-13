@@ -123,6 +123,23 @@ def create_client(
             db.commit()
     logger.info(f"Client created: id={result.id}")
     return result.model_dump() if hasattr(result, 'model_dump') else result
+ClientSortField = Literal["id", "full_name", "contact_phone", "contact_email", "gender", "birth_date", "created_at"]
+
+
+def _client_list_scope(db: Session, current_user: User) -> dict:
+    # who sees which cards - shared by the list and the exports so they never drift apart
+    from app.api.core.permissions import get_accessible_client_ids, get_filtered_specialist_id
+    if current_user.role in ("admin", "business_owner"):
+        owner_id = None
+    else:
+        owner_id = get_filtered_specialist_id(current_user)
+    return {
+        "owner_id": owner_id,
+        "business_id": getattr(current_user, "business_id", None),
+        "accessible_client_ids": get_accessible_client_ids(db, current_user),
+    }
+
+
 @router.get("/", response_model=PaginatedResponse[ClientOut])
 def list_clients(
     owner_id: Optional[int] = None,
@@ -130,7 +147,7 @@ def list_clients(
     name: Optional[str] = None,
     q: Optional[str] = Query(None, max_length=200),
     gender: Optional[Literal["male", "female", "other"]] = None,
-    sort_by: Literal["id", "full_name", "contact_phone", "contact_email", "gender", "birth_date", "created_at"] = "id",
+    sort_by: ClientSortField = "id",
     sort_order: Literal["asc", "desc"] = "asc",
     page: int = Query(1, ge=1, le=MAX_PAGE),
     per_page: int = Query(20, ge=1, le=100),
@@ -140,23 +157,13 @@ def list_clients(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
-    from app.api.core.permissions import get_accessible_client_ids, get_filtered_specialist_id
-    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
-    accessible_client_ids = get_accessible_client_ids(db, current_user)
-    if current_user.role == "admin":
-        owner_id = None
-    elif current_user.role == "business_owner":
-        owner_id = None  
-    else:
-        owner_id = get_filtered_specialist_id(current_user)
     if current_user.role != "admin":
         include_deleted = False
         include_archived = False
     pagination = PaginationParams(page=page, per_page=per_page)
     clients, total = crud_client.list_clients(
         db,
-        owner_id=owner_id,
-        business_id=business_id,  
+        **_client_list_scope(db, current_user),
         phone=phone,
         name=name,
         search=q,
@@ -166,7 +173,6 @@ def list_clients(
         pagination=pagination,
         include_deleted=include_deleted,
         include_archived=include_archived,
-        accessible_client_ids=accessible_client_ids,  
     )
     localized_items = [
         c.model_dump() if hasattr(c, 'model_dump') else c for c in clients
@@ -346,36 +352,45 @@ def update_client(
     )
     logger.info(f"Client updated successfully: id={result.id}")
     return result.model_dump() if hasattr(result, 'model_dump') else result
+def _export_clients(db, current_user, phone, name, q, gender, sort_by, sort_order):
+    # same rows as GET /clients/ with the same filters, just every page at once
+    clients, _total = crud_client.list_clients(
+        db, **_client_list_scope(db, current_user), phone=phone, name=name, search=q,
+        gender=gender, sort_by=sort_by, sort_order=sort_order,
+    )
+    return clients
 @router.get("/export/csv")
 @limiter.limit(EXPORT_LIMIT)
 def export_clients_csv(
     request: Request,
-    owner_id: Optional[int] = None,
     phone: Optional[str] = None,
     name: Optional[str] = None,
+    q: Optional[str] = Query(None, max_length=200),
+    gender: Optional[Literal["male", "female", "other"]] = None,
+    sort_by: ClientSortField = "id",
+    sort_order: Literal["asc", "desc"] = "asc",
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
 ):
     from app.api.core.export import export_to_csv, prepare_client_export_data
-    if current_user.role != "admin":
-        owner_id = current_user.id
-    clients, _total = crud_client.list_clients(db, owner_id=owner_id, phone=phone, name=name)
+    clients = _export_clients(db, current_user, phone, name, q, gender, sort_by, sort_order)
     export_data = prepare_client_export_data(clients)
     return export_to_csv(export_data, filename="clients_export.csv")
 @router.get("/export/excel")
 @limiter.limit(EXPORT_LIMIT)
 def export_clients_excel(
     request: Request,
-    owner_id: Optional[int] = None,
     phone: Optional[str] = None,
     name: Optional[str] = None,
+    q: Optional[str] = Query(None, max_length=200),
+    gender: Optional[Literal["male", "female", "other"]] = None,
+    sort_by: ClientSortField = "id",
+    sort_order: Literal["asc", "desc"] = "asc",
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
 ):
     from app.api.core.export import export_to_excel, prepare_client_export_data
-    if current_user.role != "admin":
-        owner_id = current_user.id
-    clients, _total = crud_client.list_clients(db, owner_id=owner_id, phone=phone, name=name)
+    clients = _export_clients(db, current_user, phone, name, q, gender, sort_by, sort_order)
     export_data = prepare_client_export_data(clients)
     return export_to_excel(export_data, filename="clients_export.xlsx", sheet_name="Clients")
 @router.post("/{client_id}/qr-code/generate", response_model=QRCodeGenerateResponse)

@@ -164,28 +164,13 @@ def create_visit(
             except Exception as e:
                 logger.error(f"Failed to auto-usage product {used_product.product_id} for visit {result.id}: {e}")
     return _visit_response(result, can_view_financials(current_user, db))
-@router.get("/", response_model=PaginatedResponse[VisitOut])
-def visits_list(
-    client_id: Optional[int] = None,
-    specialist_id: Optional[int] = None,
-    date_from: Optional[UtcDatetime] = None,
-    date_to: Optional[UtcDatetime] = None,
-    q: Optional[str] = Query(None, max_length=200),
-    status: Optional[Literal["planned", "completed", "cancelled", "in_progress"]] = None,
-    sort_by: Literal["id", "date_start", "service_name", "client_name", "status", "price"] = "id",
-    sort_order: Literal["asc", "desc"] = "asc",
-    page: int = Query(1, ge=1, le=MAX_PAGE),
-    per_page: int = Query(20, ge=1, le=100),
-    calendar_overlap: bool = Query(False, description="Calendar interval overlap; date_to is exclusive"),
-    include_deleted: bool = Query(False, description="Include soft-deleted visits"),
-    include_archived: bool = Query(False, description="Include archived visits"),
-    db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
-    locale: str = Depends(deps.get_locale),
-):
-    from app.api.core.permissions import check_specialist_in_scope, get_filtered_specialist_id
-    if calendar_overlap and (date_from is None or date_to is None or date_to <= date_from):
-        raise HTTPException(status_code=422, detail=_("date_range_invalid", locale))
+VisitSortField = Literal["id", "date_start", "service_name", "client_name", "status", "price"]
+VisitStatusFilter = Literal["planned", "completed", "cancelled", "in_progress"]
+
+
+def _visit_list_scope(db, current_user, specialist_id, client_id, date_from, date_to, locale):
+    # who sees which visits - the list and the exports both go through here
+    from app.api.core.permissions import check_client_access, check_specialist_in_scope, get_filtered_specialist_id
     if date_from is not None and date_to is not None and date_to < date_from:
         raise HTTPException(status_code=422, detail=_("date_range_invalid", locale))
     if current_user.role in ("admin", "business_owner"):
@@ -196,14 +181,37 @@ def visits_list(
             specialist_id = current_user.id
     else:
         specialist_id = get_filtered_specialist_id(current_user)
-    if client_id:
-        from app.api.core.permissions import check_client_access
-        if not check_client_access(db, current_user, client_id):
-            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    if client_id and not check_client_access(db, current_user, client_id):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    return specialist_id, getattr(current_user, "business_id", None)
+
+
+@router.get("/", response_model=PaginatedResponse[VisitOut])
+def visits_list(
+    client_id: Optional[int] = None,
+    specialist_id: Optional[int] = None,
+    date_from: Optional[UtcDatetime] = None,
+    date_to: Optional[UtcDatetime] = None,
+    q: Optional[str] = Query(None, max_length=200),
+    status: Optional[VisitStatusFilter] = None,
+    sort_by: VisitSortField = "id",
+    sort_order: Literal["asc", "desc"] = "asc",
+    page: int = Query(1, ge=1, le=MAX_PAGE),
+    per_page: int = Query(20, ge=1, le=100),
+    calendar_overlap: bool = Query(False, description="Calendar interval overlap; date_to is exclusive"),
+    include_deleted: bool = Query(False, description="Include soft-deleted visits"),
+    include_archived: bool = Query(False, description="Include archived visits"),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
+):
+    if calendar_overlap and (date_from is None or date_to is None or date_to <= date_from):
+        raise HTTPException(status_code=422, detail=_("date_range_invalid", locale))
+    specialist_id, business_id = _visit_list_scope(db, current_user, specialist_id, client_id,
+                                                   date_from, date_to, locale)
     if current_user.role != "admin":
         include_deleted = False
         include_archived = False
-    business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     pagination = PaginationParams(page=page, per_page=per_page)
     visits, total = crud_visit.list_visits(
         db,
@@ -315,6 +323,15 @@ def _build_breaks(start: Optional[str], end: Optional[str]):
     if start and end:
         return [( _parse_time(start), _parse_time(end))]
     return []
+def _export_visits(db, current_user, locale, *, client_id, specialist_id, date_from, date_to, **filters):
+    # same rows as GET /visits/ with the same filters, just every page at once
+    specialist_id, business_id = _visit_list_scope(db, current_user, specialist_id, client_id,
+                                                   date_from, date_to, locale)
+    visits, _total = crud_visit.list_visits(
+        db, client_id=client_id, specialist_id=specialist_id, business_id=business_id,
+        date_from=date_from, date_to=date_to, include_deleted=False, include_archived=False, **filters,
+    )
+    return visits
 @router.get("/export/csv")
 @limiter.limit(EXPORT_LIMIT)
 def export_visits_csv(
@@ -323,21 +340,18 @@ def export_visits_csv(
     specialist_id: Optional[int] = None,
     date_from: Optional[UtcDatetime] = None,
     date_to: Optional[UtcDatetime] = None,
+    q: Optional[str] = Query(None, max_length=200),
+    status: Optional[VisitStatusFilter] = None,
+    sort_by: VisitSortField = "id",
+    sort_order: Literal["asc", "desc"] = "asc",
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
 ):
     from app.api.core.export import export_to_csv, prepare_visit_export_data
-    if current_user.role != "admin":
-        specialist_id = current_user.id
-    visits, _total = crud_visit.list_visits(
-        db,
-        client_id=client_id,
-        specialist_id=specialist_id,
-        date_from=date_from,
-        date_to=date_to,
-        include_deleted=False,
-        include_archived=False,
-    )
+    visits = _export_visits(db, current_user, locale, client_id=client_id, specialist_id=specialist_id,
+                            date_from=date_from, date_to=date_to, search=q, status=status,
+                            sort_by=sort_by, sort_order=sort_order)
     include_financials = can_view_financials(current_user, db)
     export_data = prepare_visit_export_data([_visit_response(v, include_financials) for v in visits])
     return export_to_csv(export_data, filename="visits_export.csv")
@@ -349,21 +363,18 @@ def export_visits_excel(
     specialist_id: Optional[int] = None,
     date_from: Optional[UtcDatetime] = None,
     date_to: Optional[UtcDatetime] = None,
+    q: Optional[str] = Query(None, max_length=200),
+    status: Optional[VisitStatusFilter] = None,
+    sort_by: VisitSortField = "id",
+    sort_order: Literal["asc", "desc"] = "asc",
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
 ):
     from app.api.core.export import export_to_excel, prepare_visit_export_data
-    if current_user.role != "admin":
-        specialist_id = current_user.id
-    visits, _total = crud_visit.list_visits(
-        db,
-        client_id=client_id,
-        specialist_id=specialist_id,
-        date_from=date_from,
-        date_to=date_to,
-        include_deleted=False,
-        include_archived=False,
-    )
+    visits = _export_visits(db, current_user, locale, client_id=client_id, specialist_id=specialist_id,
+                            date_from=date_from, date_to=date_to, search=q, status=status,
+                            sort_by=sort_by, sort_order=sort_order)
     include_financials = can_view_financials(current_user, db)
     export_data = prepare_visit_export_data([_visit_response(v, include_financials) for v in visits])
     return export_to_excel(export_data, filename="visits_export.xlsx", sheet_name="Visits")
