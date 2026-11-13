@@ -927,6 +927,11 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Слишком много неверных кодов, доступ закрыт на 30 минут",
         "cz": "Příliš mnoho chybných kódů, přístup je na 30 minut zablokován",
     },
+    "visit_restore_slot_offered": {
+        "en": "This time has been offered to a waitlist guest. Wait for their answer or for the offer to expire.",
+        "ru": "Это время уже предложено клиенту из листа ожидания. Дождитесь его ответа или окончания срока предложения.",
+        "cz": "Tento čas už byl nabídnut hostovi z čekací listiny. Počkejte na jeho odpověď nebo na vypršení nabídky.",
+    },
     "time_slot_taken": {
         "en": "This time is already booked for the specialist",
         "ru": "У специалиста уже есть запись на это время",

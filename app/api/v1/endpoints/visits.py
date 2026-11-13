@@ -506,6 +506,14 @@ def restore_visit(
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     from app.api.core.crm_metering import enforce_visit_quota
     enforce_visit_quota(db, visit.business_id, visit.specialist_id, visit.date_start, visit.status, exclude_id=visit.id)
+    from app.api.core import visit_restore
+    try:
+        # queued work for this delete is dropped in the same commit as the restore
+        visit_restore.reclaim_slots(db, visit)
+    except visit_restore.SlotOffered:
+        db.rollback()
+        raise HTTPException(status_code=409, detail={
+            "code": "visit_restore_slot_offered", "message": _("visit_restore_slot_offered", locale)}) from None
     restore_soft_deleted(db, visit)
     return {"message": "Visit restored successfully"}
 
