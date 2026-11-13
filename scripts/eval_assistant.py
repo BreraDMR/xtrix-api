@@ -28,6 +28,8 @@ def parse_args(argv=None):
     which.add_argument("--all-slots", action="store_true", help="run every configured slot (the default)")
     which.add_argument("--fake", action="store_true", help="answer each case with its expected plan")
     which.add_argument("--fake-bad", action="store_true", help="answer each case with a broken plan")
+    which.add_argument("--cli", metavar="CMD", help="a logged-in coding CLI as the model, e.g. claude --print ...")
+    p.add_argument("--cli-model", default="", help="model name passed to the CLI with --model")
     p.add_argument("--case", help="only this case id")
     p.add_argument("--tag", help="only cases with this tag, e.g. attack")
     p.add_argument("--locale", choices=("ru", "cz", "en"))
@@ -65,8 +67,11 @@ def _main(args, *, engine, log) -> int:
     if not cases:
         log("no case matches the filters")
         return 2
-    mode = "fake" if args.fake else "fake-bad" if args.fake_bad else None
+    mode = "fake" if args.fake else "fake-bad" if args.fake_bad else "cli" if args.cli else None
     slots = []
+    if mode == "cli":
+        from dataclasses import replace
+        config = replace(config, provider="cli", cli_command=args.cli, cli_model=args.cli_model)
     if mode is None:
         slots = list(config.slots)
         if not slots:

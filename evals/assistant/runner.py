@@ -151,6 +151,13 @@ def _routers(config: AIConfig, slots: list[SlotConfig], mode: Optional[str]):
                               name="fake")
         yield "fake", "fake", mode, LLMRouter([Slot(slot_cfg, rec)], config=cfg, board=CooldownBoard()), rec, fake
         return
+    if mode == "cli":
+        # a logged-in coding CLI (config.provider == "cli") - one "slot", local runs only
+        router = build_router(cfg, board=CooldownBoard())
+        rec = Recorder(router.slots[0].adapter)
+        router.slots[0].adapter = rec
+        yield "cli", "cli", cfg.cli_model or "cli", router, rec, None
+        return
     for slot_cfg in slots:
         router = build_router(replace(cfg, provider="pool", slots=(slot_cfg,)), board=CooldownBoard())
         rec = Recorder(router.slots[0].adapter)
