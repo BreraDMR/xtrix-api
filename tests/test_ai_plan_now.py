@@ -35,3 +35,19 @@ def test_make_plan_uses_the_given_now(db, client, make_user, headers_for):
     data = json.loads(user_message[len("<data>\n"):-len("\n</data>")])
     assert data["context"]["now"] == "2026-10-19T09:15:00+02:00"
     assert data["context"]["weekday"] == "Monday"
+
+
+def test_context_has_a_two_week_calendar_with_the_right_offsets(db, client, make_user, headers_for):
+    # models get weekdays and the clock change wrong on their own (evals 13.11), so we spell them out
+    from app.ai.context import build_context
+    t = build_tenant(client, make_user, headers_for, "Delta", "+42070044")
+    db.expire_all()
+    ctx = build_context(db, db.merge(t["owner"]), "next tuesday", locale="en", tz_name="Europe/Prague",
+                        now=datetime(2026, 10, 22, 8, 0))
+    cal = ctx["calendar"]
+    assert len(cal) == 15
+    assert cal[0] == "2026-10-22 Thu +02:00 today"
+    assert cal[1] == "2026-10-23 Fri +02:00 tomorrow"
+    assert cal[3] == "2026-10-25 Sun +01:00"     # the clock goes back that night
+    assert cal[5] == "2026-10-27 Tue +01:00"
+    assert cal[14] == "2026-11-05 Thu +01:00"

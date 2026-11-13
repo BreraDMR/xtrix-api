@@ -2,7 +2,7 @@
 the user's own clients the request might mean. Ids and names only - no phones, e-mails, birth dates,
 notes or anything medical, ever. Everything here is read through the same permission helpers as the API.
 """
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -26,6 +26,19 @@ from app.db.models.user import User
 MAX_SPECIALISTS = 30
 MAX_SERVICES = 60
 MAX_CLIENT_MATCHES = 10
+CALENDAR_DAYS = 15  # today and two weeks ahead - "in two weeks" has to land inside it
+
+
+def calendar(local_now: datetime, zone) -> list[str]:
+    """"2026-10-27 Tue +01:00" per day. Models miscount weekdays and miss the clock change on
+    their own, so we spell both out; the offset is the one at noon that day."""
+    out = []
+    for n in range(CALENDAR_DAYS):
+        day = local_now.date() + timedelta(days=n)
+        noon = datetime.combine(day, time(12), tzinfo=zone)
+        line = f"{day.isoformat()} {noon.strftime('%a')} {noon.strftime('%z')[:3]}:{noon.strftime('%z')[3:]}"
+        out.append(line + {0: " today", 1: " tomorrow"}.get(n, ""))
+    return out
 
 
 def _specialists(db: Session, user: User, business_id: Optional[int]) -> list[dict]:
@@ -71,6 +84,7 @@ def build_context(db: Session, user: User, text: str, *, locale: str, tz_name: s
     return {
         "now": local_now.isoformat(),
         "weekday": local_now.strftime("%A"),
+        "calendar": calendar(local_now, zone),
         "timezone": tz_name,
         "language": locale,
         "assistant": {"name": persona.name, "gender": persona.gender},
