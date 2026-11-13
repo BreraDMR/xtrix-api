@@ -34,7 +34,8 @@ def parse_args(argv=None):
     p.add_argument("--tag", help="only dialogs with this tag")
     p.add_argument("--model", help="override the slot's model name")
     p.add_argument("--pace", type=float, default=0.0, help="pause before every model call, seconds")
-    p.add_argument("--max-wait", type=float, default=120.0, help="longest busy pause to sit out, seconds")
+    p.add_argument("--max-wait", type=float, default=120.0, help="longest single busy pause to sit out, seconds")
+    p.add_argument("--give-up", type=float, default=900.0, help="most waiting per model call in total, seconds")
     p.add_argument("--report-dir", type=Path, default=Path("evals/reports/dialogs"))
     p.add_argument("--rerun", action="store_true", help="run dialogs that already have a result too")
     return p.parse_args(argv)
@@ -82,7 +83,8 @@ def main(argv=None) -> int:
         tag = f"slot{n}" + (f"-{re.sub(r'[^A-Za-z0-9.]+', '-', args.model)}" if args.model else "")
         out = args.report_dir / tag
         out.mkdir(parents=True, exist_ok=True)
-        runner = DialogRunner(router, session_factory=SessionLocal, pace=args.pace, max_wait=args.max_wait)
+        runner = DialogRunner(router, session_factory=SessionLocal, pace=args.pace, max_wait=args.max_wait,
+                              give_up=args.give_up)
         passed = total = errors = 0
         print(f"--> slot {n} ({slot.name} / {slot.model_fast}): {len(dialogs)} dialogs")
         try:

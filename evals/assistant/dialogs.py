@@ -332,7 +332,8 @@ class DialogRunner:
     """Talks to the app through FastAPI's TestClient, as the fixture salon's owner."""
 
     def __init__(self, router, *, session_factory, pace: float = 0.0, max_wait: float = 120.0,
-                 sleep: Callable[[float], None] = time.sleep, log: Callable[[str], None] = print):
+                 give_up: float = 900.0, sleep: Callable[[float], None] = time.sleep,
+                 log: Callable[[str], None] = print):
         from fastapi.testclient import TestClient
 
         from app.api.v1.endpoints import assistant as endpoint
@@ -341,7 +342,7 @@ class DialogRunner:
         self.app, self.endpoint = app, endpoint
         self.router = router
         self.session_factory = session_factory
-        self.pace, self.max_wait, self.sleep, self.log = pace, max_wait, sleep, log
+        self.pace, self.max_wait, self.give_up, self.sleep, self.log = pace, max_wait, give_up, sleep, log
         app.dependency_overrides[endpoint.llm_router] = lambda: self.router
         self.http = TestClient(app, raise_server_exceptions=False)
 
@@ -349,9 +350,10 @@ class DialogRunner:
         self.app.dependency_overrides.pop(self.endpoint.llm_router, None)
 
     def _plan(self, headers, conversation, text, locale) -> Turn:
-        # short rests (requests or tokens per minute) are sat out as often as it takes; a rest longer
-        # than max_wait is a used-up quota and ends the dialog as "model unavailable"
-        attempts = 12
+        # rests up to max_wait each are sat out until give_up seconds of waiting in total; a longer rest
+        # is a used-up quota and ends the dialog as "model unavailable"
+        waited = 0.0
+        attempts = 1000
         for attempt in range(1, attempts + 1):
             if self.pace:
                 self.sleep(self.pace)
@@ -364,7 +366,8 @@ class DialogRunner:
             if r.status_code in (429, 503) and attempt < attempts:
                 code = _code(body)
                 wait = float(r.headers.get("Retry-After") or 30)
-                if code in ("ai_busy", "ai_unavailable") and wait <= self.max_wait:
+                if code in ("ai_busy", "ai_unavailable") and wait <= self.max_wait and waited + wait <= self.give_up:
+                    waited += wait + 1
                     self.log(f"    model busy ({code}), waiting {wait:.0f}s")
                     self.sleep(wait + 1)
                     self.router.board = type(self.router.board)()
