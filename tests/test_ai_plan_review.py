@@ -5,6 +5,7 @@ being shown a step that can never work, a time an hour off after the clock chang
 the past - they get a concrete question instead.
 """
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -162,3 +163,59 @@ def test_internal_ids_never_reach_the_person(db, ab, said, shown):
     _, b = ab
     plan = plan_for(db, b, summary=said, questions=[said])
     assert plan.summary == shown and plan.questions == [shown]
+
+
+# --- a time the master already has taken (dialog evals 13.11) ---
+
+def _taken(b):
+    return datetime.fromisoformat(b["visit"]["date_start"].replace("Z", "")).isoformat() + "Z"
+
+
+@pytest.mark.parametrize("locale, word", [("ru", "занят"), ("en", "already booked"), ("cz", "obsazen")])
+def test_a_booking_on_a_taken_time_becomes_a_question(db, ab, locale, word):
+    _, b = ab
+    plan = plan_for(db, b, {"action": "create_visit", "client_id": b["client"]["id"],
+                            "specialist_id": b["owner"].id, "start": _taken(b)},
+                    summary="Booked it", locale=locale)
+    assert plan.actions == []
+    assert plan.questions and word in plan.questions[0]
+    assert "Booked it" not in plan.summary
+
+
+def test_a_free_time_and_moving_a_visit_onto_itself_stay(db, ab):
+    from datetime import timedelta
+    _, b = ab
+    later = (datetime.fromisoformat(_taken(b).replace("Z", "")) + timedelta(hours=3)).isoformat() + "Z"
+    plan = plan_for(db, b, {"action": "create_visit", "client_id": b["client"]["id"],
+                            "specialist_id": b["owner"].id, "start": later},
+                    {"action": "reschedule_visit", "visit_id": b["visit"]["id"], "start": _taken(b)})
+    assert [x.action for x in plan.actions] == ["create_visit", "reschedule_visit"]
+
+
+def test_moving_onto_a_taken_time_becomes_a_question(db, ab, client):
+    from datetime import timedelta
+    _, b = ab
+    start = datetime.fromisoformat(_taken(b).replace("Z", "")) + timedelta(hours=4)
+    other = client.post("/visits/", headers=b["headers"], json={
+        "client_id": b["client"]["id"], "specialist_id": b["owner"].id, "service_id": b["service"]["id"],
+        "date_start": start.isoformat(), "date_end": (start + timedelta(hours=1)).isoformat()})
+    assert other.status_code == 200, other.text
+    plan = plan_for(db, b, {"action": "reschedule_visit", "visit_id": b["visit"]["id"],
+                            "start": start.isoformat() + "Z"}, locale="ru")
+    assert plan.actions == [] and "занят" in plan.questions[0]
+
+
+def test_a_taken_time_offers_the_next_free_ones(db, ab, client):
+    _, b = ab
+    for weekday in range(7):
+        r = client.post("/schedules/work", headers=b["headers"], json={
+            "weekday": weekday, "start_time": "08:00", "end_time": "20:00", "specialist_id": b["owner"].id})
+        assert r.status_code == 200, r.text
+    plan = plan_for(db, b, {"action": "create_visit", "client_id": b["client"]["id"],
+                            "specialist_id": b["owner"].id, "service_id": b["service"]["id"],
+                            "start": _taken(b)}, locale="ru")
+    question = plan.questions[0]
+    assert "Свободно:" in question
+    # the taken hour ends at 11:00 UTC, so the first offer is the wall-clock hour after it, not the taken one
+    taken_local = datetime.fromisoformat(_taken(b).replace("Z", "+00:00")).astimezone(ZoneInfo("Europe/Prague"))
+    assert taken_local.strftime("%H:%M") + "," not in question.split("Свободно:")[1]

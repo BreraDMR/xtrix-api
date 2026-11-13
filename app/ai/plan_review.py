@@ -9,6 +9,8 @@ that are obviously off, and turns them into a plain question instead:
   the person said 10:00, so we keep the wall clock and take the salon's offset for that day.
   A plain UTC time (or any offset the salon never uses) is a real instant and stays as it is.
 - a booking or reschedule that's already in the past, beyond a short grace - dropped with a question.
+- a booking or reschedule onto a time the master already has taken - dropped, and the question says so
+  and offers the next free times, instead of failing after the person confirmed.
 - a find_client that finds nobody, or several people - the executor would fail on it after the person
   confirmed, so it becomes "nobody called X" or "which one: A, B?" right away.
 - record numbers the model quoted back ("(ID 747)", "client_id=12") are taken out of the text.
@@ -91,8 +93,26 @@ _TEXT = {
             "cz": "Na \u201e{who}\u201c sedí víc klientů: {names}. Kterého jste měli na mysli?",
         },
     },
+    "busy": {
+        "note": {
+            "en": "The master already has a booking at that time, so it is not in the plan.",
+            "ru": "У мастера на это время уже есть запись, поэтому её нет в плане.",
+            "cz": "Pracovník má na tento čas už jinou rezervaci, proto v plánu není.",
+        },
+        "question": {
+            "en": "{who} is already booked on {day} at {time}.{free} Which time should I use?",
+            "ru": "{who} {day} в {time} уже занят(а).{free} На какое время записать?",
+            "cz": "{who} je {day} v {time} už obsazen(a).{free} Na jaký čas to mám dát?",
+        },
+        "free": {
+            "en": " Free: {times}.",
+            "ru": " Свободно: {times}.",
+            "cz": " Volno: {times}.",
+        },
+    },
 }
 MAX_NAMES = 5
+FREE_TIMES = 3
 
 # models sometimes quote our record numbers back ("Olga Belova (ID 747)"); a person never needs them
 _ID_IN_BRACKETS = re.compile(r"\s*\(\s*id\s*[:#=]?\s*\d+\s*\)", re.I)
@@ -115,6 +135,53 @@ def _finish(plan: AssistantPlan, update: dict) -> AssistantPlan:
 def _say(kind: str, part: str, locale: str, **values) -> str:
     texts = _TEXT[kind][part]
     return texts.get(locale, texts["en"]).format(**values)
+
+
+def _busy(db: Session, user: User, action, start: datetime, zone: ZoneInfo, locale: str) -> Optional[dict]:
+    """The master is taken at a booking's time: what to tell the person, else None.
+    Same overlap check as saving the visit, and free times from the same search as find_free_slot."""
+    from app.ai.executor import DEFAULT_MINUTES
+    from app.api.core.slot_search import find_staff_slot
+    from app.api.crud.crud_visit import find_overlapping_visit
+
+    begin = start.astimezone(timezone.utc).replace(tzinfo=None)
+    service = None
+    if action.action == "create_visit":
+        specialist_id = action.specialist_id or user.id
+        if action.service_id:
+            service = db.get(Service, action.service_id)
+        minutes = action.duration_minutes or (service.duration_minutes if service and service.duration_minutes
+                                              else DEFAULT_MINUTES)
+        exclude = None
+    else:
+        visit = db.get(Visit, action.visit_id)
+        if visit is None:
+            return None
+        specialist_id = visit.specialist_id
+        minutes = int(((visit.date_end - visit.date_start).total_seconds() if visit.date_end else DEFAULT_MINUTES * 60) // 60)
+        exclude = visit.id
+    if not find_overlapping_visit(db, specialist_id, begin, begin + timedelta(minutes=minutes), exclude):
+        return None
+    times, after = [], begin
+    for _ in range(FREE_TIMES):
+        found = find_staff_slot(db, specialist_id, service=service, duration_minutes=minutes, start_from=after,
+                                days_ahead=7, timezone_name=str(zone))
+        if not found:
+            break
+        times.append(found)
+        after = found + timedelta(minutes=minutes)
+    master = db.get(User, specialist_id)
+    when = _local(begin, zone)
+    # free times on the same day read as just the hour, other days get the date too
+    labels = [t.strftime("%H:%M") if t.date() == when.date() else t.strftime("%d.%m %H:%M")
+              for t in (_local(x, zone) for x in times)]
+    free = _say("busy", "free", locale, times=", ".join(labels)) if labels else ""
+    return {"who": master.full_name if master and master.full_name else "?",
+            "day": when.strftime("%d.%m"), "time": when.strftime("%H:%M"), "free": free}
+
+
+def _local(value: datetime, zone: ZoneInfo) -> datetime:
+    return value.replace(tzinfo=timezone.utc).astimezone(zone)
 
 
 def _lookup(db: Session, user: User, action) -> tuple[Optional[str], dict]:
@@ -208,6 +275,11 @@ def review_plan(db: Session, user: User, plan: AssistantPlan, *, locale: str, tz
         if problem is None and action.action in BOOKINGS and start is not None \
                 and start < now_utc - PAST_GRACE:
             problem = "past"
+        if problem is None and action.action in BOOKINGS and start is not None:
+            taken = _busy(db, user, action, start, zone, locale)
+            if taken:
+                problem = "busy"
+                asked.append(("busy", taken))
         if problem is None and action.action == "find_client":
             problem, values = _lookup(db, user, action)
             if problem:
@@ -232,7 +304,7 @@ def review_plan(db: Session, user: User, plan: AssistantPlan, *, locale: str, tz
         # the concrete "who did you mean" goes first, the model's own questions may be about other things
         questions.insert(0, _say(kind, "question", locale, **values)[:QUESTION_MAX])
     for kind in why:
-        if kind not in ("no_client", "many_clients") and len(questions) < MAX_QUESTIONS:
+        if kind not in ("no_client", "many_clients", "busy") and len(questions) < MAX_QUESTIONS:
             questions.append(_say(kind, "question", locale))
     questions = questions[:MAX_QUESTIONS]
     notes = " ".join(_say(kind, "note", locale) for kind in why)
