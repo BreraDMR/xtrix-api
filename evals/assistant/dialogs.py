@@ -356,7 +356,7 @@ class DialogRunner:
             if self.pace:
                 self.sleep(self.pace)
             started = time.monotonic()
-            r = self.http.post("/assistant/plan", headers=headers, json={
+            r = self.http.post("/assistant/plan", headers=headers(), json={
                 "text": text, "locale": locale, "conversation_id": conversation,
                 "client_request_id": str(uuid.uuid4())})
             took = int((time.monotonic() - started) * 1000)
@@ -385,9 +385,11 @@ class DialogRunner:
         with self.session_factory() as db:
             fx = seed(db, today)
             before, clients_before = _state(db, fx), _clients(db, fx)
-        headers = {"Authorization": f"Bearer {create_access_token({'sub': str(fx.owner_user_id)})}",
-                   "Accept-Language": dialog.locale}
-        conv = self.http.post("/assistant/conversations", headers=headers,
+        def headers():
+            # a fresh token per call: a dialog can sit out model rests longer than a token lives
+            return {"Authorization": f"Bearer {create_access_token({'sub': str(fx.owner_user_id)})}",
+                    "Accept-Language": dialog.locale}
+        conv = self.http.post("/assistant/conversations", headers=headers(),
                               json={"client_request_id": str(uuid.uuid4())})
         if conv.status_code != 201:
             return DialogResult(dialog.id, dialog.locale, dialog.tags, "error",
@@ -429,12 +431,12 @@ class DialogRunner:
                               and any(a.get("action") in WRITES for a in t.actions)), None)
             last_plan_id = plan_turn.plan_id if plan_turn else None
             if last_plan_id:
-                first = self.http.post("/assistant/execute", headers=headers, json={"plan_id": last_plan_id})
+                first = self.http.post("/assistant/execute", headers=headers(), json={"plan_id": last_plan_id})
                 execution = _json(first)
                 executed = True
                 with self.session_factory() as db:
                     once = _state(db, fx)
-                again = self.http.post("/assistant/execute", headers=headers, json={"plan_id": last_plan_id})
+                again = self.http.post("/assistant/execute", headers=headers(), json={"plan_id": last_plan_id})
                 with self.session_factory() as db:
                     twice = _state(db, fx)
                 if _json(again) != execution or once != twice:
