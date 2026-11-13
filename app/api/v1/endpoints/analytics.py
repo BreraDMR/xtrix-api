@@ -171,7 +171,9 @@ def get_clients_statistics(
         business_id = user_business_id
         owner_id = None  
     elif current_user.role != "admin":
+        # no business of their own - only their own clients, never a business_id from the query
         owner_id = current_user.id
+        business_id = None
     stats = get_client_statistics(db, owner_id=owner_id, business_id=business_id)
     return ClientStatisticsResponse(**stats)
 @router.get("/payments/statistics", response_model=PaymentStatisticsResponse)

@@ -118,7 +118,8 @@ def revenue(
     start: UtcDatetime,
     end: UtcDatetime,
     db: Session = Depends(deps.get_db),
-    _=Depends(deps.role_required("admin", "specialist")),
+    # platform-wide total across every business, so it's for the platform admin only
+    _=Depends(deps.role_required("admin")),
 ):
     res = (
         db.query(func.sum(Visit.price))

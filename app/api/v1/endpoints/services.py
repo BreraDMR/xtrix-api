@@ -179,8 +179,13 @@ def export_services_csv(
     active_only: bool = False,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
 ):
     from app.api.core.export import export_to_csv, prepare_service_export_data
+    from app.api.core.permissions import can_manage_services
+    # same gate as the service list - the whole catalog with prices is a management view
+    if not can_manage_services(current_user, db):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     if current_user.role == "business_owner" and business_id:
         specialist_id = None  # the whole business
@@ -205,8 +210,13 @@ def export_services_excel(
     active_only: bool = False,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
+    locale: str = Depends(deps.get_locale),
 ):
     from app.api.core.export import export_to_excel, prepare_service_export_data
+    from app.api.core.permissions import can_manage_services
+    # same gate as the service list - the whole catalog with prices is a management view
+    if not can_manage_services(current_user, db):
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     business_id = current_user.business_id if hasattr(current_user, 'business_id') else None
     if current_user.role == "business_owner" and business_id:
         specialist_id = None  # the whole business
