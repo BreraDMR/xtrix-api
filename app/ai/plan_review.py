@@ -15,6 +15,8 @@ that are obviously off, and turns them into a plain question instead:
   confirmed, so it becomes "nobody called X" or "which one: A, B?" right away.
 - a new client card for somebody who looks like a client already there ("Kuzněcovová" next to
   "Кузнецова") - asked first, unless the person said it's someone new or gave their own contact.
+- a request to move a visit that the model turned into a new booking for a client who already has
+  one - asked "move that one, or book another?", so a weak model can't double-book.
 - record numbers the model quoted back ("(ID 747)", "client_id=12") are taken out of the text.
 - a plan with nothing to do whose summary is a question: the summary goes into questions too.
 
@@ -113,6 +115,18 @@ _TEXT = {
             "cz": " Volno: {times}.",
         },
     },
+    "move_not_new": {
+        "note": {
+            "en": "You asked to move a visit, but the plan made a new booking, so it is not in the plan.",
+            "ru": "Вы просили перенести визит, а в плане была новая запись, поэтому её нет в плане.",
+            "cz": "Chtěli jste návštěvu přesunout, ale plán zapisoval novou, proto v plánu není.",
+        },
+        "question": {
+            "en": "{who} already has {what}. Should I move that visit, or book one more?",
+            "ru": "У клиента {who} уже есть запись: {what}. Перенести её или записать ещё одну?",
+            "cz": "{who} už má rezervaci: {what}. Mám ji přesunout, nebo zapsat další?",
+        },
+    },
     "dup_client": {
         "note": {
             "en": "A client with that name is already in your list, so no new card is in the plan yet.",
@@ -131,6 +145,10 @@ FREE_TIMES = 3
 # the person said it's somebody new ("новая клиентка", "new client", "nová klientka", "другой человек")
 _SAYS_NEW = re.compile(r"\b(?:нов\w*|друг(?:ой|ая|ую|ого)|new|another|different|nov[aáéouý]\w*|jin[aáéýou]\w*)\b",
                        re.I)
+
+# "move/reschedule" in the three languages; a new booking under such a request is most likely a botched move
+_SAYS_MOVE = re.compile(r"(?:перен[её]с|перенос|передвин|сдвин|přesu[nň]|přeplán|posu[nň]|\bmove|\bmoving|"
+                        r"reschedul|\bshift)", re.I)
 
 # models sometimes quote our record numbers back ("Olga Belova (ID 747)"); a person never needs them
 _ID_IN_BRACKETS = re.compile(r"\s*\(\s*id\s*[:#=]?\s*\d+\s*\)", re.I)
@@ -221,6 +239,26 @@ def _duplicate(db: Session, user: User, action, text: str) -> Optional[dict]:
     return {"names": names}
 
 
+def _existing_visit(db: Session, user: User, client_id: int, now_utc: datetime, zone: ZoneInfo,
+                    locale: str) -> Optional[dict]:
+    """The client's next live visit the person can see, said the way they'd say it."""
+    from app.api.core.permissions import check_visit_access
+    from app.db.models.client import Client
+
+    rows = db.query(Visit).filter(Visit.client_id == client_id, Visit.deleted_at.is_(None),
+                                  Visit.status.in_(("planned", "in_progress")),
+                                  Visit.date_start >= now_utc.replace(tzinfo=None) - PAST_GRACE
+                                  ).order_by(Visit.date_start, Visit.id).limit(5).all()
+    visit = next((v for v in rows if check_visit_access(db, user, v)), None)
+    if visit is None:
+        return None
+    when = _local(visit.date_start, zone)
+    joint = {"en": " at ", "ru": " в ", "cz": " v "}.get(locale, " at ")
+    what = f"{visit.service_name or '?'}, {when.strftime('%d.%m')}{joint}{when.strftime('%H:%M')}"
+    client = db.get(Client, client_id)
+    return {"who": (client.full_name if client and client.full_name else "?")[:60], "what": what[:120]}
+
+
 def _lookup(db: Session, user: User, action) -> tuple[Optional[str], dict]:
     """A find_client the executor would not resolve to exactly one client: why, and what to say."""
     from app.ai.client_search import find_clients
@@ -296,6 +334,8 @@ def review_plan(db: Session, user: User, plan: AssistantPlan, *, locale: str, tz
     scope = _Scope(db, user)
     kept, dropped_refs, why = [], set(), []
     asked = []  # (kind, values) for find_client questions, they name who was looked for
+    moves = any(a.action in ("reschedule_visit", "cancel_visit") for a in plan.actions)
+    says_move = bool(_SAYS_MOVE.search(text or ""))
 
     for action in plan.actions:
         problem = None
@@ -317,6 +357,12 @@ def review_plan(db: Session, user: User, plan: AssistantPlan, *, locale: str, tz
             if taken:
                 problem = "busy"
                 asked.append(("busy", taken))
+        if problem is None and action.action == "create_visit" and says_move and not moves \
+                and action.client_id is not None:
+            there = _existing_visit(db, user, action.client_id, now_utc, zone, locale)
+            if there:
+                problem = "move_not_new"
+                asked.append(("move_not_new", there))
         if problem is None and action.action == "create_client":
             dup = _duplicate(db, user, action, text)
             if dup:
@@ -346,7 +392,8 @@ def review_plan(db: Session, user: User, plan: AssistantPlan, *, locale: str, tz
         # the concrete "who did you mean" goes first, the model's own questions may be about other things
         questions.insert(0, _say(kind, "question", locale, **values)[:QUESTION_MAX])
     for kind in why:
-        if kind not in ("no_client", "many_clients", "busy", "dup_client") and len(questions) < MAX_QUESTIONS:
+        if kind not in ("no_client", "many_clients", "busy", "dup_client", "move_not_new") \
+                and len(questions) < MAX_QUESTIONS:
             questions.append(_say(kind, "question", locale))
     questions = questions[:MAX_QUESTIONS]
     notes = " ".join(_say(kind, "note", locale) for kind in why)

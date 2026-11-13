@@ -259,3 +259,31 @@ def test_same_phone_as_the_existing_card_is_the_same_person(db, ab):
     plan = plan_with_text(db, b, "новая клиентка", *_new_card("Beta Klientka",
                                                                contact_phone=b["client"]["contact_phone"]))
     assert plan.actions == [] and b["client"]["full_name"] in plan.questions[0]
+
+
+def booking_plan(db, who, text, locale="ru", **extra):
+    action = {"action": "create_visit", "client_id": who["client"]["id"], "service_id": who["service"]["id"],
+              "start": "2026-10-23T12:00:00+02:00", **extra}
+    kit = setup(Model({"summary": "Сашенька запишет", "questions": [], "actions": [action]}))
+    return assistant.make_plan(db, fresh(db, who["owner"]), text, locale=locale, tz="Europe/Prague",
+                               now=NOW, **kit).plan
+
+
+@pytest.mark.parametrize("text,locale", [
+    ("Перенеси массаж Beta Klientka на пятницу в 12", "ru"),
+    ("Přesuň masáž Beta Klientka na pátek ve 12", "cz"),
+    ("Move Beta Klientka's massage to Friday at 12", "en"),
+])
+def test_a_move_request_does_not_turn_into_a_second_booking(db, ab, text, locale):
+    _, b = ab
+    plan = booking_plan(db, b, text, locale=locale)
+    assert plan.actions == []
+    assert len(plan.questions) == 1
+    # names the visit that is already there, so the answer can be "yes, that one"
+    assert b["service"]["name"] in plan.questions[0]
+
+
+def test_a_plain_booking_for_a_client_with_a_visit_stays(db, ab):
+    _, b = ab
+    plan = booking_plan(db, b, "Запиши Beta Klientka ещё и на пятницу в 12")
+    assert [a.action for a in plan.actions] == ["create_visit"]
