@@ -287,3 +287,28 @@ def test_a_plain_booking_for_a_client_with_a_visit_stays(db, ab):
     _, b = ab
     plan = booking_plan(db, b, "Запиши Beta Klientka ещё и на пятницу в 12")
     assert [a.action for a in plan.actions] == ["create_visit"]
+
+
+@pytest.mark.parametrize("kind", ["create_visit", "find_free_slot"])
+def test_a_missing_master_comes_from_the_service(db, ab, kind):
+    from app.db.models.service import Service
+    _, b = ab
+    db.get(Service, b["service"]["id"]).specialist_id = b["employee_user_id"]
+    db.commit()
+    action = {"action": kind, "service_id": b["service"]["id"]}
+    if kind == "create_visit":
+        action.update(client_id=b["client"]["id"], start="2026-10-23T12:00:00+02:00")
+    plan = plan_for(db, b, action)
+    [step] = plan.actions
+    # not the owner who typed the request - the master who does this service
+    assert step.specialist_id == b["employee_user_id"]
+
+
+def test_a_named_master_is_kept(db, ab):
+    from app.db.models.service import Service
+    _, b = ab
+    db.get(Service, b["service"]["id"]).specialist_id = b["employee_user_id"]
+    db.commit()
+    plan = plan_for(db, b, {"action": "create_visit", "client_id": b["client"]["id"], "service_id": b["service"]["id"],
+                            "specialist_id": b["owner"].id, "start": "2026-10-23T12:00:00+02:00"})
+    assert plan.actions[0].specialist_id == b["owner"].id

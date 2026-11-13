@@ -17,6 +17,8 @@ that are obviously off, and turns them into a plain question instead:
   "Кузнецова") - asked first, unless the person said it's someone new or gave their own contact.
 - a request to move a visit that the model turned into a new booking for a client who already has
   one - asked "move that one, or book another?", so a weak model can't double-book.
+- a booking or free-time search with a service but no master gets the service's own master, not
+  whoever typed the request (the executor's fallback) - so the card shows who'll really do it.
 - record numbers the model quoted back ("(ID 747)", "client_id=12") are taken out of the text.
 - a plan with nothing to do whose summary is a question: the summary goes into questions too.
 
@@ -259,6 +261,19 @@ def _existing_visit(db: Session, user: User, client_id: int, now_utc: datetime, 
     return {"who": (client.full_name if client and client.full_name else "?")[:60], "what": what[:120]}
 
 
+def _service_master(db: Session, scope, action) -> Optional[int]:
+    """The master of the action's service, when the model named a service but no master."""
+    if action.action not in ("create_visit", "find_free_slot") or getattr(action, "specialist_id", None):
+        return None
+    if getattr(action, "slot_ref", None) or not getattr(action, "service_id", None):
+        return None  # a found slot already carries its master
+    if not scope.ok("service_id", action.service_id):
+        return None
+    service = db.get(Service, action.service_id)
+    master = service.specialist_id if service else None
+    return master if master and scope.ok("specialist_id", master) else None
+
+
 def _lookup(db: Session, user: User, action) -> tuple[Optional[str], dict]:
     """A find_client the executor would not resolve to exactly one client: why, and what to say."""
     from app.ai.client_search import find_clients
@@ -339,6 +354,9 @@ def review_plan(db: Session, user: User, plan: AssistantPlan, *, locale: str, tz
 
     for action in plan.actions:
         problem = None
+        master = _service_master(db, scope, action)
+        if master is not None:
+            action = action.model_copy(update={"specialist_id": master})
         for field in ID_FIELDS:
             value = getattr(action, field, None)
             if value is not None and not scope.ok(field, value):
