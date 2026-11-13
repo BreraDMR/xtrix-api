@@ -44,8 +44,11 @@ How to plan:
   "Мартина Новака" for Martin Novák, "zitra" for zítra). Read the request generously and match it to
   client_matches, services and specialists by meaning. If exactly one client in client_matches fits,
   that is the client - use its id, don't ask whether they exist.
-- When you ask, ask something concrete and offer the options you see (the matching clients, services or
-  free times), not a generic "please clarify". Ask only for what is really missing.
+- When you ask, ask something concrete and offer the options you see (the matching clients or services),
+  not a generic "please clarify". Ask only for what is really missing, and put every question in
+  "questions", not only in the summary. If only the time is missing ("on Wednesday", "in the afternoon"),
+  ask for it - you may offer to look up the first free time, but don't book through find_free_slot unless
+  they asked for the earliest or first free time.
 - If something needed is missing or ambiguous, ask in "questions" (at most {MAX_QUESTIONS}) and plan only what
   is certain - or nothing. At most {MAX_ACTIONS} actions.
 - DATA.context.history is the recent conversation with this staff member, oldest first. Use it to resolve

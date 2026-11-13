@@ -9,6 +9,7 @@ that are obviously off, and turns them into a plain question instead:
   the person said 10:00, so we keep the wall clock and take the salon's offset for that day.
   A plain UTC time (or any offset the salon never uses) is a real instant and stays as it is.
 - a booking or reschedule that's already in the past, beyond a short grace - dropped with a question.
+- a plan with nothing to do whose summary is a question: the summary goes into questions too.
 
 Reads only, through the same permission helpers as the API.
 """
@@ -34,6 +35,7 @@ PAST_GRACE = timedelta(minutes=30)
 WHEN_FIELDS = ("start", "not_before")
 BOOKINGS = ("create_visit", "reschedule_visit")
 SUMMARY_MAX = 500
+QUESTION_MAX = 300
 
 _TEXT = {
     "foreign": {
@@ -152,7 +154,12 @@ def review_plan(db: Session, user: User, plan: AssistantPlan, *, locale: str, tz
         kept.append(action.model_copy(update=fixed) if fixed else action)
 
     if not why:
-        return AssistantPlan.model_validate_json(plan.model_copy(update={"actions": kept}).model_dump_json())
+        questions = list(plan.questions)
+        # some models ask in the summary and leave questions empty - then the person has nothing to answer
+        if not kept and not questions and plan.summary.rstrip().endswith("?"):
+            questions = [plan.summary.strip()[:QUESTION_MAX]]
+        update = {"actions": kept, "questions": questions}
+        return AssistantPlan.model_validate_json(plan.model_copy(update=update).model_dump_json())
 
     questions = list(plan.questions)
     for kind in why:

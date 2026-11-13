@@ -98,3 +98,21 @@ def test_questions_stay_within_the_limit(db, ab):
     asked = [f"q{i}" for i in range(5)]
     plan = plan_for(db, b, {"action": "cancel_visit", "visit_id": a["visit"]["id"]}, questions=asked)
     assert plan.questions == asked and plan.actions == []
+
+
+@pytest.mark.parametrize("summary, asked", [
+    ("Prosím upřesněte, který záznam chcete přeložit – máte datum nebo ID?", True),
+    ("You're welcome!", False),
+])
+def test_a_question_written_only_in_the_summary_becomes_a_question(db, ab, summary, asked):
+    # slot8 13.11: the model asked in the summary and left questions empty, so the UI had nothing to answer
+    _, b = ab
+    plan = plan_for(db, b, summary=summary, locale="cz")
+    assert plan.questions == ([summary] if asked else [])
+    assert plan.summary == summary
+
+
+def test_the_prompt_does_not_book_through_a_free_slot_when_only_the_time_is_missing():
+    from app.ai.prompt import system_prompt
+    text = system_prompt()
+    assert "only the time is missing" in text and "matching clients or services)" in text
