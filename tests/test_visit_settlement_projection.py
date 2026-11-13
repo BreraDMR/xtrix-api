@@ -104,8 +104,7 @@ def test_empty_known_quote_is_factual_and_immutable(db,world):
     assert result.gift_money_coverage==result.gift_units_coverage==0
     assert result.gift_package_coverage == 0
     assert not result.requires_review and result.reasons==()
-    assert result.outstanding is None and result.overpayment is None
-    assert result.outstanding_reason=='outstanding_not_projected'
+    assert result.outstanding==Decimal('1000.01') and result.overpayment==0 and result.outstanding_reason is None
     with pytest.raises(FrozenInstanceError):result.currency='CZK'
 
 
@@ -165,7 +164,9 @@ def test_attempt_status_never_fabricates_a_receipt(db,world,state):
         assert result.provider_received is None and result.has_reconciliation
         assert 'provider_history_review' in result.reasons
     else:assert result.provider_received==0 and not result.requires_review
-    assert result.outstanding is None
+    # an attempt that never paid is not money: pending waits, the rest owe the full price
+    if state in ('pending','reconcile'):assert result.outstanding is None
+    else:assert result.outstanding==Decimal('1000.01') and result.outstanding_reason is None
 
 
 @pytest.mark.parametrize('case',['no_paid_event','foreign_business','event_business','event_provider','event_status','event_source','refund_currency','refund_aggregate','refund_without_event','excess_refund'])
@@ -317,7 +318,7 @@ def test_saved_package_value_is_not_the_certificate_price_or_current_business_cu
     assert facts.gift_units_coverage == 1 and facts.gift_money_coverage == 0
     assert 'gift_package_value_unknown' not in facts.reasons
     assert not facts.requires_review
-    assert facts.outstanding is None and facts.overpayment is None
+    assert facts.outstanding == facts.overpayment == 0 and facts.outstanding_reason is None
     assert receipt.coverage_currency == facts.currency == 'EUR'
 
 
@@ -329,7 +330,7 @@ def test_reversed_package_has_zero_active_coverage_without_repricing_the_receipt
     facts = read_settlement(db, world['scope'])
     assert facts.gross_quote == 20
     assert facts.gift_units_coverage == facts.gift_package_coverage == 0
-    assert not facts.requires_review and facts.outstanding is None
+    assert not facts.requires_review and facts.outstanding == 20 and facts.overpayment == 0
     assert receipt.coverage_amount_exact == Decimal('1000.01')
 
 

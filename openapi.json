@@ -11666,6 +11666,66 @@
         "title": "PopularServicesResponse",
         "type": "object"
       },
+      "PriorCurrencySettlementOut": {
+        "description": "Money left under a currency the visit price was corrected away from. Never converted.",
+        "properties": {
+          "benefit_rows": {
+            "title": "Benefit Rows",
+            "type": "integer"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "entry_rows": {
+            "title": "Entry Rows",
+            "type": "integer"
+          },
+          "provider_net": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Net"
+          },
+          "provider_received": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Received"
+          },
+          "provider_refunded": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Refunded"
+          }
+        },
+        "required": [
+          "currency",
+          "provider_received",
+          "provider_refunded",
+          "provider_net",
+          "benefit_rows",
+          "entry_rows"
+        ],
+        "title": "PriorCurrencySettlementOut",
+        "type": "object"
+      },
       "ProductCreate": {
         "properties": {
           "barcode": {
@@ -20335,6 +20395,258 @@
           "replayed"
         ],
         "title": "VisitSettlementEntryResultOut",
+        "type": "object"
+      },
+      "VisitSettlementOut": {
+        "description": "What was paid and what is still owed, all in the visit's own saved currency.",
+        "properties": {
+          "charges": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charges"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "gift_money_coverage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gift Money Coverage"
+          },
+          "gift_package_coverage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gift Package Coverage"
+          },
+          "gift_units_coverage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gift Units Coverage"
+          },
+          "gross_quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gross Quote"
+          },
+          "has_pending_checkout": {
+            "title": "Has Pending Checkout",
+            "type": "boolean"
+          },
+          "loyalty_discount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loyalty Discount"
+          },
+          "manual_payment_recorded": {
+            "description": "Old \"paid manually\" marker without an amount",
+            "title": "Manual Payment Recorded",
+            "type": "boolean"
+          },
+          "manual_received": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manual Received"
+          },
+          "manual_refunded": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manual Refunded"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "outstanding": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Still to pay; null when any amount is unknown",
+            "title": "Outstanding"
+          },
+          "outstanding_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why outstanding is null, a stable code",
+            "title": "Outstanding Reason"
+          },
+          "overpayment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Paid above what is owed; null when any amount is unknown",
+            "title": "Overpayment"
+          },
+          "price_after_loyalty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price After Loyalty"
+          },
+          "prior_currency_settlements": {
+            "items": {
+              "$ref": "#/components/schemas/PriorCurrencySettlementOut"
+            },
+            "title": "Prior Currency Settlements",
+            "type": "array"
+          },
+          "provider_net": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Net"
+          },
+          "provider_received": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Received"
+          },
+          "provider_refunded": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Refunded"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "requires_review": {
+            "title": "Requires Review",
+            "type": "boolean"
+          },
+          "visit_id": {
+            "title": "Visit Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "visit_id",
+          "currency",
+          "gross_quote",
+          "loyalty_discount",
+          "price_after_loyalty",
+          "charges",
+          "gift_money_coverage",
+          "gift_units_coverage",
+          "gift_package_coverage",
+          "provider_received",
+          "provider_refunded",
+          "provider_net",
+          "manual_received",
+          "manual_refunded",
+          "manual_payment_recorded",
+          "has_pending_checkout",
+          "outstanding",
+          "overpayment",
+          "outstanding_reason",
+          "requires_review",
+          "reasons",
+          "prior_currency_settlements"
+        ],
+        "title": "VisitSettlementOut",
         "type": "object"
       },
       "VisitStatisticsResponse": {
@@ -44975,6 +45287,71 @@
           }
         ],
         "summary": "Restore Visit",
+        "tags": [
+          "visits"
+        ]
+      }
+    },
+    "/visits/{visit_id}/settlement": {
+      "get": {
+        "description": "outstanding/overpayment are null with outstanding_reason when any amount is unknown, a checkout is in flight, or money sits in a replaced currency.",
+        "operationId": "read_visit_settlement_visits__visit_id__settlement_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Visit Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitSettlementOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "What was paid and what is still owed on one visit, in its own currency",
         "tags": [
           "visits"
         ]

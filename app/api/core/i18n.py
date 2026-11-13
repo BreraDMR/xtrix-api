@@ -108,6 +108,11 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Сумма должна быть в валюте цены визита. Если валюта неверная, сначала исправьте цену визита.",
         "cz": "Částka musí být v měně ceny návštěvy. Pokud je měna špatně, nejdřív opravte cenu návštěvy.",
     },
+    "visit_settlement_balance_review": {
+        "en": "The balance can't be confirmed yet: some amounts are unknown, a payment is still in progress, or money is recorded in another currency.",
+        "ru": "Остаток пока нельзя подтвердить: часть сумм неизвестна, оплата ещё идёт или деньги записаны в другой валюте.",
+        "cz": "Zůstatek zatím nelze potvrdit: některé částky nejsou známé, platba ještě probíhá nebo jsou peníze zapsány v jiné měně.",
+    },
     "visit_settlement_currency_unknown": {
         "en": "This visit has no currency yet. Confirm the visit currency before recording money.",
         "ru": "У визита ещё нет валюты. Подтвердите валюту визита, прежде чем записывать суммы.",

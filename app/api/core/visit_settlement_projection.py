@@ -1,4 +1,12 @@
-"""Read immutable settlement facts; never infer a payable balance from receipts."""
+"""Read immutable settlement facts and, only when every amount is known, what is still owed.
+
+The balance is a plain sum in one currency: price after bonuses + explicit charges
+- certificate/package coverage - provider net - manual receipts + manual refunds.
+Anything unknown (old amountless marker, broken history, money left in a replaced
+currency, a checkout in flight) gives None and a reason instead of a guess. A
+cancelled visit owes only its explicit charges (decision 30.10), and a refund on
+its own never turns into a debt.
+"""
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -11,6 +19,7 @@ from app.db.models.loyalty_program import LoyaltyTransaction
 from app.db.models.service_payment import ServicePaymentAttempt, ServicePaymentEvent, ServicePaymentRefund
 from app.db.models.visit import Visit
 from app.db.models.visit_price_correction import VisitPriceCorrection
+from app.db.models.visit_settlement_entry import VisitSettlementEntry
 from app.schemas.limits import ISO_4217
 
 
@@ -39,6 +48,7 @@ class PriorCurrencySettlement:
     provider_refunded: Decimal | None
     provider_net: Decimal | None
     benefit_rows: int
+    entry_rows: int = 0
 
 
 @dataclass(frozen=True)
@@ -60,9 +70,12 @@ class SettlementFacts:
     requires_review: bool
     reasons: tuple[str, ...]
     prior_currency_settlements: tuple[PriorCurrencySettlement, ...] = ()
-    outstanding: None = None
-    overpayment: None = None
-    outstanding_reason: str = 'outstanding_not_projected'
+    charges: Decimal | None = None
+    manual_received: Decimal | None = None
+    manual_refunded: Decimal | None = None
+    outstanding: Decimal | None = None
+    overpayment: Decimal | None = None
+    outstanding_reason: str | None = 'outstanding_not_projected'
 
 
 def _array(*pairs):
@@ -94,13 +107,16 @@ def _snapshot(scope):
         'cashback_exact', cast(l.cashback_amount_exact, String), 'currency', l.discount_currency,
         'discount', cast(l.discount_amount_exact, String))).where(
             l.visit_id == Visit.id).correlate(Visit).scalar_subquery()
+    s = VisitSettlementEntry
+    entries = select(_array('business', s.business_id, 'kind', s.kind, 'currency', s.currency,
+        'amount', cast(s.amount, String))).where(s.visit_id == Visit.id).correlate(Visit).scalar_subquery()
     k = VisitPriceCorrection
     corrected_from = select(func.coalesce(func.jsonb_agg(k.old_currency), literal([], type_=JSONB))).where(
         k.visit_id == Visit.id, k.business_id == Visit.business_id, k.old_currency.is_not(None)
         ).correlate(Visit).scalar_subquery()
     return select(Visit.id, Visit.business_id, Visit.client_id, Visit.currency_snapshot, Visit.price,
-        Visit.manual_payment_recorded_at, attempts.label('attempts'), events.label('events'),
-        refunds.label('refunds'), gifts.label('gifts'), loyalty.label('loyalty'),
+        Visit.status, Visit.manual_payment_recorded_at, attempts.label('attempts'), events.label('events'),
+        refunds.label('refunds'), gifts.label('gifts'), loyalty.label('loyalty'), entries.label('entries'),
         corrected_from.label('corrected_from')).where(
             Visit.id == scope.id, Visit.business_id == scope.business_id, Visit.client_id == scope.client_id,
             Visit.specialist_id == scope.specialist_id, Visit.deleted_at.is_(None))
@@ -280,6 +296,63 @@ def _gifts(rows, business, currency):
         return None, None, None, True
 
 
+def _entries(rows, business, currency):
+    """Charges, manual receipts and manual refunds in cents, or None when a row doesn't fit."""
+    totals = {'charge': 0, 'manual_receipt': 0, 'manual_refund': 0}
+    try:
+        for row in rows:
+            if row['business'] != business or currency is None or row['currency'] != currency:
+                raise ValueError
+            value = _cents(row['amount'])
+            if value <= 0 or row['kind'] not in totals:
+                raise ValueError
+            totals[row['kind']] += value
+    except (ValueError, money.CashbackError):
+        return None
+    return totals
+
+
+# Several kinds of payment on one visit is worth a look, but when each amount is known
+# exactly the sum is still exact - so this one doesn't hide the balance.
+_INFORMATIONAL = frozenset({'mixed_settlement_history'})
+# root causes go first: with no quote currency every other check fails too
+_FIRST = ('quote_currency_unknown', 'quote_amount_invalid', 'manual_amount_unknown')
+
+
+def _balance(*, cancelled, reasons, pending, reconciliation, price_after, entries,
+             gift_money, gift_units, gift_package, provider_received, provider_refunded):
+    """(outstanding, overpayment, reason) in cents; both None with a reason when unknown."""
+    blocking = sorted(set(reasons) - _INFORMATIONAL, key=lambda code: (code not in _FIRST, _FIRST.index(code)
+                      if code in _FIRST else 0, code))
+    if blocking:
+        return None, None, blocking[0]
+    if pending:
+        return None, None, 'payment_pending'
+    if reconciliation:
+        return None, None, 'payment_reconciliation'
+    coverage = _cents(gift_money) + _cents(gift_package)
+    if cancelled:
+        # a cancelled visit owes only what was charged on purpose; a used certificate
+        # or package there should be given back by reversing it, not shown as cash
+        if coverage or gift_units:
+            return None, None, 'cancelled_coverage_review'
+        owed = entries['charge']
+    else:
+        price = _cents(price_after)
+        if coverage > price:
+            # bonuses and coverage together went past the price: that's not cash to return
+            return None, None, 'coverage_exceeds_price'
+        owed = price - coverage + entries['charge']
+    paid = _cents(provider_received) + entries['manual_receipt']
+    returned = _cents(provider_refunded) + entries['manual_refund']
+    left = owed - paid + returned
+    if returned and left > 0:
+        # money went back and something is owed again: the refund alone must not make a debt,
+        # a person has to say whether the client really owes it (explicit charge, decision 30.10)
+        return None, None, 'refund_balance_review'
+    return max(left, 0), max(-left, 0), None
+
+
 def read_settlement(db, scope: SettlementScope) -> SettlementFacts | None:
     """One fresh SQL snapshot, no writes/flush/commit/locks or permission fallback."""
     if not isinstance(scope, SettlementScope):
@@ -294,7 +367,7 @@ def read_settlement(db, scope: SettlementScope) -> SettlementFacts | None:
         reasons.add('quote_currency_unknown')
     # rows recorded under a currency the visit was corrected away from are reported apart
     prior = {value for value in row['corrected_from'] if value in ISO_4217 and value != currency}
-    attempts, events, refunds, gifts, loyalty_rows, prior_rows = _split_prior(row, prior)
+    attempts, events, refunds, gifts, loyalty_rows, entry_rows, prior_rows = _split_prior(row, prior)
     try:
         gross = _cents(row['price'])
         gross_value = _total(gross)
@@ -319,6 +392,9 @@ def read_settlement(db, scope: SettlementScope) -> SettlementFacts | None:
         reasons.add('manual_amount_unknown')
     if sum((bool(attempts), bool(gifts), bool(loyalty_active), manual)) > 1:
         reasons.add('mixed_settlement_history')
+    entries = _entries(entry_rows, scope.business_id, currency)
+    if entries is None:
+        reasons.add('settlement_entry_review')
     prior_facts = []
     for code in sorted(prior_rows):
         part = prior_rows[code]
@@ -326,21 +402,40 @@ def read_settlement(db, scope: SettlementScope) -> SettlementFacts | None:
             part['attempts'], part['events'], part['refunds'], scope.business_id, code)
         pending |= p_pending
         reconciliation |= p_reconciliation
-        prior_facts.append(PriorCurrencySettlement(code, p_received, p_refunded, p_net, part['benefits']))
+        prior_facts.append(PriorCurrencySettlement(code, p_received, p_refunded, p_net, part['benefits'],
+                                                   part['entries']))
         if part['attempts'] and (p_net is None or p_net != 0):
             reasons.add('prior_currency_settlement')
         if part['benefits']:
             reasons.add('prior_currency_benefits')
+        if part['entries']:
+            # no FX: a manual receipt in the old currency can't pay the new quote
+            reasons.add('prior_currency_entries')
+    outstanding = overpayment = None
+    try:
+        left, extra, why = _balance(cancelled=row['status'] == 'cancelled', reasons=reasons, pending=pending,
+            reconciliation=reconciliation, price_after=price_after, entries=entries, gift_money=gift_money,
+            gift_units=gift_units, gift_package=gift_package, provider_received=received,
+            provider_refunded=refunded)
+        if why is None:
+            outstanding, overpayment = _total(left), _total(extra)
+    except (money.CashbackError, ArithmeticError, TypeError):
+        why = 'outstanding_review'
+    known = entries or {}
     return SettlementFacts(row['id'], currency, gross_value, discount, price_after,
         received, refunded, net, gift_money, gift_units, gift_package, manual, pending, reconciliation,
-        bool(reasons), tuple(sorted(reasons)), tuple(prior_facts))
+        bool(reasons), tuple(sorted(reasons)), tuple(prior_facts),
+        charges=_total(known['charge']) if entries else None,
+        manual_received=_total(known['manual_receipt']) if entries else None,
+        manual_refunded=_total(known['manual_refund']) if entries else None,
+        outstanding=outstanding, overpayment=overpayment, outstanding_reason=why)
 
 
 def _split_prior(row, prior):
     """Current-currency rows for the usual checks, and per-currency buckets for the rest."""
     if not prior:
-        return row['attempts'], row['events'], row['refunds'], row['gifts'], row['loyalty'], {}
-    buckets = {code: {'attempts': [], 'events': [], 'refunds': [], 'benefits': 0} for code in prior}
+        return row['attempts'], row['events'], row['refunds'], row['gifts'], row['loyalty'], row['entries'], {}
+    buckets = {code: {'attempts': [], 'events': [], 'refunds': [], 'benefits': 0, 'entries': 0} for code in prior}
     owner = {}
     attempts = []
     for attempt in row['attempts']:
@@ -367,4 +462,10 @@ def _split_prior(row, prior):
             buckets[entry['currency']]['benefits'] += 1
         else:
             loyalty.append(entry)
-    return attempts, events, refunds, gifts, loyalty, buckets
+    entries = []
+    for entry in row['entries']:
+        if entry['currency'] in prior:
+            buckets[entry['currency']]['entries'] += 1
+        else:
+            entries.append(entry)
+    return attempts, events, refunds, gifts, loyalty, entries, buckets

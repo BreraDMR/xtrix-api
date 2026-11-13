@@ -56,3 +56,42 @@ class VisitSettlementEntryOut(BaseModel):
 class VisitSettlementEntryResultOut(BaseModel):
     entry: VisitSettlementEntryOut
     replayed: bool
+
+
+class PriorCurrencySettlementOut(BaseModel):
+    """Money left under a currency the visit price was corrected away from. Never converted."""
+    currency: str
+    provider_received: Decimal | None
+    provider_refunded: Decimal | None
+    provider_net: Decimal | None
+    benefit_rows: int
+    entry_rows: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+class VisitSettlementOut(BaseModel):
+    """What was paid and what is still owed, all in the visit's own saved currency."""
+    visit_id: int
+    currency: str | None
+    gross_quote: Decimal | None
+    loyalty_discount: Decimal | None
+    price_after_loyalty: Decimal | None
+    charges: Decimal | None
+    gift_money_coverage: Decimal | None
+    gift_units_coverage: int | None
+    gift_package_coverage: Decimal | None
+    provider_received: Decimal | None
+    provider_refunded: Decimal | None
+    provider_net: Decimal | None
+    manual_received: Decimal | None
+    manual_refunded: Decimal | None
+    manual_payment_recorded: bool = Field(description='Old "paid manually" marker without an amount')
+    has_pending_checkout: bool
+    outstanding: Decimal | None = Field(description='Still to pay; null when any amount is unknown')
+    overpayment: Decimal | None = Field(description='Paid above what is owed; null when any amount is unknown')
+    outstanding_reason: str | None = Field(description='Why outstanding is null, a stable code')
+    requires_review: bool
+    reasons: tuple[str, ...]
+    prior_currency_settlements: tuple[PriorCurrencySettlementOut, ...]
+    message: str | None = None
+    model_config = ConfigDict(from_attributes=True)

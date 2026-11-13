@@ -2,7 +2,7 @@ from app.schemas.visit_price import (VisitPriceQuoteOut, VisitPriceChange, Visit
     VisitPriceCorrectionIn, VisitPriceCorrectionOut, VisitPriceCorrectionResultOut)
 from app.api.core import visit_price_access, visit_price_quote, visit_reprice
 from app.schemas.visit_settlement import (VisitSettlementEntryIn, VisitSettlementEntryOut,
-    VisitSettlementEntryResultOut)
+    VisitSettlementEntryResultOut, VisitSettlementOut)
 from app.api.private_routes import NoStoreRoute
 from app.api.core import visit_settlement_guard
 from datetime import datetime, timedelta, time
@@ -725,6 +725,30 @@ def list_visit_settlement_entries(request: Request, visit_id: int = Path(gt=0),
     from app.api.core import visit_settlement_entries as entries
     target = _price_target(db, current_user, visit_id, locale)
     return [VisitSettlementEntryOut.model_validate(row) for row in entries.list_entries(db, target)]
+
+
+@price_router.get('/{visit_id}/settlement', response_model=VisitSettlementOut,
+                  summary='What was paid and what is still owed on one visit, in its own currency',
+                  description='outstanding/overpayment are null with outstanding_reason when any amount is '
+                              'unknown, a checkout is in flight, or money sits in a replaced currency.')
+@limiter.limit('60/minute')
+def read_visit_settlement(request: Request, visit_id: int = Path(gt=0),
+                          db: Session = Depends(deps.get_db),
+                          current_user: User = Depends(deps.role_required('admin', 'business_owner', 'specialist', 'employee')),
+                          locale: str = Depends(deps.get_locale)) -> VisitSettlementOut:
+    from dataclasses import asdict
+    from app.api.core.visit_settlement_projection import SettlementScope, read_settlement
+    target = _price_target(db, current_user, visit_id, locale)
+    if target.business_id is None:
+        # visits outside a business have no settlement to read
+        raise HTTPException(404, detail=_("visit_not_found", locale))
+    facts = read_settlement(db, SettlementScope(target.id, target.business_id, target.client_id, target.specialist_id))
+    if facts is None:
+        raise HTTPException(404, detail=_("visit_not_found", locale))
+    response = VisitSettlementOut.model_validate(asdict(facts))
+    if facts.outstanding is None:
+        response.message = _("visit_settlement_balance_review", locale)
+    return response
 
 
 @price_router.get('/{visit_id}/loyalty-price', response_model=VisitLoyaltyPriceOut,
