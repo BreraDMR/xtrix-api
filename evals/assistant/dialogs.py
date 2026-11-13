@@ -348,7 +348,10 @@ class DialogRunner:
         self.app.dependency_overrides.pop(self.endpoint.llm_router, None)
 
     def _plan(self, headers, conversation, text, locale) -> Turn:
-        for attempt in (1, 2, 3):
+        # short rests (requests or tokens per minute) are sat out as often as it takes; a rest longer
+        # than max_wait is a used-up quota and ends the dialog as "model unavailable"
+        attempts = 12
+        for attempt in range(1, attempts + 1):
             if self.pace:
                 self.sleep(self.pace)
             started = time.monotonic()
@@ -357,7 +360,7 @@ class DialogRunner:
                 "client_request_id": str(uuid.uuid4())})
             took = int((time.monotonic() - started) * 1000)
             body = _json(r)
-            if r.status_code in (429, 503) and attempt < 3:
+            if r.status_code in (429, 503) and attempt < attempts:
                 code = _code(body)
                 wait = float(r.headers.get("Retry-After") or 30)
                 if code in ("ai_busy", "ai_unavailable") and wait <= self.max_wait:
@@ -366,6 +369,8 @@ class DialogRunner:
                     self.router.board = type(self.router.board)()
                     continue
             if r.status_code != 200:
+                if r.status_code in (429, 503):
+                    body = {**body, "retry_after": r.headers.get("Retry-After")} if isinstance(body, dict) else body
                 return Turn(text, r.status_code, error=body if isinstance(body, dict) else {"raw": str(body)[:300]},
                             latency_ms=took)
             return Turn(text, 200, summary=body.get("summary") or "", questions=list(body.get("questions") or []),
@@ -414,7 +419,8 @@ class DialogRunner:
                     warnings.append(f"ISO time shown: {text[:80]!r}")
         if turns and turns[-1].error and _code(turns[-1].error) in ("ai_busy", "ai_unavailable", "ai_limit_reached"):
             status = "error"
-            reasons.append(f"model unavailable: {_code(turns[-1].error)}")
+            rest = turns[-1].error.get("retry_after")
+            reasons.append(f"model unavailable: {_code(turns[-1].error)} (rest {rest}s)")
         execution = None
         executed = False
         if dialog.confirm and status != "error":
