@@ -144,6 +144,8 @@ def reschedule_visit(db: Session, raw_session: str | None, visit_id: int,
             event_type='rescheduled', actor='client',
             event_key=f'visit:{visit_id}:rescheduled:{uuid4().hex}', created_at=original.checked_at)
         db.add(booking_event)
+        from app.api.core.released_slot_queue import enqueue_slots
+        enqueue_slots(db, original.business_id, result.released_slots, event_key=booking_event.event_key)
         _queue_fresh_change(db, business, visit, person)
         db.flush([booking_event])
         _allowed(db, raw_session, moved, original, new_start)

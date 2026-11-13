@@ -101,6 +101,8 @@ def cancel_visit(db: Session, raw_session: str | None, visit_id: int) -> CancelV
             event_type='cancelled', actor='client', event_key=event_key,
             created_at=original.checked_at)
         db.add(event)
+        from app.api.core.released_slot_queue import enqueue_slots
+        enqueue_slots(db, original.business_id, released, event_key=event_key)
         notification_events.queue_booking_cancelled(db, business, visit, person, event_key=event_key)
         db.flush([event])
         _allowed(db, raw_session, original, after_change=True)

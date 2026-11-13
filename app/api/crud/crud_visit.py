@@ -3,6 +3,7 @@ from datetime import timedelta
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Optional, Tuple
+from uuid import uuid4
 from sqlalchemy import and_, or_, func, select
 from sqlalchemy.orm import Session, joinedload
 from app.api.core.pagination import PaginationParams
@@ -343,6 +344,9 @@ def update_visit(
                     request_id=request_id,
                 )
         released = released_slots.changed_slots(before_slots, released_slots.visit_slots(visit), previous[0], visit.status)
+        if released:
+            from app.api.core.released_slot_queue import enqueue_slots
+            enqueue_slots(db, visit.business_id, released, event_key=f'visit:{visit.id}:released:{uuid4().hex}')
         db.add(visit)
         db.commit()
         db.refresh(visit)

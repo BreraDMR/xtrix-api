@@ -101,3 +101,10 @@ The public demo (Render API, Neon database and Vercel web client) follows `stagi
 `main` holds reviewed releases; no production service is connected to it yet. Promote the API first,
 then the web client, so each web branch can validate against the API contract on the same branch.
 Never share the staging database or Stripe sandbox with a future production environment.
+
+
+### Released-slot matching retries
+
+Migration `0089_released_slot_jobs` stores each released segment in the same transaction as visitor, guest and CRM cancellations or moves. Jobs contain only the old business/service/master/time and an internal release key; they contain no client contacts or booking tokens. Existing post-commit matching remains an accelerator, while the saved work survives an outage or restart.
+
+`app.api.core.released_slot_queue.run_pending` is an explicit local-only runner. Matching, offer creation, notification outbox rows and completion commit together; failures retain bounded retries until the slot starts. Concurrent runners skip claimed rows. This runner is not connected to the global scheduler and does not send messages. Visit deletion is not yet integrated into this queue; production scheduling and a fresh migration rehearsal remain release work. Downgrade refuses to discard any stored jobs.

@@ -11,7 +11,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.api import deps
-from app.api.core import booking_manage_access, booking_manage_policy, notification_events
+from app.api.core import booking_manage_access, booking_manage_policy, notification_events, released_slots
+from app.api.core.released_slot_queue import enqueue_slots
 from app.api.core import public_booking_service as booking_service
 from app.api.core.clock import utcnow
 from app.api.core.i18n import _
@@ -165,6 +166,10 @@ def reschedule_managed_booking(
         raise HTTPException(status_code=409, detail=_("public_slot_unavailable", locale))
 
     previous_start = visit.date_start
+    released = released_slots.visit_slots(visit)
+    release_event_key = (
+        f"visit:{visit.id}:rescheduled:{previous_start.isoformat()}>{new_start.isoformat()}:{utcnow().isoformat()}"
+    )
     apply_chain(visit, lines, new_start)
     db.add(
         VisitEvent(
@@ -172,21 +177,14 @@ def reschedule_managed_booking(
             visit_id=visit.id,
             event_type="rescheduled",
             actor="client",
-            event_key=(
-                f"visit:{visit.id}:rescheduled:"
-                f"{previous_start.isoformat()}>{new_start.isoformat()}:"
-                f"{utcnow().isoformat()}"
-            ),
+            event_key=release_event_key,
         )
     )
     notification_events.queue_booking_changed(db, visit.business, visit)
+    enqueue_slots(db, visit.business_id, released, event_key=release_event_key)
     db.commit()
     db.refresh(visit)
-    from app.api.core import waitlist_service
-
-    waitlist_service.release_slot_quietly(
-        db, visit.business, visit.service_id, visit.specialist_id, previous_start
-    )
+    released_slots.match_quietly(db, visit.business, released)
 
     try:
         from app.api.core.redis_client import invalidate_visit
@@ -220,6 +218,7 @@ def cancel_managed_booking(
         reason = booking_manage_policy.cancellation_block_reason(visit)
         if reason:
             raise HTTPException(status_code=409, detail=_(reason, locale))
+        released = released_slots.visit_slots(visit)
         visit.status = "cancelled"
         from app.api.core import service_payment_service as payments
 
@@ -235,11 +234,8 @@ def cancel_managed_booking(
             )
         )
         notification_events.queue_booking_cancelled(db, visit.business, visit, event_key=event_key)
+        enqueue_slots(db, visit.business_id, released, event_key=event_key)
         db.commit()
         db.refresh(visit)
-        from app.api.core import waitlist_service
-
-        waitlist_service.release_slot_quietly(
-            db, visit.business, visit.service_id, visit.specialist_id, visit.date_start
-        )
+        released_slots.match_quietly(db, visit.business, released)
     return _summary(token, visit)

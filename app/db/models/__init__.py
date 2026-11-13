@@ -81,3 +81,5 @@ from app.db.models.visitor_access import VisitorGrant, VisitorClaim
 from app.db.models.client_cashback_balance import ClientCashbackBalance
 
 from app.db.models.salary_period import SalaryPeriod
+
+from app.db.models.released_slot_job import ReleasedSlotJob

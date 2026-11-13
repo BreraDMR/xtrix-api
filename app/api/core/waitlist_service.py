@@ -273,7 +273,7 @@ def _offer_candidate(
     return created
 
 
-def release_slot(
+def match_released_slot(
     db: Session,
     business: Business,
     service_id: Optional[int],
@@ -297,6 +297,11 @@ def release_slot(
     if not booking_service._slot_is_free(db, business, service, specialist_id, start):
         return []
     offers = _offer_candidate(db, business, service, specialist_id, start, now)
+    return offers
+
+
+def release_slot(db, business, service_id, specialist_id, start):
+    offers = match_released_slot(db, business, service_id, specialist_id, start)
     if offers:
         db.commit()
         for offer in offers:
