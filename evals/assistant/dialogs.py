@@ -34,7 +34,7 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 from zoneinfo import ZoneInfo
 
 import yaml
@@ -196,8 +196,8 @@ def _state(db, fx: F.Fixture) -> dict:
 
 
 def _clients(db, fx: F.Fixture) -> dict[int, str]:
-    from app.db.models.client_business_relation import ClientBusinessRelation
     from app.db.models.client import Client
+    from app.db.models.client_business_relation import ClientBusinessRelation
 
     rows = (db.query(Client.id, Client.full_name)
             .join(ClientBusinessRelation, ClientBusinessRelation.client_id == Client.id)
