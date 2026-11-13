@@ -228,6 +228,41 @@ def _execution_context(message: AssistantMessage) -> Optional[dict]:
             'done_count': done_count, 'results': safe_results}
 
 
+# what a step of an unconfirmed plan carries into the next turn: enough to build it again
+# with one detail changed, nothing from the database that the plan didn't already show
+_STEP_FIELDS = ('action', 'ref', 'client_id', 'client_ref', 'slot_ref', 'name', 'full_name', 'phone', 'email',
+                'contact_phone', 'contact_email', 'specialist_id', 'service_id', 'visit_id', 'start',
+                'not_before', 'duration_minutes', 'note', 'text', 'reason')
+_STEP_NAMES = ('client_name', 'service_name', 'specialist_name')
+_STEP_TEXT_MAX = 120
+
+
+def _plan_steps(plan_payload) -> Optional[list]:
+    """The steps of a shown plan, trimmed, or None when the stored payload looks wrong."""
+    actions = plan_payload.get('actions') if isinstance(plan_payload, dict) else None
+    if not isinstance(actions, list) or not actions or len(actions) > MAX_ACTIONS:
+        return None
+    steps = []
+    for action in actions:
+        if not isinstance(action, dict) or action.get('action') not in _CONTEXT_ACTIONS:
+            return None
+        step = {}
+        for field in _STEP_FIELDS:
+            value = action.get(field)
+            if isinstance(value, bool) or value is None:
+                continue
+            if isinstance(value, int) or (isinstance(value, str) and value):
+                step[field] = value[:_STEP_TEXT_MAX] if isinstance(value, str) else value
+        display = action.get('display')
+        if isinstance(display, dict):
+            for field in _STEP_NAMES:
+                value = display.get(field)
+                if isinstance(value, str) and value:
+                    step[field] = value[:_STEP_TEXT_MAX]
+        steps.append(step)
+    return steps
+
+
 def get_conversation_context(
     db: Session,
     conversation_id: UUID,
@@ -271,6 +306,12 @@ def get_conversation_context(
             execution = _execution_context(m)
             if execution is not None:
                 item['execution'] = execution
+            # only the latest plan, and only while it never ran: "no, at 14" rebuilds it, nothing to move
+            latest = not any(h['role'] == 'assistant' for h in history)
+            if latest and execution == {'status': 'not_started'}:
+                steps = _plan_steps(m.plan_payload)
+                if steps:
+                    item['plan'] = steps
         history.append(item)
         total_chars += len(snippet)
     history.reverse()
