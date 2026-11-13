@@ -268,7 +268,7 @@ def test_downgrade_refuses_to_lose_documents_or_pending_work(db, world, kind):
     db.commit(); db.close()
     with pytest.raises(DBAPIError, match='Financial archive data exists'):
         command.downgrade(Config('alembic.ini'), '0087_package_coverage')
-    assert db.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0091_visitor_proof_mail_jobs'
+    assert db.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0092_visit_settlement_entries'
     db.rollback()
 
 
