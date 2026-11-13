@@ -213,3 +213,31 @@ def test_create_with_user_reuses_validated_unit_after_user_commit(client, db, wo
     assert response.status_code == 200, response.text
     assert response.json()['base_salary_currency'] == 'CZK'
     assert Decimal(response.json()['base_salary_exact']) == 100
+
+
+@pytest.mark.parametrize('path', ['/employees/create-with-user', '/employees/'])
+def test_explicit_nulls_from_the_web_form_mean_no_salary_terms_on_create(client, db, world, path):
+    # the employee form sends null for an empty commission/salary field; the old API took that as 0
+    body = {'commission_percentage': None, 'base_salary': None}
+    if path == '/employees/create-with-user':
+        body.update(full_name='Null Terms', email='null.terms@example.com')
+    else:
+        from app.db.models.user import User as UserModel
+        body.update(employee_user_id=db.execute(select(UserModel.id).where(
+            UserModel.email == 'privacy.staff@example.com')).scalar_one(), position='Barber')
+        db.execute(update(Employee).values(is_active=False))
+        db.commit()
+    response = client.post(path, headers=world['oh'], json=body)
+    assert response.status_code == 200, response.text
+    assert response.json()['commission_percentage'] == 0
+    assert response.json()['base_salary'] == 0
+
+
+def test_explicit_null_on_update_keeps_existing_terms(client, db, world):
+    employee = db.get(Employee, world['employee_id'])
+    employee.commission_percentage = 12.5
+    db.commit()
+    response = client.put(f'/employees/{employee.id}', headers=world['oh'],
+                          json={'commission_percentage': None, 'base_salary': None, 'position': 'Senior'})
+    assert response.status_code == 200, response.text
+    assert response.json()['commission_percentage'] == 12.5 and response.json()['position'] == 'Senior'

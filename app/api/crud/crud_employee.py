@@ -11,6 +11,13 @@ from app.api.core.clock import utcnow
 def salary_terms(db, data, business_owner_id=None, employee=None):
     """Validate fresh terms without assigning a unit to legacy amounts."""
     values = dict(data)
+    # the web form sends null for an empty field: nothing on create, "leave it" on update
+    for key in ("commission_percentage", "base_salary"):
+        if key in values and values[key] is None:
+            if employee is None:
+                values[key] = 0
+            else:
+                values.pop(key)
     if "commission_percentage" in values:
         values["commission_percentage"] = float(payroll_money.rate(values["commission_percentage"]))
     has_amount = "base_salary" in values
