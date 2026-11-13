@@ -11,10 +11,12 @@ that are obviously off, and turns them into a plain question instead:
 - a booking or reschedule that's already in the past, beyond a short grace - dropped with a question.
 - a find_client that finds nobody, or several people - the executor would fail on it after the person
   confirmed, so it becomes "nobody called X" or "which one: A, B?" right away.
+- record numbers the model quoted back ("(ID 747)", "client_id=12") are taken out of the text.
 - a plan with nothing to do whose summary is a question: the summary goes into questions too.
 
 Reads only, through the same permission helpers as the API.
 """
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -91,6 +93,23 @@ _TEXT = {
     },
 }
 MAX_NAMES = 5
+
+# models sometimes quote our record numbers back ("Olga Belova (ID 747)"); a person never needs them
+_ID_IN_BRACKETS = re.compile(r"\s*\(\s*id\s*[:#=]?\s*\d+\s*\)", re.I)
+_ID_WORD = re.compile(r"\s*\bid\s*[:#=]?\s*\d+\b", re.I)
+_ID_FIELD = re.compile(r"\b([a-z]+)_id\s*[:=]?\s*\d+", re.I)
+
+
+def _plain(text: str) -> str:
+    text = _ID_FIELD.sub(r"\1", _ID_WORD.sub("", _ID_IN_BRACKETS.sub("", text)))
+    return re.sub(r"\s+([.,;:!?])", r"\1", re.sub(r"[ \t]{2,}", " ", text)).strip()
+
+
+def _finish(plan: AssistantPlan, update: dict) -> AssistantPlan:
+    update["summary"] = _plain(update.get("summary", plan.summary))
+    update["questions"] = [q for q in (_plain(q) for q in update.get("questions", plan.questions)) if q]
+    # through JSON again, so the refs and every other rule of the plan are checked once more
+    return AssistantPlan.model_validate_json(plan.model_copy(update=update).model_dump_json())
 
 
 def _say(kind: str, part: str, locale: str, **values) -> str:
@@ -206,8 +225,7 @@ def review_plan(db: Session, user: User, plan: AssistantPlan, *, locale: str, tz
         # some models ask in the summary and leave questions empty - then the person has nothing to answer
         if not kept and not questions and plan.summary.rstrip().endswith("?"):
             questions = [plan.summary.strip()[:QUESTION_MAX]]
-        update = {"actions": kept, "questions": questions}
-        return AssistantPlan.model_validate_json(plan.model_copy(update=update).model_dump_json())
+        return _finish(plan, {"actions": kept, "questions": questions})
 
     questions = list(plan.questions)
     for kind, values in asked:
@@ -221,6 +239,4 @@ def review_plan(db: Session, user: User, plan: AssistantPlan, *, locale: str, tz
     writes_left = any(a.action not in ("find_client", "find_free_slot") for a in kept)
     # the model's summary describes the steps we just took out, so it only stays next to steps that remain
     summary = f"{notes} {plan.summary}".strip() if writes_left else notes
-    reviewed = plan.model_copy(update={"actions": kept, "questions": questions, "summary": summary[:SUMMARY_MAX]})
-    # through JSON again, so the refs and every other rule of the plan are checked once more
-    return AssistantPlan.model_validate_json(reviewed.model_dump_json())
+    return _finish(plan, {"actions": kept, "questions": questions, "summary": summary[:SUMMARY_MAX]})

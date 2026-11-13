@@ -150,3 +150,15 @@ def test_find_client_that_resolves_stays(db, ab):
                     {"action": "create_visit", "client_ref": "c", "start": "2026-10-20T10:00:00+02:00"},
                     summary="Booking")
     assert [x.action for x in plan.actions] == ["find_client", "create_visit"]
+
+
+@pytest.mark.parametrize("said, shown", [
+    ("Service «Haircut» is only done by Olga Belova (ID 747).", "Service «Haircut» is only done by Olga Belova."),
+    ("Client ID: 12 has a visit at 10:00", "Client has a visit at 10:00"),
+    ("Booking for client_id=12 at 10:00", "Booking for client at 10:00"),
+    ("Room 12 at 10:00, phone +420 777 100 001", "Room 12 at 10:00, phone +420 777 100 001"),
+])
+def test_internal_ids_never_reach_the_person(db, ab, said, shown):
+    _, b = ab
+    plan = plan_for(db, b, summary=said, questions=[said])
+    assert plan.summary == shown and plan.questions == [shown]

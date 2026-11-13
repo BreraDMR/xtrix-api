@@ -61,6 +61,7 @@ _UNREADABLE = [
     (re.compile(r"Traceback|Exception|Error:|stack ?trace", re.I), "traceback"),
     (re.compile(r"[{}\[\]]|\bnull\b|\bNone\b|\bundefined\b"), "raw data"),
     (re.compile(r"\b[a-z]+(?:_[a-z]+){1,}\b"), "internal code"),
+    (re.compile(r"\bID\s*[:#=]?\s*\d+|\b[a-z]+_id\b", re.I), "internal id"),
     (re.compile(r"\bHTTP\b|\bstatus[ _]code\b|\b(?:4\d\d|5\d\d) (?:error|Bad|Not|Internal)", re.I), "http error"),
 ]
 _ISO = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d")

@@ -30,12 +30,16 @@ def test_followup_receives_the_exact_question_that_was_shown(client, ab, fakes):
 
 
 @pytest.mark.parametrize('locale,expected', [('ru', 'Уточните'), ('en', 'Please specify'), ('cz', 'Upřesněte')])
-def test_execution_failure_has_a_human_message_for_the_next_dialogue(client, ab, fakes, locale, expected):
+def test_execution_failure_has_a_human_message_for_the_next_dialogue(client, db, ab, fakes, locale, expected):
+    from tests.test_ai_execution_feedback import archive, vanishing_client
     _, tenant = ab
+    gone = vanishing_client(client, tenant, 'Анастасия Исчезающая')
     fakes.answers.append(plan_of({'action': 'find_client', 'ref': 'client',
-                                  'name': 'НеизвестнаяАнастасия'}, summary='Найду клиента'))
+                                  'name': gone['full_name']}, summary='Найду клиента'))
     draft = ask(client, tenant, 'Анастасию на завтра')
     assert draft.status_code == 200, draft.text
+    # the card is archived between the plan and the confirmation
+    archive(db, gone['id'])
     result = client.post('/assistant/execute', json={'plan_id': draft.json()['plan_id']},
                          headers={**tenant['headers'], 'Accept-Language': locale})
     assert result.status_code == 200, result.text
@@ -144,7 +148,8 @@ def test_endpoint_guidance_is_preserved_without_exposing_bare_codes(client, ab, 
     def fail(*_args):
         raise HTTPException(status, detail=detail)
     monkeypatch.setitem(executor.HANDLERS, 'find_client', fail)
-    fakes.answers.append(plan_of({'action': 'find_client', 'name': 'Анастасия'}, summary='Найду клиента'))
+    fakes.answers.append(plan_of({'action': 'find_client', 'name': tenant['client']['full_name']},
+                                 summary='Найду клиента'))
     draft = ask(client, tenant, 'Анастасию на завтра')
     assert draft.status_code == 200, draft.text
     result = client.post('/assistant/execute', json={'plan_id': draft.json()['plan_id']},

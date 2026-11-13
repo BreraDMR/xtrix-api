@@ -15,13 +15,32 @@ def history(fakes):
     return json.loads(block)['context']['history']
 
 
+def vanishing_client(client, tenant, name='Исчезающая Клиентка'):
+    # a card that exists while the plan is made and is archived before it's confirmed, so the
+    # plan passes review and find_client really fails at execution
+    r = client.post('/clients/', json={'full_name': name}, headers=tenant['headers'])
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def archive(db, client_id):
+    from app.api.core.clock import utcnow
+    from app.db.models.client import Client
+    db.get(Client, client_id).archived_at = utcnow()
+    db.commit()
+
+
 def failed_plan(client, tenant, fakes, chat, request_id):
+    from app.db.session import SessionLocal
+    gone = vanishing_client(client, tenant)
     fakes.answers.append(api.plan_of(
-        {'action': 'find_client', 'name': 'NobodyHere', 'ref': 'client'},
+        {'action': 'find_client', 'name': gone['full_name'], 'ref': 'client'},
         {'action': 'create_visit', 'client_ref': 'client', 'start': '2027-01-10T10:00:00Z'},
         summary='Найду клиента и запишу'))
     draft = api.ask(client, tenant, 'Запиши клиента', conversation_id=chat, client_request_id=request_id)
     assert draft.status_code == 200, draft.text
+    with SessionLocal() as db:
+        archive(db, gone['id'])
     result = api.run(client, tenant, draft.json()['plan_id'])
     assert result.status_code == 200 and result.json()['ok'] is False, result.text
     return draft, result
@@ -82,12 +101,14 @@ def test_partial_failure_retains_the_completed_action_in_next_turn(client, db, a
     from app.db.models.client import Client
     _, tenant = ab
     chat = api.conversation(client, tenant)
+    gone = vanishing_client(client, tenant)
     fakes.answers.append(api.plan_of(
         {'action': 'create_client', 'full_name': 'Новый клиент после уточнения'},
-        {'action': 'find_client', 'name': 'DefinitelyAbsent', 'ref': 'client'},
+        {'action': 'find_client', 'name': gone['full_name'], 'ref': 'client'},
         {'action': 'create_visit', 'client_ref': 'client', 'start': '2027-01-10T10:00:00Z'},
         summary='Создам карточку и проверю другого клиента'))
     draft = api.ask(client, tenant, 'Подтверждаю данные', conversation_id=chat, client_request_id=str(uuid4()))
+    archive(db, gone['id'])
     result = api.run(client, tenant, draft.json()['plan_id'])
     assert result.status_code == 200 and not result.json()['ok'], result.text
     followup = api.ask(client, tenant, 'Почему запись не появилась?', conversation_id=chat, client_request_id=str(uuid4()))
