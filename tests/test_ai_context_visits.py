@@ -64,3 +64,24 @@ def test_the_prompt_explains_where_visit_ids_come_from():
     from app.ai.prompt import system_prompt
     text = system_prompt()
     assert "client_matches" in text and "visits" in text and "reschedule_visit" in text
+
+
+def test_a_visit_number_typed_in_the_request_is_looked_up(db, ab):
+    a, b = ab
+    own, foreign = b["visit"]["id"], a["visit"]["id"]
+    for text in (f"Отмени визит №{own}", f"Zruš návštěvu č. {own}", f"cancel visit #{own}", f"visit {own} - cancel"):
+        ctx = build_context(db, fresh(db, b["owner"]), text, locale="en", tz_name="Europe/Prague")
+        [seen] = ctx["mentioned_visits"]
+        assert seen["id"] == own and seen["client_id"] == b["client"]["id"] and seen["client"] == "Beta Klientka"
+    # another salon's number is just not there - no hint it exists
+    ctx = build_context(db, fresh(db, b["owner"]), f"Отмени визит №{foreign}", locale="ru", tz_name="Europe/Prague")
+    assert ctx["mentioned_visits"] == []
+    assert MARKER not in json.dumps(ctx, ensure_ascii=False)
+
+
+def test_plain_numbers_are_not_visit_numbers(db, ab):
+    _, b = ab
+    own = b["visit"]["id"]
+    ctx = build_context(db, fresh(db, b["owner"]), f"Запиши на {own} октября в {own}", locale="ru",
+                        tz_name="Europe/Prague")
+    assert ctx["mentioned_visits"] == []

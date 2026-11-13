@@ -2,6 +2,7 @@
 the user's own clients the request might mean. Ids and names only - no phones, e-mails, birth dates,
 notes or anything medical, ever. Everything here is read through the same permission helpers as the API.
 """
+import re
 from datetime import datetime, time, timedelta, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -102,6 +103,33 @@ def _with_visits(db: Session, user: User, matches: list[dict], local_now: dateti
     return [{**m, "visits": by_client.get(m["id"], [])} for m in matches]
 
 
+# a visit number the person typed: "визит №309", "návštěva č. 309", "visit #309", "№309"
+_VISIT_NUMBER = re.compile(r"(?:№|#|\bč\.|\bc\.|\bno\.|номер|визит\w*|návštěv\w*|navstev\w*|"
+                           r"rezervac\w*|\bvisit\w*|\bbooking|\bappointment)\s*(?:№|#|č\.|no\.|номер)?\s*(\d{1,9})\b",
+                           re.I)
+MAX_MENTIONED_VISITS = 5
+
+
+def _mentioned_visits(db: Session, user: User, text: str, zone) -> list[dict]:
+    """Visits whose number is in the request, if they're the user's own - else simply nothing."""
+    from app.db.models.client import Client
+
+    ids = list(dict.fromkeys(int(n) for n in _VISIT_NUMBER.findall(text or "")))[:MAX_MENTIONED_VISITS]
+    if not ids:
+        return []
+    out = []
+    for v in db.query(Visit).filter(Visit.id.in_(ids), Visit.deleted_at.is_(None)).order_by(Visit.id).all():
+        if not check_visit_access(db, user, v):
+            continue
+        client = db.get(Client, v.client_id) if v.client_id else None
+        master = db.get(User, v.specialist_id) if v.specialist_id else None
+        out.append({"id": v.id, "client_id": v.client_id, "client": client.full_name if client else None,
+                    "start": v.date_start.replace(tzinfo=timezone.utc).astimezone(zone).isoformat(),
+                    "service": v.service_name, "specialist_id": v.specialist_id,
+                    "specialist": master.full_name if master else None, "status": v.status or "planned"})
+    return out
+
+
 def _matches(db: Session, user: User, text: str, history: Optional[list]) -> list[dict]:
     """Clients named in the request; with nobody named ("перенеси её на пятницу"), the ones named
     in the latest message of the conversation that names somebody."""
@@ -136,5 +164,6 @@ def build_context(db: Session, user: User, text: str, *, locale: str, tz_name: s
         "specialists": specialists,
         "services": _services(db, user, business_id, [s["id"] for s in specialists]),
         "client_matches": _with_visits(db, user, _matches(db, user, text, history), local_now, zone),
+        "mentioned_visits": _mentioned_visits(db, user, text, zone),
         "history": list(history or []),
     }
