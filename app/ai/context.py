@@ -15,6 +15,7 @@ from app.api.core.clock import utcnow
 from app.api.core.permissions import (
     check_service_access,
     check_specialist_in_scope,
+    check_visit_access,
     get_staff_record,
     get_user_business_id,
 )
@@ -22,10 +23,15 @@ from app.api.crud import crud_business
 from app.db.models.employee import Employee
 from app.db.models.service import Service
 from app.db.models.user import User
+from app.db.models.visit import Visit
 
 MAX_SPECIALISTS = 30
 MAX_SERVICES = 60
 MAX_CLIENT_MATCHES = 10
+# a matched client's visits, so "move Anna's haircut" has an id to point at
+VISITS_BACK = timedelta(days=7)
+VISITS_AHEAD = timedelta(days=60)
+MAX_VISITS_PER_CLIENT = 8
 CALENDAR_DAYS = 15  # today and two weeks ahead - "in two weeks" has to land inside it
 
 
@@ -70,6 +76,44 @@ def _services(db: Session, user: User, business_id: Optional[int], specialist_id
             for s in rows if check_service_access(db, user, s)][:MAX_SERVICES]
 
 
+def _with_visits(db: Session, user: User, matches: list[dict], local_now: datetime, zone) -> list[dict]:
+    """Each matched client gets their live visits from a week back to two months ahead: id, salon
+    time, service, master, status. No notes or prices - notes can hold anything."""
+    ids = [m["id"] for m in matches]
+    if not ids:
+        return matches
+    now = local_now.astimezone(timezone.utc).replace(tzinfo=None)
+    rows = db.query(Visit).filter(Visit.client_id.in_(ids), Visit.deleted_at.is_(None),
+                                  or_(Visit.status.is_(None), Visit.status != "cancelled"),
+                                  Visit.date_start >= now - VISITS_BACK, Visit.date_start <= now + VISITS_AHEAD
+                                  ).order_by(Visit.date_start, Visit.id).limit(MAX_VISITS_PER_CLIENT * len(ids) * 2).all()
+    names = {}
+    by_client: dict[int, list] = {}
+    for v in rows:
+        kept = by_client.setdefault(v.client_id, [])
+        if len(kept) >= MAX_VISITS_PER_CLIENT or not check_visit_access(db, user, v):
+            continue
+        if v.specialist_id not in names:
+            master = db.get(User, v.specialist_id)
+            names[v.specialist_id] = master.full_name if master else None
+        kept.append({"id": v.id, "start": v.date_start.replace(tzinfo=timezone.utc).astimezone(zone).isoformat(),
+                     "service": v.service_name, "specialist_id": v.specialist_id,
+                     "specialist": names[v.specialist_id], "status": v.status or "planned"})
+    return [{**m, "visits": by_client.get(m["id"], [])} for m in matches]
+
+
+def _matches(db: Session, user: User, text: str, history: Optional[list]) -> list[dict]:
+    """Clients named in the request; with nobody named ("перенеси её на пятницу"), the ones named
+    in the latest message of the conversation that names somebody."""
+    found = clients_in_text(db, user, text, limit=MAX_CLIENT_MATCHES)
+    for item in reversed(history or []):
+        if found:
+            break
+        if isinstance(item, dict) and isinstance(item.get("text"), str):
+            found = clients_in_text(db, user, item["text"], limit=MAX_CLIENT_MATCHES)
+    return found
+
+
 def build_context(db: Session, user: User, text: str, *, locale: str, tz_name: str,
                   now: Optional[datetime] = None, history: Optional[list] = None) -> dict:
     try:
@@ -91,6 +135,6 @@ def build_context(db: Session, user: User, text: str, *, locale: str, tz_name: s
         "current_user": {"id": user.id, "name": user.full_name},
         "specialists": specialists,
         "services": _services(db, user, business_id, [s["id"] for s in specialists]),
-        "client_matches": clients_in_text(db, user, text, limit=MAX_CLIENT_MATCHES),
+        "client_matches": _with_visits(db, user, _matches(db, user, text, history), local_now, zone),
         "history": list(history or []),
     }

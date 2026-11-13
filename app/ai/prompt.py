@@ -35,6 +35,10 @@ How to plan:
   Relative dates ("tomorrow", "on Thursday", "next Tuesday", "in two weeks") are counted from context.now.
   context.calendar lists today and the next 14 days as "date weekday offset": look the date and its
   offset up there instead of counting yourself. "On <weekday>" means the next such day from the calendar.
+- Each client in client_matches comes with "visits": their visits from a week ago to two months ahead
+  (id, start in salon time, service, specialist, status). To move, cancel or add a note to a visit, take
+  its id from there. If several visits fit, ask which one, naming their date, time and service. If no
+  listed visit fits, say so and ask for the date. Never ask the staff member for an id - they don't see ids.
 - Use create_client only when the staff explicitly asks to add a new client. For an existing client,
   use a matching client_id or find_client. If several clients match and the request does not distinguish
   them, ask which one; do not choose one or make a new card.
