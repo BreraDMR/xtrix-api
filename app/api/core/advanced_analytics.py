@@ -1,13 +1,17 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import func, extract
+from sqlalchemy import func, extract, case, or_
 from collections import defaultdict
 from app.db.models.visit import Visit
 from app.db.models.service import Service
 from app.db.models.user import User
 from app.api.core.clock import utcnow
 from app.api.core.i18n import _
+from app.api.core.money_slices import (
+    as_float, average, currency_order, money_columns, money_slice, quote_cents, quote_currency,
+)
 def get_retention_metrics(
     db: Session,
     business_id: Optional[int] = None,
@@ -172,27 +176,16 @@ def get_trends_analysis(
         period_label = 'year'
     else:
         raise ValueError(f"Invalid comparison_type: {comparison_type}")
-    filters_base = []
+    # soft-deleted visits are gone for the owner, they don't count anywhere
+    filters_base = [Visit.deleted_at.is_(None)]
     if business_id:
         filters_base.append(Visit.business_id == business_id)
     if specialist_id:
         filters_base.append(Visit.specialist_id == specialist_id)
-    if metric == 'revenue':
-        current_filters = filters_base + [
-            Visit.date_start >= current_start,
-            Visit.date_start <= current_end,
-            Visit.price.isnot(None),
-            Visit.status == 'completed',
-        ]
-        previous_filters = filters_base + [
-            Visit.date_start >= previous_start,
-            Visit.date_start <= previous_end,
-            Visit.price.isnot(None),
-            Visit.status == 'completed',
-        ]
-        current_value = db.query(func.sum(Visit.price)).filter(*current_filters).scalar() or 0.0
-        previous_value = db.query(func.sum(Visit.price)).filter(*previous_filters).scalar() or 0.0
-    elif metric == 'clients':
+    if metric in MONEY_METRICS:
+        return _money_trend(db, filters_base, metric, comparison_type, period_label,
+                            (current_start, current_end), (previous_start, previous_end))
+    if metric == 'clients':
         current_filters = filters_base + [
             Visit.date_start >= current_start,
             Visit.date_start <= current_end,
@@ -218,25 +211,6 @@ def get_trends_analysis(
         ]
         current_value = float(db.query(func.count(Visit.id)).filter(*current_filters).scalar() or 0)
         previous_value = float(db.query(func.count(Visit.id)).filter(*previous_filters).scalar() or 0)
-    elif metric == 'average_check':
-        current_filters = filters_base + [
-            Visit.date_start >= current_start,
-            Visit.date_start <= current_end,
-            Visit.price.isnot(None),
-            Visit.status == 'completed',
-        ]
-        previous_filters = filters_base + [
-            Visit.date_start >= previous_start,
-            Visit.date_start <= previous_end,
-            Visit.price.isnot(None),
-            Visit.status == 'completed',
-        ]
-        current_sum = db.query(func.sum(Visit.price)).filter(*current_filters).scalar() or 0.0
-        current_count = db.query(func.count(Visit.id)).filter(*current_filters).scalar() or 0
-        previous_sum = db.query(func.sum(Visit.price)).filter(*previous_filters).scalar() or 0.0
-        previous_count = db.query(func.count(Visit.id)).filter(*previous_filters).scalar() or 0
-        current_value = current_sum / current_count if current_count > 0 else 0.0
-        previous_value = previous_sum / previous_count if previous_count > 0 else 0.0
     elif metric == 'load':
         current_filters = filters_base + [
             Visit.date_start >= current_start,
@@ -268,7 +242,77 @@ def get_trends_analysis(
         'change': round(change, 2),
         'change_percent': round(change_percent, 2),
         'trend_direction': trend_direction,
+        'currency': None,
+        'by_currency': [],
     }
+
+
+MONEY_METRICS = {'revenue', 'average_check'}
+
+
+def _trend_numbers(current, previous):
+    """change / percent / direction for one pair of values, None in -> None out."""
+    if current is None or previous is None:
+        return None, None, None
+    change = current - previous
+    if previous > 0:
+        change_percent = round(float(change) / float(previous) * 100, 2)
+    else:
+        change_percent = 100.0 if current > 0 else 0.0
+    direction = 'up' if change > 0 else 'down' if change < 0 else 'stable'
+    return change, change_percent, direction
+
+
+def _money_trend(db, filters_base, metric, comparison_type, period_label, current_range, previous_range):
+    """Revenue / average check trend, one row per stored visit currency.
+
+    The old scalar fields are only filled when every visit in both periods has
+    the same known currency and a sane price; otherwise they're None and the
+    frontend reads by_currency. One statement, so both periods share a snapshot.
+    """
+    currency = quote_currency()
+    cents = quote_cents(currency)
+    in_current = Visit.date_start.between(*current_range)
+    in_previous = Visit.date_start.between(*previous_range)
+    period = case((in_current, 'current'), else_='previous')
+    rows = db.query(period.label('period'), currency.label('currency'), *money_columns(cents)).filter(
+        *filters_base, Visit.status == 'completed', Visit.price.isnot(None), or_(in_current, in_previous),
+    ).group_by(period, currency).all()
+    slices = {}
+    for row in rows:
+        slices.setdefault(row.currency, {})[row.period] = money_slice(
+            row.currency, row.count, row.valid_count, row.total_cents)
+    empty = money_slice('', 0, 0, 0)
+    by_currency = []
+    for unit in sorted(slices, key=currency_order):
+        current = slices[unit].get('current', {**empty, 'currency': unit, 'requires_review': unit is None})
+        previous = slices[unit].get('previous', {**empty, 'currency': unit, 'requires_review': unit is None})
+        review = current['requires_review'] or previous['requires_review']
+        key = 'amount' if metric == 'revenue' else 'average'
+        current_value = None if review else current[key]
+        previous_value = None if review else previous[key]
+        change, change_percent, direction = _trend_numbers(current_value, previous_value)
+        by_currency.append({
+            'currency': unit, 'current_value': current_value, 'previous_value': previous_value,
+            'change': change, 'change_percent': change_percent, 'trend_direction': direction,
+            'current_count': current['count'], 'previous_count': previous['count'],
+            'requires_review': review,
+        })
+    single = by_currency[0] if len(by_currency) == 1 and not by_currency[0]['requires_review'] else None
+    if not by_currency:
+        scalar = {'current_value': 0.0, 'previous_value': 0.0, 'change': 0.0,
+                  'change_percent': 0.0, 'trend_direction': 'stable'}
+    elif single:
+        scalar = {key: as_float(single[key]) for key in ('current_value', 'previous_value', 'change')}
+        scalar.update(change_percent=single['change_percent'], trend_direction=single['trend_direction'])
+    else:
+        scalar = dict.fromkeys(('current_value', 'previous_value', 'change', 'change_percent', 'trend_direction'))
+    return {
+        'metric': metric, 'comparison_type': comparison_type, 'period_label': period_label,
+        **scalar, 'currency': single['currency'] if single else None, 'by_currency': by_currency,
+    }
+
+
 def get_forecast(
     db: Session,
     business_id: Optional[int] = None,
@@ -278,21 +322,17 @@ def get_forecast(
 ) -> Dict[str, Any]:
     now = utcnow()
     start_date = now - timedelta(days=180)
-    filters = []
+    filters = [Visit.deleted_at.is_(None)]
     if business_id:
         filters.append(Visit.business_id == business_id)
     if specialist_id:
         filters.append(Visit.specialist_id == specialist_id)
     filters.append(Visit.date_start >= start_date)
     filters.append(Visit.status == 'completed')
+    labels = [(now + timedelta(days=30 * (i + 1))).strftime('%Y-%m') for i in range(periods)]
     if forecast_type == 'revenue':
-        filters.append(Visit.price.isnot(None))
-        monthly_data = db.query(
-            extract('year', Visit.date_start).label('year'),
-            extract('month', Visit.date_start).label('month'),
-            func.sum(Visit.price).label('value')
-        ).filter(*filters).group_by('year', 'month').order_by('year', 'month').all()
-    elif forecast_type == 'visits':
+        return _money_forecast(db, filters, periods, labels)
+    if forecast_type == 'visits':
         monthly_data = db.query(
             extract('year', Visit.date_start).label('year'),
             extract('month', Visit.date_start).label('month'),
@@ -307,18 +347,15 @@ def get_forecast(
             'forecast': [],
             'historical_average': 0.0,
             'last_value': 0.0,
+            'currency': None,
+            'by_currency': [],
         }
     values = [float(value) for _, _, value in monthly_data]
     if len(values) >= 3:
         forecast_value = sum(values[-3:]) / 3
     else:
         forecast_value = sum(values) / len(values) if values else 0.0
-    forecast = []
-    for i in range(periods):
-        forecast.append({
-            'period': (now + timedelta(days=30 * (i + 1))).strftime('%Y-%m'),
-            'forecasted_value': round(forecast_value, 2),
-        })
+    forecast = [{'period': label, 'forecasted_value': round(forecast_value, 2)} for label in labels]
     historical_avg = sum(values) / len(values) if values else 0.0
     return {
         'forecast_type': forecast_type,
@@ -326,7 +363,60 @@ def get_forecast(
         'forecast': forecast,
         'historical_average': round(historical_avg, 2),
         'last_value': round(values[-1], 2) if values else 0.0,
+        'currency': None,
+        'by_currency': [],
     }
+
+
+def _mean(values):
+    # average of exact cent amounts, back to cents
+    return average(sum(values, Decimal('0.00')), len(values)) if values else None
+
+
+def _money_forecast(db, filters, periods, labels):
+    """Revenue forecast per stored visit currency, never one number over mixed money.
+
+    Same naive model as before (mean of the last 3 months with visits), just
+    run separately for every currency. A currency with any broken price or the
+    unknown-currency bucket gets requires_review and no numbers at all.
+    """
+    currency = quote_currency()
+    cents = quote_cents(currency)
+    year = extract('year', Visit.date_start)
+    month = extract('month', Visit.date_start)
+    rows = db.query(year.label('year'), month.label('month'), currency.label('currency'),
+                    *money_columns(cents)).filter(*filters, Visit.price.isnot(None)).group_by(
+        year, month, currency).order_by(year, month).all()
+    months = {}
+    for row in rows:
+        months.setdefault(row.currency, []).append(
+            money_slice(row.currency, row.count, row.valid_count, row.total_cents))
+    by_currency = []
+    for unit in sorted(months, key=currency_order):
+        slices = months[unit]
+        review = any(item['requires_review'] for item in slices)
+        values = [] if review else [item['amount'] for item in slices]
+        forecast_value = _mean(values[-3:])
+        by_currency.append({
+            'currency': unit, 'requires_review': review, 'months': len(slices),
+            'forecast': [{'period': label, 'forecasted_value': forecast_value} for label in labels],
+            'historical_average': _mean(values), 'last_value': values[-1] if values else None,
+        })
+    if not by_currency:
+        return {'forecast_type': 'revenue', 'periods': periods, 'forecast': [],
+                'historical_average': 0.0, 'last_value': 0.0, 'currency': None, 'by_currency': []}
+    single = by_currency[0] if len(by_currency) == 1 and not by_currency[0]['requires_review'] else None
+    return {
+        'forecast_type': 'revenue', 'periods': periods,
+        'forecast': [{'period': label, 'forecasted_value': as_float(single['forecast'][0]['forecasted_value'])
+                      if single else None} for label in labels],
+        'historical_average': as_float(single['historical_average']) if single else None,
+        'last_value': as_float(single['last_value']) if single else None,
+        'currency': single['currency'] if single else None,
+        'by_currency': by_currency,
+    }
+
+
 def get_service_and_specialist_analytics(
     db: Session,
     business_id: Optional[int] = None,

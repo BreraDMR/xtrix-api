@@ -119,24 +119,63 @@ class CohortData(BaseModel):
 class CohortTableResponse(BaseModel):
     cohort_table: List[CohortData]
     total_cohorts: int
+class TrendCurrencyValue(BaseModel):
+    currency: str | None
+    current_value: Decimal | None
+    previous_value: Decimal | None
+    change: Decimal | None
+    change_percent: float | None
+    trend_direction: str | None
+    current_count: int
+    previous_count: int
+    requires_review: bool = False
+
+
 class TrendsAnalysisResponse(BaseModel):
     metric: str
     comparison_type: str
     period_label: str
-    current_value: float
-    previous_value: float
-    change: float
-    change_percent: float
-    trend_direction: str  
+    # For revenue / average_check these stay filled only when every visit in
+    # both periods has one known currency; otherwise null, read by_currency.
+    current_value: float | None
+    previous_value: float | None
+    change: float | None
+    change_percent: float | None
+    trend_direction: str | None
+    currency: str | None = None
+    by_currency: List[TrendCurrencyValue] = Field(default_factory=list)
+
+
 class ForecastData(BaseModel):
     period: str
-    forecasted_value: float
+    forecasted_value: float | None
+
+
+class ForecastCurrencyPoint(BaseModel):
+    period: str
+    forecasted_value: Decimal | None
+
+
+class ForecastCurrencyValue(BaseModel):
+    currency: str | None
+    requires_review: bool = False
+    months: int
+    forecast: List[ForecastCurrencyPoint]
+    historical_average: Decimal | None
+    last_value: Decimal | None
+
+
 class ForecastResponse(BaseModel):
     forecast_type: str
     periods: int
+    # Revenue: filled only for one known currency, otherwise null + by_currency.
     forecast: List[ForecastData]
-    historical_average: float
-    last_value: float
+    historical_average: float | None
+    last_value: float | None
+    currency: str | None = None
+    by_currency: List[ForecastCurrencyValue] = Field(default_factory=list)
+
+
 class ServiceAnalytics(BaseModel):
     service_id: int
     service_name: str

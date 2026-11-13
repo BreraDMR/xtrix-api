@@ -5838,11 +5838,105 @@
         "title": "FindFreeSlotPlanned",
         "type": "object"
       },
+      "ForecastCurrencyPoint": {
+        "properties": {
+          "forecasted_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forecasted Value"
+          },
+          "period": {
+            "title": "Period",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period",
+          "forecasted_value"
+        ],
+        "title": "ForecastCurrencyPoint",
+        "type": "object"
+      },
+      "ForecastCurrencyValue": {
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "forecast": {
+            "items": {
+              "$ref": "#/components/schemas/ForecastCurrencyPoint"
+            },
+            "title": "Forecast",
+            "type": "array"
+          },
+          "historical_average": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Historical Average"
+          },
+          "last_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Value"
+          },
+          "months": {
+            "title": "Months",
+            "type": "integer"
+          },
+          "requires_review": {
+            "default": false,
+            "title": "Requires Review",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "currency",
+          "months",
+          "forecast",
+          "historical_average",
+          "last_value"
+        ],
+        "title": "ForecastCurrencyValue",
+        "type": "object"
+      },
       "ForecastData": {
         "properties": {
           "forecasted_value": {
-            "title": "Forecasted Value",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forecasted Value"
           },
           "period": {
             "title": "Period",
@@ -5858,6 +5952,24 @@
       },
       "ForecastResponse": {
         "properties": {
+          "by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/ForecastCurrencyValue"
+            },
+            "title": "By Currency",
+            "type": "array"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
           "forecast": {
             "items": {
               "$ref": "#/components/schemas/ForecastData"
@@ -5870,12 +5982,26 @@
             "type": "string"
           },
           "historical_average": {
-            "title": "Historical Average",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Historical Average"
           },
           "last_value": {
-            "title": "Last Value",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Value"
           },
           "periods": {
             "title": "Periods",
@@ -17620,23 +17746,157 @@
         "title": "TranscribeOut",
         "type": "object"
       },
-      "TrendsAnalysisResponse": {
+      "TrendCurrencyValue": {
         "properties": {
           "change": {
-            "title": "Change",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change"
           },
           "change_percent": {
-            "title": "Change Percent",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Percent"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "current_count": {
+            "title": "Current Count",
+            "type": "integer"
+          },
+          "current_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Value"
+          },
+          "previous_count": {
+            "title": "Previous Count",
+            "type": "integer"
+          },
+          "previous_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Value"
+          },
+          "requires_review": {
+            "default": false,
+            "title": "Requires Review",
+            "type": "boolean"
+          },
+          "trend_direction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trend Direction"
+          }
+        },
+        "required": [
+          "currency",
+          "current_value",
+          "previous_value",
+          "change",
+          "change_percent",
+          "trend_direction",
+          "current_count",
+          "previous_count"
+        ],
+        "title": "TrendCurrencyValue",
+        "type": "object"
+      },
+      "TrendsAnalysisResponse": {
+        "properties": {
+          "by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/TrendCurrencyValue"
+            },
+            "title": "By Currency",
+            "type": "array"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change"
+          },
+          "change_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Percent"
           },
           "comparison_type": {
             "title": "Comparison Type",
             "type": "string"
           },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
           "current_value": {
-            "title": "Current Value",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Value"
           },
           "metric": {
             "title": "Metric",
@@ -17647,12 +17907,26 @@
             "type": "string"
           },
           "previous_value": {
-            "title": "Previous Value",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Value"
           },
           "trend_direction": {
-            "title": "Trend Direction",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trend Direction"
           }
         },
         "required": [
