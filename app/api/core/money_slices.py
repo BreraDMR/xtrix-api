@@ -8,7 +8,7 @@ are counted but never summed, and one broken price makes its whole slice
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 from math import isfinite
 
-from sqlalchemy import Numeric, String, and_, case, cast, func
+from sqlalchemy import Numeric, String, and_, case, cast, func, select, tuple_
 
 from app.db.models.visit import Visit
 from app.schemas.limits import ISO_4217
@@ -75,3 +75,75 @@ def as_float(value):
 def currency_order(currency):
     # known currencies alphabetically, the unknown bucket last
     return (currency is None, currency or '')
+
+
+def priced_slice(currency, count, valid_count, total_cents) -> dict | None:
+    """money_slice over visits that carry a price; None when there's no price at all.
+
+    A planned visit without a price (and often without a currency yet) is not
+    money, so it must not turn a clean currency into "requires review".
+    """
+    if not int(count or 0):
+        return None
+    return money_slice(currency, count, valid_count, total_cents)
+
+
+def single_currency(slices) -> str | None:
+    """The one known currency all these slices share, None for mixed/unknown/broken."""
+    units = {item['currency'] for item in slices}
+    if len(units) != 1 or any(item['requires_review'] for item in slices):
+        return None
+    return next(iter(units))
+
+
+def grouped_quotes(db, keys, filters, joins=(), limit=None):
+    """Per-row visit counts plus one money slice per stored currency, one statement.
+
+    keys are labeled columns naming a row (say service id + name). Returns an
+    ordered list of {'key': tuple, 'visits', 'clients', 'by_currency': [...]}.
+    GROUPING SETS gives the per-row totals (distinct clients can't be added up
+    over currencies) from the same snapshot as the per-currency slices.
+    With limit, only the rows with the most visits are kept.
+    """
+    currency = quote_currency()
+    # quote_* names so they never clash with a key like client_id
+    query = select(*keys, Visit.client_id.label('quote_client'), Visit.price.label('quote_price'),
+                   currency.label('quote_currency'), quote_cents(currency).label('quote_cents')).select_from(Visit)
+    for target, on in joins:
+        query = query.join(target, on)
+    scoped = query.where(*filters).cte('scoped_quotes')
+    key_columns = [scoped.c[key.key] for key in keys]
+    grouped = select(
+        *key_columns, scoped.c.quote_currency.label('currency'),
+        func.grouping(scoped.c.quote_currency).label('is_total'),
+        func.count().label('visits'), func.count(func.distinct(scoped.c.quote_client)).label('clients'),
+        func.count(scoped.c.quote_price).label('count'), func.count(scoped.c.quote_cents).label('valid_count'),
+        func.sum(scoped.c.quote_cents).label('total_cents'),
+    ).group_by(func.grouping_sets(tuple_(*key_columns, scoped.c.quote_currency), tuple_(*key_columns)))
+    if limit:
+        top = select(*key_columns).group_by(*key_columns).order_by(
+            func.count().desc(), *key_columns).limit(limit).subquery('top_rows')
+        grouped = grouped.where(tuple_(*key_columns).in_(select(*top.c)))
+    with db.no_autoflush:
+        rows = db.execute(grouped).mappings().all()
+    result = {}
+    for row in rows:
+        key = tuple(row[column.key] for column in key_columns)
+        entry = result.setdefault(key, {'key': key, 'visits': 0, 'clients': 0, 'by_currency': []})
+        if row['is_total']:
+            entry['visits'], entry['clients'] = int(row['visits']), int(row['clients'])
+            continue
+        value = priced_slice(row['currency'], row['count'], row['valid_count'], row['total_cents'])
+        if value is not None:
+            value['client_count'] = int(row['clients'])
+            entry['by_currency'].append(value)
+    for entry in result.values():
+        entry['by_currency'].sort(key=lambda item: currency_order(item['currency']))
+    # most visits first, then by key (None keys last) so the order is stable
+    return sorted(result.values(), key=lambda entry: (
+        -entry['visits'], tuple((part is None, '' if part is None else part) for part in entry['key'])))
+
+
+def per_client(value: dict) -> Decimal | None:
+    """Money of one slice divided by its distinct clients."""
+    return average(value['amount'], value['client_count'])

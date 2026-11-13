@@ -10,7 +10,8 @@ from app.db.models.user import User
 from app.api.core.clock import utcnow
 from app.api.core.i18n import _
 from app.api.core.money_slices import (
-    as_float, average, currency_order, money_columns, money_slice, quote_cents, quote_currency,
+    as_float, average, currency_order, grouped_quotes, money_columns, money_slice, per_client,
+    quote_cents, quote_currency, single_currency,
 )
 def get_retention_metrics(
     db: Session,
@@ -424,7 +425,13 @@ def get_service_and_specialist_analytics(
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
 ) -> Dict[str, Any]:
-    filters = []
+    """Per service / per specialist numbers, money kept per stored visit currency.
+
+    Old money fields (total_revenue, average_price, ltv...) are only filled when
+    the whole answer is in one known currency: an old frontend formats every
+    row with the salon currency, so a EUR row next to CZK ones would lie.
+    """
+    filters = [Visit.deleted_at.is_(None), Visit.status == 'completed']
     if business_id:
         filters.append(Visit.business_id == business_id)
     if specialist_id:
@@ -433,56 +440,52 @@ def get_service_and_specialist_analytics(
         filters.append(Visit.date_start >= date_from)
     if date_to:
         filters.append(Visit.date_start <= date_to)
-    filters.append(Visit.status == 'completed')
-    service_stats = db.query(
-        Visit.service_id,
-        Service.name.label('service_name'),
-        func.count(Visit.id).label('visit_count'),
-        func.sum(Visit.price).label('total_revenue'),
-        func.avg(Visit.price).label('avg_price'),
-        func.count(func.distinct(Visit.client_id)).label('unique_clients'),
-    ).join(Service, Visit.service_id == Service.id).filter(*filters).group_by(
-        Visit.service_id, Service.name
-    ).all()
+    services = grouped_quotes(db, [Visit.service_id.label('service_id'), Service.name.label('service_name')],
+                              filters, joins=[(Service, Visit.service_id == Service.id)])
+    specialists = grouped_quotes(db, [Visit.specialist_id.label('specialist_id'),
+                                      User.full_name.label('specialist_name')],
+                                 filters, joins=[(User, Visit.specialist_id == User.id)])
+    clean = single_currency([value for entry in services + specialists for value in entry['by_currency']])
+
+    def money(entry):
+        by_currency = [{**value, 'per_client': per_client(value)} for value in entry['by_currency']]
+        only = by_currency[0] if len(by_currency) == 1 else None
+        if not by_currency:
+            return {'currency': None, 'by_currency': [], 'total': 0.0, 'average': 0.0, 'per_client': 0.0}
+        if clean is None or only is None:
+            return {'currency': single_currency(by_currency), 'by_currency': by_currency,
+                    'total': None, 'average': None, 'per_client': None}
+        return {'currency': clean, 'by_currency': by_currency, 'total': as_float(only['amount']),
+                'average': as_float(only['average']), 'per_client': as_float(only['per_client'])}
+
     services_analytics = []
-    for service_id, name, visit_count, revenue, avg_price, unique_clients in service_stats:
-        ltv = (revenue or 0.0) / (unique_clients or 1)
+    for entry in sorted(services, key=lambda item: item['key'][0]):
+        service_id, name = entry['key']
+        value = money(entry)
         services_analytics.append({
-            'service_id': service_id,
-            'service_name': name,
-            'visit_count': int(visit_count),
-            'total_revenue': float(revenue or 0.0),
-            'average_price': round(float(avg_price or 0.0), 2),
-            'unique_clients': int(unique_clients),
-            'ltv_per_client': round(ltv, 2),
-            'visits_per_client': round(visit_count / (unique_clients or 1), 2),
+            'service_id': service_id, 'service_name': name, 'visit_count': entry['visits'],
+            'total_revenue': value['total'], 'average_price': value['average'],
+            'unique_clients': entry['clients'], 'ltv_per_client': value['per_client'],
+            'visits_per_client': round(entry['visits'] / (entry['clients'] or 1), 2),
+            'currency': value['currency'], 'by_currency': value['by_currency'],
         })
-    specialist_stats = db.query(
-        Visit.specialist_id,
-        User.full_name.label('specialist_name'),
-        func.count(Visit.id).label('visit_count'),
-        func.sum(Visit.price).label('total_revenue'),
-        func.avg(Visit.price).label('avg_check'),
-        func.count(func.distinct(Visit.client_id)).label('unique_clients'),
-    ).join(User, Visit.specialist_id == User.id).filter(*filters).group_by(
-        Visit.specialist_id, User.full_name
-    ).all()
     specialists_analytics = []
-    for spec_id, name, visit_count, revenue, avg_check, unique_clients in specialist_stats:
-        avg_revenue_per_client = (revenue or 0.0) / (unique_clients or 1)
+    for entry in sorted(specialists, key=lambda item: item['key'][0]):
+        spec_id, name = entry['key']
+        value = money(entry)
         specialists_analytics.append({
-            'specialist_id': spec_id,
-            'specialist_name': name or f"Specialist {spec_id}",
-            'visit_count': int(visit_count),
-            'total_revenue': float(revenue or 0.0),
-            'average_check': round(float(avg_check or 0.0), 2),
-            'unique_clients': int(unique_clients),
-            'revenue_per_client': round(avg_revenue_per_client, 2),
+            'specialist_id': spec_id, 'specialist_name': name or f"Specialist {spec_id}",
+            'visit_count': entry['visits'], 'total_revenue': value['total'],
+            'average_check': value['average'], 'unique_clients': entry['clients'],
+            'revenue_per_client': value['per_client'],
+            'currency': value['currency'], 'by_currency': value['by_currency'],
         })
     return {
         'services': services_analytics,
         'specialists': specialists_analytics,
     }
+
+
 def get_smart_insights(
     db: Session,
     business_id: Optional[int] = None,
@@ -515,20 +518,13 @@ def get_smart_insights(
             'priority': 'medium',
         })
     revenue_trend = get_trends_analysis(db, business_id=business_id, specialist_id=specialist_id, metric='revenue', comparison_type='MoM')
-    if revenue_trend['trend_direction'] == 'down' and abs(revenue_trend['change_percent']) > 5:
-        insights.append({
-            'type': 'warning',
-            'title': _('insight_revenue_decline_title', locale),
-            'message': _('insight_revenue_decline', locale).format(value=f"{abs(revenue_trend['change_percent']):.1f}"),
-            'priority': 'high',
-        })
-    elif revenue_trend['trend_direction'] == 'up' and revenue_trend['change_percent'] > 10:
-        insights.append({
-            'type': 'success',
-            'title': _('insight_revenue_growth_title', locale),
-            'message': _('insight_revenue_growth', locale).format(value=f"{revenue_trend['change_percent']:.1f}"),
-            'priority': 'medium',
-        })
+    if revenue_trend['trend_direction'] is not None:
+        insights.extend(_revenue_insights(revenue_trend, None, locale))
+    else:
+        # several currencies: one hint per currency, never a percent over mixed money
+        for row in revenue_trend['by_currency']:
+            if not row['requires_review']:
+                insights.extend(_revenue_insights(row, row['currency'], locale))
     load_by_day = db.query(
         extract('dow', Visit.date_start).label('day_of_week'),
         func.count(Visit.id).label('visit_count')
@@ -566,10 +562,11 @@ def get_anonymous_benchmarks(
     business_ids = [b[0] for b in db.query(Business.id).filter(*business_filters).all()]
     visit_filters = [
         Visit.business_id.in_(business_ids),
+        Visit.deleted_at.is_(None),
         Visit.status == 'completed',
         Visit.price.isnot(None),
     ]
-    avg_check = db.query(func.avg(Visit.price)).filter(*visit_filters).scalar() or 0.0
+    checks = _benchmark_checks(db, visit_filters, min_businesses)
     total_visits = db.query(func.count(Visit.id)).filter(*visit_filters).scalar() or 0
     total_clients = db.query(func.count(func.distinct(Visit.client_id))).filter(*visit_filters).scalar() or 0
     avg_visits_per_client = total_visits / total_clients if total_clients > 0 else 0.0
@@ -590,8 +587,55 @@ def get_anonymous_benchmarks(
         'available': True,
         'business_type': business_type,
         'business_count': eligible_businesses,
-        'average_check': round(float(avg_check), 2),
+        'average_check': checks['average_check'],
+        'currency': checks['currency'],
+        'by_currency': checks['by_currency'],
         'average_visits_per_client': round(avg_visits_per_client, 2),
         'average_retention_rate': round(repeat_rate, 2),
         'average_daily_load': round(avg_load, 2),
     }
+
+
+def _revenue_insights(trend, currency, locale):
+    """Growth/decline hint for one trend row; the currency code goes into the text when given."""
+    direction, percent = trend['trend_direction'], trend['change_percent']
+    suffix = f' ({currency})' if currency else ''
+    if direction == 'down' and abs(percent) > 5:
+        return [{
+            'type': 'warning',
+            'title': _('insight_revenue_decline_title', locale),
+            'message': _('insight_revenue_decline', locale).format(value=f"{abs(percent):.1f}") + suffix,
+            'priority': 'high',
+        }]
+    if direction == 'up' and percent > 10:
+        return [{
+            'type': 'success',
+            'title': _('insight_revenue_growth_title', locale),
+            'message': _('insight_revenue_growth', locale).format(value=f"{percent:.1f}") + suffix,
+            'priority': 'medium',
+        }]
+    return []
+
+
+def _benchmark_checks(db, visit_filters, min_businesses):
+    """Average check across salons, only ever inside one currency.
+
+    A currency shows up only when enough different salons use it - otherwise
+    the "anonymous" average is just one salon's average check. The old scalar
+    stays only when every visit everywhere is in one known currency.
+    """
+    currency = quote_currency()
+    rows = db.query(currency.label('currency'), func.count(func.distinct(Visit.business_id)).label('businesses'),
+                    *money_columns(quote_cents(currency))).filter(*visit_filters).group_by(currency).all()
+    by_currency = []
+    for row in sorted(rows, key=lambda item: currency_order(item.currency)):
+        value = money_slice(row.currency, row.count, row.valid_count, row.total_cents)
+        if value['requires_review'] or int(row.businesses) < min_businesses:
+            continue
+        by_currency.append({'currency': row.currency, 'average_check': value['average'],
+                            'business_count': int(row.businesses), 'visit_count': value['count']})
+    if not rows:
+        return {'average_check': 0.0, 'currency': None, 'by_currency': []}
+    single = by_currency[0] if len(rows) == 1 and by_currency else None
+    return {'average_check': as_float(single['average_check']) if single else None,
+            'currency': single['currency'] if single else None, 'by_currency': by_currency}

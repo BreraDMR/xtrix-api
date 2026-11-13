@@ -54,25 +54,81 @@ class FinancialReportResponse(BaseModel):
     top_clients_by_currency: List[FinancialCurrencyClients] = Field(default_factory=list)
 
 
+class CurrencyMoneySlice(FinancialCurrencyValue):
+    """Money of one row in one stored visit currency; count = priced visits."""
+    client_count: int = 0
+
+
+class EntityCurrencyValue(CurrencyMoneySlice):
+    per_client: Decimal | None = None
+
+
+class PopularService(BaseModel):
+    service_id: int
+    service_name: str
+    visit_count: int
+    # Filled only when the whole list is in one known currency; otherwise null, read by_currency.
+    total_revenue: float | None
+    average_price: float | None = None
+    currency: str | None = None
+    by_currency: List[CurrencyMoneySlice] = Field(default_factory=list)
+
+
 class PopularServicesResponse(BaseModel):
-    services: List[Dict[str, Any]]
+    services: List[PopularService]
+
+
+class ClientSpendingAverage(BaseModel):
+    currency: str | None
+    average: Decimal | None
+    client_count: int
+    requires_review: bool = False
+
+
 class ClientStatisticsResponse(BaseModel):
     total_clients: int
     new_clients: int
     clients_by_gender: Dict[str, int]
+    # average_spending / top_spenders only for one known currency, otherwise null / [].
     average_spending: Optional[float] = None
     top_spenders: List[Dict[str, Any]]
+    currency: str | None = None
+    average_spending_by_currency: List[ClientSpendingAverage] = Field(default_factory=list)
+    top_spenders_by_currency: List[FinancialCurrencyClients] = Field(default_factory=list)
+
+
 class PaymentMethodStats(BaseModel):
-    total: float
+    total: float | None
     count: int
-    percentage: float
+    percentage: float | None
+
+
+class PaymentMethodCurrencyStats(BaseModel):
+    total: Decimal | None
+    count: int
+    percentage: float | None
+
+
+class PaymentCurrencyValue(BaseModel):
+    currency: str | None
+    total: Decimal | None
+    count: int
+    requires_review: bool = False
+    payments_by_method: Dict[str, PaymentMethodCurrencyStats]
+
+
 class PaymentStatisticsResponse(BaseModel):
-    total_payments: float
+    # Money fields only for one known currency; otherwise null, read by_currency.
+    total_payments: float | None
     total_count: int
     payments_by_method: Dict[str, PaymentMethodStats]
     card_payments: PaymentMethodStats
     cash_payments: PaymentMethodStats
     other_payments: PaymentMethodStats
+    currency: str | None = None
+    by_currency: List[PaymentCurrencyValue] = Field(default_factory=list)
+
+
 class AuditLogOut(BaseModel):
     id: int
     entity_type: str
@@ -180,19 +236,28 @@ class ServiceAnalytics(BaseModel):
     service_id: int
     service_name: str
     visit_count: int
-    total_revenue: float
-    average_price: float
+    # Money fields only when the whole answer is in one known currency.
+    total_revenue: float | None
+    average_price: float | None
     unique_clients: int
-    ltv_per_client: float
+    ltv_per_client: float | None
     visits_per_client: float
+    currency: str | None = None
+    by_currency: List[EntityCurrencyValue] = Field(default_factory=list)
+
+
 class SpecialistAnalytics(BaseModel):
     specialist_id: int
     specialist_name: str
     visit_count: int
-    total_revenue: float
-    average_check: float
+    total_revenue: float | None
+    average_check: float | None
     unique_clients: int
-    revenue_per_client: float
+    revenue_per_client: float | None
+    currency: str | None = None
+    by_currency: List[EntityCurrencyValue] = Field(default_factory=list)
+
+
 class ServiceAndSpecialistAnalyticsResponse(BaseModel):
     services: List[ServiceAnalytics]
     specialists: List[SpecialistAnalytics]
@@ -203,12 +268,23 @@ class InsightData(BaseModel):
     priority: str  
 class SmartInsightsResponse(BaseModel):
     insights: List[InsightData]
+class BenchmarkCurrencyValue(BaseModel):
+    currency: str
+    average_check: Decimal | None
+    business_count: int
+    visit_count: int
+
+
 class AnonymousBenchmarksResponse(BaseModel):
     available: bool
     reason: Optional[str] = None
     business_type: Optional[str] = None
     business_count: Optional[int] = None
+    # Only when every compared visit is in one known currency; else read by_currency
+    # (a currency used by fewer than min_businesses salons is left out on purpose).
     average_check: Optional[float] = None
+    currency: str | None = None
+    by_currency: List[BenchmarkCurrencyValue] = Field(default_factory=list)
     average_visits_per_client: Optional[float] = None
     average_retention_rate: Optional[float] = None
     average_daily_load: Optional[float] = None

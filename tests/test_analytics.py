@@ -11,8 +11,9 @@ _hours = count()
 def _visit(db, client_id, specialist_id, price, status="completed"):
     # each one an hour apart - one specialist can't have two visits at the same time (the db refuses)
     start = datetime.utcnow().replace(minute=0, second=0, microsecond=0) - timedelta(days=1, hours=next(_hours))
+    # a stored currency, like every visit the api writes; no currency = "requires review" now
     db.add(Visit(client_id=client_id, specialist_id=specialist_id, date_start=start,
-                 date_end=start + timedelta(hours=1), price=price, status=status))
+                 date_end=start + timedelta(hours=1), price=price, status=status, currency_snapshot="CZK"))
     db.commit()
 
 

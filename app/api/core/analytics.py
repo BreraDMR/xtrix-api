@@ -1,3 +1,4 @@
+from decimal import Decimal
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
@@ -7,7 +8,10 @@ from app.db.models.service import Service
 from app.db.models.client import Client
 from app.db.models.client_business_relation import ClientBusinessRelation
 from app.api.core.clock import utcnow
-from app.api.core.money_slices import as_float, currency_order, money_columns, money_slice, quote_cents, quote_currency
+from app.api.core.money_slices import (
+    as_float, average, currency_order, grouped_quotes, money_columns, money_slice, quote_cents, quote_currency,
+    single_currency,
+)
 def get_visit_statistics(
     db: Session,
     specialist_id: Optional[int] = None,
@@ -219,59 +223,64 @@ def get_payment_statistics(
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
 ) -> Dict[str, Any]:
-    base_filters = []
+    """Completed visit prices by payment method, per stored visit currency.
+
+    Counts are fine across currencies; totals and percentages only exist inside
+    one currency. The old flat money fields stay only for one known currency.
+    """
+    filters = [Visit.deleted_at.is_(None), Visit.status == 'completed', Visit.price.isnot(None), Visit.price > 0]
     if specialist_id:
-        base_filters.append(Visit.specialist_id == specialist_id)
+        filters.append(Visit.specialist_id == specialist_id)
     if business_id:
-        base_filters.append(Visit.business_id == business_id)
+        filters.append(Visit.business_id == business_id)
     if date_from:
-        base_filters.append(Visit.date_start >= date_from)
+        filters.append(Visit.date_start >= date_from)
     if date_to:
-        base_filters.append(Visit.date_start <= date_to)
-    payment_filters = base_filters + [
-        Visit.status == 'completed',
-        Visit.price.isnot(None),
-        Visit.price > 0,
-    ]
-    total_payments = (
-        db.query(func.sum(Visit.price))
-        .filter(*payment_filters)
-        .scalar() or 0.0
-    )
-    total_count = (
-        db.query(func.count(Visit.id))
-        .filter(*payment_filters)
-        .scalar() or 0
-    )
-    payments_by_method = (
-        db.query(
-            Visit.payment_method,
-            func.sum(Visit.price).label('total'),
-            func.count(Visit.id).label('count')
-        )
-        .filter(*payment_filters)
-        .group_by(Visit.payment_method)
-        .all()
-    )
+        filters.append(Visit.date_start <= date_to)
+    methods = grouped_quotes(db, [func.coalesce(Visit.payment_method, 'unknown').label('method')], filters)
+    per_unit = {}
+    for entry in methods:
+        for value in entry['by_currency']:
+            per_unit.setdefault(value['currency'], {})[entry['key'][0]] = value
+    by_currency = []
+    for unit in sorted(per_unit, key=currency_order):
+        values = per_unit[unit]
+        review = any(value['requires_review'] for value in values.values())
+        total = None if review else sum((value['amount'] for value in values.values()), Decimal('0.00'))
+
+        def share(value, total=total):
+            if total is None or value['amount'] is None:
+                return None
+            return round(float(value['amount']) / float(total) * 100, 2) if total > 0 else 0.0
+        by_currency.append({
+            'currency': unit, 'total': total, 'count': sum(value['count'] for value in values.values()),
+            'requires_review': review,
+            'payments_by_method': {method: {'total': None if review else value['amount'], 'count': value['count'],
+                                            'percentage': share(value)} for method, value in values.items()},
+        })
+    single = by_currency[0] if len(by_currency) == 1 and not by_currency[0]['requires_review'] else None
     payments_by_method_dict = {}
-    for method, total, count in payments_by_method:
-        method_key = method or 'unknown'
-        payments_by_method_dict[method_key] = {
-            'total': float(total),
-            'count': int(count),
-            'percentage': round((float(total) / total_payments * 100) if total_payments > 0 else 0.0, 2),
-        }
-    card_payments = payments_by_method_dict.get('card', {'total': 0.0, 'count': 0, 'percentage': 0.0})
-    cash_payments = payments_by_method_dict.get('cash', {'total': 0.0, 'count': 0, 'percentage': 0.0})
-    other_payments = payments_by_method_dict.get('other', {'total': 0.0, 'count': 0, 'percentage': 0.0})
+    for entry in methods:
+        method = entry['key'][0]
+        if single:
+            value = single['payments_by_method'][method]
+            payments_by_method_dict[method] = {'total': as_float(value['total']), 'count': value['count'],
+                                               'percentage': value['percentage']}
+        else:
+            payments_by_method_dict[method] = {'total': None, 'count': entry['visits'], 'percentage': None}
+    empty = {'total': 0.0, 'count': 0, 'percentage': 0.0}
     return {
-        'total_payments': float(total_payments),
-        'total_count': int(total_count),
+        'total_payments': as_float(single['total']) if single else (0.0 if not by_currency else None),
+        'total_count': sum(entry['visits'] for entry in methods),
         'payments_by_method': payments_by_method_dict,
-        'card_payments': card_payments,
-        'cash_payments': cash_payments,
-        'other_payments': other_payments,
+        'card_payments': payments_by_method_dict.get('card', empty),
+        'cash_payments': payments_by_method_dict.get('cash', empty),
+        'other_payments': payments_by_method_dict.get('other', empty),
+        'currency': single['currency'] if single else None,
+        'by_currency': by_currency,
     }
+
+
 def get_popular_services(
     db: Session,
     specialist_id: Optional[int] = None,
@@ -280,7 +289,13 @@ def get_popular_services(
     date_to: Optional[datetime] = None,
     limit: int = 10,
 ) -> List[Dict[str, Any]]:
-    service_filters = []
+    """Most booked services; their money per stored visit currency.
+
+    visit_count counts every visit (any status, priced or not), like before.
+    total_revenue / average_price stay only when the whole list is in one
+    known currency, otherwise null and the numbers live in by_currency.
+    """
+    service_filters = [Visit.deleted_at.is_(None)]
     if specialist_id:
         service_filters.append(Visit.specialist_id == specialist_id)
     if business_id:
@@ -289,31 +304,27 @@ def get_popular_services(
         service_filters.append(Visit.date_start >= date_from)
     if date_to:
         service_filters.append(Visit.date_start <= date_to)
-    q = (
-        db.query(
-            Visit.service_id,
-            Service.name.label('service_name'),
-            func.count(Visit.id).label('visit_count'),
-            func.sum(Visit.price).label('total_revenue'),
-            func.avg(Visit.price).label('avg_price'),
-        )
-        .join(Service, Visit.service_id == Service.id)
-        .filter(*service_filters)
-        .group_by(Visit.service_id, Service.name)
-        .order_by(func.count(Visit.id).desc())
-        .limit(limit)
-    )
-    results = q.all()
-    return [
-        {
-            'service_id': service_id,
-            'service_name': name,
-            'visit_count': int(count),
-            'total_revenue': float(revenue) if revenue else 0.0,
-            'average_price': round(float(avg_price), 2) if avg_price else None,
-        }
-        for service_id, name, count, revenue, avg_price in results
-    ]
+    services = grouped_quotes(db, [Visit.service_id.label('service_id'), Service.name.label('service_name')],
+                              service_filters, joins=[(Service, Visit.service_id == Service.id)], limit=limit)
+    clean = single_currency([value for entry in services for value in entry['by_currency']])
+    result = []
+    for entry in services:
+        service_id, name = entry['key']
+        slices = entry['by_currency']
+        if not slices:
+            total, average_price = 0.0, None
+        elif clean is not None:
+            total, average_price = as_float(slices[0]['amount']), as_float(slices[0]['average'])
+        else:
+            total, average_price = None, None
+        result.append({
+            'service_id': service_id, 'service_name': name, 'visit_count': entry['visits'],
+            'total_revenue': total, 'average_price': average_price,
+            'currency': single_currency(slices), 'by_currency': slices,
+        })
+    return result
+
+
 def get_client_statistics(
     db: Session,
     owner_id: Optional[int] = None,
@@ -355,33 +366,47 @@ def get_client_statistics(
         .all()
     )
     clients_by_gender = {gender or 'unknown': count for gender, count in gender_counts}
-    # spending = sum of completed visits (there's no stored spending column)
-    spending = func.sum(Visit.price).label('spending')
-    per_client = (
-        db.query(Client.id, Client.full_name, spending)
-        .join(Visit, Visit.client_id == Client.id)
-        .filter(*client_filters, Visit.status == 'completed', Visit.price.isnot(None))
-    )
+    # spending = sum of completed visits (there's no stored spending column), per currency
+    spend_filters = [*client_filters, Visit.deleted_at.is_(None), Visit.status == 'completed',
+                     Visit.price.isnot(None)]
     if business_id:
-        per_client = per_client.filter(Visit.business_id == business_id)
+        spend_filters.append(Visit.business_id == business_id)
     elif owner_id:
-        per_client = per_client.filter(Visit.specialist_id == owner_id)
-    per_client = per_client.group_by(Client.id, Client.full_name)
-    totals = per_client.subquery()
-    avg_spending = db.query(func.avg(totals.c.spending)).scalar()
-    top_spenders = per_client.order_by(spending.desc()).limit(10).all()
+        spend_filters.append(Visit.specialist_id == owner_id)
+    spenders = grouped_quotes(db, [Client.id.label('client_id'), Client.full_name.label('client_name')],
+                              spend_filters, joins=[(Client, Visit.client_id == Client.id)])
+    per_unit = {}
+    for entry in spenders:
+        for value in entry['by_currency']:
+            per_unit.setdefault(value['currency'], []).append((entry, value))
+    top_spenders_by_currency, average_spending_by_currency = [], []
+    for unit in sorted(per_unit, key=currency_order):
+        rows = sorted(per_unit[unit], key=lambda pair: (pair[1]['amount'] is None, -(pair[1]['amount'] or 0),
+                                                        pair[0]['key'][0]))
+        review = any(value['requires_review'] for _, value in rows)
+        amounts = [value['amount'] for _, value in rows]
+        average_spending_by_currency.append({
+            'currency': unit, 'client_count': len(rows), 'requires_review': review,
+            'average': None if review else average(sum(amounts, Decimal('0.00')), len(amounts)),
+        })
+        top_spenders_by_currency.append({'currency': unit, 'clients': [
+            {'client_id': entry['key'][0], 'client_name': entry['key'][1], 'amount': value['amount'],
+             'visit_count': value['count'], 'requires_review': value['requires_review']}
+            for entry, value in rows[:10]]})
+    single = average_spending_by_currency[0] if len(average_spending_by_currency) == 1 else None
+    single = single if single and not single['requires_review'] else None
     top_spenders_list = [
-        {
-            'client_id': client_id,
-            'client_name': name,
-            'spending': float(spending) if spending else 0.0,
-        }
-        for client_id, name, spending in top_spenders
-    ]
+        {'client_id': row['client_id'], 'client_name': row['client_name'], 'spending': as_float(row['amount'])}
+        for row in top_spenders_by_currency[0]['clients']
+    ] if single else []
+    avg_spending = single['average'] if single else None
     return {
         'total_clients': total_clients,
         'new_clients': new_clients,
         'clients_by_gender': clients_by_gender,
-        'average_spending': round(float(avg_spending), 2) if avg_spending else None,
+        'average_spending': as_float(avg_spending) if avg_spending else None,
         'top_spenders': top_spenders_list,
+        'currency': single['currency'] if single else None,
+        'average_spending_by_currency': average_spending_by_currency,
+        'top_spenders_by_currency': top_spenders_by_currency,
     }

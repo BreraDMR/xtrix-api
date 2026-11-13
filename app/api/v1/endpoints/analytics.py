@@ -265,15 +265,18 @@ def export_report(
             date_to=payload.date_to,
             limit=50,
         )
-        export_data = [
-            {
-                'Service Name': s['service_name'],
-                'Visit Count': s['visit_count'],
-                'Total Revenue': s['total_revenue'],
-                'Average Price': s['average_price'],
-            }
-            for s in services
-        ]
+        # one row per service and currency, exact cents as text like the financial export
+        export_data = []
+        for service in services:
+            for value in service['by_currency'] or [None]:
+                export_data.append({
+                    'Service Name': service['service_name'],
+                    'Currency': _export_currency(value),
+                    'Visit Count': value['count'] if value else service['visit_count'],
+                    'Total Revenue': _export_money(value['amount'] if value else None),
+                    'Average Price': _export_money(value['average'] if value else None),
+                    'Requires Review': value['requires_review'] if value else False,
+                })
         filename = "services_report"
         sheet_name = "Services Report"
     elif payload.report_type == "clients":
@@ -282,21 +285,39 @@ def export_report(
         )
         export_data = [
             {
-                'Client Name': client['client_name'],
-                'Total Spending': client['spending'],
+                'Client Name': row['client_name'],
+                'Currency': _export_currency(group),
+                'Total Spending': _export_money(row['amount']),
+                'Visit Count': row['visit_count'],
+                'Requires Review': row['requires_review'],
             }
-            for client in stats['top_spenders']
+            for group in stats['top_spenders_by_currency'] for row in group['clients']
         ]
         filename = "clients_report"
         sheet_name = "Clients Report"
     else:
         raise HTTPException(status_code=400, detail=_("invalid_report_type", locale))
-    financial_columns = ['Period', 'Currency', 'Quoted Service Value', 'Average Quoted Price',
-                         'Visit Count', 'Requires Review', 'Value Basis'] if payload.report_type == 'financial' else None
+    financial_columns = {
+        'financial': ['Period', 'Currency', 'Quoted Service Value', 'Average Quoted Price',
+                      'Visit Count', 'Requires Review', 'Value Basis'],
+        'services': ['Service Name', 'Currency', 'Visit Count', 'Total Revenue', 'Average Price', 'Requires Review'],
+        'clients': ['Client Name', 'Currency', 'Total Spending', 'Visit Count', 'Requires Review'],
+    }.get(payload.report_type)
     if payload.format == "csv":
         return export_to_csv(export_data, filename=f"{filename}.csv", fieldnames=financial_columns)
     else:
         return export_to_excel(export_data, filename=f"{filename}.xlsx", sheet_name=sheet_name, fieldnames=financial_columns)
+def _export_currency(value):
+    # no priced visits -> blank, priced visits without a stored currency -> UNKNOWN
+    if value is None:
+        return None
+    return value['currency'] if value['currency'] is not None else 'UNKNOWN'
+
+
+def _export_money(amount):
+    return format(amount, 'f') if amount is not None else None
+
+
 @router.get("/retention/metrics", response_model=RetentionMetricsResponse)
 def get_retention_metrics_endpoint(
     date_from: Optional[UtcDatetime] = Query(None),

@@ -287,6 +287,24 @@
             ],
             "title": "Business Type"
           },
+          "by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/BenchmarkCurrencyValue"
+            },
+            "title": "By Currency",
+            "type": "array"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
           "reason": {
             "anyOf": [
               {
@@ -522,6 +540,41 @@
           }
         },
         "title": "BasicMedicalInfo",
+        "type": "object"
+      },
+      "BenchmarkCurrencyValue": {
+        "properties": {
+          "average_check": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Check"
+          },
+          "business_count": {
+            "title": "Business Count",
+            "type": "integer"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "visit_count": {
+            "title": "Visit Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "currency",
+          "average_check",
+          "business_count",
+          "visit_count"
+        ],
+        "title": "BenchmarkCurrencyValue",
         "type": "object"
       },
       "BlockSlotCreate": {
@@ -3274,6 +3327,48 @@
         "title": "ClientSpecialistRelationOut",
         "type": "object"
       },
+      "ClientSpendingAverage": {
+        "properties": {
+          "average": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average"
+          },
+          "client_count": {
+            "title": "Client Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "requires_review": {
+            "default": false,
+            "title": "Requires Review",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "currency",
+          "average",
+          "client_count"
+        ],
+        "title": "ClientSpendingAverage",
+        "type": "object"
+      },
       "ClientStatisticsResponse": {
         "properties": {
           "average_spending": {
@@ -3287,12 +3382,30 @@
             ],
             "title": "Average Spending"
           },
+          "average_spending_by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/ClientSpendingAverage"
+            },
+            "title": "Average Spending By Currency",
+            "type": "array"
+          },
           "clients_by_gender": {
             "additionalProperties": {
               "type": "integer"
             },
             "title": "Clients By Gender",
             "type": "object"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "new_clients": {
             "title": "New Clients",
@@ -3304,6 +3417,13 @@
               "type": "object"
             },
             "title": "Top Spenders",
+            "type": "array"
+          },
+          "top_spenders_by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/FinancialCurrencyClients"
+            },
+            "title": "Top Spenders By Currency",
             "type": "array"
           },
           "total_clients": {
@@ -3996,6 +4116,66 @@
           "visits"
         ],
         "title": "CrmUsageOut",
+        "type": "object"
+      },
+      "CurrencyMoneySlice": {
+        "description": "Money of one row in one stored visit currency; count = priced visits.",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "average": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average"
+          },
+          "client_count": {
+            "default": 0,
+            "title": "Client Count",
+            "type": "integer"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "requires_review": {
+            "default": false,
+            "title": "Requires Review",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "currency",
+          "amount",
+          "average",
+          "count"
+        ],
+        "title": "CurrencyMoneySlice",
         "type": "object"
       },
       "EmployeeCreate": {
@@ -4719,6 +4899,76 @@
           "ai"
         ],
         "title": "EntitlementsUsageOut",
+        "type": "object"
+      },
+      "EntityCurrencyValue": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "average": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average"
+          },
+          "client_count": {
+            "default": 0,
+            "title": "Client Count",
+            "type": "integer"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "per_client": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Client"
+          },
+          "requires_review": {
+            "default": false,
+            "title": "Requires Review",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "currency",
+          "amount",
+          "average",
+          "count"
+        ],
+        "title": "EntityCurrencyValue",
         "type": "object"
       },
       "ExecuteOut": {
@@ -10922,6 +11172,93 @@
         "title": "PasswordResetRequestOut",
         "type": "object"
       },
+      "PaymentCurrencyValue": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "payments_by_method": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PaymentMethodCurrencyStats"
+            },
+            "title": "Payments By Method",
+            "type": "object"
+          },
+          "requires_review": {
+            "default": false,
+            "title": "Requires Review",
+            "type": "boolean"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          }
+        },
+        "required": [
+          "currency",
+          "total",
+          "count",
+          "payments_by_method"
+        ],
+        "title": "PaymentCurrencyValue",
+        "type": "object"
+      },
+      "PaymentMethodCurrencyStats": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "percentage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percentage"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          }
+        },
+        "required": [
+          "total",
+          "count",
+          "percentage"
+        ],
+        "title": "PaymentMethodCurrencyStats",
+        "type": "object"
+      },
       "PaymentMethodStats": {
         "properties": {
           "count": {
@@ -10929,12 +11266,26 @@
             "type": "integer"
           },
           "percentage": {
-            "title": "Percentage",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percentage"
           },
           "total": {
-            "title": "Total",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
           }
         },
         "required": [
@@ -10947,11 +11298,29 @@
       },
       "PaymentStatisticsResponse": {
         "properties": {
+          "by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/PaymentCurrencyValue"
+            },
+            "title": "By Currency",
+            "type": "array"
+          },
           "card_payments": {
             "$ref": "#/components/schemas/PaymentMethodStats"
           },
           "cash_payments": {
             "$ref": "#/components/schemas/PaymentMethodStats"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "other_payments": {
             "$ref": "#/components/schemas/PaymentMethodStats"
@@ -10968,8 +11337,15 @@
             "type": "integer"
           },
           "total_payments": {
-            "title": "Total Payments",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Payments"
           }
         },
         "required": [
@@ -11210,12 +11586,75 @@
         "title": "PointsUsageTrendsResponse",
         "type": "object"
       },
+      "PopularService": {
+        "properties": {
+          "average_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Price"
+          },
+          "by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/CurrencyMoneySlice"
+            },
+            "title": "By Currency",
+            "type": "array"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "service_id": {
+            "title": "Service Id",
+            "type": "integer"
+          },
+          "service_name": {
+            "title": "Service Name",
+            "type": "string"
+          },
+          "total_revenue": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Revenue"
+          },
+          "visit_count": {
+            "title": "Visit Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "service_id",
+          "service_name",
+          "visit_count",
+          "total_revenue"
+        ],
+        "title": "PopularService",
+        "type": "object"
+      },
       "PopularServicesResponse": {
         "properties": {
           "services": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/PopularService"
             },
             "title": "Services",
             "type": "array"
@@ -15657,12 +16096,44 @@
       "ServiceAnalytics": {
         "properties": {
           "average_price": {
-            "title": "Average Price",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Price"
+          },
+          "by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/EntityCurrencyValue"
+            },
+            "title": "By Currency",
+            "type": "array"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "ltv_per_client": {
-            "title": "Ltv Per Client",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ltv Per Client"
           },
           "service_id": {
             "title": "Service Id",
@@ -15673,8 +16144,15 @@
             "type": "string"
           },
           "total_revenue": {
-            "title": "Total Revenue",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Revenue"
           },
           "unique_clients": {
             "title": "Unique Clients",
@@ -16358,12 +16836,44 @@
       "SpecialistAnalytics": {
         "properties": {
           "average_check": {
-            "title": "Average Check",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Check"
+          },
+          "by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/EntityCurrencyValue"
+            },
+            "title": "By Currency",
+            "type": "array"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "revenue_per_client": {
-            "title": "Revenue Per Client",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Per Client"
           },
           "specialist_id": {
             "title": "Specialist Id",
@@ -16374,8 +16884,15 @@
             "type": "string"
           },
           "total_revenue": {
-            "title": "Total Revenue",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Revenue"
           },
           "unique_clients": {
             "title": "Unique Clients",
