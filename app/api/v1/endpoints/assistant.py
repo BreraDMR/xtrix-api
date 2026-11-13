@@ -268,6 +268,16 @@ def execute_plan(
             return message.result_payload
         if message.execution_started_at is not None:
             raise HTTPException(409, detail={"code": "request_in_progress"})
+        # a newer plan in the same chat replaced this card ("no, at 14"): running both would book twice
+        newer = db.query(AssistantMessage.id).filter(
+            AssistantMessage.conversation_id == message.conversation_id,
+            AssistantMessage.role == "assistant",
+            AssistantMessage.ordinal > message.ordinal,
+            AssistantMessage.plan_payload.isnot(None),
+        ).first()
+        if newer:
+            db.rollback()
+            raise HTTPException(404, detail={"message": _("ai_plan_not_found", locale), "code": "plan_not_found"})
         message.execution_started_at = utcnow()
         db.commit()
 

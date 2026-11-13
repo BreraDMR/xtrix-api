@@ -52,6 +52,35 @@ def test_a_plan_that_ran_does_not_repeat_its_steps(client, ab, fakes):
     assert item['execution']['status'] == 'succeeded' and 'plan' not in item
 
 
+def test_an_older_card_cannot_run_once_a_newer_plan_is_in_the_chat(client, db, ab, fakes):
+    from app.db.models.visit import Visit
+    _, tenant = ab
+    chat = api.conversation(client, tenant)
+    fakes.answers.append(api.plan_of(booking(tenant), summary='Запишу на 12:00'))
+    old = api.ask(client, tenant, 'Запиши в 12', conversation_id=chat, client_request_id=str(uuid4())).json()
+    fakes.answers.append(api.plan_of(booking(tenant, '2027-01-10T14:00:00+01:00'), summary='Запишу на 14:00'))
+    new = api.ask(client, tenant, 'нет, в 14', conversation_id=chat, client_request_id=str(uuid4())).json()
+    before = db.query(Visit).filter(Visit.client_id == tenant['client']['id']).count()
+
+    stale = api.run(client, tenant, old['plan_id'])
+    assert stale.status_code == 404 and api.error(stale)['detail']['code'] == 'plan_not_found', stale.text
+    assert api.run(client, tenant, new['plan_id']).json()['ok'] is True
+    db.expire_all()
+    assert db.query(Visit).filter(Visit.client_id == tenant['client']['id']).count() == before + 1
+
+
+def test_a_failed_newer_turn_leaves_the_older_card_runnable(client, ab, fakes):
+    import httpx
+    _, tenant = ab
+    chat = api.conversation(client, tenant)
+    fakes.answers.append(api.plan_of(booking(tenant), summary='Запишу на 12:00'))
+    old = api.ask(client, tenant, 'Запиши в 12', conversation_id=chat, client_request_id=str(uuid4())).json()
+    fakes.answers.append(httpx.Response(500, json={'error': 'boom'}))
+    broken = api.ask(client, tenant, 'и ещё…', conversation_id=chat, client_request_id=str(uuid4()))
+    assert broken.status_code >= 500 or broken.status_code == 503, broken.text
+    assert api.run(client, tenant, old['plan_id']).json()['ok'] is True
+
+
 def test_the_prompt_says_how_to_handle_a_correction():
     from app.ai.prompt import system_prompt
     text = system_prompt()
