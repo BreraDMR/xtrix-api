@@ -471,24 +471,25 @@ def delete_visit(
     from app.api.core.permissions import check_visit_access
     if not check_visit_access(db, current_user, visit):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    old_status = visit.status
-    old_start = visit.date_start
-    old_service_id = visit.service_id
-    old_specialist_id = visit.specialist_id
+    from uuid import uuid4
+    from app.api.core import released_slots
+    from app.api.core.released_slot_queue import enqueue_slots
     old_business_id = visit.business_id
+    # every segment of the chain, not only the first service; a cancelled visit already gave its slots back
+    released = released_slots.changed_slots(released_slots.visit_slots(visit), (), visit.status, 'cancelled')
+    if released:
+        # saved in the same commit as the delete below, so an outage can't lose the freed slots
+        enqueue_slots(db, old_business_id, released, event_key=f'visit:{visit.id}:deleted:{uuid4().hex}')
     if hard_delete_flag and current_user.role == "admin":
         hard_delete(db, visit)
         message = "Visit permanently deleted"
     else:
         soft_delete(db, visit)
         message = "Visit deleted (soft delete)"
-    if old_status != 'cancelled':
-        from app.api.core import waitlist_service
+    if released:
         from app.db.models.business import Business
         business = db.get(Business, old_business_id) if old_business_id else None
-        waitlist_service.release_slot_quietly(
-            db, business, old_service_id, old_specialist_id, old_start
-        )
+        released_slots.match_quietly(db, business, released)
     return {"message": message}
 @router.post("/{visit_id}/restore")
 def restore_visit(

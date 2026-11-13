@@ -48,7 +48,7 @@ Reminders, follow-ups, birthday greetings, subscription expiry, low-stock e-mail
 finance archive don't run by themselves. Either start the worker (`docker compose up worker`, or
 `python scripts/run_jobs.py --loop`), or call them from cron, e.g.
 
-    */15 * * * *  python scripts/run_jobs.py reminders followups
+    */15 * * * *  python scripts/run_jobs.py released_slots reminders followups
     0 8 * * *     python scripts/run_jobs.py birthdays subscriptions low_stock finance_archive
 
 Message jobs record sent messages in `notification_log`.
@@ -107,7 +107,7 @@ Never share the staging database or Stripe sandbox with a future production envi
 
 Migration `0089_released_slot_jobs` stores each released segment in the same transaction as visitor, guest and CRM cancellations or moves. Jobs contain only the old business/service/master/time and an internal release key; they contain no client contacts or booking tokens. Existing post-commit matching remains an accelerator, while the saved work survives an outage or restart.
 
-`app.api.core.released_slot_queue.run_pending` is an explicit local-only runner. Matching, offer creation, notification outbox rows and completion commit together; failures retain bounded retries until the slot starts. Concurrent runners skip claimed rows. This runner is not connected to the global scheduler and does not send messages. Visit deletion is not yet integrated into this queue; production scheduling and a fresh migration rehearsal remain release work. Downgrade refuses to discard any stored jobs.
+`app.api.core.released_slot_queue.run_pending` processes the queue. Matching, offer creation, notification outbox rows and completion commit together; failures retain bounded retries until the slot starts. Concurrent runners skip claimed rows. The scheduled worker runs it as the `released_slots` job, right before `reminders`, which is what actually delivers the outbox. Deleting a visit (soft or hard) enqueues every freed segment in the same commit as the delete. Downgrade refuses to discard any stored jobs.
 
 ### Price corrections on settled visits
 

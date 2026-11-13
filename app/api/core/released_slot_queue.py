@@ -48,8 +48,9 @@ def _retry(db, job_id, old_attempts, old_due, now):
 def run_pending(db, *, limit=100, now=None, matcher=None):
     """Each job, generated offers and notification rows commit together.
 
-    A process crash rolls back the row lock and all matching work. Explicit calls
-    only: this runner is deliberately not connected to the global scheduler.
+    A process crash rolls back the row lock and all matching work. The scheduled
+    worker calls it through run_scheduled(); matching only writes offers and outbox
+    rows, delivery stays with the notification job.
     """
     if db.new or db.dirty or db.deleted:
         raise ValueError('Save pending changes before running released-slot jobs')
@@ -88,3 +89,13 @@ def run_pending(db, *, limit=100, now=None, matcher=None):
             _retry(db, job_id, old_attempts, old_due, now or utcnow())
             stats['retried'] += 1
     return stats
+
+
+def run_scheduled(limit=200):
+    """Entry point for scripts/run_jobs.py - its own session, like the other jobs."""
+    from app.db.session import SessionLocal
+    db = SessionLocal()
+    try:
+        return run_pending(db, limit=limit)
+    finally:
+        db.close()

@@ -36,4 +36,4 @@ jobs:
       - if: steps.cfg.outputs.skip != '1'
         run: |
           # daily jobs only from 8:00 UTC, frequent ones every run (all idempotent, see notification_log)
-          if [ "$(date -u +%H)" -ge 8 ]; then python scripts/run_jobs.py all; else python scripts/run_jobs.py reminders followups; fi
+          if [ "$(date -u +%H)" -ge 8 ]; then python scripts/run_jobs.py all; else python scripts/run_jobs.py released_slots reminders followups; fi

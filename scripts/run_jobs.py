@@ -1,4 +1,4 @@
-"""Scheduled jobs: reminders, follow-ups, birthdays, subscriptions, low stock, monthly archive.
+"""Scheduled jobs: freed-slot matching, reminders, follow-ups, birthdays, subscriptions, low stock, monthly archive.
 
 Nothing in the app runs these on its own, so either:
   python scripts/run_jobs.py --loop          # long-running worker (docker-compose "worker" service)
@@ -22,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.api.core import finance_tasks, import_service, notification_jobs, notification_tasks, subscription_tasks  # noqa: E402
+from app.api.core import released_slot_queue  # noqa: E402
 from app.api.core.clock import utcnow  # noqa: E402
 from app.api.core.logger import logger  # noqa: E402
 
@@ -29,6 +30,8 @@ CHANNEL = os.environ.get("JOBS_CHANNEL", "email")
 
 FREQUENT = {
     "import_sources": import_service.purge_expired_sources,
+    # before reminders, so waitlist offers made from freed slots go out in the same round
+    "released_slots": released_slot_queue.run_scheduled,
     "reminders": notification_jobs.sync_and_deliver,
     "campaigns": notification_jobs.deliver_campaigns,
     "followups": lambda: notification_tasks.send_visit_followups(CHANNEL),
