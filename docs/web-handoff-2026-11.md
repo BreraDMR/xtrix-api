@@ -321,6 +321,14 @@ but awarding bonuses on completion failed. Show it as a non-blocking warning toa
   Show it as a separate line "in CZK: 650.00 (old currency)", never added to the main total.
 - `manual_payment_recorded: true` = the old "paid manually" checkbox without an amount. The amount
   is unknown on purpose; we don't guess it.
+- An online payment counts with the amount it was **sent** with. While it's open
+  (`has_pending_checkout: true`, reason `payment_pending`) the price can't be corrected (`409`
+  `visit_price_payment_pending`); when it arrives later, that sent amount is what's paid, and a
+  correction after it only changes `outstanding`/`overpayment`.
+- Two money writes on one visit at the same moment: the second gets `409` with the "try again"
+  message (`visit_price_retry`) and nothing of it is saved - just repeat it with the same
+  `idempotency_key`. A receipt in the old currency after a currency correction gets `409`
+  `visit_settlement_currency_mismatch`.
 
 `outstanding_reason` codes (stable, safe to map to your own texts):
 
@@ -539,6 +547,16 @@ Payroll errors are `400` with `error.detail.reason`:
 - `GET /services/export/csv` and `/services/export/excel` need the "manage services" permission now,
   like the service list.
 - `UsePointsRequest.cashback_to_use` - see section 7.
+- Client and visit exports now return **exactly the rows the list shows** for the same filters, every
+  page at once. Send the list's current filters with the export link:
+  - `GET /clients/export/{csv,excel}` takes `q`, `gender`, `sort_by`, `sort_order` (same values as
+    `GET /clients/`), plus the old `phone` and `name`. `owner_id` is gone (it was admin-only and the
+    list ignores it too).
+  - `GET /visits/export/{csv,excel}` takes `q`, `status`, `sort_by`, `sort_order` next to the old
+    `client_id`, `specialist_id`, `date_from`, `date_to` (same values as `GET /visits/`).
+  - A salon owner's export now covers the whole salon, including cards and visits made by staff
+    (before it was only rows tied to the owner personally). A `specialist_id` or `client_id` from
+    another salon gets `403`, same as the list; bad filter values get `422`.
 
 ## 10. Stop sending
 
