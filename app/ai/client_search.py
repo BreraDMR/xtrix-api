@@ -5,6 +5,10 @@ People type names the way the sentence needs them: "Запиши Анну Пет
 "Svobodova" without the accent. So both sides get folded (lowercase, no accents, ё -> е) and words are
 compared with a few common Russian/Czech case endings cut off. No NLP library - a short hand-made
 suffix list is enough for names, and a salon has at most a few thousand clients, so it runs in Python.
+
+A Czech name typed in Cyrillic ("Мартина Новака") is compared letter by letter in Latin. Typos
+("jhon smth") only help the model context find candidates - find_client never resolves on a typo,
+the person picks the client from what the plan shows.
 """
 import re
 import unicodedata
@@ -26,7 +30,16 @@ _RU = ("иями ями ами иях ях ах ией ого его ому ем
        "ия ию ии ам ям а я у ю ы и е о ь").split()
 _CZ = "ovi ech ami emi iho eho imu emu ých ými ou ým ím em um ie ii a u y e i o".split()
 
-EXACT, STEM, PREFIX = 3, 2, 1
+EXACT, STEM, PREFIX, TYPO = 4, 3, 2, 1
+MIN_TYPO_WORD = 4  # "ana" vs "ann" is too short to call a typo
+
+# Cyrillic -> Latin, Czech style, applied to folded words (so й is already и, ё is е)
+_LATIN = str.maketrans({
+    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ж": "z", "з": "z", "и": "i", "к": "k",
+    "л": "l", "м": "m", "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u", "ф": "f",
+    "х": "ch", "ц": "c", "ч": "c", "ш": "s", "щ": "sc", "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "ju",
+    "я": "ja", "і": "i", "є": "je", "ґ": "g",
+})
 
 Row = tuple[int, str]
 
@@ -54,8 +67,32 @@ def _stems(word: str) -> frozenset:
     return frozenset(out)
 
 
-def word_match(q: str, n: str) -> int:
-    """How well a folded query word fits a folded name word: EXACT, STEM, PREFIX or 0."""
+def _cyrillic(word: str) -> bool:
+    return any("\u0400" <= ch <= "\u04ff" for ch in word)
+
+
+def _one_edit(a: str, b: str) -> bool:
+    """One letter wrong, missing, extra, or two neighbours swapped ("jhon" / "john")."""
+    if abs(len(a) - len(b)) > 1:
+        return False
+    if len(a) == len(b):
+        diff = [i for i in range(len(a)) if a[i] != b[i]]
+        if len(diff) == 1:
+            return True
+        return (len(diff) == 2 and diff[1] == diff[0] + 1
+                and a[diff[0]] == b[diff[1]] and a[diff[1]] == b[diff[0]])
+    short, long_ = (a, b) if len(a) < len(b) else (b, a)
+    i = 0
+    while i < len(short) and short[i] == long_[i]:
+        i += 1
+    return short[i:] == long_[i + 1:]
+
+
+def word_match(q: str, n: str, *, typos: bool = False) -> int:
+    """How well a folded query word fits a folded name word: EXACT, STEM, PREFIX, TYPO or 0.
+    TYPO only when asked for - that's for the model context, never for resolving a client."""
+    if _cyrillic(q) != _cyrillic(n):
+        q, n = q.translate(_LATIN), n.translate(_LATIN)
     if q == n:
         return EXACT
     if len(q) < MIN_WORD or len(n) < MIN_WORD or q.isdecimal() or n.isdecimal():
@@ -65,6 +102,8 @@ def word_match(q: str, n: str) -> int:
         return STEM
     if len(q) >= 4 and n.startswith(q):
         return PREFIX
+    if typos and min(len(q), len(n)) >= MIN_TYPO_WORD and _one_edit(q, n):
+        return TYPO
     return 0
 
 
@@ -111,7 +150,8 @@ def _contains(words: list[str], run: list[str]) -> bool:
 
 def rank_in_text(text: str, clients: Iterable[Row], *, limit: int) -> list[int]:
     """Ids of clients a free-text request may mean, best first: the full name in the text, then
-    every word of the name found, then more exact words, then more words; ties by id."""
+    every word of the name found without typos, then with typos, then more exact words, then more
+    words; ties by id."""
     all_words = name_words(text)
     tw = list(dict.fromkeys(w for w in all_words if len(w) >= MIN_WORD and not w.isdecimal()))[:MAX_TEXT_WORDS]
     if not tw:
@@ -119,12 +159,13 @@ def rank_in_text(text: str, clients: Iterable[Row], *, limit: int) -> list[int]:
     scored = []
     for cid, name in clients:
         nw = name_words(name)
-        levels = [max(word_match(q, n) for q in tw) for n in nw]
+        levels = [max(word_match(q, n, typos=True) for q in tw) for n in nw]
         hits = sum(1 for lv in levels if lv)
         if not hits:
             continue
         exact = sum(1 for lv in levels if lv == EXACT)
-        key = (_contains(all_words, nw), hits == len(nw), exact, hits)
+        strong = sum(1 for lv in levels if lv > TYPO)
+        key = (_contains(all_words, nw), strong == len(nw), hits == len(nw), exact, strong, hits)
         scored.append((tuple(-int(k) for k in key), cid))
     scored.sort()
     return [cid for _, cid in scored[:limit]]

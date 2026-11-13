@@ -162,3 +162,37 @@ def test_a_few_thousand_clients_is_quick():
     rank_in_text("Запиши Анну Петрову на стрижку завтра в 10 и Terezu Svobodovou na manikúru", clients, limit=10)
     resolve_name("Terezu Svobodovou", clients)
     assert time.perf_counter() - start < 1.0
+
+
+# --- people who don't type carefully (duty plan item 8) --------------------------------
+
+@pytest.mark.parametrize("query, who", [
+    ("Мартина Новака", "Martin Novák"),          # a Czech name typed in Cyrillic, Russian case
+    ("Терезу Свободову", "Tereza Svobodová"),
+    ("Lucii Cerne", "Lucie Černá"),
+])
+def test_a_name_typed_in_the_other_alphabet_still_finds_the_client(query, who):
+    assert found(query) == [who]
+
+
+def test_the_other_alphabet_ranks_the_client_first_in_the_request():
+    text = "Завтра в 16:30 мужская стрижка для Мартина Новака"
+    assert rank_in_text(text, CLIENTS, limit=10)[0] == 8
+
+
+def test_typos_bring_the_client_into_the_model_context():
+    assert rank_in_text("bok jhon smth for mens hair cut on tuesday at 4pm", CLIENTS, limit=10)[0] == 11
+    assert rank_in_text("zapis terzu svobodovou na manikuru", CLIENTS, limit=10)[0] == 5
+
+
+def test_typos_never_resolve_a_client_on_their_own():
+    # the model may see "John Smith" as a candidate, but find_client with a typo is not a guess we make
+    assert found("Jhon Smth") == []
+    assert not word_match("jhon", "john")
+    assert word_match("jhon", "john", typos=True)
+    assert not word_match("марию", "марину", typos=True)
+
+
+def test_typo_matches_rank_below_real_ones():
+    rows = [(1, "Jon Smit"), (2, "John Smith")]
+    assert rank_in_text("book John Smith", rows, limit=10) == [2, 1]

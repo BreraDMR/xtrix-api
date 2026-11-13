@@ -75,3 +75,5 @@ count, and "Анна" doesn't (it finds both Annas).
 Exact full names take priority, numeric name parts stay significant, and a declined name takes priority
 over a partial different name: "Анну" finds "Анна", rather than "Аннушка". Similar spellings such as
 "Мария" and "Марина" are distinct.
+A Czech name typed in Cyrillic ("Мартина Новака") counts as that name. Typos ("jhon smth") only bring the
+client into the model's context; a `find_client` with a typo finds nobody.
