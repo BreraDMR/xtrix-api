@@ -16,6 +16,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 from dataclasses import asdict, replace
 from pathlib import Path
@@ -78,7 +79,8 @@ def main(argv=None) -> int:
         if args.model:
             slot = replace(slot, model_fast=args.model, model_smart=args.model)
         router = build_router(replace(_eval_config(config), provider="pool", slots=(slot,)), board=CooldownBoard())
-        out = args.report_dir / f"slot{n}"
+        tag = f"slot{n}" + (f"-{re.sub(r'[^A-Za-z0-9.]+', '-', args.model)}" if args.model else "")
+        out = args.report_dir / tag
         out.mkdir(parents=True, exist_ok=True)
         runner = DialogRunner(router, session_factory=SessionLocal, pace=args.pace, max_wait=args.max_wait)
         passed = total = errors = 0
