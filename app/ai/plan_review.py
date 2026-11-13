@@ -46,11 +46,12 @@ SUMMARY_MAX = 500
 QUESTION_MAX = 300
 
 _TEXT = {
+    # a made-up id and one from another salon read the same - nothing says the record exists elsewhere
     "foreign": {
         "note": {
-            "en": "Part of the request points at records outside your salon, so that step is not in the plan.",
-            "ru": "Часть запроса относится к записям не из вашего салона, поэтому этого шага нет в плане.",
-            "cz": "Část požadavku míří na záznamy mimo váš salon, proto tento krok v plánu není.",
+            "en": "I couldn't find some of the records in the request, so that step is not in the plan.",
+            "ru": "Часть записей из запроса не нашлась, поэтому этого шага нет в плане.",
+            "cz": "Některé záznamy z požadavku se nenašly, proto tento krok v plánu není.",
         },
         "question": {
             "en": "Which client or visit did you mean? A name and date help me find it.",

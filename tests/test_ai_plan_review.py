@@ -34,7 +34,9 @@ def test_foreign_ids_are_dropped_before_the_plan_is_shown(db, ab):
                     summary="I'll cancel the visit and rename the client")
     assert plan.actions == []
     assert len(plan.questions) == 1 and "Which client or visit" in plan.questions[0]
-    assert "outside your salon" in plan.summary and "cancel" not in plan.summary
+    # the same words for a made-up id and for a real one in another salon: nothing tells them apart
+    assert "couldn't find" in plan.summary and "cancel" not in plan.summary
+    assert "salon" not in plan.summary
 
 
 def test_own_steps_stay_and_steps_built_on_a_dropped_one_go_too(db, ab):
