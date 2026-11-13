@@ -14,7 +14,8 @@ refuses anything that isn't on localhost).
 A dialog in dialog_cases/dialogs.yaml:
 
     id, locale, tags
-    turns     - what the person types, in order
+    turns     - what the person types, in order; "!confirm" presses Confirm on the latest plan that
+                proposes changes, right there in the middle of the dialog
     if_asked  - replies to use, one by one, while the assistant still only asks (optional)
     confirm   - true: run the last plan that proposes changes, then run it again (must be a replay)
     expect    - one outcome or a list of acceptable ones:
@@ -44,6 +45,7 @@ from evals.assistant import fixture as F
 DIALOGS_FILE = Path(__file__).resolve().parent / "dialog_cases" / "dialogs.yaml"
 TZ = ZoneInfo(F.FIXTURE_TZ)
 WRITES = {"create_client", "update_client", "create_visit", "reschedule_visit", "cancel_visit", "add_note"}
+CONFIRM = "!confirm"
 OUTCOME_KEYS = {"ask", "created", "cancelled", "moved", "unchanged", "nothing_proposed"}
 
 # fixture visits, re-placed relative to today: key -> (days from today, local time)
@@ -402,7 +404,19 @@ class DialogRunner:
         queue = list(dialog.turns)
         replies = list(dialog.if_asked)
         while queue:
-            turn = self._plan(headers, conversation, queue.pop(0), dialog.locale)
+            said = queue.pop(0)
+            if said == CONFIRM:
+                done = next((t for t in reversed(turns) if t.status == 200
+                             and any(a.get("action") in WRITES for a in t.actions)), None)
+                if done is None:
+                    reasons.append("nothing to confirm at !confirm")
+                    break
+                r = self.http.post("/assistant/execute", headers=headers(), json={"plan_id": done.plan_id})
+                if r.status_code != 200 or not (_json(r) or {}).get("ok"):
+                    reasons.append(f"confirm in the middle failed: {r.status_code} {r.text[:200]}")
+                    break
+                continue
+            turn = self._plan(headers, conversation, said, dialog.locale)
             turns.append(turn)
             if turn.status != 200:
                 break

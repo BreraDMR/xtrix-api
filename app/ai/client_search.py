@@ -191,12 +191,26 @@ def _contains(words: list[str], run: list[str]) -> bool:
     return bool(k) and any(words[i:i + k] == run for i in range(len(words) - k + 1))
 
 
+# everyday words of a request ("move her to the same time", "перенеси её на завтра") - never a sign of
+# a client, even when somebody's card has a sentence in the name field
+_PLAIN = frozenset(fold(w) for w in """
+the and for with her him his she they them this that these those after before same time day today tomorrow
+tonight morning evening afternoon week next from into onto please visit appointment booking book move cancel
+change make put add also too instead again yes not but can could would should will just then there here
+она его её ему ей они них это эта этот тот той том тому там тоже ещё еще после перед время день утро вечер
+неделя сегодня завтра послезавтра запиши записать перенеси перенести отмени отменить визит запись
+пожалуйста нет да лучше давай так также
+ona její jeho jim ten tom tím také ještě před čas den ráno večer týden dnes zítra pozítří objednej
+přesuň zruš návštěva rezervace prosím ano radši taky stejný stejně""".split())
+
+
 def rank_in_text(text: str, clients: Iterable[Row], *, limit: int) -> list[int]:
     """Ids of clients a free-text request may mean, best first: the full name in the text, then
     every word of the name found without typos, then with typos, then more exact words, then more
     words; ties by id."""
     all_words = name_words(text)
-    tw = list(dict.fromkeys(w for w in all_words if len(w) >= MIN_WORD and not w.isdecimal()))[:MAX_TEXT_WORDS]
+    tw = list(dict.fromkeys(w for w in all_words if len(w) >= MIN_WORD and not w.isdecimal()
+                            and w not in _PLAIN))[:MAX_TEXT_WORDS]
     if not tw:
         return []
     scored = []

@@ -273,3 +273,51 @@ dialogs:
   if_asked: ["Petrova, yes", "yes"]
   confirm: true
   expect: {created: [{client: anna_petrova, service: haircut, day: 2, time: "16:00"}]}
+
+# --- after a confirmed plan, the same chat goes on ---
+- id: ru-book-then-move
+  locale: ru
+  tags: [followup, reschedule]
+  turns: ["Запиши Елену Кузнецову на стрижку завтра в 12", "!confirm", "перенеси её на послезавтра на то же время"]
+  if_asked: ["да, на послезавтра в 12", "да"]
+  confirm: true
+  expect: {created: [{client: elena_kuznetsova, service: haircut, day: 2, time: "12:00"}]}
+- id: cz-book-then-move
+  locale: cz
+  tags: [followup, reschedule]
+  turns: ["Objednej Elenu Kuznecovou na stříhání zítra ve 12", "!confirm", "přesuň ji na pozítří, stejný čas"]
+  if_asked: ["ano, pozítří ve 12", "ano"]
+  confirm: true
+  expect: {created: [{client: elena_kuznetsova, service: haircut, day: 2, time: "12:00"}]}
+- id: en-book-then-move
+  locale: en
+  tags: [followup, reschedule]
+  turns: ["Book Elena Kuznetsova for a haircut tomorrow at 12", "!confirm", "move her to the day after, same time"]
+  if_asked: ["yes, the day after tomorrow at 12", "yes"]
+  confirm: true
+  expect: {created: [{client: elena_kuznetsova, service: haircut, day: 2, time: "12:00"}]}
+
+- id: ru-book-then-add
+  locale: ru
+  tags: [followup, multi]
+  turns: ["Запиши Елену Кузнецову на стрижку завтра в 12", "!confirm", "и сразу после стрижки ещё окрашивание у той же Ольги"]
+  if_asked: ["да, в 13:00", "да"]
+  confirm: true
+  expect: {created: [{client: elena_kuznetsova, service: haircut, day: 1, time: "12:00"},
+                     {client: elena_kuznetsova, service: coloring, day: 1, time: "13:00"}]}
+- id: cz-book-then-add
+  locale: cz
+  tags: [followup, multi]
+  turns: ["Objednej Elenu Kuznecovou na stříhání zítra ve 12", "!confirm", "a hned po stříhání ještě barvení u Olgy"]
+  if_asked: ["ano, ve 13:00", "ano"]
+  confirm: true
+  expect: {created: [{client: elena_kuznetsova, service: haircut, day: 1, time: "12:00"},
+                     {client: elena_kuznetsova, service: coloring, day: 1, time: "13:00"}]}
+- id: en-book-then-add
+  locale: en
+  tags: [followup, multi]
+  turns: ["Book Elena Kuznetsova for a haircut tomorrow at 12", "!confirm", "and right after the haircut, coloring with Olga too"]
+  if_asked: ["yes, at 1pm", "yes"]
+  confirm: true
+  expect: {created: [{client: elena_kuznetsova, service: haircut, day: 1, time: "12:00"},
+                     {client: elena_kuznetsova, service: coloring, day: 1, time: "13:00"}]}
