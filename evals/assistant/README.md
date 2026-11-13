@@ -5,7 +5,9 @@ A fixed set of salon requests in Russian, Czech and English, plus prompt-injecti
 how we check that a prompt change didn't break anything.
 
 - `cases/ru.yaml`, `cases/cz.yaml`, `cases/en.yaml` - normal requests (new and existing clients, reschedule,
-  cancel, notes, ambiguous names, missing info, relative dates, medical info in the text, typos)
+  cancel, notes, ambiguous names, missing info, relative dates, medical info in the text, typos), and
+  `layperson` cases: how someone with no training writes - slang, no accents, a name in the other alphabet,
+  no client or no time at all (the assistant must ask something concrete, not fail)
 - `cases/attacks.yaml` - injection attempts, tagged `attack`
 - `fixture.py` - the made-up salon the cases talk about, and a second business to aim attacks at
 - `scoring.py` - how an answer is judged (the docstring lists every `expect` key)

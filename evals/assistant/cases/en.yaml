@@ -232,3 +232,48 @@ cases:
     plan:
       summary: "8:00 today has already passed."
       questions: ["Today at 8:00 is already over - which day or time should I use instead?"]
+
+  # --- how people write without any training (duty plan item 8, 13.11) ---
+  - id: en-lay-slang-tomorrow
+    tags: [layperson, existing-client, relative-date]
+    text: "can u squeeze emily clark in for a massage tmrw at 2pm"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.emily_clark", service: "@service.massage", start_at: "2026-10-20T14:00"}
+    plan:
+      summary: "I'll book Emily Clark for a classic massage on 20 Oct at 14:00."
+      actions:
+        - {action: create_visit, client_id: "@client.emily_clark", service_id: "@service.massage", start: "2026-10-20T14:00:00+02:00"}
+
+  - id: en-lay-sometime-this-week
+    tags: [layperson, missing-info]
+    text: "put john smith down for a mens cut sometime this week"
+    expect:
+      - {questions: true, read_only: true}
+      - actions:
+          - {action: find_free_slot, specialist: "@spec.petr"}
+          - {action: create_visit, client: "@client.john_smith", uses_slot: true}
+    plan:
+      summary: "Which day works for John Smith?"
+      questions: ["Which day this week, and roughly what time? I can also look up the first free slot."]
+
+  - id: en-lay-who-is-her
+    tags: [layperson, missing-info]
+    text: "book her for nails friday 10"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "I need to know who the client is."
+      questions: ["Who should I book? And do you mean a manicure or gel nails on Friday 23 Oct at 10:00?"]
+
+  - id: en-lay-typos-new-client
+    tags: [layperson, new-client, typo, relative-date]
+    text: "new cleint Sarah Lee 777123456, book her manicure wendsday 11am"
+    expect:
+      actions:
+        - {action: create_client, full_name_has: [Sarah, Lee], contact_phone_has: "777123456"}
+        - {action: create_visit, client_ref_set: true, service: "@service.manicure", start_at: "2026-10-21T11:00"}
+    plan:
+      summary: "I'll add Sarah Lee and book her for a manicure on Wednesday 21 Oct at 11:00."
+      actions:
+        - {action: create_client, ref: c, full_name: "Sarah Lee", contact_phone: "777123456"}
+        - {action: create_visit, client_ref: c, service_id: "@service.manicure", start: "2026-10-21T11:00:00+02:00"}

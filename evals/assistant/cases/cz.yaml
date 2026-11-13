@@ -236,3 +236,39 @@ cases:
       summary: "Opravím datum narození Martina Nováka na 12. 7. 1988."
       actions:
         - {action: update_client, client_id: "@client.martin_novak", birth_date: "1988-07-12"}
+
+  # --- jak píše člověk bez přípravy (dežurný, bod 8 plánu 13.11) ---
+  - id: cz-lay-no-diacritics
+    tags: [layperson, existing-client, relative-date, typo]
+    text: "zapis lucii cernou na pedikuru zitra v 10"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.lucie_cerna", service: "@service.pedicure", start_at: "2026-10-20T10:00"}
+    plan:
+      summary: "Objednám Lucii Černou na pedikúru 20. 10. v 10:00."
+      actions:
+        - {action: create_visit, client_id: "@client.lucie_cerna", service_id: "@service.pedicure", start: "2026-10-20T10:00:00+02:00"}
+
+  - id: cz-lay-colloquial-afternoon
+    tags: [layperson, missing-info]
+    text: "hele, šoupni tam Martina Nováka na pánskej střih ve středu odpoledne"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "Chybí přesný čas."
+      questions: ["V kolik ve středu 21. 10. odpoledne? Můžu najít první volný termín po 12:00."]
+
+  - id: cz-lay-tereza-no-service
+    tags: [layperson, ambiguous, missing-info]
+    text: "Terezu na zítra v deset"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "Máme dvě Terezy a chybí služba."
+      questions: ["Myslíte Terezu Svobodovou, nebo Terezu Svobodnou?", "Na jakou službu?"]
+
+  - id: cz-lay-move-somewhere
+    tags: [layperson, missing-info, reschedule]
+    text: "přesuň Svobodovou na jindy"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "Chybí nový termín."
+      questions: ["Na kdy mám návštěvu Terezy Svobodové přesunout?"]

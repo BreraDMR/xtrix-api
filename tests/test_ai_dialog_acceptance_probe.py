@@ -153,3 +153,51 @@ def test_endpoint_guidance_is_preserved_without_exposing_bare_codes(client, ab, 
     error = result.json()['results'][0]['error']
     assert expected in error['message'], error
     assert error['message'] != error['code']
+
+
+def test_layperson_dialogue_ends_in_one_booking_at_the_time_they_meant(client, db, ab, fakes):
+    """Duty plan item 8: a name typed in the other alphabet, no time at first, then an answer the
+    model turns into the wrong summer/winter offset. One visit, at the wall clock they said, and
+    neither a repeated request nor a repeated confirmation books twice."""
+    from app.db.models.client import Client
+    from app.db.models.visit import Visit
+    _, tenant = ab
+    db.get(Client, tenant['client']['id']).full_name = 'Emily Clark'
+    db.commit()
+    chat = conversation(client, tenant)
+    zone = ZoneInfo('Europe/Prague')
+    tomorrow = (datetime.now(zone) + timedelta(days=1)).replace(hour=14, minute=0, second=0, microsecond=0)
+    # the model mixes summer and winter time up: give it the offset Prague does NOT use that day
+    wrong = '+01:00' if tomorrow.utcoffset() == timedelta(hours=2) else '+02:00'
+    question = 'На какое время завтра записать Emily Clark на массаж?'
+    fakes.answers.extend([
+        plan_of(summary='Нужно время', questions=[question]),
+        plan_of({'action': 'create_visit', 'client_id': tenant['client']['id'],
+                 'service_id': tenant['service']['id'],
+                 'start': tomorrow.strftime('%Y-%m-%dT%H:%M:%S') + wrong}, summary='Запись на завтра в 14:00'),
+    ])
+    before = db.query(Visit).count()
+    first = ask(client, tenant, 'запиши эмили кларк на массаж', conversation_id=chat,
+                client_request_id=str(uuid4()))
+    assert first.status_code == 200, first.text
+    assert first.json()['questions'] == [question] and first.json()['actions'] == []
+    block = fakes.payloads[-1]['messages'][1]['content'].split('<data>', 1)[1].rsplit('</data>', 1)[0]
+    assert tenant['client']['id'] in [c['id'] for c in json.loads(block)['context']['client_matches']]
+
+    answer_id = str(uuid4())
+    second = ask(client, tenant, 'завтра в 14', conversation_id=chat, client_request_id=answer_id)
+    assert second.status_code == 200, second.text
+    calls = len(fakes.payloads)
+    again = ask(client, tenant, 'завтра в 14', conversation_id=chat, client_request_id=answer_id)
+    assert again.status_code == 200, again.text
+    assert again.json()['plan_id'] == second.json()['plan_id'] and len(fakes.payloads) == calls
+    assert db.query(Visit).count() == before
+
+    payload = {'plan_id': second.json()['plan_id']}
+    done = client.post('/assistant/execute', json=payload, headers=tenant['headers'])
+    assert done.status_code == 200 and done.json()['ok'], done.text
+    created = db.get(Visit, done.json()['results'][0]['data']['visit_id'])
+    assert created.date_start == tomorrow.astimezone(ZoneInfo('UTC')).replace(tzinfo=None)
+    replay = client.post('/assistant/execute', json=payload, headers=tenant['headers'])
+    assert replay.json() == done.json()
+    assert db.query(Visit).count() == before + 1

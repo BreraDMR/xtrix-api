@@ -265,3 +265,42 @@ cases:
       actions:
         - {action: create_visit, client_id: "@client.anna_petrenko", service_id: "@service.manicure", start: "2026-10-24T10:00:00+02:00"}
         - {action: create_visit, client_id: "@client.anna_petrenko", service_id: "@service.pedicure", start: "2026-10-24T11:00:00+02:00"}
+
+  # --- как пишет неподготовленный человек (дежурный, п.8 плана 13.11) ---
+  - id: ru-lay-colloquial-tomorrow
+    tags: [layperson, existing-client, relative-date]
+    text: "слушай, закинь орлова на чистку зубов завтра часиков в 11"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.dmitry_orlov", service: "@service.teeth_cleaning", start_at: "2026-10-20T11:00"}
+    plan:
+      summary: "Запишу Дмитрия Орлова на профессиональную чистку зубов 20.10 в 11:00."
+      actions:
+        - {action: create_visit, client_id: "@client.dmitry_orlov", service_id: "@service.teeth_cleaning", start: "2026-10-20T11:00:00+02:00"}
+
+  - id: ru-lay-no-client
+    tags: [layperson, missing-info]
+    text: "запиши на маникюр в пятницу в 3"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "Не сказано, кого записать."
+      questions: ["Кого записать на маникюр в пятницу 23.10 в 15:00?"]
+
+  - id: ru-lay-vague-time
+    tags: [layperson, missing-info]
+    text: "Анну Петрову на стрижку на днях"
+    expect: {questions: true, read_only: true}
+    plan:
+      summary: "Нужны день и время."
+      questions: ["На какой день и время записать Анну Петрову на стрижку? Могу подобрать ближайшее свободное время."]
+
+  - id: ru-lay-latin-name-in-cyrillic
+    tags: [layperson, existing-client, relative-date, typo]
+    text: "запиши эмили кларк на массаж завтра в 14"
+    expect:
+      actions:
+        - {action: create_visit, client: "@client.emily_clark", service: "@service.massage", start_at: "2026-10-20T14:00"}
+    plan:
+      summary: "Запишу Emily Clark на классический массаж 20.10 в 14:00."
+      actions:
+        - {action: create_visit, client_id: "@client.emily_clark", service_id: "@service.massage", start: "2026-10-20T14:00:00+02:00"}
