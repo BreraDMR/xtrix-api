@@ -229,3 +229,16 @@ def test_a_new_card_that_looks_like_an_existing_client_is_noticed(new, existing)
 def test_a_different_person_is_not_called_a_duplicate(new):
     from app.ai.client_search import similar_names
     assert similar_names(new, CLIENTS) == []
+
+
+@pytest.mark.parametrize("query, who", [
+    ("Эмили Кларк", "Emily Clark"),           # English C read as K, typed in Cyrillic
+    ("эмму кларк", "Emma Clarke"),
+    ("Джона Смита", "John Smith"),
+])
+def test_an_english_name_typed_in_cyrillic_finds_the_client(query, who):
+    assert found(query) == [who]
+
+
+def test_an_english_name_in_cyrillic_brings_the_client_into_the_context():
+    assert rank_in_text("отмени завтрашний массаж эмили кларк", CLIENTS, limit=10)[0] == 9

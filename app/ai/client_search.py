@@ -101,12 +101,30 @@ def word_match(q: str, n: str, *, typos: bool = False) -> int:
     """How well a folded query word fits a folded name word: EXACT, STEM, PREFIX, TYPO or 0.
     TYPO only when asked for - that's for the model context, never for resolving a client."""
     if _cyrillic(q) != _cyrillic(n):
-        czech = _match(q.translate(_LATIN), n.translate(_LATIN), typos)
-        if czech == EXACT:
-            return czech
-        q, n = _english(q), _english(n)
-        return max(czech, _match(q, n, typos))
+        best = 0
+        for spell in (lambda w: w.translate(_LATIN), _english, _sounds):
+            best = max(best, _match(spell(q), spell(n), typos))
+            if best == EXACT:
+                break
+        return best
     return _match(q, n, typos)
+
+
+_SOUNDS_LATIN = (("ck", "k"), ("ph", "f"), ("th", "t"), ("w", "v"), ("q", "k"), ("x", "ks"))
+
+
+def _sounds(word: str) -> str:
+    """A rough sound skeleton, for an English name typed in Cyrillic: "Джон Смит" - "John Smith",
+    "Кларк" - "Clark". Only ever compared across alphabets."""
+    if _cyrillic(word):
+        word = word.translate(_LATIN_EN).replace("dzh", "dz")
+    else:
+        for latin, sound in _SOUNDS_LATIN:
+            word = word.replace(latin, sound)
+        word = re.sub(r"c(?!h)", "k", word).replace("j", "dz")
+        word = re.sub(r"(?<![cszk])h", "", word)
+    word = word.replace("y", "i")
+    return re.sub(r"(.)\1+", r"\1", word)
 
 
 def _english(word: str) -> str:
