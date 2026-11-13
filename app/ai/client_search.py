@@ -6,7 +6,8 @@ People type names the way the sentence needs them: "Запиши Анну Пет
 compared with a few common Russian/Czech case endings cut off. No NLP library - a short hand-made
 suffix list is enough for names, and a salon has at most a few thousand clients, so it runs in Python.
 
-A Czech name typed in Cyrillic ("Мартина Новака") is compared letter by letter in Latin. Typos
+A Czech name typed in Cyrillic ("Мартина Новака") is compared letter by letter in Latin, and a Russian
+name typed in Latin may use the Czech or the English spelling ("Kuznecova", "Kuznetsova"). Typos
 ("jhon smth") only help the model context find candidates - find_client never resolves on a typo,
 the person picks the client from what the plan shows.
 """
@@ -40,6 +41,14 @@ _LATIN = str.maketrans({
     "х": "ch", "ц": "c", "ч": "c", "ш": "s", "щ": "sc", "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "ju",
     "я": "ja", "і": "i", "є": "je", "ґ": "g",
 })
+
+# the same, English style - "Kuznetsova", "Zhanna", "Yulia". ё is already е after folding, so the Latin side
+# gets "yo"/"ye" turned into "e" before comparing ("Alyona", "Yelena")
+_LATIN_EN = str.maketrans({
+    **{chr(k): v for k, v in _LATIN.items()},
+    "ж": "zh", "х": "kh", "ц": "ts", "ч": "ch", "ш": "sh", "щ": "shch", "ю": "yu", "я": "ya",
+})
+_EN_DIGRAPHS = (("yo", "e"), ("ye", "e"))
 
 Row = tuple[int, str]
 
@@ -92,7 +101,23 @@ def word_match(q: str, n: str, *, typos: bool = False) -> int:
     """How well a folded query word fits a folded name word: EXACT, STEM, PREFIX, TYPO or 0.
     TYPO only when asked for - that's for the model context, never for resolving a client."""
     if _cyrillic(q) != _cyrillic(n):
-        q, n = q.translate(_LATIN), n.translate(_LATIN)
+        czech = _match(q.translate(_LATIN), n.translate(_LATIN), typos)
+        if czech == EXACT:
+            return czech
+        q, n = _english(q), _english(n)
+        return max(czech, _match(q, n, typos))
+    return _match(q, n, typos)
+
+
+def _english(word: str) -> str:
+    if _cyrillic(word):
+        return word.translate(_LATIN_EN)
+    for latin, plain in _EN_DIGRAPHS:
+        word = word.replace(latin, plain)
+    return word
+
+
+def _match(q: str, n: str, typos: bool) -> int:
     if q == n:
         return EXACT
     if len(q) < MIN_WORD or len(n) < MIN_WORD or q.isdecimal() or n.isdecimal():

@@ -196,3 +196,19 @@ def test_typos_never_resolve_a_client_on_their_own():
 def test_typo_matches_rank_below_real_ones():
     rows = [(1, "Jon Smit"), (2, "John Smith")]
     assert rank_in_text("book John Smith", rows, limit=10) == [2, 1]
+
+
+@pytest.mark.parametrize("query, who", [
+    ("Elena Kuznetsova", "Елена Кузнецова"),     # English spelling: ц -> ts
+    ("Dmitry Orlov", "Дмитрий Орлов"),
+    ("Alyona Smirnova", "Алёна Смирнова"),
+    ("Sergey Volkov", "Сергей Волков"),
+    ("Anna Petrenko", "Анна Петренко"),
+])
+def test_an_english_spelling_of_a_cyrillic_name_finds_the_client(query, who):
+    assert found(query) == [who]
+
+
+def test_english_spelling_still_tells_look_alike_names_apart():
+    assert found("Anna") == ["Анна Петрова", "Анна Петренко"]
+    assert found("Elena Kuznetsova Petrova") == []
