@@ -70,9 +70,11 @@ def test_persisted_hostile_history_cannot_escape_data_or_authorize_foreign_actio
     messages, data = model_data(fakes)
     assert hostile not in messages[0]['content'] and summary not in messages[0]['content']
     assert data['context']['history'] == [{'role': 'user', 'text': hostile}, {'role': 'assistant', 'text': summary, 'execution': {'status': 'not_started'}}]
+    # the foreign step never reaches the shown plan (app/ai/plan_review.py); the executor
+    # refusing it on its own is covered in test_ai_assistant
+    assert second.json()['actions'] == [] and second.json()['questions']
     result = chats.run(client, b, second.json()['plan_id'])
-    assert result.status_code == 200 and result.json()['ok'] is False
-    assert result.json()['results'][0]['error']['status'] in (403, 404)
+    assert result.status_code == 200 and result.json()['results'] == []
     assert chats.visit_status(db, a['visit']['id']) == chats.visit_status(db, b['visit']['id']) == 'planned'
 
 
