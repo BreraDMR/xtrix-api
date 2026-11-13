@@ -1,7 +1,8 @@
 """Explicit prices for an existing visit, without rounding or currency defaults."""
 from decimal import Decimal, InvalidOperation
 import re
-from typing import Annotated
+from datetime import datetime
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
@@ -105,3 +106,36 @@ class VisitLoyaltyPriceOut(BaseModel):
     requires_review: bool
     message: str | None = None
     model_config = ConfigDict(from_attributes=True)
+
+
+class VisitPriceCorrectionIn(VisitPriceChange):
+    """A new quote for a visit that already has money or bonuses recorded on it."""
+    reason: str = Field(strict=True, min_length=3, max_length=500)
+    idempotency_key: str = Field(strict=True, pattern=r'^[A-Za-z0-9_-]{8,80}$')
+    prior_payment_action: Literal['refund_due', 'retained']
+
+    @model_validator(mode='after')
+    def readable_reason(self):
+        if len(self.reason.strip()) < 3:
+            raise invalid('visit_price_invalid', 'Explain the correction in a few words')
+        return self
+
+
+class VisitPriceCorrectionOut(BaseModel):
+    id: int
+    visit_id: int
+    created_at: datetime
+    old_currency: str | None
+    old_total: Decimal | None
+    new_currency: str
+    new_total: Decimal
+    prior_payment_action: str
+    reason: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class VisitPriceCorrectionResultOut(BaseModel):
+    correction: VisitPriceCorrectionOut
+    quote: VisitPriceQuoteOut
+    replayed: bool
+

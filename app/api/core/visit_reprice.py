@@ -42,29 +42,11 @@ def reprice_visit(db: Session, authorized_visit: Visit, change: VisitPriceChange
             visit_price_quote.validate_change_items(state, change)
         except ValueError:
             raise QuoteItemsInvalid('Price every stored item exactly once') from None
-        prices = {item.item_id: item.price for item in change.items} if change.items is not None else {}
-        desired = replace(state, currency_snapshot=change.currency, total=change.total,
-            items=tuple(replace(item, price=prices[item.id]) for item in state.items))
+        desired = desired_quote(state, change)
         if visit_price_quote.fingerprint(desired) == visit_price_quote.fingerprint(state):
             return visit_price_quote.project_price(state)
         guards.ensure_price_change_allowed(db, target.id, target.business_id)
-        if (target.status == 'completed' and change.total > 0
-                and target.payment_method not in {'cash', 'card', 'other'}):
-            raise guards.VisitPriceChangeBlocked('payment_method_required_for_completed_visits')
-        changed = db.execute(update(Visit).where(Visit.id == target.id,
-            Visit.business_id == target.business_id, Visit.client_id == target.client_id,
-            Visit.specialist_id == target.specialist_id, Visit.deleted_at.is_(None)
-        ).values(price=float(change.total), currency_snapshot=change.currency).execution_options(synchronize_session=False))
-        if changed.rowcount != 1:
-            raise guards.SettlementTargetUnavailable('Stored quote target is not available')
-        for item in state.items:
-            changed = db.execute(update(VisitItem).where(VisitItem.id == item.id,
-                VisitItem.visit_id == target.id).values(price=prices[item.id]).execution_options(synchronize_session=False))
-            if changed.rowcount != 1:
-                raise QuoteItemsInvalid('The stored item is no longer available')
-        saved = visit_price_access.read_stored_price(db, target)
-        if saved is None or visit_price_quote.fingerprint(saved) != visit_price_quote.fingerprint(desired):
-            raise QuoteChanged('The saved quote does not match the explicit replacement')
+        saved = write_quote(db, target, state, change, desired)
         event = audit_service.record_event(db, action='visit.repriced', entity_type='visit', entity_id=target.id,
             business_id=target.business_id, owner_user_id=target.specialist_id if target.business_id is None else None,
             actor=actor, request_id=request_id, changes={
@@ -76,3 +58,36 @@ def reprice_visit(db: Session, authorized_visit: Visit, change: VisitPriceChange
         if event is None:
             raise guards.VisitPriceChangeBlocked('visit_price_retry')
         return visit_price_quote.project_price(saved)
+
+
+def desired_quote(state, change: VisitPriceChange):
+    prices = {item.item_id: item.price for item in change.items} if change.items is not None else {}
+    return replace(state, currency_snapshot=change.currency, total=change.total,
+        items=tuple(replace(item, price=prices[item.id]) for item in state.items))
+
+
+def write_quote(db: Session, target: Visit, state, change: VisitPriceChange, desired):
+    """Store an already validated quote on a locked target and read it back exactly.
+
+    Shared by the plain reprice and the settlement correction; each caller runs its
+    own guards before this and owns commit/rollback.
+    """
+    if (target.status == 'completed' and change.total > 0
+            and target.payment_method not in {'cash', 'card', 'other'}):
+        raise guards.VisitPriceChangeBlocked('payment_method_required_for_completed_visits')
+    prices = {item.item_id: item.price for item in change.items} if change.items is not None else {}
+    changed = db.execute(update(Visit).where(Visit.id == target.id,
+        Visit.business_id == target.business_id, Visit.client_id == target.client_id,
+        Visit.specialist_id == target.specialist_id, Visit.deleted_at.is_(None)
+    ).values(price=float(change.total), currency_snapshot=change.currency).execution_options(synchronize_session=False))
+    if changed.rowcount != 1:
+        raise guards.SettlementTargetUnavailable('Stored quote target is not available')
+    for item in state.items:
+        changed = db.execute(update(VisitItem).where(VisitItem.id == item.id,
+            VisitItem.visit_id == target.id).values(price=prices[item.id]).execution_options(synchronize_session=False))
+        if changed.rowcount != 1:
+            raise QuoteItemsInvalid('The stored item is no longer available')
+    saved = visit_price_access.read_stored_price(db, target)
+    if saved is None or visit_price_quote.fingerprint(saved) != visit_price_quote.fingerprint(desired):
+        raise QuoteChanged('The saved quote does not match the explicit replacement')
+    return saved

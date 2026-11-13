@@ -85,6 +85,9 @@ CLIENT_NAME_KEYS = frozenset(
 EVENT_CATALOG: dict[str, EventSpec] = {
     "visit.repriced": EventSpec("visit", frozenset({"price", "currency_snapshot", "items_count"}),
                                  frozenset({"price", "currency_snapshot", "items"})),
+    "visit.price_corrected": EventSpec("visit", frozenset({"price", "currency_snapshot", "items_count",
+                                                          "correction_id", "prior_payment_action"}),
+                                       frozenset({"price", "currency_snapshot", "items"})),
     "visit.created": EventSpec("visit", VISIT_VALUE_KEYS, VISIT_NAME_KEYS),
     "visit.updated": EventSpec("visit", VISIT_VALUE_KEYS, VISIT_NAME_KEYS),
     "visit.moved": EventSpec("visit", VISIT_VALUE_KEYS, VISIT_NAME_KEYS),

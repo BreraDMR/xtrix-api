@@ -68,6 +68,26 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Перед изменением цены завершите или отмените незавершённую оплату визита.",
         "cz": "Před změnou ceny návštěvy dokončete nebo zrušte nevyřízenou platbu.",
     },
+    "visit_price_correction_not_needed": {
+        "en": "Nothing has been paid or redeemed for this visit yet. Change its price directly instead.",
+        "ru": "По визиту ещё нет оплат и списаний. Измените цену обычным способом.",
+        "cz": "U návštěvy zatím nejsou žádné platby ani čerpání. Změňte cenu přímo.",
+    },
+    "visit_price_correction_unchanged": {
+        "en": "The new price and currency are the same as the current ones.",
+        "ru": "Новая цена и валюта совпадают с текущими.",
+        "cz": "Nová cena a měna jsou stejné jako současné.",
+    },
+    "visit_price_correction_key_conflict": {
+        "en": "This correction was already saved with different details. Reload the visit and try again.",
+        "ru": "Эта корректировка уже сохранена с другими данными. Обновите визит и попробуйте снова.",
+        "cz": "Tato oprava už byla uložena s jinými údaji. Načtěte návštěvu znovu a zkuste to znovu.",
+    },
+    "visit_price_correction_unavailable": {
+        "en": "Price corrections are available only for visits of a business.",
+        "ru": "Корректировка цены доступна только для визитов салона.",
+        "cz": "Opravu ceny lze provést jen u návštěv podniku.",
+    },
     "visit_price_retry": {
         "en": "The visit is being updated. Please try again.",
         "ru": "Запись сейчас изменяется. Повторите попытку.",

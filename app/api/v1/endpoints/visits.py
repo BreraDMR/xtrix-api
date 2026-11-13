@@ -1,4 +1,5 @@
-from app.schemas.visit_price import VisitPriceQuoteOut, VisitPriceChange, VisitLoyaltyPriceOut
+from app.schemas.visit_price import (VisitPriceQuoteOut, VisitPriceChange, VisitLoyaltyPriceOut,
+    VisitPriceCorrectionIn, VisitPriceCorrectionOut, VisitPriceCorrectionResultOut)
 from app.api.core import visit_price_access, visit_price_quote, visit_reprice
 from app.api.private_routes import NoStoreRoute
 from app.api.core import visit_settlement_guard
@@ -576,6 +577,83 @@ def write_visit_price(request: Request, payload: VisitPriceChange, visit_id: int
     except Exception as exc:
         logger.warning('Post-reprice cache refresh failed for visit_id=%s: %s', response.visit_id, type(exc).__name__)
     return response
+
+
+def _correction_error(code, locale, status=409):
+    return HTTPException(status, detail={'code': code, 'message': _(code, locale)})
+
+
+@price_router.post('/{visit_id}/price-corrections', response_model=VisitPriceCorrectionResultOut,
+                   summary='Correct the quote of a visit that already has payments or bonuses',
+                   description='The old payments stay in their own currency. Retrying with the same '
+                               'idempotency_key and body returns the saved correction.',
+                   responses={409: {'description': 'Nothing to correct, quote changed, payment pending, or key reused.'}})
+@limiter.limit('10/minute')
+def correct_visit_price(request: Request, payload: VisitPriceCorrectionIn, visit_id: int = Path(gt=0),
+                        db: Session = Depends(deps.get_db),
+                        current_user: User = Depends(deps.role_required('admin', 'business_owner', 'specialist', 'employee')),
+                        locale: str = Depends(deps.get_locale)) -> VisitPriceCorrectionResultOut:
+    from app.api.core import visit_price_correction as corrections
+    target = _price_target(db, current_user, visit_id, locale)
+    try:
+        result = corrections.correct_visit_price(db, target, payload, actor=current_user,
+                                                 request_id=audit_service.request_id_for(request))
+        response = VisitPriceCorrectionResultOut(
+            correction=VisitPriceCorrectionOut.model_validate(result.correction),
+            quote=VisitPriceQuoteOut.model_validate(result.quote), replayed=result.replayed)
+        if result.replayed:
+            db.rollback()
+        else:
+            db.commit()
+    except visit_reprice.QuoteChanged:
+        db.rollback()
+        raise _correction_error('visit_price_quote_changed', locale) from None
+    except visit_reprice.QuoteItemsInvalid:
+        db.rollback()
+        raise _correction_error('visit_price_items_invalid', locale, 422) from None
+    except corrections.CorrectionNotNeeded:
+        db.rollback()
+        raise _correction_error('visit_price_correction_not_needed', locale) from None
+    except corrections.CorrectionUnchanged:
+        db.rollback()
+        raise _correction_error('visit_price_correction_unchanged', locale) from None
+    except corrections.CorrectionKeyConflict:
+        db.rollback()
+        raise _correction_error('visit_price_correction_key_conflict', locale) from None
+    except corrections.CorrectionUnavailable:
+        db.rollback()
+        raise _correction_error('visit_price_correction_unavailable', locale) from None
+    except visit_settlement_guard.VisitPriceChangeBlocked as exc:
+        db.rollback()
+        raise _correction_error(exc.reason, locale) from None
+    except (visit_settlement_guard.SettlementBusy, visit_settlement_guard.DirtySettlementState):
+        db.rollback()
+        raise _correction_error('visit_price_retry', locale) from None
+    except visit_settlement_guard.SettlementTargetUnavailable:
+        db.rollback()
+        raise HTTPException(404, detail=_('visit_not_found', locale)) from None
+    except Exception:
+        db.rollback()
+        raise
+    if not response.replayed:
+        try:
+            from app.api.core.redis_client import invalidate_visit
+            invalidate_visit(visit_id)
+        except Exception as exc:
+            logger.warning('Post-correction cache refresh failed for visit_id=%s: %s', visit_id, type(exc).__name__)
+    return response
+
+
+@price_router.get('/{visit_id}/price-corrections', response_model=list[VisitPriceCorrectionOut],
+                  summary='Price corrections of one visit, oldest first')
+@limiter.limit('60/minute')
+def list_visit_price_corrections(request: Request, visit_id: int = Path(gt=0),
+                                 db: Session = Depends(deps.get_db),
+                                 current_user: User = Depends(deps.role_required('admin', 'business_owner', 'specialist', 'employee')),
+                                 locale: str = Depends(deps.get_locale)) -> list[VisitPriceCorrectionOut]:
+    from app.api.core import visit_price_correction as corrections
+    target = _price_target(db, current_user, visit_id, locale)
+    return [VisitPriceCorrectionOut.model_validate(row) for row in corrections.list_corrections(db, target)]
 
 
 @price_router.get('/{visit_id}/loyalty-price', response_model=VisitLoyaltyPriceOut,

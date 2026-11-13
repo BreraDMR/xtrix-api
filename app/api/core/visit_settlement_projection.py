@@ -10,6 +10,7 @@ from app.db.models.gift import GiftCertificate, GiftLedgerEntry
 from app.db.models.loyalty_program import LoyaltyTransaction
 from app.db.models.service_payment import ServicePaymentAttempt, ServicePaymentEvent, ServicePaymentRefund
 from app.db.models.visit import Visit
+from app.db.models.visit_price_correction import VisitPriceCorrection
 from app.schemas.limits import ISO_4217
 
 
@@ -25,6 +26,19 @@ class SettlementScope:
         if any(type(value) is not int or value <= 0 for value in
                (self.id, self.business_id, self.client_id, self.specialist_id)):
             raise ValueError('An authorized positive scalar scope is required')
+
+
+@dataclass(frozen=True)
+class PriorCurrencySettlement:
+    """Money recorded under a quote currency that a later correction replaced.
+
+    Shown on its own, in its own currency: without FX it can't count toward the new quote.
+    """
+    currency: str
+    provider_received: Decimal | None
+    provider_refunded: Decimal | None
+    provider_net: Decimal | None
+    benefit_rows: int
 
 
 @dataclass(frozen=True)
@@ -45,6 +59,7 @@ class SettlementFacts:
     has_reconciliation: bool
     requires_review: bool
     reasons: tuple[str, ...]
+    prior_currency_settlements: tuple[PriorCurrencySettlement, ...] = ()
     outstanding: None = None
     overpayment: None = None
     outstanding_reason: str = 'outstanding_not_projected'
@@ -79,9 +94,14 @@ def _snapshot(scope):
         'cashback_exact', cast(l.cashback_amount_exact, String), 'currency', l.discount_currency,
         'discount', cast(l.discount_amount_exact, String))).where(
             l.visit_id == Visit.id).correlate(Visit).scalar_subquery()
+    k = VisitPriceCorrection
+    corrected_from = select(func.coalesce(func.jsonb_agg(k.old_currency), literal([], type_=JSONB))).where(
+        k.visit_id == Visit.id, k.business_id == Visit.business_id, k.old_currency.is_not(None)
+        ).correlate(Visit).scalar_subquery()
     return select(Visit.id, Visit.business_id, Visit.client_id, Visit.currency_snapshot, Visit.price,
         Visit.manual_payment_recorded_at, attempts.label('attempts'), events.label('events'),
-        refunds.label('refunds'), gifts.label('gifts'), loyalty.label('loyalty')).where(
+        refunds.label('refunds'), gifts.label('gifts'), loyalty.label('loyalty'),
+        corrected_from.label('corrected_from')).where(
             Visit.id == scope.id, Visit.business_id == scope.business_id, Visit.client_id == scope.client_id,
             Visit.specialist_id == scope.specialist_id, Visit.deleted_at.is_(None))
 
@@ -272,6 +292,9 @@ def read_settlement(db, scope: SettlementScope) -> SettlementFacts | None:
     currency = row['currency_snapshot'] if row['currency_snapshot'] in ISO_4217 else None
     if currency is None:
         reasons.add('quote_currency_unknown')
+    # rows recorded under a currency the visit was corrected away from are reported apart
+    prior = {value for value in row['corrected_from'] if value in ISO_4217 and value != currency}
+    attempts, events, refunds, gifts, loyalty_rows, prior_rows = _split_prior(row, prior)
     try:
         gross = _cents(row['price'])
         gross_value = _total(gross)
@@ -279,14 +302,14 @@ def read_settlement(db, scope: SettlementScope) -> SettlementFacts | None:
         gross = gross_value = None
         reasons.add('quote_amount_invalid')
     discount, price_after, loyalty_review, loyalty_active = _loyalty(
-        row['loyalty'], scope.business_id, scope.client_id, currency, gross)
+        loyalty_rows, scope.business_id, scope.client_id, currency, gross)
     if loyalty_review:
         reasons.add('loyalty_history_review')
     received, refunded, net, pending, reconciliation = _provider(
-        row['attempts'], row['events'], row['refunds'], scope.business_id, currency)
+        attempts, events, refunds, scope.business_id, currency)
     if received is None or refunded is None or net is None:
         reasons.add('provider_history_review')
-    gift_money, gift_units, gift_package, gift_review = _gifts(row['gifts'], scope.business_id, currency)
+    gift_money, gift_units, gift_package, gift_review = _gifts(gifts, scope.business_id, currency)
     if gift_review:
         reasons.add('gift_history_review')
     if gift_units and gift_package is None:
@@ -294,8 +317,54 @@ def read_settlement(db, scope: SettlementScope) -> SettlementFacts | None:
     manual = row['manual_payment_recorded_at'] is not None
     if manual:
         reasons.add('manual_amount_unknown')
-    if sum((bool(row['attempts']), bool(row['gifts']), bool(loyalty_active), manual)) > 1:
+    if sum((bool(attempts), bool(gifts), bool(loyalty_active), manual)) > 1:
         reasons.add('mixed_settlement_history')
+    prior_facts = []
+    for code in sorted(prior_rows):
+        part = prior_rows[code]
+        p_received, p_refunded, p_net, p_pending, p_reconciliation = _provider(
+            part['attempts'], part['events'], part['refunds'], scope.business_id, code)
+        pending |= p_pending
+        reconciliation |= p_reconciliation
+        prior_facts.append(PriorCurrencySettlement(code, p_received, p_refunded, p_net, part['benefits']))
+        if part['attempts'] and (p_net is None or p_net != 0):
+            reasons.add('prior_currency_settlement')
+        if part['benefits']:
+            reasons.add('prior_currency_benefits')
     return SettlementFacts(row['id'], currency, gross_value, discount, price_after,
         received, refunded, net, gift_money, gift_units, gift_package, manual, pending, reconciliation,
-        bool(reasons), tuple(sorted(reasons)))
+        bool(reasons), tuple(sorted(reasons)), tuple(prior_facts))
+
+
+def _split_prior(row, prior):
+    """Current-currency rows for the usual checks, and per-currency buckets for the rest."""
+    if not prior:
+        return row['attempts'], row['events'], row['refunds'], row['gifts'], row['loyalty'], {}
+    buckets = {code: {'attempts': [], 'events': [], 'refunds': [], 'benefits': 0} for code in prior}
+    owner = {}
+    attempts = []
+    for attempt in row['attempts']:
+        if attempt['currency'] in prior:
+            owner[attempt['id']] = attempt['currency']
+            buckets[attempt['currency']]['attempts'].append(attempt)
+        else:
+            attempts.append(attempt)
+    events, refunds = [], []
+    for event in row['events']:
+        (buckets[owner[event['attempt']]]['events'] if event['attempt'] in owner else events).append(event)
+    for refund in row['refunds']:
+        (buckets[owner[refund['attempt']]]['refunds'] if refund['attempt'] in owner else refunds).append(refund)
+    gifts = []
+    for gift in row['gifts']:
+        unit = gift['currency'] if gift['kind'] == 'money' else gift['coverage_currency']
+        if unit in prior:
+            buckets[unit]['benefits'] += 1
+        else:
+            gifts.append(gift)
+    loyalty = []
+    for entry in row['loyalty']:
+        if entry['currency'] in prior:
+            buckets[entry['currency']]['benefits'] += 1
+        else:
+            loyalty.append(entry)
+    return attempts, events, refunds, gifts, loyalty, buckets
