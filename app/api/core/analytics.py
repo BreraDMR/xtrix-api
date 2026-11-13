@@ -1,15 +1,13 @@
 from datetime import datetime, timedelta
-from decimal import Decimal, localcontext, ROUND_HALF_UP
-from math import isfinite
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import func, extract, select, case, and_, cast, Numeric, String, DateTime, Integer, BigInteger, null, literal, union_all
+from sqlalchemy import func, extract, select, case, and_, cast, String, DateTime, Integer, BigInteger, null, literal, union_all
 from app.db.models.visit import Visit
 from app.db.models.service import Service
 from app.db.models.client import Client
 from app.db.models.client_business_relation import ClientBusinessRelation
 from app.api.core.clock import utcnow
-from app.schemas.limits import ISO_4217
+from app.api.core.money_slices import as_float, currency_order, money_columns, money_slice, quote_cents, quote_currency
 def get_visit_statistics(
     db: Session,
     specialist_id: Optional[int] = None,
@@ -106,12 +104,9 @@ def get_financial_report(
     """
     if group_by not in {'day', 'week', 'month', 'year'}:
         raise ValueError('Unsupported financial report period')
-    currency = case((Visit.currency_snapshot.in_(sorted(ISO_4217)), Visit.currency_snapshot), else_=None)
-    # CASE protects the cast and arithmetic from legacy NaN/infinity. Numeric
-    # keeps the decimal value PostgreSQL reads, without a double precision SUM.
-    price = case((and_(Visit.price.is_not(None), Visit.price >= 0,
-                       Visit.price < float('inf')), cast(cast(Visit.price, String()), Numeric())), else_=None)
-    cents = case((and_(currency.is_not(None), price == func.trunc(price, 2)), price * 100), else_=None)
+    # Same NaN/infinity-safe cent expressions as the other money analytics.
+    currency = quote_currency()
+    cents = quote_cents(currency)
     filters = [Visit.deleted_at.is_(None)]
     if specialist_id:
         filters.append(Visit.specialist_id == specialist_id)
@@ -126,33 +121,15 @@ def get_financial_report(
         cents.label('cents')).where(*filters).cte('stored_quotes')
 
     def columns():
-        return (func.count().label('count'), func.count(quotes.c.cents).label('valid_count'),
-                func.sum(quotes.c.cents).label('total_cents'))
-
-    def from_cents(value):
-        integer = int(value)
-        return Decimal(f'{integer // 100}.{integer % 100:02d}')
+        return money_columns(quotes.c.cents)
 
     def slice_value(row):
-        count = int(row['count'])
-        review = row['currency'] is None or row['valid_count'] != count
-        amount = None if review else from_cents(row['total_cents'])
-        average = None
-        if amount is not None:
-            with localcontext() as money_context:
-                money_context.prec = max(32, len(amount.as_tuple().digits) + 16)
-                average = (amount / count).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        return {'currency': row['currency'], 'amount': amount, 'average': average,
-                'count': count, 'requires_review': review}
+        return money_slice(row['currency'], row['count'], row['valid_count'], row['total_cents'])
 
-    def compatibility(value):
-        if value is None:
-            return None
-        number = float(value)
-        return number if isfinite(number) else None
+    compatibility = as_float
 
     def summary(values):
-        values = sorted(values, key=lambda row: (row['currency'] is None, row['currency'] or ''))
+        values = sorted(values, key=lambda row: currency_order(row['currency']))
         single = values[0] if len(values) == 1 and values[0]['currency'] is not None else None
         return {'revenue': compatibility(single['amount']) if single else (0.0 if not values else None),
                 'currency': single['currency'] if single else None,
