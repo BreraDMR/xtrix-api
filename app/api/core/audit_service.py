@@ -108,6 +108,7 @@ EVENT_CATALOG: dict[str, EventSpec] = {
         "questionnaire", frozenset({"version", "fields_count", "answered_count"})
     ),
     "client.updated": EventSpec("client", frozenset(), CLIENT_NAME_KEYS),
+    "business.legacy_visit_currency_confirmed": EventSpec("business", frozenset({"currency", "updated_visits"})),
 }
 
 

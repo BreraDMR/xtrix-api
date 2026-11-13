@@ -7561,6 +7561,93 @@
         "title": "InsightData",
         "type": "object"
       },
+      "LegacyVisitCurrencyConfirmIn": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "pattern": "^[A-Za-z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          },
+          "expected_count": {
+            "minimum": 0.0,
+            "title": "Expected Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "currency",
+          "expected_count"
+        ],
+        "title": "LegacyVisitCurrencyConfirmIn",
+        "type": "object"
+      },
+      "LegacyVisitCurrencyConfirmOut": {
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "updated_visits": {
+            "title": "Updated Visits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "currency",
+          "updated_visits"
+        ],
+        "title": "LegacyVisitCurrencyConfirmOut",
+        "type": "object"
+      },
+      "LegacyVisitCurrencyOut": {
+        "properties": {
+          "business_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Currency"
+          },
+          "first_visit_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Visit At"
+          },
+          "last_visit_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Visit At"
+          },
+          "unknown_visits": {
+            "title": "Unknown Visits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "unknown_visits"
+        ],
+        "title": "LegacyVisitCurrencyOut",
+        "type": "object"
+      },
       "LevelDistributionItem": {
         "properties": {
           "client_count": {
@@ -25838,6 +25925,127 @@
         "summary": "Read preview rows and errors",
         "tags": [
           "imports"
+        ]
+      }
+    },
+    "/businesses/me/legacy-visit-currency": {
+      "get": {
+        "operationId": "preview_legacy_visit_currency_businesses_me_legacy_visit_currency_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyVisitCurrencyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "How many old visits have no saved currency",
+        "tags": [
+          "businesses"
+        ]
+      }
+    },
+    "/businesses/me/legacy-visit-currency/confirm": {
+      "post": {
+        "operationId": "confirm_legacy_visit_currency_businesses_me_legacy_visit_currency_confirm_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegacyVisitCurrencyConfirmIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyVisitCurrencyConfirmOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "Count changed since the preview, nothing to confirm, or busy."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "State the currency of old visits that have none",
+        "tags": [
+          "businesses"
         ]
       }
     },

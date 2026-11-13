@@ -123,3 +123,7 @@ In `live` mode the request stores the challenge and a `visitor_proof_mail_jobs` 
 
 `VISITOR_PROOF_MAIL_KEYS` holds `key_id:base64url-32-bytes`, comma-separated; the first key encrypts, all of them decrypt. Generate one with `python -c "import os,base64;print('k1:'+base64.urlsafe_b64encode(os.urandom(32)).decode().rstrip('='))"`. Keep an old key until its queued jobs are done. Live mode without a valid key answers 503 and writes nothing. Delivery is at-least-once: a crash between the provider accepting a mail and the job being marked can send the same link twice.
 
+
+### Old visits without a currency
+
+Visits saved before visits kept their own currency have `currency_snapshot = NULL`, and money reports don't add them up: the salon's current currency is not proof of what they were. The owner can say it on purpose: `GET /businesses/me/legacy-visit-currency` shows how many such visits there are, and `POST /businesses/me/legacy-visit-currency/confirm` with `{"currency": "CZK", "expected_count": <that number>}` labels exactly those rows and writes an audit entry. A changed count is refused, rows that already have a currency are never touched, and staff can't do it.

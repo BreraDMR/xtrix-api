@@ -1,13 +1,18 @@
+from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.api.core.i18n import _
 from app.api.core.pagination import MAX_OFFSET
 from app.api.crud import crud_business
 from app.db.models.user import User
+from app.api.private_routes import NoStoreRoute
 from app.schemas.business import BusinessCreate, BusinessOut, BusinessUpdate
+from app.schemas.limits import Currency
 router = APIRouter()
+legacy_router = APIRouter(route_class=NoStoreRoute)
 @router.post("/", response_model=BusinessOut, summary="Create business")
 def create_business(
     business: BusinessCreate,
@@ -69,6 +74,82 @@ def get_my_business(
             detail=_("business_not_found", locale)
         )
     return BusinessOut.model_validate(business)
+class LegacyVisitCurrencyOut(BaseModel):
+    unknown_visits: int
+    first_visit_at: Optional[datetime] = None
+    last_visit_at: Optional[datetime] = None
+    business_currency: Optional[str] = None
+
+
+class LegacyVisitCurrencyConfirmIn(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    currency: Currency
+    expected_count: int = Field(ge=0, strict=True)
+
+
+class LegacyVisitCurrencyConfirmOut(BaseModel):
+    currency: str
+    updated_visits: int
+
+
+def _owner_business_id(current_user: User, locale: str) -> int:
+    # only the owner states what their history was; staff and platform admins don't
+    if current_user.role != "business_owner":
+        raise HTTPException(status_code=403, detail=_("not_allowed", locale))
+    if not current_user.business_id:
+        raise HTTPException(status_code=404, detail=_("business_not_found", locale))
+    return current_user.business_id
+
+
+@legacy_router.get("/me/legacy-visit-currency", response_model=LegacyVisitCurrencyOut,
+                   summary="How many old visits have no saved currency")
+def preview_legacy_visit_currency(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    locale: str = Depends(deps.get_locale),
+):
+    from app.api.core import legacy_visit_currency
+    return LegacyVisitCurrencyOut(**legacy_visit_currency.preview(db, _owner_business_id(current_user, locale)))
+
+
+@legacy_router.post("/me/legacy-visit-currency/confirm", response_model=LegacyVisitCurrencyConfirmOut,
+                    summary="State the currency of old visits that have none",
+                    responses={409: {'description': 'Count changed since the preview, nothing to confirm, or busy.'}})
+def confirm_legacy_visit_currency(
+    request: Request,
+    payload: LegacyVisitCurrencyConfirmIn,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    locale: str = Depends(deps.get_locale),
+):
+    from app.api.core import audit_service, legacy_visit_currency as legacy
+    business_id = _owner_business_id(current_user, locale)
+    try:
+        count = legacy.confirm(db, business_id, payload.currency, payload.expected_count, actor=current_user,
+                               request_id=audit_service.request_id_for(request))
+        db.commit()
+    except legacy.LegacyCurrencyCountChanged:
+        db.rollback()
+        raise HTTPException(409, detail={'code': 'legacy_currency_count_changed',
+                                         'message': _('legacy_currency_count_changed', locale)}) from None
+    except legacy.LegacyCurrencyNothingToConfirm:
+        db.rollback()
+        raise HTTPException(409, detail={'code': 'legacy_currency_nothing_to_confirm',
+                                         'message': _('legacy_currency_nothing_to_confirm', locale)}) from None
+    except legacy.LegacyCurrencyBusy:
+        db.rollback()
+        raise HTTPException(409, detail={'code': 'visit_price_retry', 'message': _('visit_price_retry', locale)}) from None
+    except Exception:
+        db.rollback()
+        raise
+    try:
+        from app.api.core.redis_client import invalidate_analytics
+        invalidate_analytics()
+    except Exception:
+        pass
+    return LegacyVisitCurrencyConfirmOut(currency=payload.currency, updated_visits=count)
+
+
 @router.get("/{business_id}", response_model=BusinessOut, summary="Get business by ID")
 def get_business(
     business_id: int,
@@ -128,3 +209,6 @@ def delete_business(
         )
     deleted_business = crud_business.delete_business(db=db, business=business)
     return deleted_business.__dict__ if hasattr(deleted_business, '__dict__') else deleted_business
+
+
+router.include_router(legacy_router)

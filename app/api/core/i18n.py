@@ -88,6 +88,16 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Корректировка цены доступна только для визитов салона.",
         "cz": "Opravu ceny lze provést jen u návštěv podniku.",
     },
+    "legacy_currency_count_changed": {
+        "en": "The number of visits without a currency changed. Check the preview again.",
+        "ru": "Количество визитов без валюты изменилось. Проверьте предпросмотр ещё раз.",
+        "cz": "Počet návštěv bez měny se změnil. Zkontrolujte náhled znovu.",
+    },
+    "legacy_currency_nothing_to_confirm": {
+        "en": "All visits already have a currency.",
+        "ru": "У всех визитов уже указана валюта.",
+        "cz": "Všechny návštěvy už mají měnu.",
+    },
     "visit_price_retry": {
         "en": "The visit is being updated. Please try again.",
         "ru": "Запись сейчас изменяется. Повторите попытку.",
