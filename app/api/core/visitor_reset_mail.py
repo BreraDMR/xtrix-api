@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.api.core import visitor_challenges, visitor_sessions
 from app.api.core.clock import utcnow
+from app.api.core import visitor_proof_mail
 from app.api.core.config import settings
 from app.db.models.visitor_account import VisitorAccount, canonical_visitor_email
 from app.db.models.visitor_auth import VisitorChallenge
@@ -32,10 +33,16 @@ class PreparedResetMail:
     recipient: str = field(repr=False)
     subject: str = field(repr=False)
     text: str = field(repr=False)
+    job_id: int | None = field(default=None, repr=False)
 
 
 def _capture_base() -> str:
-    if (settings.visitor_auth_mail_mode != "capture"
+    if settings.visitor_auth_mail_mode == "live":
+        try:
+            visitor_proof_mail.check_ready()
+        except visitor_proof_mail.ProofMailKeyUnavailable:
+            raise ResetMailUnavailable(_UNAVAILABLE) from None
+    elif (settings.visitor_auth_mail_mode != "capture"
             or settings.environment not in {"development", "test"}):
         raise ResetMailUnavailable(_UNAVAILABLE)
     value = settings.frontend_url
@@ -101,7 +108,9 @@ def prepare(db: Session, email: str, locale: str) -> PreparedResetMail | None:
     proof = visitor_challenges.issue_challenge(db, "reset", account_id=account.id, email=target, now=now)
     subject, body = _message(locale, base + "/visitor/reset-password#token=" + proof.raw_token)
     _capture_base()
-    return PreparedResetMail(proof.row.id, proof.row.token_hash, account.id, target, subject, body)
+    job_id = (visitor_proof_mail.enqueue(db, proof.row.id, proof.raw_token, locale, base)
+              if visitor_proof_mail.live_enabled() else None)
+    return PreparedResetMail(proof.row.id, proof.row.token_hash, account.id, target, subject, body, job_id)
 
 
 def capture_after_commit(db: Session, prepared: PreparedResetMail) -> None:

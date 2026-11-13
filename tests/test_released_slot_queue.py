@@ -168,7 +168,7 @@ def test_migration_guard_preserves_pending_jobs(db, world):
     db.close()
     with pytest.raises(DBAPIError, match='Released-slot jobs exist'):
         command.downgrade(Config('alembic.ini'), '0088_financial_archives')
-    assert db.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0090_visit_price_corrections'
+    assert db.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0091_visitor_proof_mail_jobs'
     assert db.query(Job).count() == 2
     db.rollback()
 

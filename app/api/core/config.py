@@ -80,7 +80,10 @@ class Settings(BaseSettings):
     gmail_delivery_enabled: bool = False
     gmail_allowed_recipients: str = ""
     pilot_email_delivery_enabled: bool = False
-    visitor_auth_mail_mode: Literal["disabled", "capture"] = "disabled"
+    # live = encrypted durable jobs delivered through the notification transport (any environment)
+    visitor_auth_mail_mode: Literal["disabled", "capture", "live"] = "disabled"
+    # "key_id:base64url-32-bytes[,older_id:key...]" - the first one encrypts, all of them decrypt
+    visitor_proof_mail_keys: SecretStr = SecretStr("")
 
     @property
     def email_provider_configured(self) -> bool:

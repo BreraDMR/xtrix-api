@@ -52,10 +52,12 @@ def committed_capture(db, email="recipient@example.com", locale="ru"):
     return prepared
 
 
-def test_default_is_disabled_and_live_mode_is_not_part_of_configuration():
+def test_default_is_disabled_and_live_mode_needs_an_explicit_key():
+    # live delivery exists since 13.11.2026, but it is never on by default and has no default key
     assert Settings.model_fields["visitor_auth_mail_mode"].default == "disabled"
+    assert Settings(_env_file=None, visitor_auth_mail_mode="live").visitor_proof_mail_keys.get_secret_value() == ""
     with pytest.raises(ValidationError):
-        Settings(_env_file=None, visitor_auth_mail_mode="live")
+        Settings(_env_file=None, visitor_auth_mail_mode="smtp")
 
 
 @pytest.mark.parametrize("mode,environment", [("disabled", "test"), ("capture", "production"),

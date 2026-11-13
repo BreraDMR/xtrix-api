@@ -7,7 +7,7 @@ from app.api.private_routes import NoStoreRoute
 from app.api.core import visitor_challenges, visitor_google_credentials, visitor_google_login
 from app.api.core import visitor_login_guard, visitor_passwords, visitor_registration, visitor_sessions
 from app.api.core import visitor_registration_mail, visitor_password_reset, visitor_reset_mail, visitor_manage_claim
-from app.api.core import visitor_google_link, visitor_recent_auth
+from app.api.core import visitor_google_link, visitor_proof_mail, visitor_recent_auth
 from app.api.core import visitor_client_invite_accept, visitor_email_change, visitor_email_change_mail
 from app.schemas.visitor_email_change import VisitorEmailChangeConfirmIn, VisitorEmailChangeRequestIn
 from app.schemas.visitor_invitations import ClientInviteAcceptIn
@@ -169,7 +169,10 @@ def request_registration(request: Request, body: VisitorRegistrationRequestIn,
     try:
         prepared = visitor_registration_mail.prepare(db, body.email, locale)
         db.commit()
-        if prepared is not None:
+        if prepared is not None and prepared.job_id is not None:
+            # queued for real; a failed immediate send is retried by the worker, the request still succeeds
+            visitor_proof_mail.deliver_after_commit(db, prepared.job_id)
+        elif prepared is not None:
             visitor_registration_mail.capture_after_commit(db, prepared)
     except visitor_registration_mail.RegistrationMailUnavailable:
         db.rollback()
@@ -207,7 +210,10 @@ def request_password_reset(request: Request, body: VisitorRegistrationRequestIn,
     try:
         prepared = visitor_reset_mail.prepare(db, body.email, locale)
         db.commit()
-        if prepared is not None:
+        if prepared is not None and prepared.job_id is not None:
+            # queued for real; a failed immediate send is retried by the worker, the request still succeeds
+            visitor_proof_mail.deliver_after_commit(db, prepared.job_id)
+        elif prepared is not None:
             visitor_reset_mail.capture_after_commit(db, prepared)
     except visitor_reset_mail.ResetMailUnavailable:
         db.rollback()
@@ -241,7 +247,10 @@ def request_email_change(request: Request, body: VisitorEmailChangeRequestIn,
     try:
         prepared = visitor_email_change_mail.prepare(db, request.headers.get("X-Visitor-Token"), body.email, locale)
         db.commit()
-        if prepared is not None:
+        if prepared is not None and prepared.job_id is not None:
+            # queued for real; a failed immediate send is retried by the worker, the request still succeeds
+            visitor_proof_mail.deliver_after_commit(db, prepared.job_id)
+        elif prepared is not None:
             visitor_email_change_mail.capture_after_commit(db, prepared)
     except visitor_recent_auth.VisitorReauthenticationRequired:
         db.rollback()

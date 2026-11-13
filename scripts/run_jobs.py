@@ -22,7 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.api.core import finance_tasks, import_service, notification_jobs, notification_tasks, subscription_tasks  # noqa: E402
-from app.api.core import released_slot_queue  # noqa: E402
+from app.api.core import released_slot_queue, visitor_proof_mail  # noqa: E402
 from app.api.core.clock import utcnow  # noqa: E402
 from app.api.core.logger import logger  # noqa: E402
 
@@ -30,6 +30,8 @@ CHANNEL = os.environ.get("JOBS_CHANNEL", "email")
 
 FREQUENT = {
     "import_sources": import_service.purge_expired_sources,
+    # visitor register/reset/email-change links that didn't go out right away
+    "visitor_mail": visitor_proof_mail.run_scheduled,
     # before reminders, so waitlist offers made from freed slots go out in the same round
     "released_slots": released_slot_queue.run_scheduled,
     "reminders": notification_jobs.sync_and_deliver,

@@ -19,6 +19,8 @@ jobs:
       SMTP_USER: ${{ secrets.SMTP_USER }}
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       SMTP_FROM: ${{ secrets.SMTP_FROM }}
+      VISITOR_AUTH_MAIL_MODE: ${{ secrets.VISITOR_AUTH_MAIL_MODE }}
+      VISITOR_PROOF_MAIL_KEYS: ${{ secrets.VISITOR_PROOF_MAIL_KEYS }}
     steps:
       - name: Skip if not configured
         id: cfg
@@ -36,4 +38,4 @@ jobs:
       - if: steps.cfg.outputs.skip != '1'
         run: |
           # daily jobs only from 8:00 UTC, frequent ones every run (all idempotent, see notification_log)
-          if [ "$(date -u +%H)" -ge 8 ]; then python scripts/run_jobs.py all; else python scripts/run_jobs.py released_slots reminders followups; fi
+          if [ "$(date -u +%H)" -ge 8 ]; then python scripts/run_jobs.py all; else python scripts/run_jobs.py visitor_mail released_slots reminders followups; fi

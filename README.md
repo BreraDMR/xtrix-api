@@ -48,7 +48,7 @@ Reminders, follow-ups, birthday greetings, subscription expiry, low-stock e-mail
 finance archive don't run by themselves. Either start the worker (`docker compose up worker`, or
 `python scripts/run_jobs.py --loop`), or call them from cron, e.g.
 
-    */15 * * * *  python scripts/run_jobs.py released_slots reminders followups
+    */15 * * * *  python scripts/run_jobs.py visitor_mail released_slots reminders followups
     0 8 * * *     python scripts/run_jobs.py birthdays subscriptions low_stock finance_archive
 
 Message jobs record sent messages in `notification_log`.
@@ -114,3 +114,12 @@ Migration `0089_released_slot_jobs` stores each released segment in the same tra
 Once a visit has a payment, a gift redemption or bonus activity on it, `PUT /visits/{id}/price` refuses to change the quote. `POST /visits/{id}/price-corrections` is the explicit way to do it, e.g. 1000 CZK → 40 EUR. The old payments, refunds, gifts and bonuses are left exactly as they were, in their own currency. The visit gets the new quote, and migration `0090_visit_price_corrections` keeps an append-only row with the old and new quote, the settlement facts right before the change, the reason, who did it, and whether the old money should be refunded (`refund_due`) or kept (`retained`).
 
 Nothing is converted: there is no FX anywhere. Refunding the old money is a separate step and is not triggered by the correction. The settlement projection reports money recorded under a replaced currency as `prior_currency_settlements`, per currency, and keeps flagging it until it is refunded. Retrying with the same `idempotency_key` and body returns the saved correction; the same key with other details is a conflict. Downgrade refuses to drop stored corrections.
+
+### Visitor proof mail (register, password reset, email change)
+
+`VISITOR_AUTH_MAIL_MODE` is `disabled` by default. `capture` keeps links in process memory for local checks (development/test only). `live` sends them through the normal email transport (SMTP or Gmail, same settings as salon notifications) in any environment.
+
+In `live` mode the request stores the challenge and a `visitor_proof_mail_jobs` row in one transaction, tries to send right after commit and answers 202 either way; whatever didn't go out is retried by the `visitor_mail` job until the link expires (5 attempts). The raw link token is AES-GCM encrypted and bound to its challenge row; it is wiped once the job is sent, expired, cancelled or failed. A used, expired or deleted challenge is never mailed.
+
+`VISITOR_PROOF_MAIL_KEYS` holds `key_id:base64url-32-bytes`, comma-separated; the first key encrypts, all of them decrypt. Generate one with `python -c "import os,base64;print('k1:'+base64.urlsafe_b64encode(os.urandom(32)).decode().rstrip('='))"`. Keep an old key until its queued jobs are done. Live mode without a valid key answers 503 and writes nothing. Delivery is at-least-once: a crash between the provider accepting a mail and the job being marked can send the same link twice.
+

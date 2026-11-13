@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.api.core import visitor_email_change, visitor_recent_auth
 from app.api.core.clock import utcnow
+from app.api.core import visitor_proof_mail
 from app.api.core.config import settings
 from app.db.models.visitor_account import VisitorAccount, canonical_visitor_email
 from app.db.models.visitor_auth import VisitorChallenge
@@ -33,10 +34,16 @@ class PreparedEmailChangeMail:
     recipient: str = field(repr=False)
     subject: str = field(repr=False)
     text: str = field(repr=False)
+    job_id: int | None = field(default=None, repr=False)
 
 
 def _capture_base() -> str:
-    if (settings.visitor_auth_mail_mode != 'capture'
+    if settings.visitor_auth_mail_mode == 'live':
+        try:
+            visitor_proof_mail.check_ready()
+        except visitor_proof_mail.ProofMailKeyUnavailable:
+            raise EmailChangeMailUnavailable(_UNAVAILABLE) from None
+    elif (settings.visitor_auth_mail_mode != 'capture'
             or settings.environment not in {'development', 'test'}):
         raise EmailChangeMailUnavailable(_UNAVAILABLE)
     value = settings.frontend_url
@@ -102,8 +109,10 @@ def prepare(db: Session, raw_visitor_session: str | None, new_email: str,
         subject, body = _message(locale, base + '/visitor/email-change#token=' + issued.raw_token)
         visitor_recent_auth.require_recent_actor(db, raw_visitor_session, actor)
         _capture_base()
+        job_id = (visitor_proof_mail.enqueue(db, issued.challenge_id, issued.raw_token, locale, base)
+                  if visitor_proof_mail.live_enabled() else None)
         return PreparedEmailChangeMail(issued.challenge_id, row.token_hash, actor.account_id,
-                                       row.email_canonical, subject, body)
+                                       row.email_canonical, subject, body, job_id)
 
 
 def capture_after_commit(db: Session, prepared: PreparedEmailChangeMail) -> None:
