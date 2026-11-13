@@ -84,6 +84,10 @@ leave them empty and there are no docs at all.
 endpoints or schemas run `python scripts/export_openapi.py` and commit the file; `check.sh`
 fails if it's stale. Breaking changes get a `breaking:` prefix in the commit message.
 
+What changed for the web app since 25.10.2026 (visitor cabinet, price corrections, balance due,
+money by currency, cashback wallets, payroll currencies), with examples, error codes and UI notes:
+[docs/web-handoff-2026-11.md](docs/web-handoff-2026-11.md).
+
 ## Checks
 
 `./scripts/check.sh` - lint for real errors and the whole test suite against a throwaway Postgres
