@@ -13,6 +13,8 @@ that are obviously off, and turns them into a plain question instead:
   and offers the next free times, instead of failing after the person confirmed.
 - a find_client that finds nobody, or several people - the executor would fail on it after the person
   confirmed, so it becomes "nobody called X" or "which one: A, B?" right away.
+- a new client card for somebody who looks like a client already there ("Kuzněcovová" next to
+  "Кузнецова") - asked first, unless the person said it's someone new or gave their own contact.
 - record numbers the model quoted back ("(ID 747)", "client_id=12") are taken out of the text.
 - a plan with nothing to do whose summary is a question: the summary goes into questions too.
 
@@ -110,9 +112,24 @@ _TEXT = {
             "cz": " Volno: {times}.",
         },
     },
+    "dup_client": {
+        "note": {
+            "en": "A client with that name is already in your list, so no new card is in the plan yet.",
+            "ru": "Клиент с таким именем уже есть в базе, поэтому новой карточки пока нет в плане.",
+            "cz": "Klient s tímto jménem už v seznamu je, proto nová karta zatím v plánu není.",
+        },
+        "question": {
+            "en": "You already have {names}. Is it them, or another person? For a new card, add a phone number.",
+            "ru": "В базе уже есть {names}. Это она/он, или другой человек? Для новой карточки укажите телефон.",
+            "cz": "V seznamu už je {names}. Je to on/ona, nebo jiný člověk? Pro novou kartu přidejte telefon.",
+        },
+    },
 }
 MAX_NAMES = 5
 FREE_TIMES = 3
+# the person said it's somebody new ("новая клиентка", "new client", "nová klientka", "другой человек")
+_SAYS_NEW = re.compile(r"\b(?:нов\w*|друг(?:ой|ая|ую|ого)|new|another|different|nov[aáéouý]\w*|jin[aáéýou]\w*)\b",
+                       re.I)
 
 # models sometimes quote our record numbers back ("Olga Belova (ID 747)"); a person never needs them
 _ID_IN_BRACKETS = re.compile(r"\s*\(\s*id\s*[:#=]?\s*\d+\s*\)", re.I)
@@ -184,6 +201,25 @@ def _local(value: datetime, zone: ZoneInfo) -> datetime:
     return value.replace(tzinfo=timezone.utc).astimezone(zone)
 
 
+def _duplicate(db: Session, user: User, action, text: str) -> Optional[dict]:
+    """A new card for somebody who looks like a client already in the salon: names to ask about."""
+    from app.ai.client_search import own_clients, similar_names
+    from app.db.models.client import Client
+
+    alike = similar_names(action.full_name, own_clients(db, user))
+    if not alike:
+        return None
+    contacts = {(phone or "", (email or "").lower()) for phone, email in db.query(
+        Client.contact_phone, Client.contact_email).filter(Client.id.in_([cid for cid, _ in alike])).all()}
+    phone, email = action.contact_phone or "", (action.contact_email or "").lower()
+    same_contact = any((phone and phone == p) or (email and email == e) for p, e in contacts)
+    if not same_contact and (phone or email or _SAYS_NEW.search(text or "")):
+        # a contact of their own, or the person said it's someone new: a namesake, not a duplicate
+        return None
+    names = ", ".join(name for _, name in alike[:MAX_NAMES]) + ("..." if len(alike) > MAX_NAMES else "")
+    return {"names": names}
+
+
 def _lookup(db: Session, user: User, action) -> tuple[Optional[str], dict]:
     """A find_client the executor would not resolve to exactly one client: why, and what to say."""
     from app.ai.client_search import find_clients
@@ -249,7 +285,7 @@ ID_FIELDS = ("client_id", "specialist_id", "service_id", "visit_id")
 
 
 def review_plan(db: Session, user: User, plan: AssistantPlan, *, locale: str, tz: str,
-                now: Optional[datetime] = None) -> AssistantPlan:
+                now: Optional[datetime] = None, text: str = "") -> AssistantPlan:
     """now: naive UTC, like everywhere else in the assistant."""
     try:
         zone = ZoneInfo(tz)
@@ -280,6 +316,11 @@ def review_plan(db: Session, user: User, plan: AssistantPlan, *, locale: str, tz
             if taken:
                 problem = "busy"
                 asked.append(("busy", taken))
+        if problem is None and action.action == "create_client":
+            dup = _duplicate(db, user, action, text)
+            if dup:
+                problem = "dup_client"
+                asked.append(("dup_client", dup))
         if problem is None and action.action == "find_client":
             problem, values = _lookup(db, user, action)
             if problem:
@@ -304,7 +345,7 @@ def review_plan(db: Session, user: User, plan: AssistantPlan, *, locale: str, tz
         # the concrete "who did you mean" goes first, the model's own questions may be about other things
         questions.insert(0, _say(kind, "question", locale, **values)[:QUESTION_MAX])
     for kind in why:
-        if kind not in ("no_client", "many_clients", "busy") and len(questions) < MAX_QUESTIONS:
+        if kind not in ("no_client", "many_clients", "busy", "dup_client") and len(questions) < MAX_QUESTIONS:
             questions.append(_say(kind, "question", locale))
     questions = questions[:MAX_QUESTIONS]
     notes = " ".join(_say(kind, "note", locale) for kind in why)

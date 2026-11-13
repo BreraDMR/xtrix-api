@@ -212,3 +212,20 @@ def test_an_english_spelling_of_a_cyrillic_name_finds_the_client(query, who):
 def test_english_spelling_still_tells_look_alike_names_apart():
     assert found("Anna") == ["Анна Петрова", "Анна Петренко"]
     assert found("Elena Kuznetsova Petrova") == []
+
+
+@pytest.mark.parametrize("new, existing", [
+    ("Elena Kuzněcovová", "Елена Кузнецова"),
+    ("Elenu Kuznecovou", "Елена Кузнецова"),
+    ("Beta Klientková", "Beta Klientka"),
+    ("Jon Smith", "John Smith"),
+])
+def test_a_new_card_that_looks_like_an_existing_client_is_noticed(new, existing):
+    from app.ai.client_search import similar_names
+    assert [n for _, n in similar_names(new, CLIENTS + [(99, "Beta Klientka")])] == [existing]
+
+
+@pytest.mark.parametrize("new", ["Zinaida Pupkina", "Anna Smirnova", "Sarah Miller"])
+def test_a_different_person_is_not_called_a_duplicate(new):
+    from app.ai.client_search import similar_names
+    assert similar_names(new, CLIENTS) == []

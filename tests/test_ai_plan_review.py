@@ -219,3 +219,41 @@ def test_a_taken_time_offers_the_next_free_ones(db, ab, client):
     # the taken hour ends at 11:00 UTC, so the first offer is the wall-clock hour after it, not the taken one
     taken_local = datetime.fromisoformat(_taken(b).replace("Z", "+00:00")).astimezone(ZoneInfo("Europe/Prague"))
     assert taken_local.strftime("%H:%M") + "," not in question.split("Свободно:")[1]
+
+
+# --- a "new" card for somebody the salon already has (dialog evals 13.11) ---
+
+def plan_with_text(db, who, text, *actions, locale="ru"):
+    kit = setup(Model({"summary": "Создам карточку и запишу", "questions": [], "actions": list(actions)}))
+    return assistant.make_plan(db, fresh(db, who["owner"]), text, locale=locale,
+                               tz="Europe/Prague", now=NOW, **kit).plan
+
+
+def _new_card(name, **extra):
+    return [{"action": "create_client", "ref": "c", "full_name": name, **extra},
+            {"action": "create_visit", "client_ref": "c", "start": "2026-10-21T10:00:00+02:00"}]
+
+
+def test_a_new_card_for_an_existing_client_asks_first(db, ab):
+    _, b = ab
+    plan = plan_with_text(db, b, "да, в 14", *_new_card("Beta Klientková"))
+    assert plan.actions == []
+    assert b["client"]["full_name"] in plan.questions[0]
+
+
+@pytest.mark.parametrize("text, extra", [
+    ("Запиши новую клиентку Beta Klientka", {}),
+    ("New client Beta Klientka please", {}),
+    ("да", {"contact_phone": "+420777999111"}),
+])
+def test_a_new_card_goes_through_when_it_is_clearly_another_person(db, ab, text, extra):
+    _, b = ab
+    plan = plan_with_text(db, b, text, *_new_card("Beta Klientka", **extra))
+    assert [x.action for x in plan.actions] == ["create_client", "create_visit"]
+
+
+def test_same_phone_as_the_existing_card_is_the_same_person(db, ab):
+    _, b = ab
+    plan = plan_with_text(db, b, "новая клиентка", *_new_card("Beta Klientka",
+                                                               contact_phone=b["client"]["contact_phone"]))
+    assert plan.actions == [] and b["client"]["full_name"] in plan.questions[0]

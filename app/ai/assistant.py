@@ -235,7 +235,7 @@ def make_plan(db: Session, user: User, text: str, *, locale: str, tz: Optional[s
     settle(db, usage, provider=result.provider, slot_index=result.slot_index, model=result.model,
            prompt_tokens=result.prompt_tokens, completion_tokens=result.completion_tokens,
            cost_estimate=result.cost_estimate, succeeded=True)
-    plan = review_plan(db, user, result.value, locale=locale, tz=tz, now=now) if review else result.value
+    plan = review_plan(db, user, result.value, locale=locale, tz=tz, now=now, text=text) if review else result.value
     plan_id, expires_at = store.save(user_id=user.id, plan=plan, scope_fingerprint=scope)
     business_id = get_user_business_id(user, db)
     business = crud_business.get_business(db, business_id) if business_id else None

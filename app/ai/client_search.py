@@ -223,3 +223,43 @@ def clients_in_text(db: Session, user, text: str, *, limit: int) -> list[dict]:
     rows = own_clients(db, user)
     names = dict(rows)
     return [{"id": cid, "name": names[cid]} for cid in rank_in_text(text, rows, limit=limit)]
+
+
+# --- "is this maybe somebody we already have" - looser on purpose ------------------
+
+_LOOSE_ENDINGS = sorted({fold(s) for s in "ovou ová ové ovi ova ou a u y e i o я а у ю ы и е о ой ую ей".split()},
+                        key=len, reverse=True)
+MIN_SKELETON = 4
+
+
+def _skeleton(word: str) -> str:
+    if _cyrillic(word):
+        word = word.translate(_LATIN)
+    for ending in _LOOSE_ENDINGS:
+        if word.endswith(ending) and len(word) - len(ending) >= 3:
+            return word[: -len(ending)]
+    return word
+
+
+def _alike(a: str, b: str) -> bool:
+    x, y = _skeleton(a), _skeleton(b)
+    if x == y:
+        return True
+    short, long_ = sorted((x, y), key=len)
+    return (len(short) >= MIN_SKELETON and long_.startswith(short)) or (
+        min(len(x), len(y)) >= 3 and _one_edit(x, y))
+
+
+def similar_names(name: str, clients: Iterable[Row]) -> list[Row]:
+    """Clients whose name looks like a new card's name: every word of it fits a word of theirs,
+    allowing other case endings, Czech "-ová", the other alphabet and one typo. Only for asking
+    "is it her?" before a duplicate card is made - never to pick a client."""
+    words = [w for w in name_words(name) if not w.isdecimal()]
+    if not words:
+        return []
+    out = []
+    for cid, full in clients:
+        theirs = name_words(full)
+        if theirs and all(any(_alike(w, t) for t in theirs) for w in words):
+            out.append((cid, full))
+    return out
