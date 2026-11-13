@@ -5,8 +5,10 @@ from typing import Optional, Tuple
 from uuid import UUID
 
 from fastapi import HTTPException
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
+from app.ai.plan import MAX_ACTIONS
 from app.api.core.clock import utcnow
 from app.api.core.i18n import _
 from app.api.core.permissions import get_staff_record, get_user_business_id
@@ -170,6 +172,62 @@ def record_assistant_failure(
     db.commit()
 
 
+_CONTEXT_ACTIONS = frozenset({
+    'find_client', 'create_client', 'update_client', 'find_free_slot',
+    'create_visit', 'reschedule_visit', 'cancel_visit', 'add_note',
+})
+_CONTEXT_FAILURES = frozenset({
+    'client_not_found', 'ambiguous', 'no_slot', 'conflict', 'not_allowed',
+    'not_found', 'bad_request', 'invalid', 'correction_required',
+})
+
+
+def _execution_context(message: AssistantMessage) -> Optional[dict]:
+    """Only bounded outcome facts go to the model, never result data or error text."""
+    payload = message.result_payload
+    if payload is None:
+        if message.execution_started_at is not None:
+            return {'status': 'unknown'}
+        return {'status': 'not_started'} if message.plan_payload else None
+    unknown = {'status': 'unknown'}
+    plan = message.plan_payload
+    if not isinstance(payload, dict) or not isinstance(plan, dict):
+        return unknown
+    results, actions = payload.get('results'), plan.get('actions')
+    if not isinstance(results, list) or not isinstance(actions, list):
+        return unknown
+    if len(results) != len(actions) or len(results) > MAX_ACTIONS:
+        return unknown
+    safe_results = []
+    failed_index = None
+    done_count = 0
+    for index, (result, action) in enumerate(zip(results, actions)):
+        if not isinstance(result, dict) or not isinstance(action, dict):
+            return unknown
+        kind, status = result.get('action'), result.get('status')
+        if not isinstance(kind, str) or kind not in _CONTEXT_ACTIONS or kind != action.get('action'):
+            return unknown
+        if type(result.get('index')) is not int or result['index'] != index:
+            return unknown
+        expected = ('skipped',) if failed_index is not None else ('done', 'failed')
+        if status not in expected:
+            return unknown
+        item = {'index': index, 'action': kind, 'status': status}
+        if status == 'done':
+            done_count += 1
+        elif status == 'failed':
+            failed_index = index
+            error = result.get('error')
+            code = error.get('code') if isinstance(error, dict) else None
+            item['reason'] = code if isinstance(code, str) and code in _CONTEXT_FAILURES else 'action_failed'
+        safe_results.append(item)
+    succeeded = failed_index is None
+    if type(payload.get('ok')) is not bool or payload['ok'] != succeeded:
+        return unknown
+    return {'status': 'succeeded' if succeeded else 'failed',
+            'done_count': done_count, 'results': safe_results}
+
+
 def get_conversation_context(
     db: Session,
     conversation_id: UUID,
@@ -181,7 +239,8 @@ def get_conversation_context(
     """
     messages = db.query(AssistantMessage).filter(
         AssistantMessage.conversation_id == conversation_id,
-        AssistantMessage.status == 'succeeded',
+        or_(AssistantMessage.status == 'succeeded',
+            and_(AssistantMessage.status == 'failed', AssistantMessage.result_payload.isnot(None))),
         AssistantMessage.request_id != current_request_id,
     ).order_by(AssistantMessage.ordinal.desc()).limit(MAX_HISTORY_MESSAGES).all()
 
@@ -208,6 +267,10 @@ def get_conversation_context(
                     question_chars += len(question)
                 if included:
                     item['questions'] = included
+        if m.role == 'assistant':
+            execution = _execution_context(m)
+            if execution is not None:
+                item['execution'] = execution
         history.append(item)
         total_chars += len(snippet)
     history.reverse()

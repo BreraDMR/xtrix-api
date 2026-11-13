@@ -69,7 +69,7 @@ def test_persisted_hostile_history_cannot_escape_data_or_authorize_foreign_actio
     assert second.status_code == 200, second.text
     messages, data = model_data(fakes)
     assert hostile not in messages[0]['content'] and summary not in messages[0]['content']
-    assert data['context']['history'] == [{'role': 'user', 'text': hostile}, {'role': 'assistant', 'text': summary}]
+    assert data['context']['history'] == [{'role': 'user', 'text': hostile}, {'role': 'assistant', 'text': summary, 'execution': {'status': 'not_started'}}]
     result = chats.run(client, b, second.json()['plan_id'])
     assert result.status_code == 200 and result.json()['ok'] is False
     assert result.json()['results'][0]['error']['status'] in (403, 404)
@@ -91,7 +91,10 @@ def test_history_context_is_bounded_without_truncating_saved_messages(client, ab
     assert final.status_code == 200, final.text
     _, data = model_data(fakes)
     history = data['context']['history']
-    assert history == [{'role': row['role'], 'text': row['text'][:300]} for row in saved[-6:]]
+    assert history == [
+        {'role': row['role'], 'text': row['text'][:300],
+         **({'execution': {'status': 'not_started'}} if row['role'] == 'assistant' else {})}
+        for row in saved[-6:]]
     assert sum(len(row['text']) for row in history) <= 1800
     full = client.get(f'/assistant/conversations/{chat_id}/messages', headers=b['headers'])
     assert full.status_code == 200

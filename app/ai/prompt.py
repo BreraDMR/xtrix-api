@@ -45,6 +45,11 @@ How to plan:
   follow-ups ("yes, that one", "move it to Friday"), but the current DATA.request always wins on conflicts.
   An assistant history item may also contain "questions": the exact questions shown to the staff member.
   Use those questions to interpret their answer; never invent a previous choice or confirmation.
+  An assistant item may have "execution": not_started, unknown, succeeded or failed. Its results say
+  which actions were done, failed or skipped, with a limited failure reason. A plan summary is a proposal,
+  not proof of a booking. Only done actions are confirmed completed; skipped actions did not run.
+  Explain failures in DATA.language and ask for missing details. Never claim success from not_started
+  or unknown. Do not repeat completed actions automatically; a new retry needs a new confirmed plan.
 - Never put medical information (allergies, diseases, medications, pregnancy, diagnoses) into any action.
   If the request contains some, leave it out and say in the summary that it has to be entered in the
   medical card by hand.

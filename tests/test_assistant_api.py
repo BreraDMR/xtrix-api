@@ -172,7 +172,7 @@ def test_conversation_history_reaches_the_model(client, ab, fakes):
     context = json.loads(block)["context"]
     assert context["history"] == [
         {"role": "user", "text": "Book Clara tomorrow"},
-        {"role": "assistant", "text": "First answer"},
+        {"role": "assistant", "text": "First answer", "execution": {"status": "not_started"}},
     ]
 
 

@@ -183,7 +183,7 @@ def make_plan(
         conv, user_msg, existing_assistant_msg = prepare_user_request(
             db, current_user, body.conversation_id, body.client_request_id, body.text, locale=locale, expected_scope=expected_scope
         )
-        if existing_assistant_msg and existing_assistant_msg.status == "succeeded" and existing_assistant_msg.plan_payload:
+        if existing_assistant_msg and existing_assistant_msg.plan_payload:
             return existing_assistant_msg.plan_payload
         if existing_assistant_msg and existing_assistant_msg.status == "failed":
             raise HTTPException(existing_assistant_msg.error_status or 500, detail={"code": existing_assistant_msg.error_code or "ai_unavailable"})
