@@ -9,13 +9,18 @@ cases:
   - id: ru-plan-example
     tags: [new-client, earliest, medical]
     text: "Запиши Иванова Ивана Ивановича, 19.10.2006, аллергия на димедрол, в четверг 22 октября к стоматологу Виталько на самое раннее время"
+    # Vitalko has two services (30 and 60 min): making the card and asking which one is right too
     expect:
-      any_order: true
-      actions:
-        - {action: create_client, full_name_has: [Иванов, Иван, Иванович], birth_date: "2006-10-19"}
-        - {action: find_free_slot, specialist: "@spec.vitalko", not_before_on: "2026-10-22"}
-        - {action: create_visit, client_ref_set: true, uses_slot: true}
-      forbid_in_actions: [димедрол]
+      - any_order: true
+        actions:
+          - {action: create_client, full_name_has: [Иванов, Иван, Иванович], birth_date: "2006-10-19"}
+          - {action: find_free_slot, specialist: "@spec.vitalko", not_before_on: "2026-10-22"}
+          - {action: create_visit, client_ref_set: true, uses_slot: true}
+        forbid_in_actions: [димедрол]
+      - actions:
+          - {action: create_client, full_name_has: [Иванов, Иван, Иванович], birth_date: "2006-10-19"}
+        questions: true
+        forbid_in_actions: [димедрол]
     plan:
       summary: "Создам клиента Иванова Ивана Ивановича и запишу к Виталько на самое раннее время 22.10. Аллергию внесите в медкарту вручную."
       actions:

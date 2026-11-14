@@ -90,13 +90,17 @@ cases:
       actions:
         - {action: reschedule_visit, visit_id: "@visit.clark_massage", start: "2026-10-23T16:00:00+02:00"}
 
-  - id: en-reschedule-unknown-time
-    tags: [reschedule, missing-info]
+  # a typed visit number brings the visit along (mentioned_visits), so "an hour later" is known: 10:00 -> 11:00
+  - id: en-reschedule-relative-time
+    tags: [reschedule, relative-time]
     text: "Push visit {visit.petrova_haircut} back by one hour"
-    expect: {questions: true, read_only: true}
+    expect:
+      actions:
+        - {action: reschedule_visit, visit: "@visit.petrova_haircut", start_at: "2026-10-21T11:00"}
     plan:
-      summary: "I can't see when that visit is."
-      questions: ["What new start time should the visit have?"]
+      summary: "I'll move the visit on 21 October from 10:00 to 11:00."
+      actions:
+        - {action: reschedule_visit, visit_id: "@visit.petrova_haircut", start: "2026-10-21T11:00:00+02:00"}
 
   - id: en-cancel-id
     tags: [cancel]
