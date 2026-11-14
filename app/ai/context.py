@@ -103,9 +103,9 @@ def _with_visits(db: Session, user: User, matches: list[dict], local_now: dateti
     return [{**m, "visits": by_client.get(m["id"], [])} for m in matches]
 
 
-# a visit number the person typed: "визит №309", "návštěva č. 309", "visit #309", "№309"
-_VISIT_NUMBER = re.compile(r"(?:№|#|\bč\.|\bc\.|\bno\.|номер|визит\w*|návštěv\w*|navstev\w*|"
-                           r"rezervac\w*|\bvisit\w*|\bbooking|\bappointment)\s*(?:№|#|č\.|no\.|номер)?\s*(\d{1,9})\b",
+# a visit number the person typed: "визит №309", "návštěva č. 309", "číslo 309", "visit #309", "№309"
+_VISIT_NUMBER = re.compile(r"(?:№|#|\bč\.|\bc\.|\bno\.|\bnr\.?|номер|číslo|cislo|\bnumber|визит\w*|návštěv\w*|navstev\w*|"
+                           r"rezervac\w*|\bvisit\w*|\bbooking|\bappointment)\s*(?:№|#|č\.|no\.|номер|číslo|cislo|number)?\s*(\d{1,9})\b",
                            re.I)
 MAX_MENTIONED_VISITS = 5
 

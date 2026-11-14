@@ -69,7 +69,8 @@ def test_the_prompt_explains_where_visit_ids_come_from():
 def test_a_visit_number_typed_in_the_request_is_looked_up(db, ab):
     a, b = ab
     own, foreign = b["visit"]["id"], a["visit"]["id"]
-    for text in (f"Отмени визит №{own}", f"Zruš návštěvu č. {own}", f"cancel visit #{own}", f"visit {own} - cancel"):
+    for text in (f"Отмени визит №{own}", f"Zruš návštěvu č. {own}", f"cancel visit #{own}", f"visit {own} - cancel",
+                 f"Zruš návštěvu číslo {own}", f"Отмени запись номер {own}", f"cancel visit number {own}"):
         ctx = build_context(db, fresh(db, b["owner"]), text, locale="en", tz_name="Europe/Prague")
         [seen] = ctx["mentioned_visits"]
         assert seen["id"] == own and seen["client_id"] == b["client"]["id"] and seen["client"] == "Beta Klientka"
