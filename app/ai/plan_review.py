@@ -19,6 +19,8 @@ that are obviously off, and turns them into a plain question instead:
   one - asked "move that one, or book another?", so a weak model can't double-book.
 - a booking or free-time search with a service but no master gets the service's own master, not
   whoever typed the request (the executor's fallback) - so the card shows who'll really do it.
+- a booking with no service, no master and no found slot while the model itself is still asking
+  something ("which service?") - confirming it would put an empty visit on whoever typed the request.
 - record numbers the model quoted back ("(ID 747)", "client_id=12") are taken out of the text.
 - a plan with nothing to do whose summary is a question: the summary goes into questions too.
 
@@ -127,6 +129,18 @@ _TEXT = {
             "en": "{who} already has {what}. Should I move that visit, or book one more?",
             "ru": "У клиента {who} уже есть запись: {what}. Перенести её или записать ещё одну?",
             "cz": "{who} už má rezervaci: {what}. Mám ji přesunout, nebo zapsat další?",
+        },
+    },
+    "no_service": {
+        "note": {
+            "en": "The service isn't clear yet, so the booking is not in the plan.",
+            "ru": "Услуга пока не ясна, поэтому записи нет в плане.",
+            "cz": "Služba zatím není jasná, proto rezervace v plánu není.",
+        },
+        "question": {
+            "en": "Which service should I book, and with which master?",
+            "ru": "На какую услугу и к какому мастеру записать?",
+            "cz": "Na jakou službu a ke kterému pracovníkovi to mám zapsat?",
         },
     },
     "dup_client": {
@@ -375,6 +389,9 @@ def review_plan(db: Session, user: User, plan: AssistantPlan, *, locale: str, tz
             if taken:
                 problem = "busy"
                 asked.append(("busy", taken))
+        if problem is None and plan.questions and action.action == "create_visit" and not action.service_id \
+                and not action.specialist_id and not action.slot_ref:
+            problem = "no_service"
         if problem is None and action.action == "create_visit" and says_move and not moves \
                 and action.client_id is not None:
             there = _existing_visit(db, user, action.client_id, now_utc, zone, locale)
@@ -410,6 +427,8 @@ def review_plan(db: Session, user: User, plan: AssistantPlan, *, locale: str, tz
         # the concrete "who did you mean" goes first, the model's own questions may be about other things
         questions.insert(0, _say(kind, "question", locale, **values)[:QUESTION_MAX])
     for kind in why:
+        if kind == "no_service":
+            continue  # the model already asks what to book - its question is the one to answer
         if kind not in ("no_client", "many_clients", "busy", "dup_client", "move_not_new") \
                 and len(questions) < MAX_QUESTIONS:
             questions.append(_say(kind, "question", locale))

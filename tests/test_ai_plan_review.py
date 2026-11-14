@@ -312,3 +312,27 @@ def test_a_named_master_is_kept(db, ab):
     plan = plan_for(db, b, {"action": "create_visit", "client_id": b["client"]["id"], "service_id": b["service"]["id"],
                             "specialist_id": b["owner"].id, "start": "2026-10-23T12:00:00+02:00"})
     assert plan.actions[0].specialist_id == b["owner"].id
+
+
+def test_a_bare_booking_without_any_question_is_shown_as_it_is(db, ab):
+    # the card shows no service, the person confirms it knowingly
+    _, b = ab
+    plan = plan_for(db, b, {"action": "create_visit", "client_id": b["client"]["id"],
+                            "start": "2026-10-23T12:00:00+02:00"}, summary="I'll book her")
+    assert [a.action for a in plan.actions] == ["create_visit"]
+
+
+def test_a_booking_with_nothing_to_do_next_to_a_service_question_waits(db, ab):
+    # Haiku: "which service and master?" and a create_visit with neither, in the same plan
+    _, b = ab
+    plan = plan_for(db, b, {"action": "create_visit", "client_id": b["client"]["id"],
+                            "start": "2026-10-23T12:00:00+02:00"},
+                    questions=["Which service: massage or a haircut?"])
+    assert plan.actions == [] and plan.questions == ["Which service: massage or a haircut?"]
+
+
+def test_a_booking_with_a_master_but_no_service_stays(db, ab):
+    _, b = ab
+    plan = plan_for(db, b, {"action": "create_visit", "client_id": b["client"]["id"],
+                            "specialist_id": b["owner"].id, "start": "2026-10-23T12:00:00+02:00"})
+    assert [a.action for a in plan.actions] == ["create_visit"]
