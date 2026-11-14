@@ -115,13 +115,16 @@ cases:
       actions:
         - {action: cancel_visit, visit_id: "@visit.clark_massage"}
 
-  - id: cz-cancel-no-id
-    tags: [cancel, missing-info]
+  - id: cz-cancel-by-name
+    tags: [cancel, existing-visit, relative-date]
     text: "Zruš zítřejší termín pana Orlova"
-    expect: {questions: true, read_only: true}
+    expect:
+      actions:
+        - {action: cancel_visit, visit: "@visit.orlov_cleaning"}
     plan:
-      summary: "Nevím, o kterou návštěvu jde."
-      questions: ["Kterou návštěvu mám zrušit? Uveďte prosím její číslo."]
+      summary: "Zruším zítřejší návštěvu pana Orlova."
+      actions:
+        - {action: cancel_visit, visit_id: "@visit.orlov_cleaning"}
 
   - id: cz-note-id
     tags: [note]

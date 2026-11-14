@@ -109,13 +109,16 @@ cases:
       actions:
         - {action: cancel_visit, visit_id: "@visit.svobodova_manicure"}
 
-  - id: en-cancel-no-id
-    tags: [cancel, missing-info]
+  - id: en-cancel-by-name
+    tags: [cancel, existing-visit]
     text: "Cancel Emily's massage this week"
-    expect: {questions: true, read_only: true}
+    expect:
+      actions:
+        - {action: cancel_visit, visit: "@visit.clark_massage"}
     plan:
-      summary: "I need the visit number."
-      questions: ["Which visit should I cancel? Please give its number."]
+      summary: "I'll cancel Emily Clark's massage on Thursday."
+      actions:
+        - {action: cancel_visit, visit_id: "@visit.clark_massage"}
 
   - id: en-note-id
     tags: [note]

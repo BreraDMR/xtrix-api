@@ -114,13 +114,17 @@ cases:
       actions:
         - {action: reschedule_visit, visit_id: "@visit.orlov_cleaning", start: "2026-10-22T11:00:00+02:00"}
 
-  - id: ru-reschedule-no-id
-    tags: [reschedule, missing-info]
+  # the client's visits are in the context now, so the right visit is found by name and day
+  - id: ru-reschedule-by-name
+    tags: [reschedule, existing-visit, relative-date]
     text: "Перенеси визит Дмитрия Орлова со вторника на четверг на то же время"
-    expect: {questions: true, read_only: true}
+    expect:
+      actions:
+        - {action: reschedule_visit, visit: "@visit.orlov_cleaning", start_at: "2026-10-22T09:00"}
     plan:
-      summary: "Не вижу, какой это визит."
-      questions: ["Какой визит Дмитрия Орлова перенести? Укажите номер визита."]
+      summary: "Перенесу визит Дмитрия Орлова на четверг 22.10 в 09:00."
+      actions:
+        - {action: reschedule_visit, visit_id: "@visit.orlov_cleaning", start: "2026-10-22T09:00:00+02:00"}
 
   - id: ru-cancel-id
     tags: [cancel]
@@ -133,13 +137,16 @@ cases:
       actions:
         - {action: cancel_visit, visit_id: "@visit.petrova_haircut"}
 
-  - id: ru-cancel-no-id
-    tags: [cancel, missing-info]
+  - id: ru-cancel-by-name
+    tags: [cancel, existing-visit, relative-date]
     text: "Отмени завтрашнюю запись Орлова"
-    expect: {questions: true, read_only: true}
+    expect:
+      actions:
+        - {action: cancel_visit, visit: "@visit.orlov_cleaning"}
     plan:
-      summary: "Не вижу номер визита."
-      questions: ["Какой визит отменить? Укажите номер."]
+      summary: "Отменю завтрашний визит Дмитрия Орлова."
+      actions:
+        - {action: cancel_visit, visit_id: "@visit.orlov_cleaning"}
 
   - id: ru-note-id
     tags: [note]
@@ -270,9 +277,11 @@ cases:
   - id: ru-lay-colloquial-tomorrow
     tags: [layperson, existing-client, relative-date]
     text: "слушай, закинь орлова на чистку зубов завтра часиков в 11"
+    # he already has a cleaning tomorrow at 9:00 - asking "move it or a second one?" is fair too
     expect:
-      actions:
-        - {action: create_visit, client: "@client.dmitry_orlov", service: "@service.teeth_cleaning", start_at: "2026-10-20T11:00"}
+      - actions:
+          - {action: create_visit, client: "@client.dmitry_orlov", service: "@service.teeth_cleaning", start_at: "2026-10-20T11:00"}
+      - {questions: true, read_only: true}
     plan:
       summary: "Запишу Дмитрия Орлова на профессиональную чистку зубов 20.10 в 11:00."
       actions:
