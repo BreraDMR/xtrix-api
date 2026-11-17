@@ -66,6 +66,9 @@ async def fix_proxy_headers(request: Request, call_next):
         request.scope["scheme"] = "https"
     response = await call_next(request)
     return response
+# the default limiter sits inside the security headers, so its own 429 gets them too
+# (added before = wrapped by everything added after)
+app.add_middleware(DefaultRateLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(TrailingSlashMiddleware, router=app.router)
 @app.middleware("http")
@@ -109,7 +112,6 @@ async def log_requests(request: Request, call_next):
         raise
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
-app.add_middleware(DefaultRateLimitMiddleware)
 def get_cors_origins():
     dev_origins = [
         "http://localhost:3000",
