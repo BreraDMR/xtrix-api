@@ -66,6 +66,12 @@ SPECIALIST_TYPE_TO_CATEGORY = {
 }
 def get_category_for_type(specialist_type: SpecialistType) -> SpecialistCategory:
     return SPECIALIST_TYPE_TO_CATEGORY.get(specialist_type, SpecialistCategory.BEAUTY)
+def category_value(specialist_type) -> str | None:
+    # for responses: old free-text values have no category, we don't guess one
+    try:
+        return SPECIALIST_TYPE_TO_CATEGORY[SpecialistType(specialist_type)].value
+    except (ValueError, KeyError):
+        return None
 REQUIRED_FIELDS_BY_CATEGORY = {
     SpecialistCategory.BEAUTY: [],  
     SpecialistCategory.WELLNESS: [],  

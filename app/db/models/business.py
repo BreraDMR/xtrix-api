@@ -17,6 +17,8 @@ class Business(Base):
     email = Column(String, nullable=True, index=True)
     description = Column(Text, nullable=True)
     currency = Column(String, nullable=False, default="EUR", index=True)  
+    # what the business mainly does (SpecialistType value); empty = not picked yet
+    specialist_type = Column(String(64), nullable=True)
     # the assistant's name in this business; empty = the default for the interface language
     assistant_name = Column(String(30), nullable=True)
     assistant_gender = Column(String(10), nullable=False, default="female", server_default="female")
