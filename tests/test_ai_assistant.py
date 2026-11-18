@@ -288,3 +288,47 @@ def test_a_crash_before_the_model_gives_the_request_back(db, ab, monkeypatch):
         assistant.make_plan(db, fresh(db, b["owner"]), "hi", locale="en", **setup(Model()))
     db.expire_all()
     assert db.query(AIUsage).count() == 0
+
+
+# --- whose "tomorrow" (AI-DIALOG-01) ------------------------------------------
+
+def _salon(db, owner):
+    from app.api.core.permissions import get_user_business_id
+    return db.get(Business, get_user_business_id(owner, db))
+
+
+def _prefs_zone(db, user, zone):
+    from app.db.models.user_preferences import UserPreferences
+    prefs = db.query(UserPreferences).filter(UserPreferences.user_id == user.id).first()
+    if prefs is None:
+        prefs = UserPreferences(user_id=user.id)
+        db.add(prefs)
+    prefs.timezone = zone
+    db.commit()
+
+
+@pytest.mark.parametrize("salon, own, want", [
+    ("America/New_York", "Asia/Tokyo", "America/New_York"),  # the salon's day, not the staff member's
+    ("UTC", "Asia/Tokyo", "Asia/Tokyo"),                     # salon never set -> fall back to own setting
+    ("UTC", "UTC", "Europe/Prague"),                         # nothing set -> default
+    ("Mars/Olympus", None, "Europe/Prague"),                 # junk in the column is ignored
+])
+def test_relative_dates_use_the_salon_timezone(db, ab, salon, own, want):
+    a, _ = ab
+    _salon(db, a["owner"]).timezone = salon
+    db.commit()
+    if own:
+        _prefs_zone(db, a["owner"], own)
+    assert assistant.user_timezone(db, fresh(db, a["owner"]), load_ai_config(CFG_ENV)) == want
+
+
+def test_plan_context_carries_the_salon_zone(db, ab):
+    a, _ = ab
+    _salon(db, a["owner"]).timezone = "America/New_York"
+    db.commit()
+    _prefs_zone(db, a["owner"], "Asia/Tokyo")
+    model = Model({"summary": "ok", "questions": ["Na kdy?"], "actions": []})
+    assistant.make_plan(db, fresh(db, a["owner"]), "Anastasii na zítra", locale="cz", **setup(model))
+    sent = json.dumps(model.requests[0], ensure_ascii=False)
+    assert "America/New_York" in sent and "Asia/Tokyo" not in sent
+    assert any(off in sent for off in ("-05:00", "-04:00"))

@@ -15,6 +15,7 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Callable, Optional, Union
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -184,11 +185,28 @@ class PlanDraft:
     expires_at: datetime
 
 
+def _set_zone(name) -> str:
+    # "UTC" is the column default on both tables, so it mostly means "never set"
+    name = (name or "").strip()
+    if not name or name == "UTC":
+        return ""
+    try:
+        ZoneInfo(name)
+    except Exception:
+        return ""
+    return name
+
+
 def user_timezone(db: Session, user: User, config: AIConfig) -> str:
-    prefs = db.query(UserPreferences).filter(UserPreferences.user_id == user.id).first()
-    tz = (prefs.timezone or "").strip() if prefs else ""
-    # "UTC" is the column default, so it mostly means "never set" - salons here are in Prague
-    return tz if tz and tz != "UTC" else config.default_timezone
+    # "tomorrow" is the salon's tomorrow, so the salon zone wins over whatever the
+    # staff member has in their own settings; Prague when neither is set
+    business_id = get_user_business_id(user, db)
+    business = crud_business.get_business(db, business_id) if business_id else None
+    tz = _set_zone(business.timezone if business else None)
+    if not tz:
+        prefs = db.query(UserPreferences).filter(UserPreferences.user_id == user.id).first()
+        tz = _set_zone(prefs.timezone if prefs else None)
+    return tz or config.default_timezone
 
 
 def make_plan(db: Session, user: User, text: str, *, locale: str, tz: Optional[str] = None,
