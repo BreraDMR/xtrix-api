@@ -4,6 +4,8 @@ POST /plan asks the model for a plan and keeps it on the server; nothing changes
 runs that saved plan as the same user. POST /transcribe only turns speech into text - the user reads
 and edits it before asking for a plan.
 """
+from datetime import datetime
+from math import ceil
 from typing import Optional
 from uuid import uuid4
 
@@ -117,6 +119,28 @@ def ai_http_error(err: AIError, locale: str) -> HTTPException:
     return HTTPException(503, detail={"message": _("ai_unavailable", locale), "code": "ai_unavailable"})
 
 
+def saved_plan_error(message: AssistantMessage, locale: str) -> HTTPException:
+    code = message.error_code or "ai_unavailable"
+    payload = message.error_payload if isinstance(message.error_payload, dict) else {}
+    key = code if code in {"ai_busy", "ai_not_configured", "ai_unavailable"} else "ai_unavailable"
+    detail = {"code": code}
+    if code == "ai_limit_reached":
+        period = payload.get("period")
+        key = {"day": "ai_daily_limit_reached", "month": "ai_limit_reached"}.get(period, "ai_saved_limit_reached")
+        detail.update({name: payload[name] for name in ("limit", "used", "period") if name in payload})
+    detail["message"] = _(key, locale)
+    headers = None
+    if message.error_retry_after is not None:
+        wait = max(0, message.error_retry_after)
+        try:
+            wait = max(0, ceil((datetime.fromisoformat(payload["retry_until"]) - utcnow()).total_seconds()))
+        except (KeyError, TypeError, ValueError):
+            # Older messages have the delay but no deadline.
+            pass
+        headers = {"Retry-After": str(wait)}
+    return HTTPException(message.error_status or 500, detail=detail, headers=headers)
+
+
 def _bad_input(field: str, code: str, message: str) -> RequestValidationError:
     # same 422 shape as any other field error: error.detail.validation_errors[0].code
     return RequestValidationError([{"loc": ("body", field), "msg": message, "type": code, "input": None}])
@@ -186,7 +210,7 @@ def make_plan(
         if existing_assistant_msg and existing_assistant_msg.plan_payload:
             return existing_assistant_msg.plan_payload
         if existing_assistant_msg and existing_assistant_msg.status == "failed":
-            raise HTTPException(existing_assistant_msg.error_status or 500, detail={"code": existing_assistant_msg.error_code or "ai_unavailable"})
+            raise saved_plan_error(existing_assistant_msg, locale)
         assistant_msg = existing_assistant_msg
     elif body.client_request_id:
         raise _bad_input("conversation_id", "missing_conversation_id", "conversation_id is required with client_request_id")
@@ -203,7 +227,8 @@ def make_plan(
         if assistant_msg:
             http_err = ai_http_error(err, locale)
             retry_after = getattr(err, 'retry_after', None)
-            record_assistant_failure(db, body.conversation_id, assistant_msg.id, err.code, http_err.status_code, retry_after)
+            record_assistant_failure(db, body.conversation_id, assistant_msg.id, err.code, http_err.status_code,
+                                     retry_after, error_detail=http_err.detail)
         raise ai_http_error(err, locale)
     except HTTPException as err:
         if assistant_msg:

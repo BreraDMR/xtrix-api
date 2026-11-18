@@ -1,6 +1,7 @@
 """Service layer for conversation message persistence, model context and execution links."""
 import hashlib
 import json
+from datetime import timedelta
 from typing import Optional, Tuple
 from uuid import UUID
 
@@ -158,13 +159,21 @@ def record_assistant_failure(
     code: str,
     status: int,
     retry_after: Optional[int] = None,
+    *,
+    error_detail: Optional[dict] = None,
 ) -> None:
     now = utcnow()
+    # Only our quota fields, never provider diagnostics or exception text.
+    payload = {key: error_detail[key] for key in ("limit", "used", "period")
+               if error_detail and key in error_detail}
+    if retry_after is not None:
+        payload["retry_until"] = (now + timedelta(seconds=retry_after)).isoformat()
     db.query(AssistantMessage).filter(AssistantMessage.id == assistant_msg_id).update({
         'status': 'failed',
         'error_code': code,
         'error_status': status,
         'error_retry_after': retry_after,
+        'error_payload': payload or None,
     })
     db.query(AssistantConversation).filter(AssistantConversation.id == conversation_id).update({
         'updated_at': now,

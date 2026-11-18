@@ -292,6 +292,11 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Месячный лимит помощника исчерпан",
         "cz": "Měsíční limit asistenta je vyčerpán",
     },
+    "ai_saved_limit_reached": {
+        "en": "The assistant's limit is used up. Try again after it resets.",
+        "ru": "Лимит помощника исчерпан. Попробуйте после его обновления.",
+        "cz": "Limit asistenta je vyčerpán. Zkuste to znovu po jeho obnovení.",
+    },
     "ai_daily_limit_reached": {
         "en": "The assistant's daily limit is used up",
         "ru": "Дневной лимит помощника исчерпан",
