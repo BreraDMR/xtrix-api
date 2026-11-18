@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import ConfigDict, BaseModel, EmailStr, Field, field_validator
+from pydantic import ConfigDict, BaseModel, EmailStr, Field, computed_field, field_validator
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.errors import invalid, invalid_choice
 from app.schemas.base import InputModel
@@ -67,6 +67,12 @@ class UserOut(UserBase):
     business_id: Optional[int] = Field(None, description="Business the user works in: their own, or the employer's for staff")
     employer_id: Optional[int] = Field(None, description="User id of the owner who employs this user; null for owners and solo specialists")
     model_config = ConfigDict(from_attributes=True)
+
+    @computed_field(description="beauty|wellness|healthcare, from specialist_type; null when unknown")
+    @property
+    def specialist_category(self) -> Optional[str]:
+        from app.db.models.specialist_type import category_value
+        return category_value(self.specialist_type)
 class TwoFactorSetup(BaseModel):
     secret: str
     qr_code: str

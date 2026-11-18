@@ -27,6 +27,11 @@ def create_business(
             status_code=400,
             detail=_("user_already_has_business", locale)
         )
+    if "specialist_type" not in business.model_fields_set:
+        from app.db.models.specialist_type import category_value
+        # the owner already said what they do at signup, no need to ask twice
+        if category_value(current_user.specialist_type):
+            business.specialist_type = current_user.specialist_type
     new_business = crud_business.create_business(db=db, business_in=business)
     current_user.business_id = new_business.id
     db.add(current_user)

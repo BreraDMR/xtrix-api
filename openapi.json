@@ -907,6 +907,17 @@
             ],
             "title": "Phone"
           },
+          "specialist_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpecialistType"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Main specialty, one of GET /specialist-profiles/types; the front can shape the UI by its category"
+          },
           "timezone": {
             "default": "UTC",
             "description": "IANA timezone, e.g. Europe/Prague",
@@ -1035,6 +1046,30 @@
             ],
             "title": "Phone"
           },
+          "specialist_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "beauty|wellness|healthcare, from specialist_type; null when not picked",
+            "readOnly": true,
+            "title": "Specialist Category"
+          },
+          "specialist_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Specialist Type"
+          },
           "timezone": {
             "default": "UTC",
             "description": "IANA timezone, e.g. Europe/Prague",
@@ -1048,7 +1083,8 @@
           "business_type",
           "currency",
           "id",
-          "created_at"
+          "created_at",
+          "specialist_category"
         ],
         "title": "BusinessOut",
         "type": "object"
@@ -1202,6 +1238,17 @@
               }
             ],
             "title": "Phone"
+          },
+          "specialist_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpecialistType"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Main specialty, one of GET /specialist-profiles/types; the front can shape the UI by its category; null clears it"
           },
           "timezone": {
             "anyOf": [
@@ -7286,6 +7333,16 @@
             ],
             "title": "Role",
             "type": "string"
+          },
+          "specialist_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpecialistType"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "totp_token": {
             "anyOf": [
@@ -17455,6 +17512,41 @@
         "title": "SpecialistProfileUpdate",
         "type": "object"
       },
+      "SpecialistType": {
+        "enum": [
+          "massage",
+          "cosmetologist",
+          "barber",
+          "hairdresser",
+          "physiotherapist",
+          "nutritionist",
+          "therapist",
+          "dentist",
+          "dermatologist",
+          "doctor",
+          "esthetician",
+          "nail_technician",
+          "lash_technician",
+          "makeup_artist",
+          "aromatherapist",
+          "fitness_coach",
+          "yoga_instructor",
+          "psychologist",
+          "psychotherapist",
+          "cardiologist",
+          "neurologist",
+          "orthopedist",
+          "gynecologist",
+          "urologist",
+          "ophthalmologist",
+          "endocrinologist",
+          "pediatrician",
+          "surgeon",
+          "oncologist"
+        ],
+        "title": "SpecialistType",
+        "type": "string"
+      },
       "SubscriptionAccessOut": {
         "properties": {
           "ai_daily_limit": {
@@ -19023,6 +19115,19 @@
             "title": "Role",
             "type": "string"
           },
+          "specialist_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "beauty|wellness|healthcare, from specialist_type; null when unknown",
+            "readOnly": true,
+            "title": "Specialist Category"
+          },
           "specialist_type": {
             "anyOf": [
               {
@@ -19040,7 +19145,8 @@
         "required": [
           "full_name",
           "role",
-          "id"
+          "id",
+          "specialist_category"
         ],
         "title": "UserOut",
         "type": "object"

@@ -82,7 +82,7 @@ def issue_nonce(db: Session, request: Request) -> GoogleNonceOut:
     return GoogleNonceOut(nonce=nonce, expires_in=NONCE_SECONDS)
 
 
-def _create_user(db: Session, claims: dict, email: str, role: str) -> User:
+def _create_user(db: Session, claims: dict, email: str, role: str, specialist_type: str | None = None) -> User:
     if settings.pilot_mode_enabled and not settings.pilot_open_signup:
         invited = {address.strip().casefold() for address in settings.pilot_invited_emails.split(",") if address.strip()}
         if email not in invited:
@@ -91,6 +91,7 @@ def _create_user(db: Session, claims: dict, email: str, role: str) -> User:
     user = User(
         full_name=str(claims.get("name") or email.split("@")[0])[:255],
         email=email, role=role, hashed_password="", moderation_status="approved",
+        specialist_type=specialist_type,
     )
     db.add(user)
     db.flush()
@@ -159,7 +160,8 @@ def login(db: Session, request: Request, body: GoogleLoginIn) -> LoginResponse:
                 if db.query(GoogleIdentity).filter_by(user_id=user.id).first():
                     _fail("google_identity_already_linked", 409)
             else:
-                user = _create_user(db, claims, email, body.role)
+                user = _create_user(db, claims, email, body.role,
+                                    body.specialist_type.value if body.specialist_type else None)
         if user.deleted_at is not None or user.moderation_status != "approved":
             _fail("google_invalid_credential")
         if user.is_locked and (user.locked_until is None or user.locked_until > utcnow()):

@@ -1,9 +1,10 @@
 from typing import Literal, Optional
-from pydantic import ConfigDict, BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import ConfigDict, BaseModel, EmailStr, Field, computed_field, field_validator, model_validator
 from app.schemas.limits import BusinessType, Currency, LongText, Phone, ShortText
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.base import InputModel
 from app.schemas.errors import invalid
+from app.db.models.specialist_type import SpecialistType, category_value
 
 AssistantGender = Literal["female", "male", "neuter"]
 
@@ -43,8 +44,13 @@ class BusinessBase(BaseModel):
     @classmethod
     def valid_timezone(cls, v):
         return _known_timezone(v)
+SPECIALTY_DESCRIPTION = "Main specialty, one of GET /specialist-profiles/types; the front can shape the UI by its category"
+
+
 class BusinessCreate(InputModel, BusinessBase):
-    pass
+    # left out = the owner's own specialty from signup, if they picked one
+    specialist_type: Optional[SpecialistType] = Field(None, description=SPECIALTY_DESCRIPTION)
+    model_config = ConfigDict(use_enum_values=True)
 class BusinessUpdate(InputModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     business_type: Optional[BusinessType] = None
@@ -58,6 +64,8 @@ class BusinessUpdate(InputModel):
     timezone: Optional[str] = Field(None, max_length=64, description="IANA timezone")
     booking_horizon_days: Optional[int] = Field(None, ge=1, le=365)
     booking_lead_time_minutes: Optional[int] = Field(None, ge=0, le=10080)
+    specialist_type: Optional[SpecialistType] = Field(None, description=SPECIALTY_DESCRIPTION + "; null clears it")
+    model_config = ConfigDict(use_enum_values=True)
 
     @field_validator("timezone")
     @classmethod
@@ -86,5 +94,11 @@ class BusinessOut(BusinessBase):
     currency: str  # whatever is stored, older rows predate the ISO check
     assistant_name: Optional[str] = None
     assistant_gender: str = "female"
+    specialist_type: Optional[str] = None
     created_at: UtcDatetime
     model_config = ConfigDict(from_attributes=True)
+
+    @computed_field(description="beauty|wellness|healthcare, from specialist_type; null when not picked")
+    @property
+    def specialist_category(self) -> Optional[str]:
+        return category_value(self.specialist_type)
