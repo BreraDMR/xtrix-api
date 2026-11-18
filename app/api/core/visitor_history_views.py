@@ -40,9 +40,14 @@ def _timezone(value):
     return value
 
 
-def _projection(scoped_query):
+def _projection(scoped_query, category):
     # The same SQL snapshot authorizes, limits and reads public fields. Never reread ORM IDs.
     page = scoped_query.subquery('authorized_history_visits')
+    # keep the page in the same direction the scoped query picked its rows
+    if visitor_history.is_nearest_first(category):
+        order = (page.c.date_start.asc(), page.c.id.asc())
+    else:
+        order = (page.c.date_start.desc(), page.c.id.desc())
     staff = aliased(User, name='history_visit_staff')
     item_staff = aliased(User, name='history_item_staff')
     return select(
@@ -61,7 +66,7 @@ def _projection(scoped_query):
         staff, and_(staff.id == Visit.specialist_id, staff.deleted_at.is_(None))).outerjoin(
         VisitItem, VisitItem.visit_id == page.c.id).outerjoin(
         item_staff, and_(item_staff.id == VisitItem.specialist_id, item_staff.deleted_at.is_(None))).order_by(
-        page.c.date_start.desc(), page.c.id.desc(), VisitItem.position.asc(), VisitItem.id.asc())
+        *order, VisitItem.position.asc(), VisitItem.id.asc())
 
 
 def _visits(rows):
@@ -112,7 +117,7 @@ def list_visits(db: Session, account_id: int, *, limit: int = 25,
     scoped = visitor_history.visit_page_query(account_id, limit=limit, cursor=cursor, business_id=business_id,
                                              category=category, as_of=as_of)
     with db.no_autoflush:
-        entries = _visits(db.execute(_projection(scoped)).mappings().all())
+        entries = _visits(db.execute(_projection(scoped, category)).mappings().all())
     selected = entries[:limit]
     next_cursor = (VisitorHistoryCursor(date_start=selected[-1].start, id=selected[-1].id,
                                         as_of=as_of if category != "all" else None)
@@ -124,5 +129,5 @@ def get_visit(db: Session, account_id: int, visit_id: int) -> VisitorHistoryVisi
     """Unknown, foreign, deleted, revoked and retargeted visits all resolve to None."""
     scoped = visitor_history.visit_detail_query(account_id, visit_id)
     with db.no_autoflush:
-        entries = _visits(db.execute(_projection(scoped)).mappings().all())
+        entries = _visits(db.execute(_projection(scoped, "all")).mappings().all())
     return entries[0] if entries else None

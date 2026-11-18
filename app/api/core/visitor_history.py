@@ -70,6 +70,10 @@ def _entry(row) -> VisitorHistoryEntry:
     return VisitorHistoryEntry(row.id, row.business_id, row.date_start, row.date_end, row.status)
 
 
+def is_nearest_first(category: str) -> bool:
+    return category == "upcoming"
+
+
 def visit_page_query(account_id: int, *, limit: int = 25,
                      cursor: VisitorHistoryCursor | None = None,
                      business_id: int | None = None,
@@ -102,10 +106,18 @@ def visit_page_query(account_id: int, *, limit: int = 25,
             query = query.where(or_(Visit.status == "completed", and_(remaining, Visit.date_start < as_of)))
     if business_id is not None:
         query = query.where(Visit.business_id == business_id)
+    # Upcoming reads nearest-first, so the next visit is on the first page; everything
+    # else stays newest-first. The cursor is always "after this row" in that order.
+    nearest_first = is_nearest_first(category)
     if cursor is not None:
-        query = query.where(or_(Visit.date_start < cursor.date_start,
-            and_(Visit.date_start == cursor.date_start, Visit.id < cursor.id)))
-    query = query.order_by(Visit.date_start.desc(), Visit.id.desc()).limit(limit + 1)
+        if nearest_first:
+            query = query.where(or_(Visit.date_start > cursor.date_start,
+                and_(Visit.date_start == cursor.date_start, Visit.id > cursor.id)))
+        else:
+            query = query.where(or_(Visit.date_start < cursor.date_start,
+                and_(Visit.date_start == cursor.date_start, Visit.id < cursor.id)))
+    order = (Visit.date_start.asc(), Visit.id.asc()) if nearest_first else (Visit.date_start.desc(), Visit.id.desc())
+    query = query.order_by(*order).limit(limit + 1)
     return query
 
 
@@ -119,7 +131,7 @@ def list_visits(db: Session, account_id: int, *, limit: int = 25,
                 cursor: VisitorHistoryCursor | None = None,
                 business_id: int | None = None,
                 category: str = "all", as_of: datetime | None = None) -> VisitorHistoryPage:
-    """Return a descending time/ID page from exact active grants, without any writes."""
+    """Return a time/ID page from exact active grants (upcoming nearest-first, the rest newest-first), without writes."""
     query = visit_page_query(account_id, limit=limit, cursor=cursor, business_id=business_id,
                              category=category, as_of=as_of)
     # A reader must not accidentally flush the caller's unrelated pending mutations.

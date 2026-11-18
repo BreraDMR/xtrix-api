@@ -137,7 +137,9 @@ def test_more_than_200_mixed_rows_paginate_filtered_scope_without_gaps(db, world
             cursor = page.next_cursor
             if cursor is None:
                 break
-        ordered = list(db.scalars(select(Visit.id).where(Visit.id.in_(expected_ids)).order_by(Visit.date_start.desc(), Visit.id.desc())))
+        # Upcoming reads nearest-first; the rest is newest-first.
+        direction = (Visit.date_start.asc(), Visit.id.asc()) if category == 'upcoming' else (Visit.date_start.desc(), Visit.id.desc())
+        ordered = list(db.scalars(select(Visit.id).where(Visit.id.in_(expected_ids)).order_by(*direction)))
         assert received == ordered and len(set(received)) == len(received)
         assert not foreign.intersection(received)
         assert history.list_visits(db, world['one'], category=category, as_of=NOW, business_id=world['b']).entries == ()
@@ -176,3 +178,26 @@ def test_categories_are_real_readonly_without_autoflush(db, world, monkeypatch):
     with Session(db.get_bind()) as observer:
         assert observer.get(Client, world['client']).contact_phone == 'private-phone-canary'
         assert observer.query(User).filter_by(email=pending.email).count() == 0
+
+
+def test_upcoming_starts_with_the_nearest_visit_across_pages(db, world):
+    # A client with many future bookings must see the next one first, not on the last page.
+    fixtures.grant(db, world)
+    far = [stored_visit(db, world, NOW + timedelta(days=30 + n), 'planned') for n in range(3)]
+    # one master can't hold two visits in the same slot, so ties are covered by the cancelled tests
+    same = [stored_visit(db, world, NOW + timedelta(days=2, hours=3 + n), 'planned') for n in range(2)]
+    near = stored_visit(db, world, NOW + timedelta(hours=1), 'planned')
+    db.commit()
+    first = history.list_visits(db, world['one'], category='upcoming', as_of=NOW, limit=2)
+    assert fixtures.ids(first)[0] == near
+    received, cursor = fixtures.ids(first), first.next_cursor
+    while cursor is not None:
+        page = history.list_visits(db, world['one'], category='upcoming', as_of=NOW, limit=2, cursor=cursor)
+        received.extend(fixtures.ids(page))
+        cursor = page.next_cursor
+    expected = sorted([near, *same, *far, world['a1']], key=lambda visit_id: (db.get(Visit, visit_id).date_start, visit_id))
+    assert received == expected
+    # past and the default "all" stay newest-first
+    past = [stored_visit(db, world, NOW - timedelta(hours=n + 1), 'completed') for n in range(2)]
+    db.commit()
+    assert fixtures.ids(history.list_visits(db, world['one'], category='past', as_of=NOW, limit=100))[:2] == past

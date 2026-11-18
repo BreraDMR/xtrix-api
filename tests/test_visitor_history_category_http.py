@@ -63,7 +63,8 @@ def test_http_next_cursor_pins_first_clock_when_time_moves(client, db, world, mo
     response = client.get('/visitor/visits', params={'category': 'upcoming', 'limit': 1}, headers=headers)
     private(response, 200)
     first = response.json()
-    assert [r['id'] for r in first['entries']] == [world['a1']]
+    # upcoming is nearest-first: the +2h visit comes before a1 at +1 day
+    assert [r['id'] for r in first['entries']] == [second]
     assert len(calls) == 1
     cursor = first['next_cursor']
     assert cursor['as_of'] == '2026-10-26T12:00:00Z'
@@ -71,7 +72,7 @@ def test_http_next_cursor_pins_first_clock_when_time_moves(client, db, world, mo
     params = {'category': 'upcoming', 'limit': 1, 'after_start': cursor['date_start'], 'after_id': cursor['id'], 'as_of': cursor['as_of']}
     last = client.get('/visitor/visits', params=params, headers=headers)
     private(last, 200)
-    assert [r['id'] for r in last.json()['entries']] == [second]
+    assert [r['id'] for r in last.json()['entries']] == [world['a1']]
     assert last.json()['next_cursor'] is None
     assert calls == [NOW]
 
@@ -98,13 +99,14 @@ def test_views_schema_cursor_utc_boundary_and_explicit_matching_or_mismatch(db, 
     base.grant(db, world)
     db.commit()
     offset = (NOW + timedelta(hours=2)).replace(tzinfo=timezone(timedelta(hours=2)))
-    cursor = VisitorHistoryCursor(date_start=NOW + timedelta(days=2), id=world['b1'], as_of=offset)
+    # upcoming continues after the cursor in nearest-first order
+    cursor = VisitorHistoryCursor(date_start=NOW + timedelta(hours=1), id=world['b1'], as_of=offset)
     page = views.list_visits(db, world['one'], category='upcoming', cursor=cursor)
     assert base.ids(page) == [world['a1']]
     assert page == views.list_visits(db, world['one'], category='upcoming', cursor=cursor, as_of=NOW)
     with pytest.raises(ValueError):
         views.list_visits(db, world['one'], category='upcoming', cursor=cursor, as_of=NOW + timedelta(seconds=1))
-    core_cursor = core.VisitorHistoryCursor(NOW + timedelta(days=2), world['b1'])
+    core_cursor = core.VisitorHistoryCursor(NOW + timedelta(hours=1), world['b1'])
     assert page == views.list_visits(db, world['one'], category='upcoming', cursor=core_cursor, as_of=NOW)
 
 
