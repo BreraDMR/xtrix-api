@@ -4,6 +4,10 @@ What changed in the API since 25.10.2026 (`7c58543`) and what the web app needs 
 Source of truth is still `openapi.json` in the repo root; this file explains the parts the schema
 can't: who may call what, which error codes to expect and what to show the user.
 
+Updated on 18.11.2026 against `7c8653a`. The 13–18 November follow-up was checked against
+`84fe8ce..7c8653a`: four export operations changed, six schemas changed, and no paths were added
+or removed. This describes the branch contract; deployment is tracked separately.
+
 Grouped by screen:
 
 1. [General rules](#1-general-rules)
@@ -16,6 +20,8 @@ Grouped by screen:
 8. [Payroll by currency](#8-payroll-by-currency)
 9. [Smaller changes in existing endpoints](#9-smaller-changes-in-existing-endpoints)
 10. [Stop sending](#10-stop-sending)
+11. [Specialty at signup and in the business profile](#11-specialty-at-signup-and-in-the-business-profile)
+12. [WEB follow-ups](#12-web-follow-ups)
 
 ## 1. General rules
 
@@ -137,6 +143,20 @@ Two ways a visitor gets access to visits:
   Visitor errors: `400` invite invalid/expired, `401` session invalid, `403` the salon no longer allows it,
   `409` already used / race (retry once).
 
+Claim details checked on 17–18 November (CPA-16/19):
+
+- Public booking stays anonymous even if the request carries `X-Visitor-Token`. After sign-in,
+  send the manage token explicitly to `/visitor/claims/manage`; do not create a second booking
+  or a second client card. A successful retry of the same manage claim is also `204`.
+- A manage claim opens **only that visit**. Another visit of the same client needs its own claim;
+  matching email addresses, including shared mailboxes and imported duplicate cards, grant no
+  access on their own. A client invitation has its own client-level scope.
+- Claim bodies contain only `token`. Do not send `business_id`, `client_id`, `visit_id` or an
+  account id from the browser; the session and proof determine the records (`422` for extra fields).
+- The guest manage link keeps working after a claim. An unavailable or foreign visitor visit is
+  `404`; do not fall back to a CRM endpoint. Visitor responses deliberately omit CRM notes,
+  client contacts, internal ids and payment bookkeeping.
+
 ### 2.5 Visit history
 
 `GET /visitor/visits?category=all|upcoming|past|cancelled&business_id=&limit=25` (limit 1..100):
@@ -254,7 +274,7 @@ Response:
 {"correction": {"id": 5, "visit_id": 812, "old_currency": "CZK", "old_total": "650.00",
                 "new_currency": "EUR", "new_total": "28.00", "prior_payment_action": "refund_due",
                 "reason": "...", "created_at": "..."},
- "quote": {"visit_id": 812, "currency": "EUR", "total": "28.00", "expected_quote": "vprice1_...", "items": [...]},
+ "quote": {"visit_id": 812, "currency": "EUR", "total": "28.00", "expected_quote": "vprice1_...", "items": [{"item_id": 1, "position": 0, "service_id": 4, "specialist_id": 9, "price": "28.00"}]},
  "replayed": false}
 ```
 
@@ -558,12 +578,35 @@ Payroll errors are `400` with `error.detail.reason`:
     (before it was only rows tied to the owner personally). A `specialist_id` or `client_id` from
     another salon gets `403`, same as the list; bad filter values get `422`.
 
-- Assistant (`POST /assistant/plan`): more answers now come back as **questions with no actions**
-  instead of a plan that only failed after "confirm" - the master is already booked at that time
-  (the question lists the next free times), the client isn't found or several match ("which one: A,
-  B?"), or a new card would duplicate a client the salon already has ("you already have X - is it
-  her?"). Nothing new for the UI: show `questions` and let the person answer in the same chat.
-  Record numbers are no longer shown in `summary`/`questions`.
+### 9.1 Assistant chat (`POST /assistant/plan`, `POST /assistant/execute`)
+
+The response shape stays the same: `summary`, `questions`, `actions`, `plan_id`, `expires_at`.
+More requests now return questions before there is anything useful to confirm:
+
+- A busy master, missing or ambiguous client, possible duplicate card, or a request to move a visit
+  that the model turned into another booking can remove unsafe steps and add a question. Busy-slot
+  questions can suggest free times. Show `questions` even when `actions` is empty; offer confirmation
+  only for the actions actually returned. Do not assemble a booking in the browser from the text.
+- An empty booking is held back when the model is still asking what service/master/slot to use.
+  A service's assigned master is used when available and the model omitted the master.
+- Matched clients' visits and explicitly typed visit numbers can help the model find a move or
+  cancellation. User-facing `summary`/`questions` have record numbers stripped; keep ids in the
+  structured actions. These checks do not guarantee that every model interprets every request well.
+- Keep replies in the same `conversation_id`, with a fresh `client_request_id` per new message;
+  reuse the request id when retrying that message. The latest unexecuted plan is available to the
+  next turn, so “make it 14:00” can replace an unconfirmed 12:00 booking without creating or moving
+  a visit yet. An executed plan is passed as execution history instead.
+- Once a newer successful plan is stored in the conversation, an older unexecuted card cannot run:
+  `/assistant/execute` returns `404` with `error.detail.code: "plan_not_found"`. Disable its confirm
+  button and show the newest plan. A failed generation does not invalidate the previous card.
+  Repeating an already executed card returns its stored result instead of executing it again.
+
+### 9.2 Security headers on rate limits (SEC-04)
+
+The default per-IP limiter now runs inside the security-header middleware. Its `429` responses carry
+CSP, `X-Content-Type-Options: nosniff` and the other normal security headers; HSTS follows the same
+HTTPS rules as other responses. Per-route and account-lock limits retain those protections too.
+Keep the existing rate-limit message/backoff UI; this change adds no request fields or endpoint.
 
 ## 10. Stop sending
 
@@ -575,3 +618,62 @@ Payroll errors are `400` with `error.detail.reason`:
   total".
 - Don't retry money writes (`price-corrections`, `settlement-entries`) with a new
   `idempotency_key`; reuse the one from the first attempt.
+
+## 11. Specialty at signup and in the business profile
+
+This is the CRM account/business specialty, separate from visitor authentication in section 2.
+Migration `0093_business_specialist_type` stores the business choice; existing businesses keep `null`
+until a choice is saved. There is no new endpoint and no automatic rewrite of existing profiles.
+
+Use `GET /specialist-profiles/types` for the available choices. It is public and returns
+`categories.{beauty,wellness,healthcare}` with localized category `name` and a `types` list
+of enum values. The response has no per-type labels; use the web translations for those.
+Send the type value, not its label or category.
+
+| Operation | Request / response change |
+|---|---|
+| `POST /auth/google/login` | optional `specialist_type`, for example `"dentist"`; used only when this sign-in creates the CRM account; a returning account keeps its saved choice |
+| `POST /businesses/` | optional `specialist_type`; omitted = inherit the owner's recognized signup choice, explicit `null` = no specialty |
+| `PUT /businesses/{business_id}` | `{"specialist_type": "yoga_instructor"}` sets it; `null` clears it; omission leaves it unchanged; existing access checks still apply |
+| `GET /users/me` (`UserOut`) | existing `specialist_type` plus new read-only `specialist_category` |
+| `GET /businesses/me`, `GET /businesses/`, `GET /businesses/{business_id}` and create/update responses (`BusinessOut`) | `specialist_type` and read-only `specialist_category` |
+
+Example response fields:
+
+```json
+{"specialist_type": "dentist", "specialist_category": "healthcare"}
+```
+
+`specialist_category` is derived as `beauty`, `wellness` or `healthcare`; it is `null` for an unset
+or unrecognized old type. `specialist_type` remains a nullable string in responses to accommodate
+old data, while new writes accept only the `SpecialistType` enum (`422` for an unknown choice).
+Do not submit `specialist_category`. A business choice and a user's choice are separate after
+creation; changing the business does not rewrite the owner's specialty.
+
+Use the business response for business UI and `/users/me` for the person's profile. Which screens
+and forms change by category remains a product/UI decision; these fields alone do not enable
+medical data collection or grant permissions.
+
+## 12. WEB follow-ups
+
+These are remaining implementation/acceptance tasks, not a claim that the web screens were checked
+in this handoff. The API is ready for the flows below. The current duty plan permits implementing
+the WEB work directly; Alex can use this list to coordinate changes.
+
+| Card / area | Work to finish or verify in WEB |
+|---|---|
+| DATA-04 | Walk client/visit lists beyond 20 and 100 records, including a match outside page one. Use server totals/pages, apply search/filter/sort to the full query, reset pagination on filter changes, key/invalidate caches by salon and filters, and pass those same filters to both exports (section 9). Check missing/duplicate rows and empty/error states under different staff permissions. |
+| CPA-13 | Separate visitor sign-in/registration from CRM tokens and routes. Complete email proofs, password reset and configured Google sign-in/linking using section 2; keep anonymous booking available. |
+| CPA-14 | Combined visitor history across granted salons, salon/category filters and cursor pagination; preserve the cursor's `as_of` and clear old pages when filters change. No access inferred from email. |
+| CPA-15 | Visit detail with salon contacts/timezone, saved service/staff/price snapshots and separate currencies. Fetch `/actions`; show reasons when actions are unavailable, then refresh detail/actions/list after a successful command. |
+| CPA-16 | Preserve the guest manage/invitation token through sign-in and submit the claim explicitly. No new Visit/Client, no browser-supplied record ids; refresh visitor queries after `204` and handle invalid/conflicting proofs (section 2.4). |
+| CPA-17 | Profile, email change and Google linking with the five-minute reauthentication rule; sign out / sign out everywhere, clear visitor state and cached private data. |
+| CPA-18 | Isolate visitor failures from CRM and other salons; distinguish expired session, unavailable visit/action, disabled Google/email and temporary network errors. Keep retries deliberate and remove stale private state on account change. |
+| Specialty UI | Add the selector to Google pilot signup and the business form, read the returned type/category and preserve omission vs explicit clear (section 11). Agree the category-dependent UI before changing its content. |
+| Assistant | Questions remain in the conversation; confirm only returned actions and disable superseded cards on a newer plan / `plan_not_found` (section 9.1). |
+
+API regression references: `tests/test_directory_completeness.py`,
+`tests/test_directory_export_filters.py`, `tests/test_visitor_guest_claim_flow.py`,
+`tests/test_visitor_access_matrix.py`, `tests/test_business_specialty.py`,
+`tests/test_rate_limit_security_headers.py`, `tests/test_ai_unconfirmed_plan.py` and
+`tests/test_settlement_timing.py`. Their existing coverage is not a WEB acceptance result.
