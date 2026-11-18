@@ -121,6 +121,19 @@ def _dialogue_error(code: str, locale: str) -> str:
     return messages.get(locale, messages['en'])
 
 
+def _human_endpoint_message(message: str) -> bool:
+    text = message.strip()
+    if not text or len(text) > 1000 or any(char in text for char in "\n\r{}[]<>"):
+        return False
+    # Raw data, machine identifiers and diagnostic prefixes aren't dialogue.
+    if re.fullmatch(r"[\w.-]+", text):
+        return False
+    return not re.search(
+        r"\b(?:(?i:HTTP(?:/\d(?:\.\d)?)?\s+\d{3}|Traceback)|"
+        r"[A-Za-z]*(?:Error|Exception)\b|[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+\b)", text,
+    )
+
+
 def _from_http(exc: HTTPException) -> ActionFailed:
     detail = exc.detail
     data = {}
@@ -343,7 +356,7 @@ def execute_plan(db: Session, user: User, plan: p.AssistantPlan, *, locale: str 
                 failed = _from_http(exc)
                 # Endpoint messages are already written for the user and their locale.
                 # Keep that guidance, but never display a bare machine identifier.
-                if exc.status_code < 500 and not re.fullmatch(r'[a-z][a-z0-9_.-]*', failed.message):
+                if exc.status_code < 500 and _human_endpoint_message(failed.message):
                     public_message = failed.message
             elif isinstance(exc, ValidationError):
                 failed = _from_validation(exc)
