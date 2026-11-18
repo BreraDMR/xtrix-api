@@ -50,6 +50,80 @@ dialogs:
   confirm: true
   expect: {created: [{client: martin_novak, service: mens_haircut, day: 1, time: "17:00"}]}
 
+# --- the person changes the day, the procedure or the master before confirming (AI-DIALOG-01) ---
+- id: ru-change-day
+  locale: ru
+  tags: [correction]
+  turns: ["Запиши Елену Кузнецову на окрашивание завтра в 12", "ой, нет, давай послезавтра, время то же"]
+  if_asked: ["да, послезавтра в 12", "да"]
+  confirm: true
+  expect: {created: [{client: elena_kuznetsova, service: coloring, day: 2, time: "12:00"}]}
+- id: cz-change-day
+  locale: cz
+  tags: [correction]
+  turns: ["Objednej Elenu Kuznecovou na barvení zítra ve 12", "ne, radši pozítří, stejný čas"]
+  if_asked: ["ano, pozítří ve 12", "ano"]
+  confirm: true
+  expect: {created: [{client: elena_kuznetsova, service: coloring, day: 2, time: "12:00"}]}
+- id: en-change-day
+  locale: en
+  tags: [correction]
+  turns: ["Book Elena Kuznetsova for hair coloring tomorrow at 12", "no wait, the day after tomorrow, same time"]
+  if_asked: ["yes, day after tomorrow at 12", "yes"]
+  confirm: true
+  expect: {created: [{client: elena_kuznetsova, service: coloring, day: 2, time: "12:00"}]}
+
+- id: ru-change-service
+  locale: ru
+  tags: [correction]
+  turns: ["Люсию Черну на маникюр завтра в 13", "ой, не маникюр, а педикюр"]
+  if_asked: ["да, педикюр завтра в 13", "да"]
+  confirm: true
+  expect: {created: [{client: lucie_cerna, service: pedicure, day: 1, time: "13:00"}]}
+- id: cz-change-service
+  locale: cz
+  tags: [correction]
+  turns: ["Lucii Černou na manikúru zítra ve 13", "ne, ne manikúru, ale pedikúru"]
+  if_asked: ["ano, pedikúra zítra ve 13", "ano"]
+  confirm: true
+  expect: {created: [{client: lucie_cerna, service: pedicure, day: 1, time: "13:00"}]}
+- id: en-change-service
+  locale: en
+  tags: [correction]
+  turns: ["Lucie Cerna for a manicure tomorrow at 1pm", "sorry, not a manicure - a pedicure"]
+  if_asked: ["yes, pedicure tomorrow at 1pm", "yes"]
+  confirm: true
+  expect: {created: [{client: lucie_cerna, service: pedicure, day: 1, time: "13:00"}]}
+
+# Petr only does men's haircuts, so either the service follows the master or the master just takes the haircut
+- id: ru-change-master
+  locale: ru
+  tags: [correction]
+  turns: ["Мартина Новака на стрижку к Ольге завтра в 11", "нет, лучше к Петру"]
+  if_asked: ["да, к Петру завтра в 11", "да"]
+  confirm: true
+  expect:
+    - {created: [{client: martin_novak, service: mens_haircut, specialist: petr, day: 1, time: "11:00"}]}
+    - {created: [{client: martin_novak, service: haircut, specialist: petr, day: 1, time: "11:00"}]}
+- id: cz-change-master
+  locale: cz
+  tags: [correction]
+  turns: ["Martina Nováka na stříhání k Olze zítra v 11", "ne, radši k Petrovi"]
+  if_asked: ["ano, k Petrovi zítra v 11", "ano"]
+  confirm: true
+  expect:
+    - {created: [{client: martin_novak, service: mens_haircut, specialist: petr, day: 1, time: "11:00"}]}
+    - {created: [{client: martin_novak, service: haircut, specialist: petr, day: 1, time: "11:00"}]}
+- id: en-change-master
+  locale: en
+  tags: [correction]
+  turns: ["Martin Novak for a haircut with Olga tomorrow at 11", "actually, put him with Petr instead"]
+  if_asked: ["yes, with Petr tomorrow at 11", "yes"]
+  confirm: true
+  expect:
+    - {created: [{client: martin_novak, service: mens_haircut, specialist: petr, day: 1, time: "11:00"}]}
+    - {created: [{client: martin_novak, service: haircut, specialist: petr, day: 1, time: "11:00"}]}
+
 # --- the assistant has to ask, step by step ---
 - id: ru-clarify-chain
   locale: ru
