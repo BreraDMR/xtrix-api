@@ -88,6 +88,9 @@ What changed for the web app since 25.10.2026 (visitor cabinet, price correction
 money by currency, cashback wallets, payroll currencies), with examples, error codes and UI notes:
 [docs/web-handoff-2026-11.md](docs/web-handoff-2026-11.md).
 
+What a native iPhone app for visitors can use today and what the API still lacks (account deletion,
+push tokens, native sign-in, deep links, versioning), with sizes: [docs/mobile-app-api-gaps.md](docs/mobile-app-api-gaps.md).
+
 ## Checks
 
 `./scripts/check.sh` - lint for real errors and the whole test suite against a throwaway Postgres
