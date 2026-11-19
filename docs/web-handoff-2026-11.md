@@ -75,6 +75,7 @@ endpoints live under `/visitor`. The session token goes into the **`X-Visitor-To
 | `POST /visitor/auth/logout` | token | - | `204` (also for an already dead token) |
 | `POST /visitor/auth/logout-all` | token | - | `204`, kills every session of the account |
 | `GET /visitor/me` | token | - | `{"id": 7, "email": "jana@example.com", "email_verified_at": "...", "created_at": "...", "has_password": true, "google_connected": false}` |
+| `DELETE /visitor/me` | token + sign-in <5 min | - | `204`; identity and visitor access are erased, salon records/bookings remain |
 
 UI notes:
 

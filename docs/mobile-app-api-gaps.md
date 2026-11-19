@@ -23,16 +23,21 @@ CORS doesn't matter for a native app (no browser), so nothing to change there.
 
 ## 2. Missing
 
-### 2.1 Account deletion inside the app - **M**, blocks App Store review
+### 2.1 Account deletion inside the app - implemented (19.11.2026)
 
-Apple requires that an app which lets you create an account also lets you delete it from inside the app
-(guideline 5.1.1(v)). There's no such endpoint now.
+`DELETE /visitor/me` returns `204` and requires `X-Visitor-Token` plus a sign-in less than five
+minutes ago (`401` for an invalid session, `403` when reauthentication is needed). It deletes the
+visitor identity, Google links, sessions, grants and bound authentication proofs/mail jobs in one
+transaction. Registration proofs for the current email are erased too. Spent claim receipts retain
+only their replay guard; account/grant links are cleared and the consumed invitation email is scrubbed.
 
-Proposal: `DELETE /visitor/me` with a recent sign-in (the existing 5-minute rule). It revokes all sessions,
-removes the login, password and Google link, and detaches the account from salon client cards. Visit and
-client rows stay - they belong to the salon, not to the visitor account. Needs a migration only if we keep
-a tombstone; tests for "deleted account can't log in", "salon still sees its visits", "email can register
-again".
+Salon client cards, contact details, visits and bookings stay unchanged. Deletion does not cancel
+bookings. The same email can register a fresh account, without regaining old grants or reusing spent
+links. Existing foreign keys provide the cleanup, so there is no new migration or tombstone.
+
+The mobile profile includes confirmation, recent-auth guidance and session/cache cleanup. Local API
+and mobile tests cover isolation, rollback, stale responses and repeat registration; native-device
+acceptance is still separate from these checks.
 
 ### 2.2 Native Google sign-in - **M**, optional for v1
 

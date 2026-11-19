@@ -338,7 +338,7 @@ def accept_client_invitation(request: Request, body: ClientInviteAcceptIn,
 @router.delete("/me", status_code=204, response_class=Response)
 def delete_account(
     request: Request,
-    _session: VisitorSession = Depends(visitor_deps.get_visitor_session),
+    _session: VisitorSession = Depends(visitor_deps.get_locked_visitor_session),
     db: Session = Depends(deps.get_db),
     locale: str = Depends(deps.get_locale),
 ) -> Response:
