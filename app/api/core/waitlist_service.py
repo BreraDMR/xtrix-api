@@ -174,16 +174,26 @@ def _queue_offer_notification(
     )
 
 
-def _already_offered(db: Session, entry_id: int, event_key: str) -> bool:
-    return (
-        db.query(WaitlistOffer.id)
-        .filter(
+def _next_offer_key(db: Session, entry_id: int, base_key: str) -> Optional[str]:
+    """Event key for a new offer of this slot, or None if this person already had their chance.
+
+    An offer that lost to someone else's booking (conflict) never gave the person a real
+    chance, so when the same time frees up again they get a fresh offer with a numbered key.
+    Expired, declined or accepted offers for the slot are final: no second mail.
+    """
+    statuses = [
+        row.status
+        for row in db.query(WaitlistOffer.status).filter(
             WaitlistOffer.entry_id == entry_id,
-            WaitlistOffer.event_key == event_key,
+            or_(
+                WaitlistOffer.event_key == base_key,
+                WaitlistOffer.event_key.like(base_key + ":%"),
+            ),
         )
-        .first()
-        is not None
-    )
+    ]
+    if any(status != "conflict" for status in statuses):
+        return None
+    return f"{base_key}:{len(statuses)}" if statuses else base_key
 
 
 def _has_pending_offer(db: Session, entry_id: int) -> bool:
@@ -243,8 +253,8 @@ def _offer_candidate(
             continue
         if _has_pending_offer(db, entry.id):
             continue
-        key = f"waitlist:{entry.id}:{specialist_id}:{start.isoformat()}"
-        if _already_offered(db, entry.id, key):
+        key = _next_offer_key(db, entry.id, f"waitlist:{entry.id}:{specialist_id}:{start.isoformat()}")
+        if key is None:
             continue
         offer = WaitlistOffer(
             business_id=business.id,
