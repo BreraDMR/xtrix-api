@@ -16,7 +16,7 @@ Request/response shapes and error tables are in
 | Visit history | `GET /visitor/visits`, `GET /visitor/visits/{id}` | Cursor paging, categories, salon filter, prices with currency. |
 | Visit actions | `GET /visitor/visits/{id}/actions`, `POST .../confirm`, `/cancel`, `/reschedule` | Same rules as web, the server re-checks every command. |
 | Attaching visits | `POST /visitor/claims/manage`, `POST /visitor/claims/client-invite` | The app gets the token from a deep link (see 2.5) or from its own booking response. |
-| Booking in a salon | `GET /public/booking/{slug}`, `/services`, `/staff`, `/slots`, `POST /public/booking/{slug}/bookings` | Response carries `manage_token`; the app posts it to `/visitor/claims/manage` right after, so the visit shows up in the list. |
+| Booking in a salon | `GET /public/booking/{slug}`, `/services`, `/staff`, `/slots`, `POST /public/booking/{slug}/bookings` | Response carries `manage_token`; the app posts it to `/visitor/claims/manage` right after, so the visit shows up in the list. In the app since 19.11.2026 with no API change; the book-then-claim path is covered by `tests/test_visitor_guest_claim_flow.py`. The two calls aren't one transaction: if the claim fails, the visit stays a guest booking and the app keeps the token for a later claim. |
 | Locale | `Accept-Language` | Same `en` / `ru` / `cz` messages as web. |
 
 CORS doesn't matter for a native app (no browser), so nothing to change there.
