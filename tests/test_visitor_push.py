@@ -257,3 +257,27 @@ def test_forgotten_device_leaves_no_token_in_the_queue(client, db, push, how):
     rows = db.query(NotificationOutbox).filter(NotificationOutbox.channel == notification_push.CHANNEL)
     assert rows.filter(NotificationOutbox.recipient == PHONE).count() == 0
     assert sorted(row.status for row in rows.filter(NotificationOutbox.recipient == "deleted")) == ["cancelled", "sent"]
+
+
+def test_salon_delivery_log_does_not_list_phone_reminders(client, db, push, headers_for):
+    from app.db.models.business import Business
+    from app.db.models.subscription import Subscription
+    from app.db.models.subscription_plan import SubscriptionPlan
+    from app.db.models.user import User
+    owner = db.get(User, push["staff_a"])  # business_owner of salon A
+    db.get(Business, push["a"]).owner_id = owner.id
+    plan = SubscriptionPlan(code="push_log", name="Synthetic", period_days=30, price=200)
+    db.add(plan)
+    db.flush()
+    db.add(Subscription(user_id=owner.id, plan_id=plan.id, status="active",
+                        current_period_end=utcnow() + timedelta(days=30), is_trial=False))
+    db.commit()
+    register(client, push["session_one"], PHONE)
+    notification_scheduler.sync_reminders(db)
+    row = push_rows(db, push["visit"], "pending")[0]
+    response = client.get("/businesses/me/notification-deliveries", headers=headers_for(owner))
+    assert response.status_code == 200, response.text
+    assert response.json()["items"] == []
+    row.status = "failed"
+    db.commit()
+    assert notification_worker.requeue_failed(db, row.id, push["a"]) is False

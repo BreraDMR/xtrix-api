@@ -122,6 +122,12 @@ Once a visit has a payment, a gift redemption or bonus activity on it, `PUT /vis
 
 Nothing is converted: there is no FX anywhere. Refunding the old money is a separate step and is not triggered by the correction. The settlement projection reports money recorded under a replaced currency as `prior_currency_settlements`, per currency, and keeps flagging it until it is refunded. Retrying with the same `idempotency_key` and body returns the saved correction; the same key with other details is a conflict. Downgrade refuses to drop stored corrections.
 
+### Visit reminders on the visitor's phone (Expo Push)
+
+The mobile app registers its Expo push token with `PUT /visitor/push-tokens` (`X-Visitor-Token`, body `{token, platform}`) and drops it with `DELETE /visitor/push-tokens/{token}`. A token belongs to one visitor session: logout, logout-all, a password reset and account deletion remove the phone and erase its token from queued and sent reminder rows.
+
+With `PUSH_NOTIFICATIONS_ENABLED=true` the reminder sweep adds one `notification_outbox` row per phone that can see the visit (`channel=push`, key `<reminder key>:push:<device id>`), at the same local time as the email reminder. It does not depend on the salon's email reminder switch: the visitor turned it on by allowing notifications. Right before sending the worker checks again that the session is live and the grant still stands. The text has the service, salon and time, never a manage link; `data.visit_id` lets the app open the visit. `DeviceNotRegistered` from Expo forgets the token instead of retrying. Pilot mode and the `capture` transport never send pushes. Push rows are not shown in the salon's delivery log.
+
 ### Visitor proof mail (register, password reset, email change)
 
 `VISITOR_AUTH_MAIL_MODE` is `disabled` by default. `capture` keeps links in process memory for local checks (development/test only). `live` sends them through the normal email transport (SMTP or Gmail, same settings as salon notifications) in any environment.
