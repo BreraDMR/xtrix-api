@@ -17,8 +17,9 @@ DEFAULT_REMINDER_TIME = "10:00"
 
 def channel_ready(channel: str) -> bool:
     if channel == "email":
-        return (settings.email_provider_configured
-                and (settings.email_provider != "gmail" or settings.gmail_delivery_enabled))
+        # the pilot gate counts too: without it the transport drops every email, so
+        # showing "ready" would promise reminders that never leave
+        return settings.email_delivery_available
     # SMS and WhatsApp stay off until a separate product decision activates them
     return False
 
