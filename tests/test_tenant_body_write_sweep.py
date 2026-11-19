@@ -12,6 +12,7 @@ requests: a good share has to pass, otherwise the bodies are junk and the sweep 
 import re
 from datetime import timedelta
 
+import pytest
 from sqlalchemy import text
 
 from app.api.core.clock import utcnow
@@ -98,7 +99,8 @@ def _string(name, schema):
     if fmt == 'date':
         return moment.date().isoformat()
     if fmt == 'time':
-        return moment.strftime('%H:%M:%S')
+        # A time-only range cannot cross midnight like a full datetime can.
+        return '10:00:00' if later else '09:00:00'
     if fmt == 'email':
         return 'body.sweep@example.com'
     if fmt == 'uuid':
@@ -116,7 +118,7 @@ def _string(name, schema):
     if lowered == 'role':
         return 'specialist'
     if lowered.endswith('time'):
-        return moment.strftime('%H:%M')
+        return '10:00' if later else '09:00'
     if 'date' in lowered or lowered.endswith('_at'):
         return moment.date().isoformat()
     if 'password' in lowered:
@@ -320,6 +322,19 @@ def _body_routes(spec):
             operation = operations.get(method)
             if operation and (operation.get('requestBody') or {}).get('required'):
                 yield path, method, operation
+
+
+@pytest.mark.parametrize('hour', [0, 22, 23])
+def test_generated_work_schedule_is_valid_at_any_hour(monkeypatch, hour):
+    from app.main import app
+    from app.schemas.work_schedule import WorkScheduleCreate
+
+    monkeypatch.setitem(globals(), 'FUTURE', FUTURE.replace(hour=hour))
+    spec = app.openapi()
+    _, schema = _body_schema(spec['paths']['/schedules/work']['post'])
+    body = build_value(spec, schema, {'specialist_id': 1, 'fallback': 1})
+    schedule = WorkScheduleCreate.model_validate(body)
+    assert schedule.start_time < schedule.end_time
 
 
 def test_outsiders_cannot_run_body_writes_on_another_salon(client, db, make_user, headers_for):
