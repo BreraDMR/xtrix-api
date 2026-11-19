@@ -62,15 +62,17 @@ deletion (Apple's `/auth/revoke`). Needs keys from the Apple Developer account.
 **Cheapest path for v1:** email + password only in the app, no Google, so no Sign in with Apple either.
 Add both later together.
 
-### 2.4 Push notifications - **M**
+### 2.4 Push notifications - **done for reminders** (19.11.2026)
 
-Nothing exists for device tokens. Needed:
+Built: table `visitor_push_tokens` (one row per phone, tied to the visitor session),
+`PUT /visitor/push-tokens` and `DELETE /visitor/push-tokens/{token}`; logout, logout-all, password reset
+and account deletion drop the phone and erase its token from the outbox. The day-before reminder goes
+through the Expo Push API as an outbox row with `channel=push`, behind `PUSH_NOTIFICATIONS_ENABLED`
+(off by default); capture mode catches it like mail. See the API README, "Visit reminders on the
+visitor's phone".
 
-- table `visitor_push_tokens` (account, Expo push token, platform, created/last seen, revoked);
-- `POST /visitor/push-tokens` (register / refresh), `DELETE /visitor/push-tokens/{token}` (logout);
-  `logout-all` and account deletion drop them too;
-- a sender through the Expo Push API, hooked into the existing notification events (booking created,
-  rescheduled, cancelled, reminder), with the same "capture" mode the mail uses for tests.
+Not built yet: pushes for booking created / moved / cancelled (only the reminder), Expo receipts
+(we only read the send ticket).
 
 ### 2.5 Deep links from emails - **S** (mostly web side)
 
