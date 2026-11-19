@@ -17,6 +17,9 @@ from app.db.models.visitor_auth import CHALLENGE_PURPOSES, VisitorChallenge
 
 _EMAIL_PURPOSES = {"register", "reset", "email_change"}
 _GOOGLE_PURPOSES = {"google_login", "google_link"}
+# Email links have to survive a slow inbox; the Google round trip is a few redirects.
+EMAIL_PROOF_TTL = timedelta(minutes=30)
+GOOGLE_PROOF_TTL = timedelta(minutes=5)
 _BOUND_PURPOSES = {"reset", "email_change", "google_link"}
 _ACTOR_PURPOSES = {"email_change", "google_link"}
 _PREFIX = "vch_"
@@ -103,7 +106,7 @@ def issue_challenge(db: Session, purpose: str, *, email: str | None = None,
     if digest is None:
         raise RuntimeError("invalid_generated_challenge")
     created = _current(now)
-    ttl = timedelta(minutes=5 if purpose in _GOOGLE_PURPOSES else 30)
+    ttl = GOOGLE_PROOF_TTL if purpose in _GOOGLE_PURPOSES else EMAIL_PROOF_TTL
     row = VisitorChallenge(purpose=purpose, token_hash=digest, account_id=account_id,
         email_canonical=target_email, origin=origin, created_at=created, expires_at=created + ttl)
     db.add(row)
