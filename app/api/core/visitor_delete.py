@@ -18,13 +18,15 @@ def delete_account(db: Session, raw_token: str | None) -> None:
     email = db.get(VisitorAccount, actor.account_id).email_canonical
     owned_proofs = or_(VisitorChallenge.account_id == actor.account_id,
         and_(VisitorChallenge.purpose == 'register', VisitorChallenge.email_canonical == email))
-    challenges = select(VisitorChallenge.id).where(owned_proofs)
+    # Freeze the exact set for both deletes. A later anonymous registration
+    # request is a new proof, not an orphaned mail job from this deletion.
+    challenge_ids = list(db.scalars(select(VisitorChallenge.id).where(owned_proofs).with_for_update()))
     # SET NULL alone would leave an encrypted proof in the delivery queue.
-    db.execute(delete(VisitorProofMailJob).where(VisitorProofMailJob.challenge_id.in_(challenges)))
+    db.execute(delete(VisitorProofMailJob).where(VisitorProofMailJob.challenge_id.in_(challenge_ids)))
     # Registration proofs are unbound, so the account cascade cannot erase them.
     # Remove them before deleting the account (a parallel signup still sees the
     # old unique email and cannot insert a replacement while holding a proof lock).
-    db.execute(delete(VisitorChallenge).where(owned_proofs))
+    db.execute(delete(VisitorChallenge).where(VisitorChallenge.id.in_(challenge_ids)))
     # Keep the spent proof hash and consumed_at. Deleting the account/grants only
     # clears their FKs, so a used link can never be claimed by the next signup.
     db.execute(update(VisitorClaim).where(VisitorClaim.consumed_account_id == actor.account_id,

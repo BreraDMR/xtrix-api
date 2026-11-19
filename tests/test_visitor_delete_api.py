@@ -8,9 +8,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import event, select, text, update
 from sqlalchemy.orm import Session
 
-from app.api.core import visitor_challenges, visitor_delete, visitor_recent_auth, visitor_sessions
+from app.api.core import visitor_challenges, visitor_delete, visitor_passwords, visitor_recent_auth, visitor_sessions
 from app.api.core.clock import utcnow
-from app.api.core.security import get_password_hash
 from app.db.models.client import Client
 from app.db.models.visit import Visit
 from app.db.models.visitor_access import VisitorClaim, VisitorGrant
@@ -31,7 +30,7 @@ def deletion(db, world, monkeypatch):
     monkeypatch.setattr(visitor_recent_auth, 'utcnow', lambda: clock[0])
     monkeypatch.setattr(visitor_delete, 'utcnow', lambda: clock[0])
     owner = db.get(VisitorAccount, world['one'])
-    owner.hashed_password = get_password_hash(PASSWORD)
+    owner.hashed_password = visitor_passwords.hash_password(PASSWORD)
     db.add(VisitorGoogleIdentity(account_id=owner.id, subject='deleted-google-identity'))
     db.flush()
     sessions = [visitor_sessions.create_session(db, db.get(VisitorAccount, world[key]))[1]
@@ -60,6 +59,7 @@ def private(response, status):
 
 
 def test_delete_removes_identity_and_all_devices_but_keeps_salon_data(client, db, deletion):
+    private(client.post('/visitor/auth/login', json={'email': deletion['email'], 'password': PASSWORD}), 200)
     before = {model: list(db.execute(select(model.__table__).order_by(model.id)).mappings())
               for model in (Client, Visit)}
     response = client.delete('/visitor/me', headers={'X-Visitor-Token': deletion['sessions'][0]})
