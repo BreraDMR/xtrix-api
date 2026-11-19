@@ -43275,6 +43275,62 @@
       }
     },
     "/visitor/me": {
+      "delete": {
+        "operationId": "delete_account_visitor_me_delete",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Visitor-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Visitor-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Account",
+        "tags": [
+          "visitor-account"
+        ]
+      },
       "get": {
         "operationId": "read_account_visitor_me_get",
         "parameters": [

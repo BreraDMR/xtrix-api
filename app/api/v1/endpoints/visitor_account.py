@@ -9,6 +9,7 @@ from app.api.core import visitor_login_guard, visitor_passwords, visitor_registr
 from app.api.core import visitor_registration_mail, visitor_password_reset, visitor_reset_mail, visitor_manage_claim
 from app.api.core import visitor_google_link, visitor_proof_mail, visitor_recent_auth
 from app.api.core import visitor_client_invite_accept, visitor_email_change, visitor_email_change_mail
+from app.api.core import visitor_delete
 from app.schemas.visitor_email_change import VisitorEmailChangeConfirmIn, VisitorEmailChangeRequestIn
 from app.schemas.visitor_invitations import ClientInviteAcceptIn
 from app.api.core.config import settings
@@ -330,6 +331,22 @@ def accept_client_invitation(request: Request, body: ClientInviteAcceptIn,
     except visitor_client_invite_accept.ClientInviteBusy:
         db.rollback()
         raise HTTPException(status_code=409, detail=_("visitor_client_invite_retry", locale)) from None
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.delete("/me", status_code=204, response_class=Response)
+def delete_account(
+    request: Request,
+    _session: VisitorSession = Depends(visitor_deps.get_visitor_session),
+    db: Session = Depends(deps.get_db),
+    locale: str = Depends(deps.get_locale),
+) -> Response:
+    try:
+        visitor_delete.delete_account(db, request.headers.get("X-Visitor-Token"))
+    except visitor_recent_auth.VisitorReauthenticationRequired:
+        db.rollback()
+        raise HTTPException(status_code=403, detail=_("visitor_recent_auth_required", locale)) from None
     db.commit()
     return Response(status_code=204)
 
