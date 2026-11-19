@@ -62,7 +62,10 @@ def list_notification_deliveries(
 ):
     business_id = notification_business_id(db, current_user, locale)
     pagination = PaginationParams(page=page, per_page=per_page)
-    query = db.query(NotificationOutbox).filter(NotificationOutbox.business_id == business_id)
+    # phone reminders go through the visitor's own app, not in the salon's name: not the salon's log
+    query = db.query(NotificationOutbox).filter(
+        NotificationOutbox.business_id == business_id, NotificationOutbox.channel != "push"
+    )
     if status:
         query = query.filter(NotificationOutbox.status == status)
     if kind:

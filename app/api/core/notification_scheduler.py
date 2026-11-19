@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.api.core import notification_events, notification_preferences
 from app.api.core.clock import utcnow
+from app.api.core.config import settings
 from app.db.models.notification_outbox import NotificationOutbox
 from app.db.models.visit import Visit
 
@@ -68,8 +69,9 @@ def sync_reminders(
             or visit.status != "planned"
             or visit.deleted_at is not None
             or visit.archived_at is not None
-            or notification_events.reminder_event_key(visit) != row.event_key
-            or notification_preferences.enabled_channel(db, row.business_id) is None
+            or notification_events.reminder_event_key(visit)
+            != notification_events.reminder_base_key(row.event_key)
+            or not _channel_on(db, row)
         ):
             row.status = "cancelled"
             row.updated_at = now
@@ -77,6 +79,12 @@ def sync_reminders(
 
     db.commit()
     return {"scheduled": scheduled, "cancelled": cancelled}
+
+
+def _channel_on(db: Session, row: NotificationOutbox) -> bool:
+    if row.channel == "push":
+        return settings.push_notifications_enabled
+    return notification_preferences.enabled_channel(db, row.business_id) is not None
 
 
 def sync_business_reminders(

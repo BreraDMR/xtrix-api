@@ -13,7 +13,7 @@ from sqlalchemy import and_, or_, text
 from sqlalchemy.orm import Session
 
 from app.api.core import notification_events, notification_preferences
-from app.api.core import campaign_service
+from app.api.core import campaign_service, notification_push
 from app.api.core.client_portal_email import KIND as CLIENT_PORTAL_KIND
 from app.api.core.clock import utcnow
 from app.api.core.notification_transport import DeliveryResult
@@ -236,18 +236,23 @@ def _run_once_locked(db, send, now, limit, max_attempts, locks):
             db.commit()
             stats["cancelled"] += 1
             continue
-        # account-level messages (password reset) and client sign-in links are transactional:
-        # a business reminder switch must not block access to the visitor's own cabinet
-        channel = (
-            row.channel
-            if row.business_id is None or row.kind == CLIENT_PORTAL_KIND
-            else notification_preferences.enabled_channel(db, row.business_id)
-        )
-        if channel is None or row.channel != channel:
+        if row.channel == notification_push.CHANNEL:
+            # logout, an unregistered phone or a revoked grant may have landed after queueing
+            blocked = None if notification_push.still_deliverable(db, row) else "device_gone"
+        else:
+            # account-level messages (password reset) and client sign-in links are transactional:
+            # a business reminder switch must not block access to the visitor's own cabinet
+            channel = (
+                row.channel
+                if row.business_id is None or row.kind == CLIENT_PORTAL_KIND
+                else notification_preferences.enabled_channel(db, row.business_id)
+            )
+            blocked = "notifications_disabled" if channel is None or row.channel != channel else None
+        if blocked is not None:
             # the owner turned notifications off after this message was queued
             row.status = "cancelled"
             row.locked_until = None
-            row.last_error = "notifications_disabled"
+            row.last_error = blocked
             row.updated_at = now
             db.commit()
             stats["cancelled"] += 1
@@ -332,7 +337,8 @@ def requeue_failed(db: Session, message_id: int, business_id: int) -> bool:
         )
         .first()
     )
-    if not row or row.provider_message_id:
+    if not row or row.provider_message_id or row.channel == notification_push.CHANNEL:
+        # a phone reminder that failed is not worth a manual retry: its moment has passed
         return False
     row.status = "pending"
     row.attempts = 0

@@ -2,7 +2,7 @@
 from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.orm import Session
 
-from app.api.core import visitor_recent_auth
+from app.api.core import notification_push, visitor_recent_auth
 from app.api.core.clock import utcnow
 from app.db.models.visitor_access import VisitorClaim
 from app.db.models.visitor_account import VisitorAccount
@@ -31,6 +31,8 @@ def delete_account(db: Session, raw_token: str | None) -> None:
     # clears their FKs, so a used link can never be claimed by the next signup.
     db.execute(update(VisitorClaim).where(VisitorClaim.consumed_account_id == actor.account_id,
         VisitorClaim.recipient_email.is_not(None)).values(recipient_email='deleted@visitor.invalid'))
+    # The device rows go with the sessions; queued reminders would still name the phone.
+    notification_push.erase_account_devices(db, actor.account_id)
     visitor_recent_auth.require_recent_actor(db, raw_token, actor)
     # Bulk deletion lets the database apply CASCADE/SET NULL instead of ORM nulling.
     db.execute(delete(VisitorAccount).where(VisitorAccount.id == actor.account_id))

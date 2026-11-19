@@ -22,6 +22,8 @@ KIND_CREATED = "booking_created"
 KIND_CHANGED = "booking_changed"
 KIND_CANCELLED = "booking_cancelled"
 KIND_REMINDER = "booking_reminder"
+# a phone reminder's key is the visit reminder key plus this mark and the device id
+PUSH_KEY_MARK = ":push:"
 
 
 def reminder_event_key(visit: Visit) -> str:
@@ -43,6 +45,10 @@ def reminder_at(
     return local_reminder.astimezone(timezone.utc).replace(tzinfo=None)
 
 
+def reminder_base_key(event_key: str) -> str:
+    return event_key.partition(PUSH_KEY_MARK)[0]
+
+
 def reminder_still_due(db: Session, row: NotificationOutbox) -> bool:
     """The visit is still planned at the time this reminder was written for."""
     # a plain read on purpose: holding a visit lock through the SMTP call would stall the calendar
@@ -52,18 +58,26 @@ def reminder_still_due(db: Session, row: NotificationOutbox) -> bool:
         and visit.status == "planned"
         and visit.deleted_at is None
         and visit.archived_at is None
-        and reminder_event_key(visit) == row.event_key
+        and reminder_event_key(visit) == reminder_base_key(row.event_key)
     )
 
 
-def cancel_pending_reminders(db: Session, visit_id: int, keep_key: Optional[str] = None) -> int:
+def cancel_pending_reminders(
+    db: Session, visit_id: int, keep_key: Optional[str] = None, channel: Optional[str] = None
+) -> int:
     query = db.query(NotificationOutbox).filter(
         NotificationOutbox.visit_id == visit_id,
         NotificationOutbox.kind == KIND_REMINDER,
         NotificationOutbox.status == "pending",
     )
+    if channel:
+        query = query.filter(NotificationOutbox.channel == channel)
     if keep_key:
-        query = query.filter(NotificationOutbox.event_key != keep_key)
+        # phone reminders for the same start share the key prefix and stay too
+        query = query.filter(
+            NotificationOutbox.event_key != keep_key,
+            ~NotificationOutbox.event_key.startswith(keep_key + PUSH_KEY_MARK, autoescape=True),
+        )
     return query.update(
         {NotificationOutbox.status: "cancelled", NotificationOutbox.updated_at: utcnow()},
         synchronize_session=False,
@@ -117,14 +131,24 @@ def _queue(
 def ensure_reminder(
     db: Session, business: Business, visit: Visit, client: Optional[Client] = None
 ) -> bool:
-    """Create or revive the reminder for the visit's current start; returns True if queued."""
-    client = client or visit.client
+    """Create or revive the email and phone reminders for the visit's current start.
+
+    Returns True if anything was queued. The phone reminder does not follow the salon's email
+    switch: the visitor turned it on themselves by allowing notifications in the app.
+    """
+    from app.api.core import notification_push
+
+    email = _ensure_email_reminder(db, business, visit, client or visit.client)
+    return notification_push.ensure_reminders(db, business, visit) > 0 or email
+
+
+def _ensure_email_reminder(db: Session, business: Business, visit: Visit, client: Optional[Client]) -> bool:
     if notification_preferences.enabled_channel(db, business.id) is None:
-        cancel_pending_reminders(db, visit.id)
+        cancel_pending_reminders(db, visit.id, channel="email")
         return False
     when = reminder_at(visit, business, notification_preferences.reminder_time(db, business.id))
     if visit.status != "planned" or not _contact_email(client) or when is None or when <= utcnow():
-        cancel_pending_reminders(db, visit.id)
+        cancel_pending_reminders(db, visit.id, channel="email")
         return False
     key = reminder_event_key(visit)
     existing = db.query(NotificationOutbox).filter(NotificationOutbox.event_key == key).first()

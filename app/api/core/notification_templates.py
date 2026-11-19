@@ -12,7 +12,7 @@ from urllib.parse import quote
 from sqlalchemy.orm import Session
 
 from app.api.core import booking_manage_access
-from app.api.core import campaign_service
+from app.api.core import campaign_service, notification_push
 from app.api.core.availability import salon_zone
 from app.api.core.config import settings
 from app.api.core.notification_transport import DeliveryResult, OutboundMessage, get_notification_transport
@@ -164,6 +164,8 @@ def render_campaign(db: Session, row: NotificationOutbox) -> OutboundMessage:
 
 
 def render_outbox_notification(db: Session, row: NotificationOutbox) -> OutboundMessage:
+    if row.channel == notification_push.CHANNEL:
+        return notification_push.render(row)
     if row.kind == PASSWORD_RESET_KIND:
         return render_password_reset(db, row)
     if row.kind == CLIENT_PORTAL_KIND:
@@ -203,4 +205,8 @@ def render_outbox_notification(db: Session, row: NotificationOutbox) -> Outbound
 
 def send_outbox_message(db: Session, row: NotificationOutbox) -> DeliveryResult:
     message = render_outbox_notification(db, row)
-    return get_notification_transport().send(message)
+    result = get_notification_transport().send(message)
+    if result.error == "push_device_not_registered":
+        # committed by the worker together with the row's final status
+        notification_push.forget(db, row.recipient)
+    return result

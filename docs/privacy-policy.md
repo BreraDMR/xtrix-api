@@ -33,6 +33,10 @@ For your visitor account:
 - **Access to salon records** (`visitor_grants`): which salon, client card and visit your account may see.
 - **Claim and invitation links** (`visitor_claims`): a hash of the link, the salon, client card and visit it
   points to, the invited email address (for salon invitations) and when it was used and by which account.
+- **Phones for visit reminders** (`visitor_push_tokens`), only if you allow notifications in the app: the
+  phone's Expo push address, its platform (iOS or Android), the app language and the sign-in session it belongs
+  to. A reminder waiting in the queue keeps the same push address, the salon name, the service and the visit
+  time.
 
 What you see in the app from the salon: salon name, address, phone, email and time zone; visit times, status,
 services, staff names and prices.
@@ -45,11 +49,13 @@ service sets.
 
 On your phone the app keeps your session token, the chosen language and, for at most one day, a claim link
 you opened but have not confirmed yet. They are stored in the iOS Keychain. The app has no ads, no analytics
-and no tracking. It does not collect push notification tokens.
+and no tracking. If you allow notifications, the app sends the phone's push address to us for visit
+reminders; you can switch them off in the phone settings at any time.
 
 ### Why
 - To create and run your account, show the visits the salon shared with you and let you cancel or reschedule
-  them (performance of the service you asked for, GDPR Art. 6(1)(b)).
+  them, and, if you allow notifications, remind you of upcoming visits on your phone (performance of the
+  service you asked for, GDPR Art. 6(1)(b)).
 - To protect accounts against password guessing and abuse (legitimate interest, Art. 6(1)(f)).
 
 We do not sell your data and do not use it for advertising.
@@ -58,10 +64,14 @@ We do not sell your data and do not use it for advertising.
 - Render (API server, Frankfurt region), Neon (PostgreSQL database), Vercel (web app).
 - An email provider that delivers our links: an SMTP server or Google Gmail API, depending on the setup.
 - Google, only when you choose to sign in with Google on the web.
+- Expo (650 Industries, USA), only if you allow notifications: it gets the push address and the reminder text
+  and hands them to Apple or Google, who deliver the notification to your phone.
 
 ### How long
 - Your account and everything linked to it stays until you delete the account.
 - A sign-in session works for 30 days, unless you sign out earlier.
+- A phone stays registered for reminders while its sign-in session is active. Signing out, resetting the
+  password or deleting the account removes it, and its push address is erased from the reminder queue.
 - Email links work for 30 minutes, Google sign-in links for 5 minutes. A salon invitation link works
   for 30 minutes.
 - Failed sign-in counters are kept for 30 minutes per email and IP pair, and for one hour per email.
@@ -74,6 +84,7 @@ You can delete the account yourself in the app: Profile → Delete account. For 
 within the last 5 minutes. Deletion happens in one step and removes:
 - the account, password hash and Google link;
 - all sign-in sessions, so every device is signed out;
+- the phones registered for reminders, and their push address in the reminder queue;
 - your access to salon records;
 - all one-time links of the account and sign-up links for its email address, together with their emails
   still waiting in the delivery queue.
@@ -119,6 +130,9 @@ K vašemu návštěvnickému účtu:
 - **Přístup k záznamům salonu** (`visitor_grants`): který salon, kartu klienta a návštěvu smí váš účet vidět.
 - **Odkazy pro připojení a pozvánky** (`visitor_claims`): otisk odkazu, salon, karta klienta a návštěva, na
   které odkazuje, pozvaný e-mail (u pozvánek od salonu) a kdy a kterým účtem byl použit.
+- **Telefony pro připomínky návštěv** (`visitor_push_tokens`), jen pokud v aplikaci povolíte oznámení: push
+  adresa telefonu od Expo, platforma (iOS nebo Android), jazyk aplikace a přihlášení, ke kterému telefon patří.
+  Připomínka čekající ve frontě obsahuje stejnou push adresu, název salonu, službu a čas návštěvy.
 
 Co v aplikaci uvidíte od salonu: název, adresu, telefon, e-mail a časové pásmo salonu; čas, stav, služby,
 jména pracovníků a ceny návštěv.
@@ -131,11 +145,13 @@ kterou stanoví jeho služba.
 
 V telefonu aplikace ukládá váš token přihlášení, zvolený jazyk a nejvýše na jeden den odkaz pro připojení,
 který jste otevřeli, ale ještě nepotvrdili. Vše je v klíčence iOS (Keychain). Aplikace nemá reklamy,
-analytiku ani sledování. Tokeny pro push oznámení nesbírá.
+analytiku ani sledování. Pokud povolíte oznámení, aplikace nám pošle push adresu telefonu kvůli připomínkám
+návštěv; v nastavení telefonu je můžete kdykoli vypnout.
 
 ### Proč
 - Abychom mohli vytvořit a provozovat váš účet, zobrazit návštěvy, které s vámi salon sdílí, a umožnit vám je
-  zrušit nebo přesunout (plnění služby, o kterou jste požádali, čl. 6 odst. 1 písm. b) GDPR).
+  zrušit nebo přesunout, a pokud povolíte oznámení, připomenout vám nadcházející návštěvy v telefonu (plnění
+  služby, o kterou jste požádali, čl. 6 odst. 1 písm. b) GDPR).
 - Abychom chránili účty před hádáním hesel a zneužitím (oprávněný zájem, čl. 6 odst. 1 písm. f) GDPR).
 
 Vaše údaje neprodáváme a nepoužíváme je k reklamě.
@@ -144,10 +160,14 @@ Vaše údaje neprodáváme a nepoužíváme je k reklamě.
 - Render (server API, region Frankfurt), Neon (databáze PostgreSQL), Vercel (webová aplikace).
 - Poskytovatel e-mailu, který doručuje naše odkazy: server SMTP nebo Google Gmail API podle nastavení.
 - Google, jen pokud se na webu rozhodnete přihlásit přes Google.
+- Expo (650 Industries, USA), jen pokud povolíte oznámení: dostane push adresu a text připomínky a předá je
+  společnosti Apple nebo Google, které oznámení doručí do telefonu.
 
 ### Jak dlouho
 - Účet a vše, co je s ním spojené, uchováváme, dokud účet nesmažete.
 - Přihlášení platí 30 dní, pokud se neodhlásíte dřív.
+- Telefon zůstává přihlášen k připomínkám, dokud platí jeho přihlášení. Odhlášení, obnova hesla nebo smazání
+  účtu ho odstraní a jeho push adresa se smaže i z fronty připomínek.
 - E-mailové odkazy platí 30 minut, odkazy pro přihlášení přes Google 5 minut. Pozvánka od salonu platí
   30 minut.
 - Počítadla neúspěšných přihlášení se drží 30 minut pro dvojici e-mailu a IP adresy a jednu hodinu pro e-mail.
@@ -159,6 +179,7 @@ Vaše údaje neprodáváme a nepoužíváme je k reklamě.
 posledních 5 minut. Smazání proběhne najednou a odstraní:
 - účet, otisk hesla a propojení s Google;
 - všechna přihlášení, takže budete odhlášeni na všech zařízeních;
+- telefony přihlášené k připomínkám a jejich push adresu ve frontě připomínek;
 - váš přístup k záznamům salonu;
 - všechny jednorázové odkazy účtu a odkazy pro registraci jeho e-mailu, včetně jejich e-mailů, které ještě
   čekají ve frontě na odeslání.

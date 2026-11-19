@@ -130,6 +130,8 @@ def revoke_session(db: Session, *, account_id: int, session_id: int) -> bool:
         VisitorSession.account_id == locked_id,
         VisitorSession.revoked_at.is_(None),
     ).update({"revoked_at": utcnow()}, synchronize_session="fetch")
+    if changed:
+        _forget_devices(db, VisitorSession.id == session_id, VisitorSession.account_id == locked_id)
     db.flush()
     return bool(changed)
 
@@ -141,5 +143,12 @@ def revoke_all_sessions(db: Session, *, account_id: int) -> int:
         VisitorSession.account_id == locked_id,
         VisitorSession.revoked_at.is_(None),
     ).update({"revoked_at": utcnow()}, synchronize_session="fetch")
+    _forget_devices(db, VisitorSession.account_id == locked_id)
     db.flush()
     return changed
+
+
+def _forget_devices(db: Session, *criteria) -> None:
+    # imported here: the notification code pulls in the whole outbox stack
+    from app.api.core import notification_push
+    notification_push.forget_session_devices(db, *criteria)

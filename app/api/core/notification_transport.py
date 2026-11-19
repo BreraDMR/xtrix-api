@@ -21,7 +21,8 @@ from app.api.core.logger import mask_email, mask_phone
 
 logger = logging.getLogger(__name__)
 
-Channel = Literal["email", "sms", "whatsapp"]
+Channel = Literal["email", "sms", "whatsapp", "push"]
+EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 Status = Literal["sent", "captured", "skipped", "failed"]
 
 
@@ -32,6 +33,8 @@ class OutboundMessage:
     text: str
     subject: str = ""
     html: str | None = None
+    # extra fields for the app on the phone (push only)
+    data: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -130,6 +133,43 @@ class TwilioTransport:
             return DeliveryResult("failed", self.name, error=f"twilio_error:{type(exc).__name__}")
 
 
+class ExpoPushTransport:
+    """One message per call: a ticket tells whether Expo took it, not whether the phone showed it."""
+
+    name = "expo"
+
+    def send(self, message: OutboundMessage) -> DeliveryResult:
+        if message.channel != "push":
+            return DeliveryResult("skipped", self.name, error="unsupported_channel")
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        access_token = settings.expo_push_access_token.get_secret_value()
+        if access_token:
+            headers["Authorization"] = f"Bearer {access_token}"
+        body = {"to": message.recipient, "title": message.subject, "body": message.text, "sound": "default"}
+        if message.data:
+            body["data"] = message.data
+        try:
+            resp = requests.post(EXPO_PUSH_URL, json=[body], headers=headers, timeout=10)
+        except Exception as exc:
+            logger.error("Expo push send exception: %s", exc)
+            return DeliveryResult("failed", self.name, error=f"expo_error:{type(exc).__name__}")
+        if not 200 <= resp.status_code < 300:
+            logger.error("Expo push send failed: %s %s", resp.status_code, resp.text[:300])
+            return DeliveryResult("failed", self.name, error=f"expo_http:{resp.status_code}")
+        try:
+            ticket = (resp.json().get("data") or [{}])[0]
+        except (ValueError, AttributeError, IndexError):
+            return DeliveryResult("failed", self.name, error="expo_bad_response")
+        if ticket.get("status") == "ok":
+            return DeliveryResult("sent", self.name, provider_message_id=ticket.get("id"))
+        code = str((ticket.get("details") or {}).get("error") or "unknown")
+        if code == "DeviceNotRegistered":
+            # the app was removed from the phone; retrying would never work
+            return DeliveryResult("skipped", self.name, error="push_device_not_registered")
+        logger.error("Expo push ticket error: %s", code)
+        return DeliveryResult("failed", self.name, error=f"expo:{code}"[:500])
+
+
 class LiveNotificationTransport:
     name = "live"
 
@@ -138,6 +178,7 @@ class LiveNotificationTransport:
         from app.api.core.gmail_transport import GmailEmailTransport
         self._gmail = GmailEmailTransport()
         self._twilio = TwilioTransport()
+        self._expo = ExpoPushTransport()
 
     def send(self, message: OutboundMessage) -> DeliveryResult:
         if settings.pilot_mode_enabled and message.channel != "email":
@@ -146,6 +187,8 @@ class LiveNotificationTransport:
             return (self._gmail if settings.email_provider == "gmail" else self._smtp).send(message)
         if message.channel in ("sms", "whatsapp"):
             return self._twilio.send(message)
+        if message.channel == "push":
+            return self._expo.send(message)
         return DeliveryResult("skipped", self.name, error="unsupported_channel")
 
 
@@ -162,7 +205,12 @@ class CaptureNotificationTransport:
         with self._lock:
             self._messages.append(message)
             self._write_file(message)
-        masked = mask_email(message.recipient) if message.channel == "email" else mask_phone(message.recipient)
+        if message.channel == "email":
+            masked = mask_email(message.recipient)
+        elif message.channel == "push":
+            masked = f"{message.recipient[:18]}***"
+        else:
+            masked = mask_phone(message.recipient)
         logger.info(
             "Notification captured by capture transport for %s (%s); nothing was sent",
             masked,
@@ -181,6 +229,7 @@ class CaptureNotificationTransport:
             "subject": message.subject,
             "text": message.text,
             "html": message.html,
+            "data": message.data,
         }
         with open(path, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")

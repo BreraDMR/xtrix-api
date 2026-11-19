@@ -84,6 +84,10 @@ class Settings(BaseSettings):
     visitor_auth_mail_mode: Literal["disabled", "capture", "live"] = "disabled"
     # "key_id:base64url-32-bytes[,older_id:key...]" - the first one encrypts, all of them decrypt
     visitor_proof_mail_keys: SecretStr = SecretStr("")
+    # visit reminders on the visitor's phone; off until someone decides real phones may get them
+    push_notifications_enabled: bool = False
+    # optional: Expo accepts unauthenticated sends unless "enhanced security" is on for the project
+    expo_push_access_token: SecretStr = SecretStr("")
 
     @property
     def email_provider_configured(self) -> bool:
