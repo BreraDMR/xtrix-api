@@ -88,3 +88,5 @@ from app.db.models.visit_price_correction import VisitPriceCorrection
 from app.db.models.visit_settlement_entry import VisitSettlementEntry
 
 from app.db.models.visitor_proof_mail_job import VisitorProofMailJob
+
+from app.db.models.visitor_push_token import VisitorPushToken
