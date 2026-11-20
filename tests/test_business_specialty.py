@@ -127,3 +127,14 @@ def test_specialty_migration_round_trip_keeps_businesses(db, make_user, client, 
         db.rollback()
         command.upgrade(config, "head")
     assert db.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0094_visitor_push_tokens"
+
+
+@pytest.mark.parametrize("specialty", ["pmu_artist", "depilation_specialist"])
+def test_salon_specialties_added_in_november_are_beauty(client, monkeypatch, google_on, specialty):
+    # permanent make-up and depilation are in almost every Prague salon, they must be pickable
+    types = client.get("/specialist-profiles/types").json()["categories"]["beauty"]["types"]
+    assert specialty in types
+    response = sign_in(client, monkeypatch, specialist_type=specialty)
+    assert response.status_code == 200, response.text
+    me = client.get("/users/me", headers={"Authorization": f"Bearer {response.json()['access_token']}"}).json()
+    assert me["specialist_category"] == "beauty"

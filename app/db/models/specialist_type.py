@@ -18,6 +18,9 @@ class SpecialistType(str, Enum):
     NAIL_TECHNICIAN = "nail_technician"  
     LASH_TECHNICIAN = "lash_technician"  
     MAKEUP_ARTIST = "makeup_artist"  
+    # brows already sit under lash_technician; these two were missing for Prague salons (20.11)
+    PMU_ARTIST = "pmu_artist"
+    DEPILATION_SPECIALIST = "depilation_specialist"
     AROMATHERAPIST = "aromatherapist"  
     FITNESS_COACH = "fitness_coach"  
     YOGA_INSTRUCTOR = "yoga_instructor"  
@@ -42,6 +45,8 @@ SPECIALIST_TYPE_TO_CATEGORY = {
     SpecialistType.NAIL_TECHNICIAN: SpecialistCategory.BEAUTY,
     SpecialistType.LASH_TECHNICIAN: SpecialistCategory.BEAUTY,
     SpecialistType.MAKEUP_ARTIST: SpecialistCategory.BEAUTY,
+    SpecialistType.PMU_ARTIST: SpecialistCategory.BEAUTY,
+    SpecialistType.DEPILATION_SPECIALIST: SpecialistCategory.BEAUTY,
     SpecialistType.PHYSIOTHERAPIST: SpecialistCategory.WELLNESS,
     SpecialistType.NUTRITIONIST: SpecialistCategory.WELLNESS,
     SpecialistType.AROMATHERAPIST: SpecialistCategory.WELLNESS,
