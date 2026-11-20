@@ -85,3 +85,16 @@ def test_imported_visit_prices_keep_the_business_currency(client, db, make_user,
     # the preview told the owner these prices are CZK, so the visit must say so too
     assert visit.currency_snapshot == "CZK"
     assert legacy_visit_currency.preview(db, business_id)["unknown_visits"] == unknown_before
+
+
+def test_csv_with_a_huge_cell_is_a_clear_file_error_not_a_crash(client, db, make_user, headers_for):
+    # Python's csv module refuses fields over 128 KB; that must reach the owner as "malformed".
+    world = build_tenant(client, make_user, headers_for, "Big", "+42070083")
+    content = b'Name,Phone\n"' + b"a" * 200_000 + b'",+420700835551\n'
+    response = client.post(
+        "/businesses/me/imports",
+        headers=world["headers"],
+        files={"file": ("big.csv", content, "text/csv")},
+    )
+    assert response.status_code == 422, response.text
+    assert "import_malformed_file" in response.text

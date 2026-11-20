@@ -337,16 +337,20 @@ def _parse_csv(content: bytes) -> tuple[list[str], list[ParsedRow]]:
     raw_headers: list[Any] = []
     raw_rows: list[tuple[int, list[Any]]] = []
     logical_row = 0
-    for record in reader:
-        if not any(str(cell).strip() for cell in record):
-            continue
-        logical_row += 1
-        if logical_row == 1:
-            raw_headers = list(record)
-        else:
-            raw_rows.append((logical_row, list(record)))
-            if len(raw_rows) > MAX_ROWS:
-                raise ImportFileError("import_too_many_rows")
+    try:
+        for record in reader:
+            if not any(str(cell).strip() for cell in record):
+                continue
+            logical_row += 1
+            if logical_row == 1:
+                raw_headers = list(record)
+            else:
+                raw_rows.append((logical_row, list(record)))
+                if len(raw_rows) > MAX_ROWS:
+                    raise ImportFileError("import_too_many_rows")
+    except csv.Error as exc:
+        # e.g. a single cell over the csv module's 128 KB field limit - a bad file, not a 500
+        raise ImportFileError("import_malformed_file") from exc
     headers = _prepare_headers(raw_headers)
     return headers, _prepare_rows(raw_rows, len(headers))
 
