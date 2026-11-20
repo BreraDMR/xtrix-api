@@ -93,6 +93,9 @@ EVENT_CATALOG: dict[str, EventSpec] = {
     "visit.updated": EventSpec("visit", VISIT_VALUE_KEYS, VISIT_NAME_KEYS),
     "visit.moved": EventSpec("visit", VISIT_VALUE_KEYS, VISIT_NAME_KEYS),
     "visit.cancelled": EventSpec("visit", VISIT_VALUE_KEYS, VISIT_NAME_KEYS),
+    # Deleting a visit hides it like a cancel does, so it has to show up here too.
+    "visit.deleted": EventSpec("visit", VISIT_VALUE_KEYS, VISIT_NAME_KEYS),
+    "visit.restored": EventSpec("visit", VISIT_VALUE_KEYS, VISIT_NAME_KEYS),
     "payment.paid": EventSpec(
         "payment",
         frozenset({"amount", "currency", "status", "provider", "provider_event_id"}),

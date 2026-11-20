@@ -470,9 +470,31 @@ def update_visit(
             db.rollback()
             logger.warning('Post-visit slot matching failed for visit_id=%s: %s',result.id,type(exc).__name__)
     return _visit_response(result, can_view_financials(current_user, db))
+def _audit_visit_lifecycle(db, visit, action, actor, request):
+    # Joins the caller's transaction; the delete/restore commit below saves both together.
+    audit_service.record_event(
+        db,
+        action=action,
+        entity_type="visit",
+        entity_id=visit.id,
+        business_id=visit.business_id,
+        owner_user_id=visit.specialist_id if visit.business_id is None else None,
+        changes={
+            "status": visit.status,
+            "date_start": visit.date_start,
+            "date_end": visit.date_end,
+            "service_id": visit.service_id,
+            "specialist_id": visit.specialist_id,
+        },
+        actor=actor,
+        request_id=audit_service.request_id_for(request),
+    )
+
+
 @router.delete("/{visit_id}")
 def delete_visit(
     visit_id: int,
+    request: Request,
     hard_delete_flag: bool = Query(False, description="Permanently delete (admin only)", alias="hard_delete"),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
@@ -493,6 +515,7 @@ def delete_visit(
     if released:
         # saved in the same commit as the delete below, so an outage can't lose the freed slots
         enqueue_slots(db, old_business_id, released, event_key=f'visit:{visit.id}:deleted:{uuid4().hex}')
+    _audit_visit_lifecycle(db, visit, "visit.deleted", current_user, request)
     if hard_delete_flag and current_user.role == "admin":
         hard_delete(db, visit)
         message = "Visit permanently deleted"
@@ -507,6 +530,7 @@ def delete_visit(
 @router.post("/{visit_id}/restore")
 def restore_visit(
     visit_id: int,
+    request: Request,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
@@ -527,6 +551,9 @@ def restore_visit(
         db.rollback()
         raise HTTPException(status_code=409, detail={
             "code": "visit_restore_slot_offered", "message": _("visit_restore_slot_offered", locale)}) from None
+    if visit.deleted_at is not None:
+        # restoring an already active visit is a no-op and shouldn't add a journal row
+        _audit_visit_lifecycle(db, visit, "visit.restored", current_user, request)
     restore_soft_deleted(db, visit)
     return {"message": "Visit restored successfully"}
 

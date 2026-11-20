@@ -323,3 +323,64 @@ def test_redaction_keeps_only_catalogued_fields_and_never_values_for_client_card
     assert response.status_code == 200, response.text
     assert secret_email not in response.text
     assert "Journal Survives" not in response.text
+
+
+def test_visit_delete_and_restore_leave_one_event_each_in_the_same_commit(
+    client, db, make_user, headers_for, monkeypatch
+):
+    # A soft delete hides a visit just like a cancel does, so it must not be a way
+    # around the journal. Replays (404 / already active) must not add rows.
+    world = build_tenant(client, make_user, headers_for, "Alpha", "+42070056")
+    business_id = world["business"]["id"]
+    visit_id = world["visit"]["id"]
+    headers = {**world["headers"], "X-Request-ID": "delete-request-1"}
+
+    deleted = client.delete(f"/visits/{visit_id}", headers=headers)
+    assert deleted.status_code == 200, deleted.text
+    replay = client.delete(f"/visits/{visit_id}", headers=headers)
+    assert replay.status_code == 404, replay.text
+
+    events = _events(db, business_id, "visit.deleted")
+    assert len(events) == 1
+    assert events[0].entity_id == visit_id
+    assert events[0].actor_user_id == world["owner"].id
+    assert events[0].request_id == "delete-request-1"
+    assert events[0].changes["status"] == "planned"
+    assert "Alpha visit note" not in json.dumps(events[0].changes)
+
+    restored = client.post(f"/visits/{visit_id}/restore", headers=world["headers"])
+    assert restored.status_code == 200, restored.text
+    again = client.post(f"/visits/{visit_id}/restore", headers=world["headers"])
+    assert again.status_code == 200, again.text
+    assert len(_events(db, business_id, "visit.restored")) == 1
+
+    # The delete and its journal row share one commit: if that commit fails,
+    # neither the delete nor a "deleted" row is left behind.
+    from app.api.core import soft_delete as soft_delete_module
+
+    seen_before_commit = []
+
+    def failing_soft_delete(session, instance):
+        # The journal row must already sit in this very transaction, not wait for its own commit.
+        seen_before_commit.append(session.query(BusinessAuditEvent).filter(
+            BusinessAuditEvent.action == "visit.deleted",
+            BusinessAuditEvent.entity_id == instance.id,
+        ).count())
+        instance.deleted_at = datetime.utcnow()
+        session.rollback()
+        raise RuntimeError("commit failed")
+
+    import app.api.v1.endpoints.visits as visits_endpoint
+
+    monkeypatch.setattr(visits_endpoint, "soft_delete", failing_soft_delete)
+    assert soft_delete_module.soft_delete is not failing_soft_delete
+    try:
+        client.delete(f"/visits/{visit_id}", headers=world["headers"])
+    except RuntimeError:
+        pass
+    assert seen_before_commit == [2]
+    assert len(_events(db, business_id, "visit.deleted")) == 1
+    db.expire_all()
+    from app.db.models.visit import Visit
+
+    assert db.get(Visit, visit_id).deleted_at is None
