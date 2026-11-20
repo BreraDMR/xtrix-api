@@ -112,7 +112,8 @@ def lines_from_items(
 
 def total_price(lines: Sequence[ChainLine]) -> Optional[Decimal]:
     prices = [line.price for line in lines if line.price is not None]
-    if not prices:
+    # A step priced after consultation makes the whole total unknown. Zero is still known.
+    if not prices or len(prices) != len(lines):
         return None
     return sum(prices, Decimal("0")).quantize(MONEY, rounding=ROUND_HALF_UP)
 

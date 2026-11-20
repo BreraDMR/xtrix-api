@@ -245,6 +245,32 @@ def test_totals_use_decimal_cent_rounding(client, salon):
     assert visit["price"] == pytest.approx(20.02)
 
 
+@pytest.mark.parametrize("path", ["crm", "public"])
+@pytest.mark.parametrize("second_price", [None, 0])
+def test_unknown_item_price_keeps_the_chain_total_unknown(client, salon, path, second_price):
+    service = _ok(client.post("/services/", headers=salon["headers"], json={
+        "name": "Quote after consultation", "price": second_price,
+        "duration_minutes": 30, "specialist_id": salon["owner"].id,
+    }), "service price")
+    ids = [salon["first"]["id"], service["id"]]
+    if path == "crm":
+        response = client.post("/visits/", headers=salon["headers"], json=_chain_body(
+            salon, items=[{"service_id": service_id} for service_id in ids]))
+    else:
+        response = client.post(f"/public/booking/{salon['slug']}/bookings", json={
+            "service_ids": ids, "staff_id": salon["owner"].id,
+            "start": salon["start"].isoformat() + "Z", "full_name": "Unknown price guest",
+            "email": "unknown-chain@example.com", "processing_consent": True,
+            "client_request_id": "unknown-chain",
+        })
+    visit = _ok(response, "chain booking")
+    expected = None if second_price is None else 20.10
+    assert visit["price"] == expected
+    saved = _ok(client.get(f"/visits/{visit['id']}", headers=salon["headers"]), "stored chain")
+    assert saved["price"] == expected
+    assert [item["price"] for item in saved["items"]] == [20.10, second_price]
+
+
 def test_items_can_be_replaced_in_place(client, salon):
     visit = _ok(
         client.post("/visits/", json=_chain_body(salon), headers=salon["headers"]),
