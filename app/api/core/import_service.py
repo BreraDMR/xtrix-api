@@ -156,6 +156,8 @@ class Lookups:
     specialists: list[User] = field(default_factory=list)
     specialist_ids_by_email: dict[str, list[int]] = field(default_factory=dict)
     specialist_ids_by_name: dict[str, list[int]] = field(default_factory=dict)
+    # current (phone, email) per client, so a preview can replay an update the way execution does
+    client_contacts: dict[int, tuple[Optional[str], Optional[str]]] = field(default_factory=dict)
 
 
 @dataclass
@@ -880,6 +882,7 @@ def load_lookups(db: Session, scope: ImportScope, user: User) -> Lookups:
         lookups.specialists = [owner] if owner else [user]
 
     for client in clients:
+        lookups.client_contacts[client.id] = (client.contact_phone, client.contact_email)
         phone = normalize_phone(client.contact_phone)
         if phone:
             lookups.client_ids_by_phone.setdefault(phone, set()).add(client.id)
@@ -1030,6 +1033,31 @@ def build_preview(db: Session, batch: ImportBatch, scope: ImportScope, user: Use
         return _build_preview_locked(db, batch, scope, user, policy)
 
 
+def _simulated_outcome(
+    lookups: Lookups, action: str, match_id: Optional[int], client_data: dict[str, Any], new_id: int
+) -> Optional[RowOutcome]:
+    """What execution will later learn from this row, without touching the CRM.
+
+    A history file repeats one client on many rows. Execution sees the client created a few
+    rows above, so the preview has to see it too - otherwise the owner approves "create"
+    and the import quietly skips or updates instead.
+    """
+    phone, email = client_data.get("phone"), client_data.get("email")
+    if action == "create":
+        return RowOutcome(action="create", client_id=new_id, new_phone=phone, new_email=email)
+    if action == "update" and match_id is not None:
+        old_phone, old_email = lookups.client_contacts.get(match_id, (None, None))
+        return RowOutcome(
+            action="update",
+            client_id=match_id,
+            old_phone=old_phone,
+            old_email=old_email,
+            new_phone=phone or old_phone,
+            new_email=email or old_email,
+        )
+    return None
+
+
 def _build_preview_locked(
     db: Session,
     batch: ImportBatch,
@@ -1044,7 +1072,9 @@ def _build_preview_locked(
     lookups = load_lookups(db, scope, user)
     counts = PreviewCounts()
     headers = batch.headers or []
-    for row in batch.rows:
+    # rows are replayed in the same order execution uses; new clients get negative stand-in ids
+    simulated_client_id = 0
+    for row in sorted(batch.rows, key=lambda item: item.row_number):
         row.client_data = None
         row.visit_data = None
         row.action = None
@@ -1089,6 +1119,11 @@ def _build_preview_locked(
         row.visit_data = visit_data
         row.action = action
         row.status = "valid"
+        if action == "create":
+            simulated_client_id -= 1
+        outcome = _simulated_outcome(lookups, action, match_id, client_data, simulated_client_id)
+        if outcome is not None:
+            apply_row_outcome(lookups, outcome)
         counts.valid += 1
         if action == "create":
             counts.create += 1
@@ -1258,6 +1293,7 @@ def apply_row_outcome(lookups: Lookups, outcome: RowOutcome) -> None:
         new_email = normalize_email(outcome.new_email)
         if new_email:
             lookups.client_ids_by_email.setdefault(new_email, set()).add(outcome.client_id)
+        lookups.client_contacts[outcome.client_id] = (outcome.new_phone, outcome.new_email)
     if outcome.created_service is not None:
         name, service_id = outcome.created_service
         lookups.service_ids_by_name.setdefault(name, []).append(service_id)
