@@ -1,10 +1,12 @@
-"""Import review: a history file repeats one client on several rows.
+"""Import review: a history file repeats one client on several rows, and prices keep their unit.
 
 The owner approves the preview, so what runs must be exactly what the preview showed,
 including rows that repeat a client created a few lines above in the same file.
 """
 import pytest
 
+from app.api.core import legacy_visit_currency
+from app.db.models.business import Business
 from app.db.models.client import Client
 from app.db.models.visit import Visit
 from tests.tenant_world import build_tenant
@@ -62,3 +64,24 @@ def test_repeated_client_in_one_file_runs_exactly_as_previewed(
     assert len(imported) == clients
     assert db.query(Visit).filter(Visit.client_id.in_([item.id for item in imported])).count() == visits
 
+
+def test_imported_visit_prices_keep_the_business_currency(client, db, make_user, headers_for):
+    world = build_tenant(client, make_user, headers_for, "Cur", "+42070082")
+    business_id = world["business"]["id"]
+    db.query(Business).filter(Business.id == business_id).update({"currency": "CZK"})
+    db.commit()
+    unknown_before = legacy_visit_currency.preview(db, business_id)["unknown_visits"]
+
+    rows = [["Priced Person", "+420700825551", "", "", "", "", "2026-02-01 10:00", "Cut", "", "1200", "completed", "cash"]]
+    batch = _prepare(client, world["headers"], _csv(rows))
+    assert batch["currency"] == "CZK"
+    confirmed = _confirm(client, world["headers"], batch)
+    assert confirmed.status_code == 200, confirmed.text
+
+    db.expire_all()
+    person = db.query(Client).filter(Client.full_name == "Priced Person").one()
+    visit = db.query(Visit).filter(Visit.client_id == person.id).one()
+    assert visit.price == 1200
+    # the preview told the owner these prices are CZK, so the visit must say so too
+    assert visit.currency_snapshot == "CZK"
+    assert legacy_visit_currency.preview(db, business_id)["unknown_visits"] == unknown_before

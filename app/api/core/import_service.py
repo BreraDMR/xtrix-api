@@ -1360,12 +1360,21 @@ def _execute_row(
         if service is not None and service.duration_minutes:
             duration = service.duration_minutes
         from app.api.core.crm_metering import enforce_visit_quota
+        from app.api.core import visit_currency
         enforce_visit_quota(db, scope.business_id, specialist_id, start, visit_data.get("status") or "completed")
+        # The preview showed prices in the business currency, so the visit keeps that unit.
+        # Same rule as a visit made by hand: solo and foreign catalog stay unknown.
+        currency = visit_currency.currency_for_catalog(
+            visit_currency.lock_business_currency(db, scope.business_id),
+            scope.business_id,
+            [service] if service is not None else [],
+        )
         visit = Visit(
             client_id=client.id,
             specialist_id=specialist_id,
             service_id=service.id if service is not None else None,
             business_id=scope.business_id,
+            currency_snapshot=currency,
             date_start=start,
             date_end=start + timedelta(minutes=duration),
             service_name=(service.name if service is not None else visit_data.get("service_name")),
