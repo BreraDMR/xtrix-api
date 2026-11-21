@@ -16,7 +16,6 @@ import unicodedata
 from functools import lru_cache
 from typing import Iterable, Optional
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.core.permissions import get_accessible_client_ids
@@ -236,12 +235,18 @@ def own_clients(db: Session, user, *, phone: Optional[str] = None, email: Option
     ids = get_accessible_client_ids(db, user) or set()
     if not ids:
         return []
+    if phone or email:
+        # any of the card's numbers or emails; a shared family number can give several cards,
+        # best match first (see client_contacts.find_clients)
+        from app.api.core import client_contacts
+        q = db.query(Client).filter(Client.id.in_(ids), Client.deleted_at.is_(None), Client.archived_at.is_(None))
+        found = client_contacts.find_clients(db, q, phone=phone) if phone else None
+        if email:
+            by_email = client_contacts.find_clients(db, q, email=email)
+            found = by_email if found is None else [c for c in found if c.id in {e.id for e in by_email}]
+        return [(c.id, c.full_name or "") for c in found]
     q = db.query(Client.id, Client.full_name).filter(Client.id.in_(ids), Client.deleted_at.is_(None),
                                                      Client.archived_at.is_(None))
-    if phone:
-        q = q.filter(Client.contact_phone == phone)
-    if email:
-        q = q.filter(func.lower(Client.contact_email) == email.lower())
     return [(cid, name or "") for cid, name in q.order_by(Client.id).all()]
 
 

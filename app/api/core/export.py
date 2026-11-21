@@ -133,6 +133,19 @@ def _as_dict(obj: Any) -> Dict[str, Any]:
     if hasattr(obj, '__table__'):
         return {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
     return dict(obj)
+def _extra_contacts(client: Any, kind: str, count: int) -> Dict[str, Any]:
+    """The card's other phones/emails as 'Phone 2'.. columns - the import reads them back."""
+    rows = client.get('contacts') if isinstance(client, dict) else getattr(client, 'contacts', None)
+    values = []
+    for row in rows or []:
+        row_kind = row.get('kind') if isinstance(row, dict) else row.kind
+        primary = row.get('is_primary') if isinstance(row, dict) else row.is_primary
+        if row_kind == kind and not primary:
+            values.append(row.get('value') if isinstance(row, dict) else row.value)
+    title = 'Phone' if kind == 'phone' else 'Email'
+    return {f'{title} {n}': (values[n - 2] if len(values) > n - 2 else None) for n in range(2, count + 2)}
+
+
 def prepare_client_export_data(clients: List[Any]) -> List[Dict[str, Any]]:
     export_data = []
     for client in clients:
@@ -144,6 +157,8 @@ def prepare_client_export_data(clients: List[Any]) -> List[Dict[str, Any]]:
             'Gender': data.get('gender'),
             'Contact Phone': data.get('contact_phone'),
             'Contact Email': data.get('contact_email'),
+            **_extra_contacts(client, 'phone', 4),
+            **_extra_contacts(client, 'email', 2),
             'Allergies': data.get('allergies'),
             'Chronic Diseases': data.get('chronic_diseases'),
             'Pregnancy': data.get('pregnancy'),

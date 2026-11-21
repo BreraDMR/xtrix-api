@@ -219,7 +219,7 @@ def test_contact_name_and_consent_are_validated(client, make_user, headers_for):
     salon = _salon(client, make_user, headers_for, "Valid")
     start, _day = _local_utc()
     cases = {
-        "both contacts": _body(salon, start, "both-contacts", phone="+420777123456"),
+        # a phone together with an email is fine now - see test_public_booking_contacts.py
         "no contact": {k: v for k, v in _body(salon, start, "no-contact-1").items() if k != "email"},
         "blank name": _body(salon, start, "blank-name-1", full_name="   "),
         "name with newline": _body(salon, start, "newline-name", full_name="Ann\nBcc: x"),

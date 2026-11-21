@@ -1,7 +1,7 @@
 from typing import Set, Optional, Tuple
 from datetime import date, timedelta
 from sqlalchemy.orm import Session
-from app.api.core import audit_service
+from app.api.core import audit_service, client_contacts
 from app.api.core.clock import utcnow
 from sqlalchemy import func, and_
 from app.api.core.redis_client import (
@@ -33,14 +33,13 @@ def find_duplicate_client(
         if not within_ids:
             return None
         query = query.filter(Client.id.in_(within_ids))
-    if contact_phone:
-        phone_cleaned = contact_phone.strip()
-        client = query.filter(Client.contact_phone == phone_cleaned).first()
+    # any of the card's numbers or emails counts, not just the primary one
+    if contact_phone and contact_phone.strip():
+        client = client_contacts.find_client(db, query, phone=contact_phone)
         if client:
             return client, "contact_phone"
-    if contact_email:
-        email_cleaned = contact_email.strip().lower()
-        client = query.filter(func.lower(Client.contact_email) == email_cleaned).first()
+    if contact_email and contact_email.strip():
+        client = client_contacts.find_client(db, query, email=contact_email)
         if client:
             return client, "contact_email"
     if full_name and birth_date:
@@ -116,12 +115,15 @@ def create_client_for(
 ) -> Client:
     client_data = client_in.model_dump()
     client_data.pop('owner_id', None)  
+    client_data.pop('contacts', None)
+    client_data.pop('allow_shared_contact', None)
     client = Client(**client_data)
     if specialist_id and not business_id:
         # solo specialist: no business to hang relations on, so ownership is the only link
         client.owner_id = specialist_id
     db.add(client)
     db.flush()  
+    client_contacts.apply_payload(db, client, client_in.contacts)
     if specialist_id:
         try:
             validate_healthcare_required_fields(db, client.id, specialist_id)
@@ -150,9 +152,12 @@ def create_client_for(
 def create_client(db: Session, client_in: ClientCreate, specialist_id: Optional[int] = None) -> Client:
     client_data = client_in.model_dump()
     client_data.pop('owner_id', None)  
+    client_data.pop('contacts', None)
+    client_data.pop('allow_shared_contact', None)
     client = Client(**client_data)
     db.add(client)
     db.flush()  
+    client_contacts.apply_payload(db, client, client_in.contacts)
     if specialist_id:
         try:
             validate_healthcare_required_fields(db, client.id, specialist_id)
@@ -178,9 +183,22 @@ def update_client(
     request_id: Optional[str] = None,
 ) -> Client:
     data = update.model_dump(exclude_unset=True)
+    data.pop('contacts', None)
+    before = client_contacts.snapshot(client)
+    columns_before = (client.contact_phone, client.contact_email)
     changed = [field for field, value in data.items() if getattr(client, field) != value]
     for field, value in data.items():
         setattr(client, field, value)
+    if update.contacts is not None:
+        client_contacts.apply_payload(db, client, update.contacts)
+    elif 'contact_phone' in data or 'contact_email' in data:
+        client_contacts.sync_from_columns(db, client)
+    # a new contacts list can move the primary, and with it the mirrored columns
+    for field, old in zip(('contact_phone', 'contact_email'), columns_before):
+        if getattr(client, field) != old and field not in changed:
+            changed.append(field)
+    if client_contacts.snapshot(client) != before:
+        changed.append('contacts')
     if changed:
         audit_service.record_event(
             db,
@@ -311,7 +329,8 @@ def list_clients(
         else:
             q = q.filter(Client.owner_id == owner_id)
     if phone:
-        q = q.filter(Client.contact_phone == phone)
+        q = q.filter(client_contacts.contact_filter(phone=phone)) if any(ch.isdigit() for ch in phone) \
+            else q.filter(Client.contact_phone == phone)
     if name:
         q = q.filter(Client.full_name.ilike(f"%{name}%"))
     if search:
@@ -319,7 +338,8 @@ def list_clients(
         pattern = f"%{escaped}%"
         q = q.filter(or_(Client.full_name.ilike(pattern, escape="\\"),
                          Client.contact_phone.ilike(pattern, escape="\\"),
-                         Client.contact_email.ilike(pattern, escape="\\")))
+                         Client.contact_email.ilike(pattern, escape="\\"),
+                         client_contacts.search_filter(pattern)))
     if gender:
         q = q.filter(Client.gender == gender)
     if accessible_client_ids is not None:

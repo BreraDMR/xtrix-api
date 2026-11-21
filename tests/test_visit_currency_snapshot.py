@@ -150,7 +150,7 @@ def previous_columns_snapshot(bind):
 def test_0081_0082_roundtrip_preserves_every_old_column_payment_and_gift_and_backfills_nothing(db, financial_world):
     world = financial_world
     bind, config = db.get_bind(), Config("alembic.ini")
-    assert ScriptDirectory.from_config(config).get_heads() == ["0094_visitor_push_tokens"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0095_contacts_client_contacts"]
     db.rollback()
     before = previous_columns_snapshot(bind)
     try:

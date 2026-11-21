@@ -284,6 +284,6 @@ def test_migration_roundtrip_when_empty_and_guard_when_rows_exist(client, db, sa
     db.close()
     with pytest.raises(DBAPIError, match='Price corrections exist'):
         command.downgrade(config, '0089_released_slot_jobs')
-    assert db.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0094_visitor_push_tokens'
+    assert db.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0095_contacts_client_contacts'
     assert db.query(VisitPriceCorrection).count() == 1
     db.rollback()

@@ -59,7 +59,7 @@ def test_job_in_flight_blocks_the_downgrade_like_a_pending_one(db):
         with pytest.raises(DBAPIError, match="still queued"):
             command.downgrade(config, BEFORE_QUEUE)
         with bind.connect() as connection:
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0094_visitor_push_tokens"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0095_contacts_client_contacts"
             assert connection.execute(text("SELECT count(*) FROM visitor_proof_mail_jobs")).scalar_one() == 1
     finally:
         db.rollback()

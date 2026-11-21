@@ -1,5 +1,6 @@
 from app.db.models.user import User
 from app.db.models.client import Client
+from app.db.models.client_contact import ClientContact
 from app.db.models.client_specialist_relation import ClientSpecialistRelation
 from app.db.models.client_business_relation import ClientBusinessRelation
 from app.db.models.client_note import ClientNote

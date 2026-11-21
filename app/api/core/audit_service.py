@@ -76,6 +76,7 @@ CLIENT_NAME_KEYS = frozenset(
         "gender",
         "contact_phone",
         "contact_email",
+        "contacts",
         "location_lat",
         "location_lon",
         "language",

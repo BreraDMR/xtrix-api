@@ -3,6 +3,7 @@ from datetime import date, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
 from app.db.session import SessionLocal
+from app.api.core import client_contacts
 from app.api.core.logger import logger
 from app.db.models.client import Client
 from app.db.models.visit import Visit
@@ -39,7 +40,8 @@ def send_automatic_reminders(channel: str = "email") -> int:
         client_ids = {v.client_id for v in visits}
         clients = db.query(Client).filter(Client.id.in_(client_ids)).all()
         contacts = {
-            c.id: {"email": c.contact_email, "phone": c.contact_phone, "language": c.language, "name": c.full_name}
+            c.id: {"email": client_contacts.notify_email(c), "phone": client_contacts.notify_phone(c),
+                   "language": c.language, "name": c.full_name}
             for c in clients
         }
         sent = 0
@@ -94,18 +96,19 @@ def send_birthday_greetings(channel: str = "email") -> int:
                     if was_sent(db, f"birthday_{channel}", greeting_key):
                         continue
                     ok = False
-                    if channel == "email" and client.contact_email:
-                        ok = send_birthday_greeting_email(client.contact_email, client.full_name, business_name, language=client.language)
+                    email, phone = client_contacts.notify_email(client), client_contacts.notify_phone(client)
+                    if channel == "email" and email:
+                        ok = send_birthday_greeting_email(email, client.full_name, business_name, language=client.language)
                         if ok:
                             sent_count += 1
                             logger.info(f"Sent birthday email to client {client.id}")
-                    elif channel == "sms" and client.contact_phone:
-                        ok = send_birthday_greeting_sms(client.contact_phone, client.full_name, business_name, language=client.language)
+                    elif channel == "sms" and phone:
+                        ok = send_birthday_greeting_sms(phone, client.full_name, business_name, language=client.language)
                         if ok:
                             sent_count += 1
                             logger.info(f"Sent birthday SMS to client {client.id}")
-                    elif channel == "whatsapp" and client.contact_phone:
-                        ok = send_birthday_greeting_whatsapp(client.contact_phone, client.full_name, business_name, language=client.language)
+                    elif channel == "whatsapp" and phone:
+                        ok = send_birthday_greeting_whatsapp(phone, client.full_name, business_name, language=client.language)
                         if ok:
                             sent_count += 1
                             logger.info(f"Sent birthday WhatsApp to client {client.id}")
@@ -158,9 +161,10 @@ def send_visit_followups(channel: str = "email", hours_after: int = 24) -> int:
                     business = db.query(Business).filter(Business.id == visit.business_id).first()
                     business_name = business.name if business else None
                 service_name = visit.service_name or (visit.service.name if visit.service else str(visit.service_id))
-                if channel == "email" and client.contact_email:
+                email, phone = client_contacts.notify_email(client), client_contacts.notify_phone(client)
+                if channel == "email" and email:
                     ok = send_visit_followup_email(
-                        client.contact_email,
+                        email,
                         client.full_name,
                         visit.date_end or visit.date_start,
                         service_name,
@@ -170,9 +174,9 @@ def send_visit_followups(channel: str = "email", hours_after: int = 24) -> int:
                     if ok:
                         sent_count += 1
                         logger.info(f"Sent follow-up email for visit {visit.id} to client {client.id}")
-                elif channel == "sms" and client.contact_phone:
+                elif channel == "sms" and phone:
                     ok = send_visit_followup_sms(
-                        client.contact_phone,
+                        phone,
                         client.full_name,
                         visit.date_end or visit.date_start,
                         service_name,
@@ -182,9 +186,9 @@ def send_visit_followups(channel: str = "email", hours_after: int = 24) -> int:
                     if ok:
                         sent_count += 1
                         logger.info(f"Sent follow-up SMS for visit {visit.id} to client {client.id}")
-                elif channel == "whatsapp" and client.contact_phone:
+                elif channel == "whatsapp" and phone:
                     ok = send_visit_followup_whatsapp(
-                        client.contact_phone,
+                        phone,
                         client.full_name,
                         visit.date_end or visit.date_start,
                         service_name,

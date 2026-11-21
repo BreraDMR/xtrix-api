@@ -185,10 +185,11 @@ class PublicBookingCreate(InputModel):
             raise invalid("invalid_service", "Service ids must be positive")
         if any(ord(char) < 32 or ord(char) == 127 for char in self.full_name):
             raise invalid("invalid_name", "The name can't contain line breaks or control characters")
-        if bool(self.phone) == bool(self.email):
+        # a phone, an email or both - the salon needs at least one way to reach the guest
+        if not self.phone and not self.email:
             raise invalid(
                 "contact_choice",
-                "Provide exactly one contact: a phone number or an email",
+                "Provide a phone number, an email or both",
             )
         if not self.processing_consent:
             raise invalid(

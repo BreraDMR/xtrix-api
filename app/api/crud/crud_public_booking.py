@@ -1,8 +1,7 @@
-import re
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -444,17 +443,11 @@ def find_business_client_by_contact(
     phone: Optional[str],
     email: Optional[str],
 ) -> Optional[Client]:
-    """Match only inside this business; a stranger's contact in another salon is invisible here."""
-    query = _business_clients_query(db, business_id)
-    if email:
-        return query.filter(func.lower(Client.contact_email) == email.lower()).first()
-    if not phone:
-        return None
-    digits = re.sub(r"\D", "", phone)
-    expression = Client.contact_phone
-    for character in (" ", "-", "(", ")", ".", "/", "+"):
-        expression = func.replace(expression, character, "")
-    return query.filter(Client.contact_phone.isnot(None), expression == digits).first()
+    """Match only inside this business; a stranger's contact in another salon is invisible here.
+    Any of the card's phones and emails counts."""
+    from app.api.core import client_contacts
+
+    return client_contacts.find_booking_client(db, _business_clients_query(db, business_id), phone, email)
 
 
 def ensure_client_relations(
@@ -507,5 +500,10 @@ def find_or_create_client(
     )
     db.add(client)
     db.flush()
+    from app.api.core import client_contacts
+
+    client_contacts.sync_from_columns(db, client)
+    if payload.phone and secondary_phone:
+        client_contacts.add_contacts(db, client, "phone", [secondary_phone])
     ensure_client_relations(db, client.id, business_id, specialist_id)
     return client

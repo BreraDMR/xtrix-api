@@ -2032,8 +2032,116 @@
         "title": "CashbackCurrencyTrend",
         "type": "object"
       },
+      "ClientContactIn": {
+        "properties": {
+          "is_primary": {
+            "default": false,
+            "title": "Is Primary",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "phone",
+              "email"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Free text like 'work' or 'mum'",
+            "title": "Label"
+          },
+          "notify": {
+            "default": true,
+            "description": "Reminders and other messages may go to this contact",
+            "title": "Notify",
+            "type": "boolean"
+          },
+          "value": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "value"
+        ],
+        "title": "ClientContactIn",
+        "type": "object"
+      },
+      "ClientContactOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_primary": {
+            "title": "Is Primary",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "phone",
+              "email"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "notify": {
+            "title": "Notify",
+            "type": "boolean"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "value",
+          "is_primary",
+          "notify",
+          "created_at"
+        ],
+        "title": "ClientContactOut",
+        "type": "object"
+      },
       "ClientCreate": {
         "properties": {
+          "allow_shared_contact": {
+            "default": false,
+            "description": "Create the card even though another client already has one of these phones or emails (a family sharing a number). Name + birth date duplicates are still refused",
+            "title": "Allow Shared Contact",
+            "type": "boolean"
+          },
           "birth_date": {
             "anyOf": [
               {
@@ -2068,6 +2176,22 @@
               }
             ],
             "title": "Contact Phone"
+          },
+          "contacts": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ClientContactIn"
+                },
+                "maxItems": 8,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Every phone (up to 5) and email (up to 3). When sent, it is the whole list and contact_phone / contact_email follow its primary entries",
+            "title": "Contacts"
           },
           "full_name": {
             "maxLength": 255,
@@ -2450,6 +2574,14 @@
               }
             ],
             "title": "Contact Phone"
+          },
+          "contacts": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ClientContactOut"
+            },
+            "title": "Contacts",
+            "type": "array"
           },
           "created_at": {
             "format": "date-time",
@@ -3273,6 +3405,14 @@
             ],
             "title": "Contact Phone"
           },
+          "contacts": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ClientContactOut"
+            },
+            "title": "Contacts",
+            "type": "array"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -3523,6 +3663,22 @@
               }
             ],
             "title": "Contact Phone"
+          },
+          "contacts": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ClientContactIn"
+                },
+                "maxItems": 8,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Replaces every phone and email of the card. Leave it out to keep them",
+            "title": "Contacts"
           },
           "full_name": {
             "anyOf": [
@@ -7667,7 +7823,7 @@
             "additionalProperties": {
               "type": "string"
             },
-            "maxProperties": 12,
+            "maxProperties": 16,
             "title": "Mapping",
             "type": "object"
           }
@@ -7718,6 +7874,14 @@
               }
             ],
             "title": "Email"
+          },
+          "extra_phones": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Extra Phones",
+            "type": "array"
           },
           "full_name": {
             "title": "Full Name",

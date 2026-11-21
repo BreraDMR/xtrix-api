@@ -10,7 +10,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Path
 from sqlalchemy.orm import Session
 from app.api import deps
-from app.api.core import audit_service
+from app.api.core import audit_service, client_contacts
 from app.schemas.datetimes import UtcDatetime
 from app.api.core.i18n import _
 from app.api.core.logger import get_logger
@@ -311,7 +311,8 @@ def send_reminders(
     if client_ids:
         clients = db.query(Client).filter(Client.id.in_(client_ids)).all()
         contacts = {
-            c.id: {"email": c.contact_email, "phone": c.contact_phone, "language": c.language, "name": c.full_name}
+            c.id: {"email": client_contacts.notify_email(c), "phone": client_contacts.notify_phone(c),
+                   "language": c.language, "name": c.full_name}
             for c in clients
         }
     sent = send_notifications(due, channel=channel, contacts=contacts)

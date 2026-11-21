@@ -5,11 +5,13 @@ only when the message is rendered, so the database never keeps a usable credenti
 The link is built from FRONTEND_URL, never from a request header.
 """
 import secrets
+from typing import Optional
 from html import escape
 from urllib.parse import quote, urlsplit
 
 from sqlalchemy.orm import Session
 
+from app.api.core import client_contacts
 from app.api.core.config import settings
 from app.api.core.logger import get_logger
 from app.api.core.notification_outbox import enqueue_notification
@@ -78,15 +80,19 @@ def _html(body: str, link: str) -> str:
     return "<html><body>" + "".join(paragraphs) + "</body></html>"
 
 
-def queue_portal_login(db: Session, business: Business, client: Client) -> NotificationOutbox:
-    if not client.contact_email:
-        raise ClientPortalEmailError("client has no email")
+def queue_portal_login(
+    db: Session, business: Business, client: Client, email: Optional[str] = None
+) -> NotificationOutbox:
+    emails = client_contacts.client_emails(client)
+    recipient = client_contacts.normalize_email(email) if email else client_contacts.notify_email(client)
+    if not recipient or recipient not in emails:
+        raise ClientPortalEmailError("client has no such email")
     event_key = f"client:{client.id}:portal_login:{secrets.token_hex(12)}"
     return enqueue_notification(
         db,
         event_key=event_key,
         kind=KIND,
-        recipient=client.contact_email,
+        recipient=recipient,
         business_id=business.id,
         language=client.language if client.language in _TEXTS else None,
         payload={"business_id": business.id, "client_id": client.id},
@@ -109,7 +115,7 @@ def render_client_portal_login(db: Session, row: NotificationOutbox) -> Outbound
     )
     if relation is None:
         raise ClientPortalEmailError("client is no longer attached to the business")
-    if not client.contact_email or client.contact_email.lower() != row.recipient.lower():
+    if (row.recipient or "").strip().lower() not in client_contacts.client_emails(client):
         raise ClientPortalEmailError("the client email changed after the request")
 
     raw_token = crud_client_portal.issue_magic_token(db, business.id, client.id)

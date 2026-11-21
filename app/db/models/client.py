@@ -36,3 +36,11 @@ class Client(Base):
     business_relations = relationship("ClientBusinessRelation", back_populates="client", lazy="dynamic", cascade="all,delete")
     notes = relationship("ClientNote", back_populates="client", lazy="dynamic", cascade="all,delete")
     medical_profile = relationship("MedicalProfile", back_populates="client", uselist=False, cascade="all,delete")  
+    # primary first, then in the order they were added; selectin so lists don't do a query per card
+    contacts = relationship(
+        "ClientContact",
+        back_populates="client",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="(ClientContact.kind.desc(), ClientContact.is_primary.desc(), ClientContact.id)",
+    )

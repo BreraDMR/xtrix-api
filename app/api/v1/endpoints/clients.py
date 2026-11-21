@@ -10,7 +10,7 @@ from app.api.core.pagination import MAX_PAGE, PaginationParams, PaginatedRespons
 from app.api.core.qr_code import generate_qr_code_base64, parse_qr_code_data, verify_qr_code_hash
 from app.api.crud import crud_client, crud_visit
 from app.db.models.user import User
-from app.schemas.client import ClientCreate, ClientOut, ClientUpdate, ClientSearchOut, BasicMedicalInfo
+from app.schemas.client import ClientCreate, ClientOut, ClientUpdate, ClientSearchOut, BasicMedicalInfo, ClientContactOut
 from app.schemas.qr_code import QRCodeGenerateResponse, QRCodeAccessRequest, ClientHistoryResponse
 from app.api.middleware.rate_limit import limiter, EXPORT_LIMIT, SENSITIVE_LIMIT
 from app.schemas.datetimes import utc_iso
@@ -69,14 +69,27 @@ def create_client(
     from app.api.core.permissions import get_accessible_client_ids
     # same phone/email among the caller's own clients means it's the same person - say so instead of
     # quietly handing back the old card. Other businesses' clients are never matched (or exposed).
+    within_ids = get_accessible_client_ids(db, current_user) or set()
+    # a family sharing one number is fine once the staff said so; the same name + birthday never is
+    shared_ok = client.allow_shared_contact
     duplicate = crud_client.find_duplicate_client(
         db,
-        contact_phone=client.contact_phone,
-        contact_email=client.contact_email,
+        contact_phone=None if shared_ok else client.contact_phone,
+        contact_email=None if shared_ok else client.contact_email,
         full_name=client.full_name,
         birth_date=client.birth_date,
-        within_ids=get_accessible_client_ids(db, current_user) or set(),
+        within_ids=within_ids,
     )
+    for extra in [] if shared_ok else client.contacts or []:
+        if duplicate:
+            break
+        # every number on the new card counts, not just the primary one
+        duplicate = crud_client.find_duplicate_client(
+            db,
+            contact_phone=extra.value if extra.kind == "phone" else None,
+            contact_email=extra.value if extra.kind == "email" else None,
+            within_ids=within_ids,
+        )
     if duplicate:
         existing, matched_by = duplicate
         raise HTTPException(status_code=409, detail={
@@ -296,6 +309,7 @@ def search_client_global(
         gender=client.gender,
         contact_phone=client.contact_phone,
         contact_email=client.contact_email,
+        contacts=[ClientContactOut.model_validate(c) for c in client.contacts],
         basic_medical_info=basic_medical_info if is_healthcare else None,
         is_linked_to_my_business=is_linked,
         created_at=client.created_at,

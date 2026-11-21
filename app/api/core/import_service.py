@@ -35,6 +35,7 @@ from sqlalchemy.orm import Session
 from app.api.core.clock import utcnow
 from app.api.core.logger import get_logger
 from app.api.core.permissions import get_staff_record
+from app.api.core import client_contacts
 from app.api.core.security import validate_email, validate_phone
 from app.db.models.business import Business
 from app.db.models.client import Client
@@ -80,6 +81,10 @@ _FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "full_name": ("name", "full name", "client", "client name", "имя", "фио", "jméno", "cele jmeno"),
     "phone": ("phone", "phone number", "telephone", "tel", "тел", "телефон", "telefon"),
     "email": ("email", "e mail", "mail", "почта", "imejl", "e mailova adresa"),
+    **{
+        f"phone{n}": (f"phone {n}", f"phone{n}", f"tel {n}", f"телефон {n}", f"telefon {n}")
+        for n in range(2, 6)
+    },
     "birth_date": (
         "birth date",
         "birthday",
@@ -158,6 +163,8 @@ class Lookups:
     specialist_ids_by_name: dict[str, list[int]] = field(default_factory=dict)
     # current (phone, email) per client, so a preview can replay an update the way execution does
     client_contacts: dict[int, tuple[Optional[str], Optional[str]]] = field(default_factory=dict)
+    # every phone/email key a client is indexed under above, so an update can re-index it
+    client_keys: dict[int, tuple[set[str], set[str]]] = field(default_factory=dict)
 
 
 @dataclass
@@ -817,6 +824,17 @@ def parse_client_values(values: list[Optional[str]], mapping: dict[str, str], he
             raise ImportRowError("invalid_phone", "phone")
         data["phone"] = phone
 
+    extra_phones = []
+    for n in range(2, 6):
+        extra = _row_value(values, mapping, headers, f"phone{n}")
+        if extra and extra.strip():
+            valid, _error = validate_phone(extra)
+            if not valid:
+                raise ImportRowError("invalid_phone", f"phone{n}")
+            extra_phones.append(extra.strip())
+    if extra_phones:
+        data["extra_phones"] = extra_phones
+
     email = _row_value(values, mapping, headers, "email")
     if email:
         valid, _error = validate_email(email)
@@ -887,12 +905,12 @@ def load_lookups(db: Session, scope: ImportScope, user: User) -> Lookups:
 
     for client in clients:
         lookups.client_contacts[client.id] = (client.contact_phone, client.contact_email)
-        phone = normalize_phone(client.contact_phone)
-        if phone:
-            lookups.client_ids_by_phone.setdefault(phone, set()).add(client.id)
-        email = normalize_email(client.contact_email)
-        if email:
-            lookups.client_ids_by_email.setdefault(email, set()).add(client.id)
+        # every number and email of the card, not just the primary pair
+        phones = {normalize_phone(client.contact_phone)} | {
+            normalize_phone(c.value) for c in client.contacts if c.kind == "phone"}
+        emails = {normalize_email(client.contact_email)} | {
+            normalize_email(c.value) for c in client.contacts if c.kind == "email"}
+        _index_client(lookups, client.id, {p for p in phones if p}, {e for e in emails if e})
     for service in services:
         name = _normalize_name(service.name or "")
         if name:
@@ -907,13 +925,29 @@ def load_lookups(db: Session, scope: ImportScope, user: User) -> Lookups:
     return lookups
 
 
+def _index_client(lookups: Lookups, client_id: int, phones: set[str], emails: set[str]) -> None:
+    old_phones, old_emails = lookups.client_keys.get(client_id, (set(), set()))
+    for key in old_phones:
+        _forget_contact(lookups.client_ids_by_phone, key, client_id)
+    for key in old_emails:
+        _forget_contact(lookups.client_ids_by_email, key, client_id)
+    for key in phones:
+        lookups.client_ids_by_phone.setdefault(key, set()).add(client_id)
+    for key in emails:
+        lookups.client_ids_by_email.setdefault(key, set()).add(client_id)
+    lookups.client_keys[client_id] = (set(phones), set(emails))
+
+
 def match_client(
-    lookups: Lookups, phone: Optional[str], email: Optional[str]
+    lookups: Lookups, phone: Optional[str], email: Optional[str], extra_phones: Iterable[str] = ()
 ) -> Optional[int]:
+    # a phone shared by a family can point at several cards; an import can't tell them apart,
+    # so that row stops with ambiguous_match instead of updating the wrong person
     matched: set[int] = set()
-    phone_key = normalize_phone(phone)
-    if phone_key:
-        matched.update(lookups.client_ids_by_phone.get(phone_key, set()))
+    for one in (phone, *extra_phones):
+        phone_key = normalize_phone(one)
+        if phone_key:
+            matched.update(lookups.client_ids_by_phone.get(phone_key, set()))
     email_key = normalize_email(email)
     if email_key:
         matched.update(lookups.client_ids_by_email.get(email_key, set()))
@@ -927,12 +961,14 @@ def ensure_no_contact_conflict(
     phone: Optional[str],
     email: Optional[str],
     exclude_client_id: int,
+    extra_phones: Iterable[str] = (),
 ) -> None:
-    phone_key = normalize_phone(phone)
-    if phone_key:
-        others = lookups.client_ids_by_phone.get(phone_key, set()) - {exclude_client_id}
-        if others:
-            raise ImportRowError("contact_conflict", "phone")
+    for one in (phone, *extra_phones):
+        phone_key = normalize_phone(one)
+        if phone_key:
+            others = lookups.client_ids_by_phone.get(phone_key, set()) - {exclude_client_id}
+            if others:
+                raise ImportRowError("contact_conflict", "phone")
     email_key = normalize_email(email)
     if email_key:
         others = lookups.client_ids_by_email.get(email_key, set()) - {exclude_client_id}
@@ -1047,10 +1083,22 @@ def _simulated_outcome(
     and the import quietly skips or updates instead.
     """
     phone, email = client_data.get("phone"), client_data.get("email")
+    extras = {normalize_phone(p) for p in client_data.get("extra_phones") or []}
     if action == "create":
-        return RowOutcome(action="create", client_id=new_id, new_phone=phone, new_email=email)
+        phones = ({normalize_phone(phone)} | extras) - {None}
+        return RowOutcome(action="create", client_id=new_id, new_phone=phone, new_email=email,
+                          phone_keys=phones, email_keys={normalize_email(email)} - {None})
     if action == "update" and match_id is not None:
         old_phone, old_email = lookups.client_contacts.get(match_id, (None, None))
+        phones, emails = (set(keys) for keys in lookups.client_keys.get(match_id, (set(), set())))
+        # same as client_contacts.sync_from_columns: a new primary takes the old primary's place
+        # unless the card already had that number
+        if phone and normalize_phone(phone) not in phones:
+            phones.discard(normalize_phone(old_phone))
+        if email and normalize_email(email) not in emails:
+            emails.discard(normalize_email(old_email))
+        phones = (phones | {normalize_phone(phone)} | extras) - {None}
+        emails = (emails | {normalize_email(email)}) - {None}
         return RowOutcome(
             action="update",
             client_id=match_id,
@@ -1058,6 +1106,8 @@ def _simulated_outcome(
             old_email=old_email,
             new_phone=phone or old_phone,
             new_email=email or old_email,
+            phone_keys=phones,
+            email_keys=emails,
         )
     return None
 
@@ -1095,7 +1145,8 @@ def _build_preview_locked(
             if not isinstance(values, list):
                 raise ImportRowError("malformed_row")
             client_data = parse_client_values(values, mapping, headers)
-            match_id = match_client(lookups, client_data.get("phone"), client_data.get("email"))
+            extra_phones = client_data.get("extra_phones") or []
+            match_id = match_client(lookups, client_data.get("phone"), client_data.get("email"), extra_phones)
             action = decide_action(match_id, policy)
             if action == "update" and match_id is not None:
                 ensure_no_contact_conflict(
@@ -1103,6 +1154,7 @@ def _build_preview_locked(
                     client_data.get("phone"),
                     client_data.get("email"),
                     match_id,
+                    extra_phones,
                 )
             visit_data = parse_visit_values(
                 values,
@@ -1216,8 +1268,21 @@ def _create_client(
     )
     db.add(client)
     db.flush()
+    _save_contacts(db, client, data)
     _ensure_relations(db, scope, user, client.id)
     return client
+
+
+def _save_contacts(db: Session, client: Client, data: dict[str, Any]) -> None:
+    client_contacts.sync_from_columns(db, client)
+    if data.get("extra_phones"):
+        client_contacts.add_contacts(db, client, "phone", data["extra_phones"])
+
+
+def _client_keys(client: Client) -> tuple[set[str], set[str]]:
+    phones = {normalize_phone(c.value) for c in client.contacts if c.kind == "phone"}
+    emails = {normalize_email(c.value) for c in client.contacts if c.kind == "email"}
+    return phones - {None}, emails - {None}
 
 
 def _resolve_service_for_row(
@@ -1271,6 +1336,9 @@ class RowOutcome:
     new_phone: Optional[str] = None
     new_email: Optional[str] = None
     created_service: Optional[tuple[str, int]] = None
+    # all keys the card ends up with; None means "just the primary pair above"
+    phone_keys: Optional[set[str]] = None
+    email_keys: Optional[set[str]] = None
 
 
 def _forget_contact(values: dict[str, set[int]], key: Optional[str], client_id: int) -> None:
@@ -1298,6 +1366,8 @@ def apply_row_outcome(lookups: Lookups, outcome: RowOutcome) -> None:
         if new_email:
             lookups.client_ids_by_email.setdefault(new_email, set()).add(outcome.client_id)
         lookups.client_contacts[outcome.client_id] = (outcome.new_phone, outcome.new_email)
+        if outcome.phone_keys is not None or outcome.email_keys is not None:
+            _index_client(lookups, outcome.client_id, outcome.phone_keys or set(), outcome.email_keys or set())
     if outcome.created_service is not None:
         name, service_id = outcome.created_service
         lookups.service_ids_by_name.setdefault(name, []).append(service_id)
@@ -1314,7 +1384,8 @@ def _execute_row(
     client_data = row.client_data or {}
     phone = client_data.get("phone")
     email = client_data.get("email")
-    match_id = match_client(lookups, phone, email)
+    extra_phones = client_data.get("extra_phones") or []
+    match_id = match_client(lookups, phone, email, extra_phones)
     policy = batch.duplicate_policy
     action = decide_action(match_id, policy)
 
@@ -1326,13 +1397,14 @@ def _execute_row(
         return RowOutcome(action="skip", client_id=match_id)
 
     if action == "update" and match_id is not None:
-        ensure_no_contact_conflict(lookups, phone, email, match_id)
+        ensure_no_contact_conflict(lookups, phone, email, match_id, extra_phones)
         client = db.get(Client, match_id)
         if client is None or client.deleted_at is not None:
             raise ImportRowError("client_missing")
         old_phone = client.contact_phone
         old_email = client.contact_email
         _apply_client_values(client, client_data)
+        _save_contacts(db, client, client_data)
         _ensure_relations(db, scope, user, client.id)
         row.client_id = client.id
         row.action = "update"
@@ -1354,6 +1426,7 @@ def _execute_row(
             new_phone=client.contact_phone,
             new_email=client.contact_email,
         )
+    outcome.phone_keys, outcome.email_keys = _client_keys(client)
 
     visit_data = row.visit_data
     if visit_data and not row.visit_id:

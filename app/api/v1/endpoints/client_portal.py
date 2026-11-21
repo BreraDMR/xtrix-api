@@ -121,7 +121,7 @@ def request_portal_link(
         client = crud_public_booking.find_business_client_by_contact(
             db, settings.business_id, None, email
         )
-        if business is not None and client is not None and client.contact_email:
+        if business is not None and client is not None:
             recent = (
                 db.query(NotificationOutbox.id)
                 .filter(
@@ -134,7 +134,8 @@ def request_portal_link(
                 .first()
             )
             if recent is None:
-                queue_portal_login(db, business, client)
+                # the link goes to the address they typed - it's one of the card's own emails
+                queue_portal_login(db, business, client, email=email)
                 db.commit()
     # the same answer for an unknown salon, an unknown email and a real client
     return ClientPortalMessageOut(message=_("portal_link_requested", locale))

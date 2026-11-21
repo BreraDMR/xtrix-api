@@ -244,10 +244,12 @@ def _duplicate(db: Session, user: User, action, text: str) -> Optional[dict]:
     alike = similar_names(action.full_name, own_clients(db, user))
     if not alike:
         return None
-    contacts = {(phone or "", (email or "").lower()) for phone, email in db.query(
-        Client.contact_phone, Client.contact_email).filter(Client.id.in_([cid for cid, _ in alike])).all()}
+    from app.api.core import client_contacts
+
     phone, email = action.contact_phone or "", (action.contact_email or "").lower()
-    same_contact = any((phone and phone == p) or (email and email == e) for p, e in contacts)
+    same_contact = bool((phone or email) and client_contacts.find_clients(
+        db, db.query(Client).filter(Client.id.in_([cid for cid, _ in alike])), phone=phone or None,
+        email=email or None))
     if not same_contact and (phone or email or _SAYS_NEW.search(text or "")):
         # a contact of their own, or the person said it's someone new: a namesake, not a duplicate
         return None

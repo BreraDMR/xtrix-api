@@ -30,6 +30,11 @@ MAPPING_TARGETS = (
     "full_name",
     "phone",
     "email",
+    # extra numbers of the same client, all optional
+    "phone2",
+    "phone3",
+    "phone4",
+    "phone5",
     "birth_date",
     "gender",
     "language",
@@ -47,6 +52,7 @@ class ImportRowClient(BaseModel):
     full_name: str
     phone: Optional[str] = None
     email: Optional[str] = None
+    extra_phones: list[str] = []
     birth_date: Optional[date] = None
     gender: Optional[str] = None
     language: Optional[str] = None

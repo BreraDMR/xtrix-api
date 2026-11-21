@@ -15,7 +15,7 @@ from sqlalchemy import and_, func, or_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from app.api.core import notification_preferences
+from app.api.core import client_contacts, notification_preferences
 from app.api.core.clock import utcnow
 from app.api.core.config import settings
 from app.api.core.i18n import _
@@ -242,7 +242,7 @@ def segment_recipients(
     recipients: dict[str, dict] = {}
     for consent, client, relation_created_at, last_visit_at in rows:
         activity = last_visit_at or relation_created_at
-        email = (client.contact_email or "").strip()
+        email = client_contacts.notify_email(client) or ""
         if not email or activity is None:
             continue
         # one mailbox must receive one message even if two client cards share it

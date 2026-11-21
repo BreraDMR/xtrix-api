@@ -222,5 +222,5 @@ def test_worker_job_and_migration_guard(client, db, live, monkeypatch):
     db.close()
     with pytest.raises(DBAPIError, match='still queued'):
         command.downgrade(Config('alembic.ini'), '0090_visit_price_corrections')
-    assert db.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0094_visitor_push_tokens'
+    assert db.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0095_contacts_client_contacts'
     db.rollback()

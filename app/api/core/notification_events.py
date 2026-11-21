@@ -86,8 +86,10 @@ def cancel_pending_reminders(
 
 
 def _contact_email(client: Optional[Client]) -> Optional[str]:
-    email = (client.contact_email or "").strip() if client else ""
-    return email or None
+    # the primary email, or the first one the client lets us write to
+    from app.api.core import client_contacts
+
+    return client_contacts.notify_email(client)
 
 
 def _payload(business: Business, visit: Visit, client: Client) -> dict:
