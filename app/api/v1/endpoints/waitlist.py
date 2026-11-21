@@ -176,6 +176,9 @@ def accept_offer(
         raise HTTPException(status_code=409, detail=_("waitlist_offer_declined", locale))
     except waitlist_service.EntryClosed:
         raise HTTPException(status_code=409, detail=_("waitlist_entry_closed", locale))
+    except booking_service.ClientBookingBlocked:
+        raise HTTPException(status_code=403, detail={
+            "code": "public_booking_client_blocked", "message": _("public_booking_client_blocked", locale)})
     business = db.get(Business, visit.business_id)
     return _accepted_out(db, business, visit)
 

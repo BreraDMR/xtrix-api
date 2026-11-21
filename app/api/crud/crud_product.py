@@ -3,12 +3,28 @@ from sqlalchemy.orm import Query, Session
 from sqlalchemy import and_, or_
 from app.db.models.product import Product
 from app.schemas.product import ProductCreate, ProductUpdate
+class BarcodeTaken(ValueError):
+    """Another product of the same business already has this barcode."""
+
+
+def _commit_product(db: Session, product: Product) -> Product:
+    from sqlalchemy.exc import IntegrityError
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+        if constraint == "uq_products_business_barcode":
+            raise BarcodeTaken("product_barcode_taken") from None
+        raise
+    db.refresh(product)
+    return product
+
+
 def create_product(db: Session, product_in: ProductCreate) -> Product:
     product = Product(**product_in.model_dump())
     db.add(product)
-    db.commit()
-    db.refresh(product)
-    return product
+    return _commit_product(db, product)
 def get_product(db: Session, product_id: int, business_id: Optional[int] = None) -> Optional[Product]:
     query = db.query(Product).filter(Product.id == product_id)
     if business_id:
@@ -59,9 +75,7 @@ def update_product(db: Session, product: Product, product_in: ProductUpdate) -> 
     update_data = product_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(product, field, value)
-    db.commit()
-    db.refresh(product)
-    return product
+    return _commit_product(db, product)
 def delete_product(db: Session, product_id: int, business_id: Optional[int] = None) -> bool:
     product = get_product(db, product_id, business_id)
     if not product:

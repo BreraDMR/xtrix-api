@@ -6,6 +6,8 @@ from app.api.core.clock import utcnow
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.errors import invalid, invalid_choice
 from app.schemas.base import InputModel
+# no_show = the client didn't come to a visit that had started; it's set on an existing visit only
+VISIT_STATUSES = ("planned", "completed", "cancelled", "in_progress", "no_show")
 class UsedProduct(InputModel):
     product_id: int
     quantity: float = Field(..., gt=0)
@@ -34,14 +36,14 @@ class VisitBase(BaseModel):
     note: Optional[LongText] = None
     photo_url: Optional[str] = Field(None, max_length=2048)
     price: Optional[Money] = None
-    status: Optional[str] = Field("planned", description="planned|completed|cancelled|in_progress")
+    status: Optional[str] = Field("planned", description="planned|completed|cancelled|in_progress|no_show")
     payment_method: Optional[str] = Field(None, description="Payment method: card|cash|other")
     used_products: Optional[List[UsedProduct]] = Field(None, description="Products used")
     @field_validator('status')
     @classmethod
     def validate_status(cls, v):
-        if v is not None and v not in ['planned', 'completed', 'cancelled', 'in_progress']:
-            raise invalid_choice(['planned', 'completed', 'cancelled', 'in_progress'], "Status")
+        if v is not None and v not in VISIT_STATUSES:
+            raise invalid_choice(list(VISIT_STATUSES), "Status")
         return v
     @field_validator('payment_method')
     @classmethod
@@ -53,6 +55,13 @@ class VisitCreate(InputModel, VisitBase):
     items: Optional[List[VisitItemIn]] = Field(
         None, max_length=20, description="Ordered services; price and end are computed"
     )
+    @field_validator('status')
+    @classmethod
+    def no_show_only_on_existing(cls, v):
+        # a no-show is about a booking that existed; marking one goes through PUT
+        if v == "no_show":
+            raise invalid_choice(["planned", "completed", "cancelled", "in_progress"], "Status")
+        return v
     # input only - VisitOut shouldn't re-check stored rows. No 15-minute floor any more: a visit is
     # as long as its service, and services can be 1-1440 minutes
     @field_validator('items')
@@ -102,7 +111,10 @@ class VisitUpdate(InputModel):
     note: Optional[LongText] = None
     photo_url: Optional[str] = Field(None, max_length=2048)
     price: Optional[Money] = None
-    status: Optional[str] = None
+    status: Optional[str] = Field(None, description="planned|completed|cancelled|in_progress|no_show; "
+                                  "no_show only once the visit has started")
+    late_cancel: Optional[bool] = Field(None, description="Only for cancelled visits; left out = decided by the "
+                                        "salon's cancellation window when the visit gets cancelled")
     payment_method: Optional[str] = Field(None, description="Payment method: card|cash|other")
     @field_validator('date_end')
     @classmethod
@@ -116,8 +128,8 @@ class VisitUpdate(InputModel):
     @field_validator('status')
     @classmethod
     def validate_status(cls, v):
-        if v is not None and v not in ['planned', 'completed', 'cancelled', 'in_progress']:
-            raise invalid_choice(['planned', 'completed', 'cancelled', 'in_progress'], "Status")
+        if v is not None and v not in VISIT_STATUSES:
+            raise invalid_choice(list(VISIT_STATUSES), "Status")
         return v
     @field_validator('payment_method')
     @classmethod
@@ -136,5 +148,6 @@ class VisitOut(VisitBase):
     id: int
     created_at: UtcDatetime
     client_confirmed_at: Optional[UtcDatetime] = None
+    late_cancel: bool = Field(False, description="Cancelled inside the salon's cancellation window")
     items: List[VisitItemOut] = Field(default_factory=list)
     model_config = ConfigDict(from_attributes=True)

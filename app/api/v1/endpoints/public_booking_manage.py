@@ -219,6 +219,11 @@ def cancel_managed_booking(
         if reason:
             raise HTTPException(status_code=409, detail=_(reason, locale))
         released = released_slots.visit_slots(visit)
+        from app.api.core import attendance
+        from app.api.core.clock import utcnow
+        # guests can't cancel inside the fixed online cutoff, but a salon window can be wider
+        visit.late_cancel = attendance.is_late_cancel(
+            visit.business.late_cancel_window_hours if visit.business else 0, visit.date_start, utcnow())
         visit.status = "cancelled"
         from app.api.core import service_payment_service as payments
 

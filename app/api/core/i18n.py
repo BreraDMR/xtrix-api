@@ -1477,6 +1477,36 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Файл, сопоставление или политика дублей изменились; постройте новый предпросмотр",
         "cz": "Soubor, mapování nebo pravidlo duplicit se změnily; vytvořte nový náhled",
     },
+    "visit_no_show_not_started": {
+        "en": "A visit can be marked as a no-show only once its start time has passed",
+        "ru": "Неявку можно отметить только после времени начала визита",
+        "cz": "Nedostavení lze označit až po čase začátku návštěvy",
+    },
+    "visit_no_show_status": {
+        "en": "Only a planned or ongoing visit can be marked as a no-show",
+        "ru": "Неявку можно отметить только у запланированного или идущего визита",
+        "cz": "Nedostavení lze označit jen u plánované nebo probíhající návštěvy",
+    },
+    "visit_late_cancel_not_cancelled": {
+        "en": "Only a cancelled visit can be a late cancellation",
+        "ru": "Поздней отменой может быть только отменённый визит",
+        "cz": "Pozdním zrušením může být jen zrušená návštěva",
+    },
+    "public_booking_client_blocked": {
+        "en": "We can't take this booking online. Please contact the salon directly and they will book you in.",
+        "ru": "Эту запись нельзя оформить онлайн. Пожалуйста, свяжитесь с салоном напрямую — вас запишут.",
+        "cz": "Tuto rezervaci nelze vytvořit online. Kontaktujte prosím salon přímo, rádi vás objednají.",
+    },
+    "client_no_show_warning": {
+        "en": "This client has missed visits without notice. Check the client card before booking.",
+        "ru": "Этот клиент пропускал визиты без предупреждения. Проверьте карточку клиента перед записью.",
+        "cz": "Tento klient nepřišel na návštěvy bez omluvy. Před objednáním zkontrolujte kartu klienta.",
+    },
+    "product_barcode_taken": {
+        "en": "Another product in your salon already has this barcode",
+        "ru": "Этот штрихкод уже есть у другого товара в вашем салоне",
+        "cz": "Tento čárový kód už má jiný produkt ve vašem salonu",
+    },
     "import_in_progress": {
         "en": "This import is already running",
         "ru": "Этот импорт уже выполняется",

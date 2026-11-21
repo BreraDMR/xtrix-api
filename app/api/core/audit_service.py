@@ -52,6 +52,7 @@ VISIT_VALUE_KEYS = frozenset(
         "price",
         "payment_method",
         "items_count",
+        "late_cancel",
     }
 )
 VISIT_NAME_KEYS = frozenset(
@@ -67,6 +68,7 @@ VISIT_NAME_KEYS = frozenset(
         "note",
         "photo_url",
         "items",
+        "late_cancel",
     }
 )
 CLIENT_NAME_KEYS = frozenset(
@@ -96,6 +98,13 @@ EVENT_CATALOG: dict[str, EventSpec] = {
     # Deleting a visit hides it like a cancel does, so it has to show up here too.
     "visit.deleted": EventSpec("visit", VISIT_VALUE_KEYS, VISIT_NAME_KEYS),
     "visit.restored": EventSpec("visit", VISIT_VALUE_KEYS, VISIT_NAME_KEYS),
+    "visit.no_show": EventSpec("visit", VISIT_VALUE_KEYS, VISIT_NAME_KEYS),
+    "visit.no_show_reverted": EventSpec("visit", VISIT_VALUE_KEYS, VISIT_NAME_KEYS),
+    "client.no_show_rule_applied": EventSpec(
+        "client", frozenset({"no_show_count", "tag_added", "online_booking_blocked"})
+    ),
+    "client.online_booking_blocked": EventSpec("client", frozenset()),
+    "client.online_booking_unblocked": EventSpec("client", frozenset({"no_show_count"})),
     "payment.paid": EventSpec(
         "payment",
         frozenset({"amount", "currency", "status", "provider", "provider_event_id"}),

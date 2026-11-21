@@ -247,6 +247,6 @@ def test_migration_roundtrip_when_empty_and_guard_when_rows_exist(client, db, sa
     db.close()
     with pytest.raises(DBAPIError, match='Settlement entries exist'):
         command.downgrade(config, '0091_visitor_proof_mail_jobs')
-    assert db.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0094_visitor_push_tokens'
+    assert db.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0095_noshow_attendance'
     assert db.query(VisitSettlementEntry).count() == 1
     db.rollback()

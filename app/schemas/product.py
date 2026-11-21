@@ -1,6 +1,6 @@
 from typing import Optional
 from app.schemas.limits import MAX_MONEY
-from pydantic import ConfigDict, BaseModel, Field
+from pydantic import ConfigDict, BaseModel, Field, field_validator
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.base import InputModel
 class ProductBase(BaseModel):
@@ -15,6 +15,13 @@ class ProductBase(BaseModel):
     supplier: Optional[str] = Field(None, max_length=255)
     location: Optional[str] = Field(None, max_length=255)
     is_active: bool = Field(default=True)
+    @field_validator("barcode")
+    @classmethod
+    def blank_barcode_is_none(cls, v):
+        # an empty scan field means "no barcode", not a barcode made of nothing
+        if v is None:
+            return v
+        return v.strip() or None
 class ProductCreate(InputModel, ProductBase):
     business_id: int
 class ProductUpdate(InputModel):
@@ -29,6 +36,13 @@ class ProductUpdate(InputModel):
     supplier: Optional[str] = Field(None, max_length=255)
     location: Optional[str] = Field(None, max_length=255)
     is_active: Optional[bool] = None
+    @field_validator("barcode")
+    @classmethod
+    def blank_barcode_is_none(cls, v):
+        # an empty scan field means "no barcode", not a barcode made of nothing
+        if v is None:
+            return v
+        return v.strip() or None
 class ProductOut(ProductBase):
     id: int
     business_id: int

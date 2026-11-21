@@ -110,7 +110,7 @@ def test_specialty_migration_round_trip_keeps_businesses(db, make_user, client, 
     owner = make_user("business_owner")
     business_id = _business(client, headers_for(owner), specialist_type="dentist").json()["id"]
     config = Config("alembic.ini")
-    assert ScriptDirectory.from_config(config).get_heads() == ["0094_visitor_push_tokens"]
+    assert ScriptDirectory.from_config(config).get_heads() == ['0095_noshow_attendance']
     db.rollback()
     bind = db.get_bind()
     try:
@@ -126,7 +126,7 @@ def test_specialty_migration_round_trip_keeps_businesses(db, make_user, client, 
     finally:
         db.rollback()
         command.upgrade(config, "head")
-    assert db.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0094_visitor_push_tokens"
+    assert db.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == '0095_noshow_attendance'
 
 
 @pytest.mark.parametrize("specialty", ["pmu_artist", "depilation_specialist"])

@@ -225,6 +225,7 @@ def list_clients(
     gender: Optional[str] = None,
     sort_by: str = "id",
     sort_order: str = "asc",
+    attendance: Optional[str] = None,
 ) -> Tuple[list[Client], int]:
     cache_filters = {
         'owner_id': owner_id,
@@ -322,6 +323,8 @@ def list_clients(
                          Client.contact_email.ilike(pattern, escape="\\")))
     if gender:
         q = q.filter(Client.gender == gender)
+    if attendance:
+        q = q.filter(Client.id.in_(_attendance_client_ids(attendance, business_id, owner_id)))
     if accessible_client_ids is not None:
         if len(accessible_client_ids) == 0:
             return [], 0
@@ -345,6 +348,29 @@ def list_clients(
         except Exception:
             pass  
     return items, total
+def _attendance_client_ids(kind: str, business_id: Optional[int], owner_id: Optional[int]):
+    """Clients with a no-show / late cancel / online block in the caller's scope."""
+    from sqlalchemy import select
+    from app.db.models.client_business_relation import ClientBusinessRelation
+    from app.db.models.visit import Visit
+
+    if kind == "online_booking_blocked":
+        return select(ClientBusinessRelation.client_id).where(
+            ClientBusinessRelation.business_id == business_id,
+            ClientBusinessRelation.online_booking_blocked_at.isnot(None),
+        )
+    query = select(Visit.client_id).where(Visit.deleted_at.is_(None))
+    if kind == "no_show":
+        query = query.where(Visit.status == "no_show")
+    else:
+        query = query.where(Visit.status == "cancelled", Visit.late_cancel.is_(True))
+    if business_id:
+        query = query.where(Visit.business_id == business_id)
+    elif owner_id:
+        query = query.where(Visit.specialist_id == owner_id)
+    return query
+
+
 def get_client_by_qr_code(db: Session, qr_code: str) -> Optional[Client]:
     return db.query(Client).filter(Client.qr_code == qr_code).first()
 def generate_client_qr_code(db: Session, client_id: int) -> tuple[str, str]:

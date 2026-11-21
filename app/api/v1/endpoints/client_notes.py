@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.api import deps
+from app.api.core import attendance, audit_service
 from app.api.core.i18n import _
 from app.api.core.permissions import can_edit_clients, check_client_access, require_business_id
 from app.api.crud import crud_client, crud_client_note
@@ -63,6 +64,8 @@ def _profile_out(client_id: int, relation: ClientBusinessRelation | None) -> Cli
         client_id=client_id,
         tags=[str(tag) for tag in tags],
         preferences=relation.preferences if relation else None,
+        online_booking_blocked=bool(relation and relation.online_booking_blocked_at),
+        online_booking_blocked_at=relation.online_booking_blocked_at if relation else None,
     )
 
 
@@ -144,6 +147,7 @@ def get_client_profile(
 def update_client_profile(
     client_id: int,
     payload: ClientProfileUpdate,
+    request: Request,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.role_required(*STAFF_ROLES)),
     locale: str = Depends(deps.get_locale),
@@ -153,11 +157,16 @@ def update_client_profile(
     business_id = require_business_id(current_user, db, locale)
     relation = _relation(db, client_id, business_id)
     changes = payload.model_dump(exclude_unset=True)
+    blocked = changes.pop("online_booking_blocked", None)
     if relation is None:
         relation = ClientBusinessRelation(client_id=client_id, business_id=business_id)
         db.add(relation)
     for field, value in changes.items():
         setattr(relation, field, value)
+    if blocked is not None:
+        db.flush()
+        attendance.set_online_booking_block(db, relation, blocked, actor=current_user,
+                                            request_id=audit_service.request_id_for(request))
     db.commit()
     db.refresh(relation)
     return _profile_out(client_id, relation)

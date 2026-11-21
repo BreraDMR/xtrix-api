@@ -45,4 +45,5 @@ def get_client_overview(
         business_id=business_id,
         specialist_id=specialist_id,
         include_financials=can_view_financials(current_user, db),
+        locale=locale,
     )

@@ -91,10 +91,13 @@ class ClientUpdate(InputModel):
             if not is_valid:
                 raise invalid("invalid_birth_date", error_msg)
         return v
+from app.schemas.client_overview import ClientAttendanceOut  # noqa: E402
 class ClientOut(ClientBase):
     id: int
     owner_id: Optional[int] = None  
     created_at: UtcDatetime
+    # only filled by the client list and the single-client read
+    attendance: Optional[ClientAttendanceOut] = None
     model_config = ConfigDict(from_attributes=True)
 class BasicMedicalInfo(BaseModel):
     allergies: Optional[str] = None

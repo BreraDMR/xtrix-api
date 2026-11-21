@@ -402,6 +402,97 @@
         "title": "AssistantStatusOut",
         "type": "object"
       },
+      "AttendanceSpecialistStats": {
+        "properties": {
+          "due_visits": {
+            "title": "Due Visits",
+            "type": "integer"
+          },
+          "late_cancel": {
+            "title": "Late Cancel",
+            "type": "integer"
+          },
+          "no_show": {
+            "title": "No Show",
+            "type": "integer"
+          },
+          "no_show_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Show Rate"
+          },
+          "specialist_id": {
+            "title": "Specialist Id",
+            "type": "integer"
+          },
+          "specialist_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Specialist Name"
+          }
+        },
+        "required": [
+          "specialist_id",
+          "no_show",
+          "late_cancel",
+          "due_visits"
+        ],
+        "title": "AttendanceSpecialistStats",
+        "type": "object"
+      },
+      "AttendanceStats": {
+        "description": "No-shows against visits that were due to happen (completed + no-show).",
+        "properties": {
+          "by_specialist": {
+            "items": {
+              "$ref": "#/components/schemas/AttendanceSpecialistStats"
+            },
+            "title": "By Specialist",
+            "type": "array"
+          },
+          "due_visits": {
+            "default": 0,
+            "title": "Due Visits",
+            "type": "integer"
+          },
+          "late_cancel": {
+            "default": 0,
+            "title": "Late Cancel",
+            "type": "integer"
+          },
+          "no_show": {
+            "default": 0,
+            "title": "No Show",
+            "type": "integer"
+          },
+          "no_show_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0..1, null when nothing was due",
+            "title": "No Show Rate"
+          }
+        },
+        "title": "AttendanceStats",
+        "type": "object"
+      },
       "AuditLogOut": {
         "properties": {
           "action": {
@@ -889,11 +980,55 @@
             ],
             "title": "Email"
           },
+          "late_cancel_window_hours": {
+            "default": 24,
+            "description": "A cancel closer than this to the start is a late cancel; 0 = don't track",
+            "maximum": 336.0,
+            "minimum": 0.0,
+            "title": "Late Cancel Window Hours",
+            "type": "integer"
+          },
           "name": {
             "maxLength": 255,
             "minLength": 1,
             "title": "Name",
             "type": "string"
+          },
+          "noshow_rule_block_online": {
+            "default": false,
+            "description": "Also stop the client's online booking",
+            "title": "Noshow Rule Block Online",
+            "type": "boolean"
+          },
+          "noshow_rule_enabled": {
+            "default": false,
+            "description": "Apply the 'N no-shows within M months' rule",
+            "title": "Noshow Rule Enabled",
+            "type": "boolean"
+          },
+          "noshow_rule_period_months": {
+            "default": 6,
+            "description": "M: months to look back",
+            "maximum": 36.0,
+            "minimum": 1.0,
+            "title": "Noshow Rule Period Months",
+            "type": "integer"
+          },
+          "noshow_rule_tag": {
+            "default": "no-show",
+            "description": "Tag added to the client",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Noshow Rule Tag",
+            "type": "string"
+          },
+          "noshow_rule_threshold": {
+            "default": 3,
+            "description": "N: no-shows that trigger the rule",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Noshow Rule Threshold",
+            "type": "integer"
           },
           "phone": {
             "anyOf": [
@@ -1028,11 +1163,55 @@
             "title": "Id",
             "type": "integer"
           },
+          "late_cancel_window_hours": {
+            "default": 24,
+            "description": "A cancel closer than this to the start is a late cancel; 0 = don't track",
+            "maximum": 336.0,
+            "minimum": 0.0,
+            "title": "Late Cancel Window Hours",
+            "type": "integer"
+          },
           "name": {
             "maxLength": 255,
             "minLength": 1,
             "title": "Name",
             "type": "string"
+          },
+          "noshow_rule_block_online": {
+            "default": false,
+            "description": "Also stop the client's online booking",
+            "title": "Noshow Rule Block Online",
+            "type": "boolean"
+          },
+          "noshow_rule_enabled": {
+            "default": false,
+            "description": "Apply the 'N no-shows within M months' rule",
+            "title": "Noshow Rule Enabled",
+            "type": "boolean"
+          },
+          "noshow_rule_period_months": {
+            "default": 6,
+            "description": "M: months to look back",
+            "maximum": 36.0,
+            "minimum": 1.0,
+            "title": "Noshow Rule Period Months",
+            "type": "integer"
+          },
+          "noshow_rule_tag": {
+            "default": "no-show",
+            "description": "Tag added to the client",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Noshow Rule Tag",
+            "type": "string"
+          },
+          "noshow_rule_threshold": {
+            "default": 3,
+            "description": "N: no-shows that trigger the rule",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Noshow Rule Threshold",
+            "type": "integer"
           },
           "phone": {
             "anyOf": [
@@ -1214,6 +1393,19 @@
             ],
             "title": "Email"
           },
+          "late_cancel_window_hours": {
+            "anyOf": [
+              {
+                "maximum": 336.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Late Cancel Window Hours"
+          },
           "name": {
             "anyOf": [
               {
@@ -1226,6 +1418,67 @@
               }
             ],
             "title": "Name"
+          },
+          "noshow_rule_block_online": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Noshow Rule Block Online"
+          },
+          "noshow_rule_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Noshow Rule Enabled"
+          },
+          "noshow_rule_period_months": {
+            "anyOf": [
+              {
+                "maximum": 36.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Noshow Rule Period Months"
+          },
+          "noshow_rule_tag": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Noshow Rule Tag"
+          },
+          "noshow_rule_threshold": {
+            "anyOf": [
+              {
+                "maximum": 50.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Noshow Rule Threshold"
           },
           "phone": {
             "anyOf": [
@@ -2032,6 +2285,47 @@
         "title": "CashbackCurrencyTrend",
         "type": "object"
       },
+      "ClientAttendanceOut": {
+        "description": "No-show counters and what they mean for booking this client.",
+        "properties": {
+          "late_cancel_count": {
+            "default": 0,
+            "title": "Late Cancel Count",
+            "type": "integer"
+          },
+          "no_show_count": {
+            "default": 0,
+            "title": "No Show Count",
+            "type": "integer"
+          },
+          "online_booking_blocked": {
+            "default": false,
+            "description": "The client can't book online in this salon",
+            "title": "Online Booking Blocked",
+            "type": "boolean"
+          },
+          "rule_reached": {
+            "default": false,
+            "description": "The salon's no-show rule is reached right now",
+            "title": "Rule Reached",
+            "type": "boolean"
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Localized note for staff about to book this client",
+            "title": "Warning"
+          }
+        },
+        "title": "ClientAttendanceOut",
+        "type": "object"
+      },
       "ClientCreate": {
         "properties": {
           "birth_date": {
@@ -2416,6 +2710,16 @@
       },
       "ClientOut": {
         "properties": {
+          "attendance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClientAttendanceOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "birth_date": {
             "anyOf": [
               {
@@ -2537,6 +2841,9 @@
       },
       "ClientOverviewOut": {
         "properties": {
+          "attendance": {
+            "$ref": "#/components/schemas/ClientAttendanceOut"
+          },
           "client_id": {
             "title": "Client Id",
             "type": "integer"
@@ -2633,6 +2940,12 @@
             ],
             "title": "Last Visit At"
           },
+          "late_cancel_visits": {
+            "default": 0,
+            "description": "Cancelled visits cancelled inside the salon's window",
+            "title": "Late Cancel Visits",
+            "type": "integer"
+          },
           "next_visit_at": {
             "anyOf": [
               {
@@ -2644,6 +2957,11 @@
               }
             ],
             "title": "Next Visit At"
+          },
+          "no_show_visits": {
+            "default": 0,
+            "title": "No Show Visits",
+            "type": "integer"
           },
           "total_visits": {
             "title": "Total Visits",
@@ -2680,6 +2998,11 @@
           "id": {
             "title": "Id",
             "type": "integer"
+          },
+          "late_cancel": {
+            "default": false,
+            "title": "Late Cancel",
+            "type": "boolean"
           },
           "payment_method": {
             "anyOf": [
@@ -3166,6 +3489,23 @@
             "title": "Client Id",
             "type": "integer"
           },
+          "online_booking_blocked": {
+            "default": false,
+            "title": "Online Booking Blocked",
+            "type": "boolean"
+          },
+          "online_booking_blocked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Online Booking Blocked At"
+          },
           "preferences": {
             "anyOf": [
               {
@@ -3194,6 +3534,18 @@
       "ClientProfileUpdate": {
         "additionalProperties": false,
         "properties": {
+          "online_booking_blocked": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stop (true) or allow again (false) this client's online booking here",
+            "title": "Online Booking Blocked"
+          },
           "preferences": {
             "anyOf": [
               {
@@ -19622,7 +19974,7 @@
               }
             ],
             "default": "planned",
-            "description": "planned|completed|cancelled|in_progress",
+            "description": "planned|completed|cancelled|in_progress|no_show",
             "title": "Status"
           },
           "used_products": {
@@ -19922,6 +20274,12 @@
             "title": "Items",
             "type": "array"
           },
+          "late_cancel": {
+            "default": false,
+            "description": "Cancelled inside the salon's cancellation window",
+            "title": "Late Cancel",
+            "type": "boolean"
+          },
           "loyalty_warning": {
             "anyOf": [
               {
@@ -20020,7 +20378,7 @@
               }
             ],
             "default": "planned",
-            "description": "planned|completed|cancelled|in_progress",
+            "description": "planned|completed|cancelled|in_progress|no_show",
             "title": "Status"
           },
           "used_products": {
@@ -20759,6 +21117,9 @@
       },
       "VisitStatisticsResponse": {
         "properties": {
+          "attendance": {
+            "$ref": "#/components/schemas/AttendanceStats"
+          },
           "average_duration_minutes": {
             "anyOf": [
               {
@@ -20838,6 +21199,18 @@
               }
             ],
             "title": "Items"
+          },
+          "late_cancel": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only for cancelled visits; left out = decided by the salon's cancellation window when the visit gets cancelled",
+            "title": "Late Cancel"
           },
           "note": {
             "anyOf": [
@@ -20920,6 +21293,7 @@
                 "type": "null"
               }
             ],
+            "description": "planned|completed|cancelled|in_progress|no_show; no_show only once the visit has started",
             "title": "Status"
           }
         },
@@ -28964,6 +29338,29 @@
             }
           },
           {
+            "description": "Only clients with a no-show, a late cancel or a blocked online booking",
+            "in": "query",
+            "name": "attendance",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "no_show",
+                    "late_cancel",
+                    "online_booking_blocked"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only clients with a no-show, a late cancel or a blocked online booking",
+              "title": "Attendance"
+            }
+          },
+          {
             "in": "query",
             "name": "sort_by",
             "required": false,
@@ -33030,87 +33427,6 @@
         "summary": "Update Expense",
         "tags": [
           "expenses"
-        ]
-      }
-    },
-    "/files/presign": {
-      "get": {
-        "operationId": "presign_upload_files_presign_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "filename",
-            "required": true,
-            "schema": {
-              "title": "Filename",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "prefix",
-            "required": false,
-            "schema": {
-              "default": "uploads",
-              "title": "Prefix",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "method",
-            "required": false,
-            "schema": {
-              "default": "put_object",
-              "title": "Method",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Accept-Language",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Accept-Language"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Presign Upload",
-        "tags": [
-          "files"
         ]
       }
     },
@@ -44181,7 +44497,8 @@
                     "planned",
                     "completed",
                     "cancelled",
-                    "in_progress"
+                    "in_progress",
+                    "no_show"
                   ],
                   "type": "string"
                 },
@@ -44494,7 +44811,8 @@
                     "planned",
                     "completed",
                     "cancelled",
-                    "in_progress"
+                    "in_progress",
+                    "no_show"
                   ],
                   "type": "string"
                 },
@@ -44683,7 +45001,8 @@
                     "planned",
                     "completed",
                     "cancelled",
-                    "in_progress"
+                    "in_progress",
+                    "no_show"
                   ],
                   "type": "string"
                 },

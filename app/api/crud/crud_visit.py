@@ -19,7 +19,7 @@ from app.api.core.visit_chain import (
     service_line,
     total_price,
 )
-from app.api.core import audit_service, visit_currency, visit_settlement_guard
+from app.api.core import attendance, audit_service, visit_currency, visit_settlement_guard
 from app.db.models.business import Business
 from app.db.models.client import Client
 from app.db.models.service import Service
@@ -39,6 +39,7 @@ VISIT_AUDIT_VALUE_FIELDS = (
     "specialist_id",
     "price",
     "payment_method",
+    "late_cancel",
 )
 VISIT_AUDIT_NAME_FIELDS = VISIT_AUDIT_VALUE_FIELDS + (
     "service_name",
@@ -297,11 +298,12 @@ def update_visit(
                 if same_chain and not explicit_price:
                     visit.price = before["price"]
 
-            computed = {"items", "service_id", "date_start", "date_end", "price"}
+            computed = {"items", "service_id", "date_start", "date_end", "price", "late_cancel"}
             for field, value in data.items():
                 if field in computed:
                     continue
                 setattr(visit, field, value)
+            _apply_attendance(db, visit, previous[0], data.get("late_cancel"))
 
             if (visit.status == "completed" and visit.price and visit.price > 0
                     and visit.payment_method not in {"card", "cash", "other"}):
@@ -326,6 +328,10 @@ def update_visit(
                 changes["fields"] = changed_fields
                 if before["status"] != "cancelled" and visit.status == "cancelled":
                     action = "visit.cancelled"
+                elif before["status"] != attendance.NO_SHOW and visit.status == attendance.NO_SHOW:
+                    action = "visit.no_show"
+                elif before["status"] == attendance.NO_SHOW and visit.status != attendance.NO_SHOW:
+                    action = "visit.no_show_reverted"
                 elif (
                     "date_start" in changed_fields or "date_end" in changed_fields
                 ):
@@ -343,6 +349,8 @@ def update_visit(
                     actor=actor,
                     request_id=request_id,
                 )
+            if (before["status"] == attendance.NO_SHOW) != (visit.status == attendance.NO_SHOW):
+                attendance.apply_no_show_rule(db, visit, actor=actor, request_id=request_id)
         released = released_slots.changed_slots(before_slots, released_slots.visit_slots(visit), previous[0], visit.status)
         if released:
             from app.api.core.released_slot_queue import enqueue_slots
@@ -356,6 +364,30 @@ def update_visit(
     except Exception:
         db.rollback()
         raise
+
+def _apply_attendance(db: Session, visit: Visit, old_status: Optional[str], late_cancel: Optional[bool]) -> None:
+    """No-show and late-cancel rules for a status change that's already on the visit."""
+    from app.api.core.clock import utcnow
+
+    now = utcnow()
+    if visit.status == attendance.NO_SHOW and old_status != attendance.NO_SHOW:
+        attendance.check_no_show_allowed(old_status, visit.date_start, now)
+    if visit.status == "cancelled":
+        if late_cancel is not None:
+            # staff decided it by hand (e.g. waived a late cancel for a good reason)
+            visit.late_cancel = late_cancel
+        elif old_status != "cancelled":
+            window = attendance.DEFAULT_LATE_CANCEL_WINDOW_HOURS
+            if visit.business_id is not None:
+                window = db.execute(select(Business.late_cancel_window_hours).where(
+                    Business.id == visit.business_id)).scalar_one_or_none() or 0
+            visit.late_cancel = attendance.is_late_cancel(window, visit.date_start, now)
+    else:
+        if late_cancel:
+            raise attendance.AttendanceError("visit_late_cancel_not_cancelled")
+        # back from cancelled: the visit is on again, so it's no longer a late cancel
+        visit.late_cancel = False
+
 
 def _no_business_but_ours(business_id: int):
     # visits with no business are a solo specialist's - only count them when that specialist

@@ -102,7 +102,8 @@ def test_one_client_row_in_two_salons_keeps_each_card_separate(client, make_user
     assert client.put(f"/clients/{shared['id']}/profile", json={"tags": ["beta"]},
                       headers=beta["headers"]).status_code == 200
     alpha_profile = client.get(f"/clients/{shared['id']}/profile", headers=alpha["headers"]).json()
-    assert alpha_profile == {"client_id": shared["id"], "tags": ["alpha-vip"], "preferences": "Alpha pref"}
+    assert alpha_profile == {"client_id": shared["id"], "tags": ["alpha-vip"], "preferences": "Alpha pref",
+                             "online_booking_blocked": False, "online_booking_blocked_at": None}
 
     # alpha's visit questionnaire stays closed to beta even though beta knows the client
     assert client.get(f"/visits/{alpha_visit['id']}/questionnaire", headers=beta["headers"]).status_code == 403
@@ -201,4 +202,5 @@ def test_partial_profile_update_keeps_the_other_field(client, make_user, headers
     assert client.put(path, json={"tags": ["a", "b"]}, headers=salon["headers"]).json()["preferences"] == "Quiet room"
     assert client.put(path, json={"preferences": "Window seat"}, headers=salon["headers"]).json()["tags"] == ["a", "b"]
     cleared = client.put(path, json={"preferences": "   "}, headers=salon["headers"]).json()
-    assert cleared == {"client_id": person["id"], "tags": ["a", "b"], "preferences": None}
+    assert cleared == {"client_id": person["id"], "tags": ["a", "b"], "preferences": None,
+                       "online_booking_blocked": False, "online_booking_blocked_at": None}

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 from app.api.core.clock import utcnow
@@ -26,6 +26,14 @@ class Business(Base):
     timezone = Column(String(64), nullable=False, default="UTC", server_default="UTC")
     booking_horizon_days = Column(Integer, nullable=False, default=30, server_default="30")
     booking_lead_time_minutes = Column(Integer, nullable=False, default=0, server_default="0")
+    # a cancel closer than this to the start counts as a late cancel; 0 = don't track them
+    late_cancel_window_hours = Column(Integer, nullable=False, default=24, server_default="24")
+    # "N no-shows within M months" -> tag the client and maybe stop their online booking. Off by default
+    noshow_rule_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
+    noshow_rule_threshold = Column(Integer, nullable=False, default=3, server_default="3")
+    noshow_rule_period_months = Column(Integer, nullable=False, default=6, server_default="6")
+    noshow_rule_tag = Column(String(40), nullable=False, default="no-show", server_default="no-show")
+    noshow_rule_block_online = Column(Boolean, nullable=False, default=False, server_default="false")
     created_at = Column(DateTime, default=utcnow, index=True)
     deleted_at = Column(DateTime, nullable=True, index=True)  
     users = relationship("User", back_populates="business", lazy="dynamic")

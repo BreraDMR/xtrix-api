@@ -19,7 +19,7 @@ from app.api.core.availability import (
     salon_zone,
 )
 from app.api.core.clock import utcnow
-from app.api.core import campaign_service, notification_events, service_payment_service as payments, visit_currency
+from app.api.core import attendance, campaign_service, notification_events, service_payment_service as payments, visit_currency
 from app.api.core.visit_chain import apply_chain, service_line, total_minutes
 from app.api.crud import crud_public_booking
 from app.db.models.public_booking import PublicBookingRequest
@@ -52,6 +52,10 @@ class RequestIdConflict(Exception):
 
 class RequestInProgress(Exception):
     pass
+
+
+class ClientBookingBlocked(Exception):
+    """The salon stopped online booking for this client; they have to call instead."""
 
 
 def request_hash(payload: PublicBookingCreate) -> str:
@@ -247,6 +251,9 @@ def submit_booking(
     client = crud_public_booking.find_or_create_client(
         db, business.id, staff.id, payload, language, secondary_phone=secondary_phone
     )
+    if attendance.online_booking_restriction(db, business.id, client.id) == attendance.BOOKING_REFUSED:
+        db.rollback()
+        raise ClientBookingBlocked()
     visit = Visit(
         client_id=client.id,
         specialist_id=staff.id,

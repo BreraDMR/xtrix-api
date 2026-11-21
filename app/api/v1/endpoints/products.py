@@ -27,6 +27,9 @@ def create_product(
         result = crud_product.create_product(db, product)
         logger.info(f"Created product {result.id} by user {current_user.id}")
         return result
+    except crud_product.BarcodeTaken:
+        raise HTTPException(status_code=409, detail={
+            "code": "product_barcode_taken", "message": _("product_barcode_taken", locale)}) from None
     except ValueError as e:
         logger.error(f"Error creating product: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -170,6 +173,9 @@ def update_product(
         result = crud_product.update_product(db, db_product, product)
         logger.info(f"Updated product {product_id} by user {current_user.id}")
         return result
+    except crud_product.BarcodeTaken:
+        raise HTTPException(status_code=409, detail={
+            "code": "product_barcode_taken", "message": _("product_barcode_taken", locale)}) from None
     except ValueError as e:
         logger.error(f"Error updating product: {e}")
         raise HTTPException(status_code=400, detail=str(e))

@@ -1,4 +1,3 @@
-import time
 from typing import Literal
 import boto3
 from app.api.core.config import settings
@@ -19,11 +18,6 @@ def generate_presigned_url(
         },
         ExpiresIn=expires_in,
     )
-def build_object_key(prefix: str, filename: str) -> str:
-    ts = int(time.time())
-    return f"{prefix}/{ts}_{filename}"
-
-
 def generate_presigned_post(key: str, content_type: str, max_bytes: int, expires_in=900):
     return s3.generate_presigned_post(
         Bucket=settings.aws_bucket,

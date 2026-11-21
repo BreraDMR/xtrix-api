@@ -7,14 +7,18 @@ history. Prices are only selected when the caller may see financials.
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import case, func, or_
+from sqlalchemy import case, func, literal, or_, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.api.core import attendance as attendance_core
 from app.api.core.clock import utcnow
+from app.api.core.i18n import _
 from app.api.crud.crud_visit import _no_business_but_ours
 from app.db.models.business import Business
+from app.db.models.client_business_relation import ClientBusinessRelation
 from app.db.models.visit import Visit
 from app.schemas.client_overview import (
+    ClientAttendanceOut,
     ClientOverviewOut,
     ClientOverviewPayments,
     ClientOverviewStats,
@@ -50,6 +54,7 @@ def _visit_out(visit: Visit, include_financials: bool) -> ClientOverviewVisit:
         specialist_name=visit.specialist.full_name if visit.specialist else None,
         price=visit.price if include_financials else None,
         payment_method=visit.payment_method if include_financials else None,
+        late_cancel=bool(visit.late_cancel),
     )
 
 
@@ -60,19 +65,37 @@ def build_client_overview(
     specialist_id: Optional[int],
     include_financials: bool,
     now: Optional[datetime] = None,
+    locale: Optional[str] = None,
 ) -> ClientOverviewOut:
     now = now or utcnow()
 
-    total, completed, cancelled, last_visit = (
+    # the salon's rule and this client's block ride along in the same statement
+    blocked_at = rule_on = threshold = months = literal(None)
+    if business_id:
+        blocked_at = select(ClientBusinessRelation.online_booking_blocked_at).where(
+            ClientBusinessRelation.business_id == business_id,
+            ClientBusinessRelation.client_id == client_id).scalar_subquery()
+        rule = select(Business).where(Business.id == business_id)
+        rule_on = rule.with_only_columns(Business.noshow_rule_enabled).scalar_subquery()
+        threshold = rule.with_only_columns(Business.noshow_rule_threshold).scalar_subquery()
+        months = rule.with_only_columns(Business.noshow_rule_period_months).scalar_subquery()
+    (total, completed, cancelled, no_shows, late_cancels, last_visit,
+     blocked, rule_enabled, rule_threshold, rule_months) = (
         _visit_query(db, client_id, business_id, specialist_id)
         .with_entities(
             func.count(Visit.id),
             func.coalesce(func.sum(case((Visit.status == "completed", 1), else_=0)), 0),
             func.coalesce(func.sum(case((Visit.status == "cancelled", 1), else_=0)), 0),
+            func.coalesce(func.sum(case((Visit.status == attendance_core.NO_SHOW, 1), else_=0)), 0),
+            func.coalesce(func.sum(case(((Visit.status == "cancelled") & Visit.late_cancel.is_(True), 1),
+                                        else_=0)), 0),
             func.max(case((Visit.status == "completed", Visit.date_start), else_=None)),
+            blocked_at, rule_on, threshold, months,
         )
         .one()
     )
+    rule_reached = bool(rule_enabled) and attendance_core.no_show_count(
+        db, business_id, client_id, attendance_core.months_ago(now, rule_months)) >= rule_threshold
 
     visit_options = (joinedload(Visit.specialist), joinedload(Visit.service))
     upcoming = (
@@ -107,12 +130,20 @@ def build_client_overview(
             currency=currency, total_paid=float(total_paid or 0.0), paid_visits=int(paid_visits or 0)
         )
 
+    warn = blocked is not None or rule_reached
     return ClientOverviewOut(
         client_id=client_id,
+        attendance=ClientAttendanceOut(
+            no_show_count=int(no_shows or 0), late_cancel_count=int(late_cancels or 0),
+            online_booking_blocked=blocked is not None, rule_reached=rule_reached,
+            warning=_("client_no_show_warning", locale) if warn else None,
+        ),
         stats=ClientOverviewStats(
             total_visits=int(total or 0),
             completed_visits=int(completed or 0),
             cancelled_visits=int(cancelled or 0),
+            no_show_visits=int(no_shows or 0),
+            late_cancel_visits=int(late_cancels or 0),
             last_visit_at=last_visit,
             next_visit_at=upcoming[0].date_start if upcoming else None,
         ),

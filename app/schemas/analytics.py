@@ -3,11 +3,30 @@ from decimal import Decimal
 from pydantic import ConfigDict, BaseModel, Field
 from app.schemas.datetimes import UtcDatetime
 from app.schemas.base import InputModel
+class AttendanceSpecialistStats(BaseModel):
+    specialist_id: int
+    specialist_name: Optional[str] = None
+    no_show: int
+    late_cancel: int
+    due_visits: int
+    no_show_rate: Optional[float] = None
+
+
+class AttendanceStats(BaseModel):
+    """No-shows against visits that were due to happen (completed + no-show)."""
+    no_show: int = 0
+    late_cancel: int = 0
+    due_visits: int = 0
+    no_show_rate: Optional[float] = Field(None, description="0..1, null when nothing was due")
+    by_specialist: List[AttendanceSpecialistStats] = Field(default_factory=list)
+
+
 class VisitStatisticsResponse(BaseModel):
     total_visits: int
     visits_by_status: Dict[str, int]
     monthly_visits: List[Dict[str, Any]]
     average_duration_minutes: Optional[float] = None
+    attendance: AttendanceStats = Field(default_factory=AttendanceStats)
 class FinancialCurrencyValue(BaseModel):
     currency: str | None
     amount: Decimal | None

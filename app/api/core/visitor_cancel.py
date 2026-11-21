@@ -90,10 +90,14 @@ def cancel_visit(db: Session, raw_session: str | None, visit_id: int) -> CancelV
         released = cancellation_slots(db, original, service_id)
         cancel_pending_payments(db, raw_session, original)
         original = _allowed(db, raw_session, original)
+        from app.api.core import attendance
+        window = db.execute(select(Business.late_cancel_window_hours).where(
+            Business.id == original.business_id)).scalar_one_or_none()
+        late = attendance.is_late_cancel(window, original.date_start, original.checked_at)
         changed = db.execute(update(Visit).where(
             Visit.id == original.visit_id, Visit.business_id == original.business_id,
             Visit.client_id == original.client_id, Visit.status == original.status,
-        ).values(status='cancelled').execution_options(synchronize_session=False))
+        ).values(status='cancelled', late_cancel=late).execution_options(synchronize_session=False))
         if changed.rowcount != 1:
             raise targets.ActionTargetUnavailable('Visitor action target is not available')
         event_key = cancellation_event_key(visit_id)

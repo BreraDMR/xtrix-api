@@ -10,7 +10,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Path
 from sqlalchemy.orm import Session
 from app.api import deps
-from app.api.core import audit_service
+from app.api.core import attendance, audit_service
 from app.schemas.datetimes import UtcDatetime
 from app.api.core.i18n import _
 from app.api.core.logger import get_logger
@@ -165,7 +165,7 @@ def create_visit(
                 logger.error(f"Failed to auto-usage product {used_product.product_id} for visit {result.id}: {e}")
     return _visit_response(result, can_view_financials(current_user, db))
 VisitSortField = Literal["id", "date_start", "service_name", "client_name", "status", "price"]
-VisitStatusFilter = Literal["planned", "completed", "cancelled", "in_progress"]
+VisitStatusFilter = Literal["planned", "completed", "cancelled", "in_progress", "no_show"]
 
 
 def _visit_list_scope(db, current_user, specialist_id, client_id, date_from, date_to, locale):
@@ -421,6 +421,15 @@ def update_visit(
         if not service or not check_service_access(db, current_user, service):
             raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     _check_item_access(db, current_user, payload.items, visit.specialist_id, locale)
+    touches_attendance = payload.late_cancel is not None or (
+        payload.status is not None and payload.status != visit.status
+        and "no_show" in (payload.status, visit.status))
+    if touches_attendance:
+        # marking or undoing a no-show / late cancel counts against the client, so it needs
+        # the same right as booking visits
+        from app.api.core.permissions import can_create_visits
+        if not can_create_visits(current_user, db):
+            raise HTTPException(status_code=403, detail=_("not_allowed", locale))
     old_status = visit.status
     old_start = visit.date_start
     old_service_id = visit.service_id
@@ -442,6 +451,8 @@ def update_visit(
         raise HTTPException(status_code=404, detail=_("visit_not_found", locale)) from None
     except crud_visit.CompletedVisitPaymentRequired:
         raise HTTPException(status_code=400, detail=_("payment_method_required_for_completed_visits", locale)) from None
+    except attendance.AttendanceError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": _(exc.code, locale)}) from None
     except ChainError as exc:
         _chain_error(exc, locale)
     old_status, old_start, old_service_id, old_specialist_id, old_business_id = getattr(

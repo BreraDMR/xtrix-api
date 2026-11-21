@@ -124,6 +124,20 @@ def create_client(
     logger.info(f"Client created: id={result.id}")
     return result.model_dump() if hasattr(result, 'model_dump') else result
 ClientSortField = Literal["id", "full_name", "contact_phone", "contact_email", "gender", "birth_date", "created_at"]
+ClientAttendanceFilter = Literal["no_show", "late_cancel", "online_booking_blocked"]
+
+
+def _with_attendance(db: Session, current_user: User, clients) -> list[ClientOut]:
+    # counters for the whole page in two queries, so staff see the no-show history up front
+    from app.api.core import attendance as attendance_core
+    from app.schemas.client_overview import ClientAttendanceOut
+    business_id = getattr(current_user, "business_id", None)
+    rows = [ClientOut.model_validate(client) for client in clients]
+    flags = attendance_core.client_attendance(
+        db, [row.id for row in rows], business_id=business_id,
+        specialist_id=None if business_id else current_user.id)
+    return [row.model_copy(update={"attendance": ClientAttendanceOut(**vars(flags[row.id]))})
+            if row.id in flags else row for row in rows]
 
 
 def _client_list_scope(db: Session, current_user: User) -> dict:
@@ -147,6 +161,8 @@ def list_clients(
     name: Optional[str] = None,
     q: Optional[str] = Query(None, max_length=200),
     gender: Optional[Literal["male", "female", "other"]] = None,
+    attendance: Optional[ClientAttendanceFilter] = Query(
+        None, description="Only clients with a no-show, a late cancel or a blocked online booking"),
     sort_by: ClientSortField = "id",
     sort_order: Literal["asc", "desc"] = "asc",
     page: int = Query(1, ge=1, le=MAX_PAGE),
@@ -168,15 +184,14 @@ def list_clients(
         name=name,
         search=q,
         gender=gender,
+        attendance=attendance,
         sort_by=sort_by,
         sort_order=sort_order,
         pagination=pagination,
         include_deleted=include_deleted,
         include_archived=include_archived,
     )
-    localized_items = [
-        c.model_dump() if hasattr(c, 'model_dump') else c for c in clients
-    ]
+    localized_items = _with_attendance(db, current_user, clients)
     return PaginatedResponse.create(
         items=localized_items,
         total=total,
@@ -317,7 +332,7 @@ def get_client(
     from app.api.core.permissions import check_client_access
     if not check_client_access(db, current_user, client_id):
         raise HTTPException(status_code=403, detail=_("not_allowed", locale))
-    return client.model_dump() if hasattr(client, 'model_dump') else client
+    return _with_attendance(db, current_user, [client])[0]
 @router.put("/{client_id}", response_model=ClientOut)
 def update_client(
     client_id: int,

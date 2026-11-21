@@ -1,3 +1,4 @@
+from app.schemas.business import NOSHOW_RULE_FIELDS
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.db.models.business import Business
@@ -16,6 +17,7 @@ def create_business(db: Session, business_in: BusinessCreate) -> Business:
         timezone=business_in.timezone,
         booking_horizon_days=business_in.booking_horizon_days,
         booking_lead_time_minutes=business_in.booking_lead_time_minutes,
+        **{name: getattr(business_in, name) for name in NOSHOW_RULE_FIELDS},
     )
     db.add(business)
     db.commit()

@@ -1,4 +1,4 @@
-from sqlalchemy import CheckConstraint, Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 from app.api.core.clock import utcnow
@@ -26,6 +26,8 @@ class Visit(Base):
     # Database-owned evidence survives later status or payment-method edits.
     manual_payment_recorded_at = Column(DateTime, nullable=True)
     status = Column(String, default="planned", index=True)
+    # true when the visit was cancelled inside the salon's cancellation window
+    late_cancel = Column(Boolean, nullable=False, default=False, server_default="false")
     client_confirmed_at = Column(DateTime, nullable=True)
     payment_method = Column(String, nullable=True, index=True)  
     created_at = Column(DateTime, default=utcnow, index=True)

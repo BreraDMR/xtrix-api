@@ -67,6 +67,8 @@ class ClientNoteOut(BaseModel):
 class ClientProfileUpdate(InputModel):
     tags: Optional[List[ClientTag]] = Field(None, max_length=MAX_TAGS)
     preferences: Optional[str] = Field(None, max_length=MAX_PREFERENCES_LENGTH)
+    online_booking_blocked: Optional[bool] = Field(
+        None, description="Stop (true) or allow again (false) this client's online booking here")
     model_config = ConfigDict(extra="forbid")
 
     @field_validator("tags")
@@ -103,4 +105,6 @@ class ClientProfileOut(BaseModel):
     client_id: int
     tags: List[str] = Field(default_factory=list)
     preferences: Optional[str] = None
+    online_booking_blocked: bool = False
+    online_booking_blocked_at: Optional[UtcDatetime] = None
     model_config = ConfigDict(from_attributes=True)

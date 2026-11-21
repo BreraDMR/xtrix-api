@@ -376,6 +376,9 @@ def create_public_booking(
         raise HTTPException(status_code=409, detail=_("public_slot_unavailable", locale))
     except booking_service.RequestInProgress:
         raise HTTPException(status_code=409, detail=_("public_booking_in_progress", locale))
+    except booking_service.ClientBookingBlocked:
+        raise HTTPException(status_code=403, detail={
+            "code": "public_booking_client_blocked", "message": _("public_booking_client_blocked", locale)})
     except payments.PaymentUnavailable:
         db.rollback()
         raise HTTPException(status_code=502, detail=_("public_payment_unavailable", locale))

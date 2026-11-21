@@ -62,6 +62,8 @@ def test_owner_edits_notes_tags_and_preferences(client, make_user, headers_for):
         "client_id": client_id,
         "tags": ["vip", "morning"],
         "preferences": "Call before visiting",
+        "online_booking_blocked": False,
+        "online_booking_blocked_at": None,
     }
     assert client.get(f"/clients/{client_id}/profile", headers=h).json() == profile.json()
 

@@ -16,6 +16,8 @@ class ClientBusinessRelation(Base):
     loyalty_cashback = Column(Float, default=0.0, nullable=False, index=True)  
     loyalty_level_id = Column(Integer, ForeignKey("loyalty_levels.id", ondelete="SET NULL"), nullable=True, index=True)  
     created_at = Column(DateTime, default=utcnow, index=True)
+    # set = this client can't book online here (no-show rule or staff), cleared by staff
+    online_booking_blocked_at = Column(DateTime, nullable=True)
     __table_args__ = (
         UniqueConstraint('client_id', 'business_id', name='uq_client_business'),
     )

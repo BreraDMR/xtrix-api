@@ -57,7 +57,7 @@ def test_0079_0080_roundtrip_has_one_head_and_keeps_all_previous_rows(db, make_u
     bind = db.get_bind()
     before = before_auth_rows(bind)
     config = Config("alembic.ini")
-    assert ScriptDirectory.from_config(config).get_heads() == ["0094_visitor_push_tokens"]
+    assert ScriptDirectory.from_config(config).get_heads() == ['0095_noshow_attendance']
     try:
         command.downgrade(config, "0079_visitor_accounts")
         assert not (NEW_TABLES & set(inspect(bind).get_table_names()))

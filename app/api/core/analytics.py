@@ -91,6 +91,48 @@ def get_visit_statistics(
         'visits_by_status': visits_by_status,
         'monthly_visits': monthly_data,
         'average_duration_minutes': round(avg_duration, 2) if avg_duration else None,
+        'attendance': get_attendance_statistics(db, base_filters),
+    }
+
+
+def _rate(part: int, whole: int) -> Optional[float]:
+    return round(part / whole, 4) if whole else None
+
+
+def get_attendance_statistics(db: Session, filters: list) -> Dict[str, Any]:
+    """No-shows and late cancels, overall and per specialist, in one grouped query.
+
+    The rate is no-shows out of the visits that were due: completed ones plus no-shows.
+    Cancelled and still-planned visits don't count either way.
+    """
+    from app.db.models.user import User
+
+    no_show = func.coalesce(func.sum(case((Visit.status == 'no_show', 1), else_=0)), 0)
+    late = func.coalesce(func.sum(case((and_(Visit.status == 'cancelled', Visit.late_cancel.is_(True)), 1),
+                                       else_=0)), 0)
+    due = func.coalesce(func.sum(case((Visit.status.in_(('completed', 'no_show')), 1), else_=0)), 0)
+    rows = (
+        db.query(Visit.specialist_id, User.full_name, no_show, late, due)
+        .outerjoin(User, User.id == Visit.specialist_id)
+        .filter(*filters, Visit.deleted_at.is_(None))
+        .group_by(Visit.specialist_id, User.full_name)
+        .all()
+    )
+    by_specialist = [
+        {'specialist_id': specialist_id, 'specialist_name': name, 'no_show': int(missed),
+         'late_cancel': int(late_count), 'due_visits': int(due_count), 'no_show_rate': _rate(int(missed), int(due_count))}
+        for specialist_id, name, missed, late_count, due_count in rows
+        if missed or late_count or due_count
+    ]
+    by_specialist.sort(key=lambda row: (-row['no_show'], -row['late_cancel'], row['specialist_id']))
+    total_missed = sum(row['no_show'] for row in by_specialist)
+    total_due = sum(row['due_visits'] for row in by_specialist)
+    return {
+        'no_show': total_missed,
+        'late_cancel': sum(row['late_cancel'] for row in by_specialist),
+        'due_visits': total_due,
+        'no_show_rate': _rate(total_missed, total_due),
+        'by_specialist': by_specialist,
     }
 def get_financial_report(
     db: Session,

@@ -68,6 +68,8 @@ def test_history_stats_next_visit_and_payments(client, make_user, headers_for):
         "total_visits": 5,
         "completed_visits": 2,
         "cancelled_visits": 1,
+        "no_show_visits": 0,
+        "late_cancel_visits": 0,
         "last_visit_at": recent["date_start"],
         "next_visit_at": next_visit["date_start"],
     }
