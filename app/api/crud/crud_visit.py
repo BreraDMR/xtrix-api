@@ -153,6 +153,7 @@ def create_visit(
     *,
     actor=None,
     request_id: Optional[str] = None,
+    notify_client: bool = False,
 ) -> Visit:
     """Create the visit and every item in one transaction: no half-saved chains."""
     from app.api.core.logger import get_logger
@@ -232,6 +233,10 @@ def create_visit(
             actor=actor,
             request_id=request_id,
         )
+        if notify_client:
+            from app.api.core import notification_events
+            # queued in this same commit: a rolled back visit never gets a confirmation
+            notification_events.queue_crm_visit_saved(db, visit, created=True)
         db.commit()
         db.refresh(visit)
         logger.info(f"create_visit: created visit id={visit.id}, items={len(visit.items)}, price={visit.price}")
@@ -249,6 +254,7 @@ def update_visit(
     *,
     actor=None,
     request_id: Optional[str] = None,
+    notify_client: bool = False,
 ) -> Visit:
     """Patch the visit. A chain is rebuilt only when its shape, time or price changes."""
     data = update.model_dump(exclude_unset=True)
@@ -348,6 +354,10 @@ def update_visit(
             from app.api.core.released_slot_queue import enqueue_slots
             enqueue_slots(db, visit.business_id, released, event_key=f'visit:{visit.id}:released:{uuid4().hex}')
         db.add(visit)
+        if notify_client:
+            from app.api.core import notification_events
+            notification_events.queue_crm_visit_saved(
+                db, visit, previous_status=previous[0], previous_start=previous[1])
         db.commit()
         db.refresh(visit)
         visit._released_slots = released

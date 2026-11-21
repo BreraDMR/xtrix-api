@@ -9,6 +9,7 @@ import hmac
 import json
 from datetime import datetime, timedelta
 from typing import Optional
+from urllib.parse import quote
 
 from fastapi import HTTPException
 from sqlalchemy import and_, func, or_
@@ -130,6 +131,10 @@ def revoke_consent(
     return consent
 
 
+# stands in for the campaign id in links from automatic marketing (birthday, thank-you note)
+NO_CAMPAIGN = 0
+
+
 def unsubscribe_token(consent_id: int, campaign_id: int) -> str:
     payload = f"campaign-unsubscribe:{consent_id}:{campaign_id}"
     signature = hmac.new(
@@ -145,7 +150,7 @@ def parse_unsubscribe_token(token: str) -> tuple[int, int]:
         campaign_id = int(campaign_part)
     except (TypeError, ValueError):
         raise ValueError("invalid token")
-    if consent_id <= 0 or campaign_id <= 0:
+    if consent_id <= 0 or campaign_id < 0:
         raise ValueError("invalid token")
     expected = unsubscribe_token(consent_id, campaign_id)
     if not hmac.compare_digest(expected, f"{consent_id}.{campaign_id}.{signature}"):
@@ -165,6 +170,26 @@ def consent_from_token(db: Session, locale: str, token: str) -> tuple[MarketingC
     if campaign is not None and campaign.business_id != consent.business_id:
         raise HTTPException(status_code=400, detail=_("invalid_unsubscribe_token", locale))
     return consent, campaign
+
+
+def unsubscribe_link(consent_id: int, campaign_id: int = NO_CAMPAIGN) -> str:
+    token = unsubscribe_token(consent_id, campaign_id)
+    return f"{settings.frontend_url.rstrip('/')}/unsubscribe#token={quote(token, safe='')}"
+
+
+def subscribed_consent(
+    db: Session, business_id: int, client_id: int, channel: str = "email"
+) -> Optional[MarketingConsent]:
+    return (
+        db.query(MarketingConsent)
+        .filter(
+            MarketingConsent.business_id == business_id,
+            MarketingConsent.client_id == client_id,
+            MarketingConsent.channel == channel,
+            MarketingConsent.status == "subscribed",
+        )
+        .first()
+    )
 
 
 def unsubscribe_by_token(db: Session, locale: str, token: str) -> MarketingConsent:

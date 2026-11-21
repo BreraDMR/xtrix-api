@@ -48,7 +48,7 @@ def test_0078_0079_roundtrip_has_one_head_and_preserves_all_legacy_rows(db, make
     bind = db.get_bind()
     before = legacy_rows(bind)
     config = Config("alembic.ini")
-    assert ScriptDirectory.from_config(config).get_heads() == ["0094_visitor_push_tokens"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0095_notif_message_switches"]
     try:
         command.downgrade(config, "0078_waitlist_open_range")
         assert not (NEW_TABLES & set(inspect(bind).get_table_names()))

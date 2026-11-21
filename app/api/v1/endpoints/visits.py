@@ -144,6 +144,7 @@ def create_visit(
             business_id=business_id,
             actor=current_user,
             request_id=audit_service.request_id_for(request),
+            notify_client=True,
         )
     except ChainError as exc:
         _chain_error(exc, locale)
@@ -305,7 +306,19 @@ def send_reminders(
     current_user: User = Depends(deps.role_required("admin", "business_owner", "specialist", "employee")),
     locale: str = Depends(deps.get_locale),
 ):
+    from app.api.core import notification_preferences
     due = _due_visits(db, current_user)
+    if channel != "log":
+        # same gate as the outbox: SMS/WhatsApp are off here, email needs a provider
+        if channel not in notification_preferences.SUPPORTED_CHANNELS:
+            raise HTTPException(status_code=409, detail=_("notification_channel_unavailable", locale))
+        if not notification_preferences.channel_ready(channel):
+            raise HTTPException(status_code=409, detail=_("notification_provider_not_ready", locale))
+        # and each salon's own switch - an admin call must not mail clients of a salon that said no
+        allowed = {}
+        for business_id in {v.business_id for v in due}:
+            allowed[business_id] = notification_preferences.enabled_channel(db, business_id) == channel if business_id else False
+        due = [v for v in due if allowed.get(v.business_id)]
     client_ids = {v.client_id for v in due}
     contacts = {}
     if client_ids:
@@ -433,6 +446,7 @@ def update_visit(
             payload,
             actor=current_user,
             request_id=audit_service.request_id_for(request),
+            notify_client=True,
         )
     except visit_settlement_guard.VisitPriceChangeBlocked as exc:
         raise HTTPException(status_code=409, detail={"code": exc.reason, "message": _(exc.reason, locale)}) from None

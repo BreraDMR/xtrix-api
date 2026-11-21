@@ -48,7 +48,10 @@ class ClientBase(BaseModel):
                 raise invalid("invalid_birth_date", error_msg)
         return v
 class ClientCreate(InputModel, ClientBase):
-    owner_id: Optional[int] = None  
+    owner_id: Optional[int] = None
+    # left out = the salon's language (see client_language.default_client_language)
+    language: Optional[ClientLanguage] = Field(
+        None, description="Language of messages sent to the client: en, ru, cz; empty = the salon's language")
 class ClientUpdate(InputModel):
     full_name: Optional[str] = Field(None, max_length=255, min_length=1)
     birth_date: Optional[date] = None

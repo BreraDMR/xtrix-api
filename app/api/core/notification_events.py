@@ -24,6 +24,9 @@ KIND_CANCELLED = "booking_cancelled"
 KIND_REMINDER = "booking_reminder"
 # a phone reminder's key is the visit reminder key plus this mark and the device id
 PUSH_KEY_MARK = ":push:"
+# messages about changes the staff made in the CRM carry this source and their own salon switch
+SOURCE_CRM = "crm"
+CRM_SWITCH = "crm_visit_messages_enabled"
 
 
 def reminder_event_key(visit: Visit) -> str:
@@ -90,8 +93,10 @@ def _contact_email(client: Optional[Client]) -> Optional[str]:
     return email or None
 
 
-def _payload(business: Business, visit: Visit, client: Client) -> dict:
+def _payload(business: Business, visit: Visit, client: Client, source: Optional[str] = None) -> dict:
+    extra = {"source": source} if source else {}
     return {
+        **extra,
         "business_name": business.name,
         "business_timezone": business.timezone,
         "client_name": client.full_name,
@@ -109,6 +114,7 @@ def _queue(
     kind: str,
     event_key: str,
     scheduled_at: Optional[datetime] = None,
+    source: Optional[str] = None,
 ) -> None:
     email = _contact_email(client)
     channel = notification_preferences.enabled_channel(db, business.id)
@@ -123,7 +129,7 @@ def _queue(
         channel=channel,
         recipient=email,
         language=client.language,
-        payload=_payload(business, visit, client),
+        payload=_payload(business, visit, client, source),
         scheduled_at=scheduled_at,
     )
 
@@ -167,28 +173,69 @@ def _ensure_email_reminder(db: Session, business: Business, visit: Visit, client
 
 
 def queue_booking_created(
-    db: Session, business: Business, visit: Visit, client: Optional[Client] = None
+    db: Session, business: Business, visit: Visit, client: Optional[Client] = None,
+    *, source: Optional[str] = None,
 ) -> None:
     client = client or visit.client
-    _queue(db, business, visit, client, KIND_CREATED, f"visit:{visit.id}:created")
+    _queue(db, business, visit, client, KIND_CREATED, f"visit:{visit.id}:created", source=source)
     ensure_reminder(db, business, visit, client)
 
 
 def queue_booking_changed(
-    db: Session, business: Business, visit: Visit, client: Optional[Client] = None
+    db: Session, business: Business, visit: Visit, client: Optional[Client] = None,
+    *, source: Optional[str] = None,
 ) -> None:
     client = client or visit.client
     cancel_pending_reminders(db, visit.id)
     # the timestamp keeps two separate moves to the same time from sharing one message
     key = f"visit:{visit.id}:changed:{visit.date_start.isoformat()}:{utcnow().isoformat()}"
-    _queue(db, business, visit, client, KIND_CHANGED, key)
+    _queue(db, business, visit, client, KIND_CHANGED, key, source=source)
     ensure_reminder(db, business, visit, client)
 
 
 def queue_booking_cancelled(
     db: Session, business: Business, visit: Visit, client: Optional[Client] = None,
-    *, event_key: Optional[str] = None,
+    *, event_key: Optional[str] = None, source: Optional[str] = None,
 ) -> None:
     client = client or visit.client
     cancel_pending_reminders(db, visit.id)
-    _queue(db, business, visit, client, KIND_CANCELLED, event_key or f"visit:{visit.id}:cancelled")
+    _queue(db, business, visit, client, KIND_CANCELLED, event_key or f"visit:{visit.id}:cancelled", source=source)
+
+
+def crm_messages_on(db: Session, business_id: Optional[int]) -> bool:
+    return notification_preferences.message_channel(db, business_id, CRM_SWITCH) is not None
+
+
+def queue_crm_visit_saved(
+    db: Session,
+    visit: Visit,
+    *,
+    created: bool = False,
+    previous_status: Optional[str] = None,
+    previous_start: Optional[datetime] = None,
+) -> None:
+    """Tell the client about a visit the staff created, moved or cancelled in the CRM.
+
+    Called inside the visit's transaction, before the commit. Only real transitions count,
+    so saving the same form twice doesn't queue a second message, and anything in the past
+    is never announced - that's usually staff filling in history.
+    """
+    if not visit.business_id or not crm_messages_on(db, visit.business_id):
+        return
+    business = db.get(Business, visit.business_id)
+    if business is None or business.deleted_at is not None:
+        return
+    now = utcnow()
+    planned_ahead = visit.status == "planned" and visit.date_start is not None and visit.date_start > now
+    if created:
+        if planned_ahead:
+            queue_booking_created(db, business, visit, source=SOURCE_CRM)
+        return
+    if previous_status != "cancelled" and visit.status == "cancelled":
+        if previous_start is not None and previous_start > now:
+            # the stamp lets a visit that was restored and cancelled again say so again
+            key = f"visit:{visit.id}:crm-cancelled:{now.isoformat()}"
+            queue_booking_cancelled(db, business, visit, event_key=key, source=SOURCE_CRM)
+        return
+    if previous_status == "planned" and planned_ahead and previous_start != visit.date_start:
+        queue_booking_changed(db, business, visit, source=SOURCE_CRM)

@@ -45,13 +45,25 @@ files are excluded from Docker builds.
 ## Scheduled jobs
 
 Reminders, follow-ups, birthday greetings, subscription expiry, low-stock e-mails and the monthly
-finance archive don't run by themselves. Either start the worker (`docker compose up worker`, or
-`python scripts/run_jobs.py --loop`), or call them from cron, e.g.
+finance archive don't run by themselves. The preferred way is the long-running worker
+(`docker compose up worker`, or `python -m app.worker`): it drains the notification outbox every
+few seconds in batches (`SELECT ... FOR UPDATE SKIP LOCKED`, so several workers are fine), backs off
+when the database is unavailable, runs the frequent jobs every `JOBS_EVERY_MINUTES` and the daily
+ones once a day from `JOBS_DAILY_HOUR` UTC, and stops cleanly on SIGTERM. Password reset e-mails and
+public booking confirmations are also tried right after the request
+(`NOTIFICATION_IMMEDIATE_DELIVERY`, on by default); whatever fails there stays in the outbox.
+Without a worker, call the jobs from cron, e.g.
 
     */15 * * * *  python scripts/run_jobs.py visitor_mail released_slots reminders followups
     0 8 * * *     python scripts/run_jobs.py birthdays subscriptions low_stock finance_archive
 
-Message jobs record sent messages in `notification_log`.
+Message jobs record sent messages in `notification_log`. Birthday greetings and thank-you notes
+are marketing: they go only to clients with marketing consent for that salon, only when the salon
+turned the type on in its notification settings (off by default), and carry an unsubscribe link.
+Visits created, moved or cancelled by staff in the CRM send the client the same booking messages
+as online bookings (salon switch, on by default; never for visits in the past).
+SendPulse contact sync is off unless `SENDPULSE_CONTACT_SYNC_ENABLED=true`: the installation has
+one address book, so syncing would put the clients of every salon into one list.
 Messages to clients use the client's own `language`, e-mails to staff use their UI language
 from preferences.
 

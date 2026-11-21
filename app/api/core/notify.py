@@ -1,6 +1,7 @@
 import logging
 from typing import Iterable, Optional
 from datetime import datetime
+from app.api.core import notification_preferences
 from app.api.core.client_messages import render
 from app.api.core.notification_transport import OutboundMessage, get_notification_transport
 logger = logging.getLogger(__name__)
@@ -16,6 +17,10 @@ def _send_email(to: str, subject: str, body: str) -> bool:
 
 
 def _send_sms(phone: str, body: str) -> bool:
+    if not notification_preferences.channel_ready("sms"):
+        # SMS is switched off for the whole installation until it is a product decision
+        logger.info("SMS is not enabled here, not sending")
+        return False
     result = get_notification_transport().send(
         OutboundMessage(channel="sms", recipient=phone, text=body)
     )
@@ -23,6 +28,9 @@ def _send_sms(phone: str, body: str) -> bool:
 
 
 def send_whatsapp_notification(phone: str, message: str) -> bool:
+    if not notification_preferences.channel_ready("whatsapp"):
+        logger.info("WhatsApp is not enabled here, not sending")
+        return False
     result = get_notification_transport().send(
         OutboundMessage(channel="whatsapp", recipient=phone, text=message)
     )
@@ -64,10 +72,14 @@ def send_sms_notification(phone: str, visit, language: Optional[str] = None, nam
     return _send_sms(phone, _reminder(visit, language, name).short)
 
 
+def _with_footer(body: str, footer: str) -> str:
+    return f"{body}\n\n---\n{footer}" if footer else body
+
+
 def send_birthday_greeting_email(email: str, client_name: str, business_name: Optional[str] = None,
-                                 language: Optional[str] = None) -> bool:
+                                 language: Optional[str] = None, footer: str = "") -> bool:
     msg = render("birthday", language, name=client_name, business_name=business_name)
-    return _send_email(email, msg.subject, msg.body)
+    return _send_email(email, msg.subject, _with_footer(msg.body, footer))
 
 
 def send_birthday_greeting_sms(phone: str, client_name: str, business_name: Optional[str] = None,
@@ -82,9 +94,10 @@ def send_birthday_greeting_whatsapp(phone: str, client_name: str, business_name:
 
 
 def send_visit_followup_email(email: str, client_name: str, visit_date: datetime, service_name: str,
-                              business_name: Optional[str] = None, language: Optional[str] = None) -> bool:
+                              business_name: Optional[str] = None, language: Optional[str] = None,
+                              footer: str = "") -> bool:
     msg = render("followup", language, name=client_name, when=visit_date, service=service_name, business_name=business_name)
-    return _send_email(email, msg.subject, msg.body)
+    return _send_email(email, msg.subject, _with_footer(msg.body, footer))
 
 
 def send_visit_followup_sms(phone: str, client_name: str, visit_date: datetime, service_name: str,

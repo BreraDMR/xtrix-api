@@ -13,6 +13,8 @@ from app.db.models.notification_settings import NotificationSettings
 
 SUPPORTED_CHANNELS = ("email",)
 DEFAULT_REMINDER_TIME = "10:00"
+# per-salon on/off for single message types, on top of the main is_enabled switch
+MESSAGE_SWITCHES = ("birthday_greetings_enabled", "visit_followups_enabled", "crm_visit_messages_enabled")
 
 
 def channel_ready(channel: str) -> bool:
@@ -56,3 +58,20 @@ def enabled_channel(db: Session, business_id: int) -> Optional[str]:
 def reminder_time(db: Session, business_id: int) -> str:
     row = get_settings(db, business_id)
     return row.reminder_time if row and row.reminder_time else DEFAULT_REMINDER_TIME
+
+
+def message_channel(db: Session, business_id: Optional[int], switch: str) -> Optional[str]:
+    """The channel for one message type, or None when the salon (or the provider) says no.
+
+    Needs the main switch, the provider and the type's own switch all on. A visit without
+    a business has nobody to ask, so it gets nothing.
+    """
+    if business_id is None:
+        return None
+    row = get_settings(db, business_id)
+    if row is None:
+        # no row yet means defaults: the main switch is off, so nothing goes out
+        return None
+    if not row.is_enabled or not getattr(row, switch):
+        return None
+    return row.channel if channel_ready(row.channel) else None

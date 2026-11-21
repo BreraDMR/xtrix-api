@@ -99,6 +99,11 @@ _UNSUBSCRIBE = {
 }
 
 
+def marketing_footer(language: Optional[str], team: str, link: str) -> str:
+    language = language if language in _UNSUBSCRIBE else FALLBACK
+    return _UNSUBSCRIBE[language].replace("{team}", team).replace("{link}", link)
+
+
 class NotificationTemplateError(Exception):
     pass
 
@@ -143,11 +148,8 @@ def render_campaign(db: Session, row: NotificationOutbox) -> OutboundMessage:
         raise NotificationTemplateError("campaign is incomplete")
     language = row.language if row.language in _UNSUBSCRIBE else FALLBACK
     team = campaign.business.name if campaign.business else "Xtrix"
-    token = campaign_service.unsubscribe_token(consent.id, campaign.id)
-    link = f"{settings.frontend_url.rstrip('/')}/unsubscribe#token={quote(token, safe='')}"
-    unsubscribe = (
-        _UNSUBSCRIBE[language].replace("{team}", team).replace("{link}", link)
-    )
+    link = campaign_service.unsubscribe_link(consent.id, campaign.id)
+    unsubscribe = marketing_footer(language, team, link)
     subject = str(payload.get("subject") or campaign.subject)
     body = str(payload.get("body") or campaign.body)
     name = payload.get("client_name") or ""

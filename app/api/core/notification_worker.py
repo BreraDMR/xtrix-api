@@ -7,7 +7,7 @@ is stored before the final status. A crash after provider acceptance but before 
 can still leave an uncertain delivery; external exactly-once delivery is not guaranteed.
 """
 from datetime import datetime, timedelta
-from typing import Callable, Optional
+from typing import Callable, Collection, Optional
 
 from sqlalchemy import and_, or_, text
 from sqlalchemy.orm import Session
@@ -92,26 +92,24 @@ def claim_batch(
 def claim_leases(
     db: Session, now: Optional[datetime] = None, limit: int = BATCH_SIZE,
     max_attempts: int = MAX_ATTEMPTS, lease: timedelta = LEASE,
-    _locks: Optional[_DeliveryLocks] = None,
+    _locks: Optional[_DeliveryLocks] = None, only_ids: Optional[Collection[int]] = None,
 ) -> dict[int, int]:
     if _locks is None:
         with _DeliveryLocks() as locks:
-            return _claim_leases_locked(db, now, limit, max_attempts, lease, locks)
-    return _claim_leases_locked(db, now, limit, max_attempts, lease, _locks)
+            return _claim_leases_locked(db, now, limit, max_attempts, lease, locks, only_ids)
+    return _claim_leases_locked(db, now, limit, max_attempts, lease, _locks, only_ids)
 
 
-def _claim_leases_locked(db, now, limit, max_attempts, lease, locks):
+def _claim_leases_locked(db, now, limit, max_attempts, lease, locks, only_ids=None):
     now = now or utcnow()
-    expired = (
-        db.query(NotificationOutbox)
-        .filter(
-            NotificationOutbox.status == "processing",
-            NotificationOutbox.locked_until.isnot(None),
-            NotificationOutbox.locked_until < now,
-        )
-        .with_for_update(skip_locked=True)
-        .all()
+    expired_query = db.query(NotificationOutbox).filter(
+        NotificationOutbox.status == "processing",
+        NotificationOutbox.locked_until.isnot(None),
+        NotificationOutbox.locked_until < now,
     )
+    if only_ids is not None:
+        expired_query = expired_query.filter(NotificationOutbox.id.in_(list(only_ids)))
+    expired = expired_query.with_for_update(skip_locked=True).all()
     for row in expired:
         if not locks.acquire(row.id):
             continue
@@ -124,8 +122,11 @@ def _claim_leases_locked(db, now, limit, max_attempts, lease, locks):
             row.locked_until = None
             row.updated_at = now
 
+    due = db.query(NotificationOutbox)
+    if only_ids is not None:
+        due = due.filter(NotificationOutbox.id.in_(list(only_ids)))
     rows = (
-        db.query(NotificationOutbox)
+        due
         .filter(
             NotificationOutbox.attempts < max_attempts,
             NotificationOutbox.scheduled_at <= now,
@@ -179,14 +180,15 @@ def run_once(
     now: Optional[datetime] = None,
     limit: int = BATCH_SIZE,
     max_attempts: int = MAX_ATTEMPTS,
+    only_ids: Optional[Collection[int]] = None,
 ) -> dict[str, int]:
     with _DeliveryLocks() as locks:
-        return _run_once_locked(db, send, now, limit, max_attempts, locks)
+        return _run_once_locked(db, send, now, limit, max_attempts, locks, only_ids)
 
 
-def _run_once_locked(db, send, now, limit, max_attempts, locks):
+def _run_once_locked(db, send, now, limit, max_attempts, locks, only_ids=None):
     now = now or utcnow()
-    leases = claim_leases(db, now=now, limit=limit, max_attempts=max_attempts, _locks=locks)
+    leases = claim_leases(db, now=now, limit=limit, max_attempts=max_attempts, _locks=locks, only_ids=only_ids)
     stats: dict[str, int] = {
         "claimed": len(leases),
         "sent": 0,
@@ -248,6 +250,10 @@ def _run_once_locked(db, send, now, limit, max_attempts, locks):
                 else notification_preferences.enabled_channel(db, row.business_id)
             )
             blocked = "notifications_disabled" if channel is None or row.channel != channel else None
+            if (blocked is None and (row.payload or {}).get("source") == notification_events.SOURCE_CRM
+                    and not notification_events.crm_messages_on(db, row.business_id)):
+                # the salon switched CRM visit messages off after this one was queued
+                blocked = "notifications_disabled"
         if blocked is not None:
             # the owner turned notifications off after this message was queued
             row.status = "cancelled"
@@ -348,3 +354,45 @@ def requeue_failed(db: Session, message_id: int, business_id: int) -> bool:
     row.updated_at = utcnow()
     db.commit()
     return True
+
+
+def deliver_now(db: Session, event_keys: Collection[str]) -> dict[str, int]:
+    """Try these messages right after the request committed them, instead of waiting for the worker.
+
+    Same claim, lease and gates as a normal run, so a worker running next to us can't send
+    them twice. Anything that fails here stays in the outbox and the worker retries it.
+    """
+    from app.api.core import notification_templates
+    from app.api.core.config import settings
+    from app.api.core.logger import logger
+
+    empty = {"claimed": 0}
+    if not settings.notification_immediate_delivery or not event_keys:
+        return empty
+    try:
+        if db.new or db.dirty or db.deleted:
+            # never commit someone else's half-done work from inside the claim
+            raise ValueError("pending changes in the session")
+        ids = [row[0] for row in db.query(NotificationOutbox.id).filter(
+            NotificationOutbox.event_key.in_(list(event_keys)),
+            NotificationOutbox.status == "pending",
+        ).all()]
+        if not ids:
+            return empty
+        return run_once(db, lambda row: notification_templates.send_outbox_message(db, row),
+                        limit=len(ids), only_ids=ids)
+    except Exception as exc:
+        db.rollback()
+        logger.warning("immediate delivery left for the worker: %s", type(exc).__name__)
+        return empty
+
+
+def deliver_detached(event_keys: Collection[str]) -> dict[str, int]:
+    """deliver_now() on its own session, for a background task that runs after the response."""
+    from app.db.session import SessionLocal
+
+    db = SessionLocal()
+    try:
+        return deliver_now(db, event_keys)
+    finally:
+        db.close()

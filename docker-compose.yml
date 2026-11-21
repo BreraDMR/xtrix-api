@@ -52,16 +52,21 @@ services:
       start_period: 40s
 
   worker:
-    # scheduled jobs (reminders, greetings, subscriptions, low stock) - see scripts/run_jobs.py
+    # outbox delivery plus scheduled jobs (reminders, greetings, subscriptions, low stock) - see app/worker.py
     build: .
     entrypoint: []
-    command: python scripts/run_jobs.py --loop
+    command: python -m app.worker
+    stop_signal: SIGTERM
+    stop_grace_period: 60s
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/medic
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:-change-me-minimum-32-characters-long}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       JOBS_CHANNEL: ${JOBS_CHANNEL:-email}
+      WORKER_BATCH_SIZE: ${WORKER_BATCH_SIZE:-50}
+      WORKER_POLL_SECONDS: ${WORKER_POLL_SECONDS:-5}
     depends_on:
       api:
         condition: service_started

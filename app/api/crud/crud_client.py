@@ -115,7 +115,10 @@ def create_client_for(
     specialist_id: Optional[int] = None,
 ) -> Client:
     client_data = client_in.model_dump()
-    client_data.pop('owner_id', None)  
+    client_data.pop('owner_id', None)
+    if client_data.get('language') is None:
+        # the endpoint normally fills this in; the column default is the last resort
+        client_data.pop('language', None)
     client = Client(**client_data)
     if specialist_id and not business_id:
         # solo specialist: no business to hang relations on, so ownership is the only link
@@ -149,7 +152,10 @@ def create_client_for(
     return client
 def create_client(db: Session, client_in: ClientCreate, specialist_id: Optional[int] = None) -> Client:
     client_data = client_in.model_dump()
-    client_data.pop('owner_id', None)  
+    client_data.pop('owner_id', None)
+    if client_data.get('language') is None:
+        # the endpoint normally fills this in; the column default is the last resort
+        client_data.pop('language', None)
     client = Client(**client_data)
     db.add(client)
     db.flush()  

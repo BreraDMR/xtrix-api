@@ -4,11 +4,11 @@ The request endpoint answers the same way for a known and an unknown email: it m
 tell an anonymous caller which addresses have an account. The token is generated and put
 in the email; the API response never contains it.
 """
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.api import deps
-from app.api.core import password_reset_email
+from app.api.core import notification_worker, password_reset_email
 from app.api.core.clock import utcnow
 from app.api.core.i18n import _
 from app.api.core.logger import get_logger, mask_email
@@ -35,14 +35,18 @@ logger = get_logger("password_reset")
 def request_password_reset(
     request: Request,
     data: PasswordResetRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(deps.get_db),
     locale: str = Depends(deps.get_locale),
 ):
     email = str(data.email)
     user = crud_user.get_password_reset_user(db, email)
     if user is not None and user.deleted_at is None:
-        password_reset_email.queue_password_reset(db, user, locale)
+        event_key = password_reset_email.queue_password_reset(db, user, locale).event_key
         db.commit()
+        # the link lives 30 minutes, so try it now; after the response, so the answer takes
+        # the same time whether the account exists or not
+        background_tasks.add_task(notification_worker.deliver_detached, [event_key])
     logger.info(f"Password reset requested: email={mask_email(email)}")
     return PasswordResetRequestOut(message=_("password_reset_requested", locale))
 

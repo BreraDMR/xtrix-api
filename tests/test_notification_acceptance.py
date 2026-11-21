@@ -39,6 +39,8 @@ def capture(monkeypatch):
     monkeypatch.setattr(settings, "smtp_from", "salon@test.invalid")
     monkeypatch.setattr(settings, "smtp_password", SECRET)
     monkeypatch.setattr(settings, "notification_transport", "capture")
+    # these cards are about the job; the try-right-away path has its own tests
+    monkeypatch.setattr(settings, "notification_immediate_delivery", False)
     monkeypatch.setattr(notification_transport, "_transport", None)
     transport = notification_transport.get_notification_transport()
     assert transport.name == "capture"
@@ -126,7 +128,8 @@ def test_settings_are_off_by_default_and_never_show_provider_secrets(client, mak
     assert current["is_enabled"] is False
     assert current["provider_ready"] is True
     assert SECRET not in response.text and "smtp.test.invalid" not in response.text
-    assert set(current) == {"channel", "reminder_time", "is_enabled", "provider_ready", "available_channels"}
+    assert set(current) == {"channel", "reminder_time", "is_enabled", "provider_ready", "available_channels",
+                            "birthday_greetings_enabled", "visit_followups_enabled", "crm_visit_messages_enabled"}
 
 
 def test_switch_cannot_be_turned_on_without_a_provider(client, make_user, headers_for, monkeypatch):

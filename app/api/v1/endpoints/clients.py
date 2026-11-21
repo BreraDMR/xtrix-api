@@ -85,6 +85,10 @@ def create_client(
             "existing_client_id": existing.id,
             "matched_by": matched_by,
         })
+    if client.language is None:
+        from app.api.core.client_language import default_client_language
+        client = client.model_copy(update={
+            "language": default_client_language(db, business_id, current_user, locale)})
     result = crud_client.create_client_for(
         db=db,
         client_in=client,

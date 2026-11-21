@@ -107,6 +107,10 @@ class Settings(BaseSettings):
         "",
         description="Notification transport: empty/live uses configured providers, capture stores messages in memory without sending",
     )
+    notification_immediate_delivery: bool = Field(
+        True,
+        description="Try password resets and booking confirmations right after the request instead of waiting for the worker",
+    )
     capture_mail_file: str = Field(
         "",
         description="Optional JSONL file for messages caught by the capture transport; local checks only",
@@ -121,6 +125,9 @@ class Settings(BaseSettings):
     sendpulse_from_email: str = Field("", description="SendPulse sender email address")
     sendpulse_from_name: str = Field("", description="SendPulse sender name")
     sendpulse_sms_sender: str = Field("", description="SendPulse SMS sender name")
+    # one SendPulse address book would hold the clients of every salon together, so the
+    # contact sync stays off until there is a per-salon setup and a decision to use it
+    sendpulse_contact_sync_enabled: bool = Field(False, description="Allow syncing clients and users to SendPulse")
     cors_origins: str = Field(
         default="",
         description="Allowed CORS origins (comma-separated)",

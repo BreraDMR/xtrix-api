@@ -21,7 +21,8 @@ def test_unknown_language_falls_back_to_russian():
 
 def test_language_is_a_client_setting(client, auth_headers):
     r = client.post("/clients/", json={"full_name": "Jana", "contact_phone": "+420777000555"}, headers=auth_headers)
-    assert r.status_code == 200 and r.json()["language"] == "ru"
+    # nothing known about the salon or the request -> English, like the public booking page
+    assert r.status_code == 200 and r.json()["language"] == "en"
     cid = r.json()["id"]
     assert client.put(f"/clients/{cid}", json={"language": "cz"}, headers=auth_headers).json()["language"] == "cz"
     assert client.put(f"/clients/{cid}", json={"language": "de"}, headers=auth_headers).status_code == 422
@@ -41,10 +42,12 @@ def test_reminder_goes_out_in_the_clients_language(monkeypatch):
     assert "02.01.2030 10:00" in sent[0][2] and "Masáž" in sent[0][2]
 
 
-def test_birthday_job_uses_each_clients_language(client, make_user, headers_for, monkeypatch):
+def test_birthday_job_uses_each_clients_language(client, db, make_user, headers_for, monkeypatch):
     from app.api.core import notification_tasks
+    from tests.test_jobs_no_duplicates import _marketing_on
 
     a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
+    _marketing_on(client, db, a, monkeypatch)
     # the job picks birthdays by date.today(), so ask for the same day - utcnow() is a day off around midnight
     today = date.today()
     r = client.put(f"/clients/{a['client']['id']}", headers=a["headers"],
@@ -55,3 +58,25 @@ def test_birthday_job_uses_each_clients_language(client, make_user, headers_for,
 
     assert notification_tasks.send_birthday_greetings(channel="email") == 1
     assert sent == ["🎉 Všechno nejlepší k narozeninám!"]
+
+
+def test_new_client_without_language_gets_the_salons_language(client, make_user, headers_for):
+    a = build_tenant(client, make_user, headers_for, "Alpha", "+42070081")
+    assert client.put("/user-preferences/me", json={"language": "cz"}, headers=a["headers"]).status_code == 200
+    r = client.post("/clients/", json={"full_name": "Jana Nová", "contact_phone": "+420777000981"},
+                    headers={**a["headers"], "Accept-Language": "en"})
+    assert r.status_code == 200, r.text
+    assert r.json()["language"] == "cz"
+    # an explicit choice still wins
+    r = client.post("/clients/", json={"full_name": "John", "contact_phone": "+420777000982", "language": "ru"},
+                    headers=a["headers"])
+    assert r.json()["language"] == "ru"
+
+
+def test_without_salon_language_the_request_language_is_used(client, auth_headers):
+    r = client.post("/clients/", json={"full_name": "Petra", "contact_phone": "+420777000983"},
+                    headers={**auth_headers, "Accept-Language": "cs-CZ,cs;q=0.9"})
+    assert r.status_code == 200, r.text
+    assert r.json()["language"] == "cz"
+    r = client.post("/clients/", json={"full_name": "Pat", "contact_phone": "+420777000984"}, headers=auth_headers)
+    assert r.json()["language"] == "en"

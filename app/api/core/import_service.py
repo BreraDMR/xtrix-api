@@ -32,6 +32,7 @@ from sqlalchemy import cast, func, or_, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session
 
+from app.api.core.client_language import default_client_language
 from app.api.core.clock import utcnow
 from app.api.core.logger import get_logger
 from app.api.core.permissions import get_staff_record
@@ -1199,6 +1200,15 @@ def _apply_client_values(client: Client, data: dict[str, Any]) -> None:
         client.language = data["language"]
 
 
+def _default_language(db: Session, scope: ImportScope, user: User) -> str:
+    # one lookup per import, not per row
+    cache = db.info.setdefault("import_client_language", {})
+    key = (scope.business_id, user.id)
+    if key not in cache:
+        cache[key] = default_client_language(db, scope.business_id, user)
+    return cache[key]
+
+
 def _create_client(
     db: Session,
     scope: ImportScope,
@@ -1212,7 +1222,7 @@ def _create_client(
         gender=data.get("gender"),
         contact_phone=data.get("phone"),
         contact_email=data.get("email"),
-        language=data.get("language") or "ru",
+        language=data.get("language") or _default_language(db, scope, user),
     )
     db.add(client)
     db.flush()

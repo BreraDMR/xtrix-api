@@ -5,11 +5,11 @@ and every lookup below it is scoped to that business.
 """
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api import deps
-from app.api.core import booking_manage_access
+from app.api.core import booking_manage_access, notification_worker
 from app.api.core import public_booking_service as booking_service
 from app.api.core import service_payment_service as payments
 from app.api.core.availability import (
@@ -360,12 +360,15 @@ def create_public_booking(
     request: Request,
     slug: str,
     payload: PublicBookingCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(deps.get_db),
     locale: str = Depends(deps.get_locale),
 ):
     _settings, business = _resolve_published(db, slug, locale)
     try:
         visit = booking_service.submit_booking(db, business, payload, locale)
+        # the guest is waiting for the confirmation; the worker retries whatever fails here
+        background_tasks.add_task(notification_worker.deliver_detached, [f"visit:{visit.id}:created"])
     except booking_service.ServiceUnavailable:
         raise HTTPException(status_code=404, detail=_("public_service_unavailable", locale))
     except booking_service.StaffUnavailable:

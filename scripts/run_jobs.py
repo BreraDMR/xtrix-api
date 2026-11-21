@@ -1,8 +1,9 @@
 """Scheduled jobs: freed-slot matching, reminders, follow-ups, birthdays, subscriptions, low stock, monthly archive.
 
 Nothing in the app runs these on its own, so either:
-  python scripts/run_jobs.py --loop          # long-running worker (docker-compose "worker" service)
-  python scripts/run_jobs.py reminders ...   # one-off, e.g. from cron on the host
+  python -m app.worker                       # long-running worker (docker-compose "worker" service)
+  python scripts/run_jobs.py reminders ...   # one-off, e.g. from cron or the GitHub Actions job
+  python scripts/run_jobs.py --loop          # the old simple loop, kept for compatibility
 
 Reminders are materialized in the notification outbox and delivered through the configured
 transport; the old direct reminder path is no longer scheduled. Greetings and follow-ups keep

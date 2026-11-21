@@ -29,6 +29,9 @@ def _out(row: NotificationSettings) -> NotificationSettingsOut:
         channel=row.channel,
         reminder_time=row.reminder_time,
         is_enabled=row.is_enabled,
+        birthday_greetings_enabled=row.birthday_greetings_enabled,
+        visit_followups_enabled=row.visit_followups_enabled,
+        crm_visit_messages_enabled=row.crm_visit_messages_enabled,
         provider_ready=notification_preferences.channel_ready(row.channel),
         available_channels=notification_preferences.available_channels(),
     )
@@ -78,6 +81,10 @@ def update_notification_settings(
 
     if "reminder_time" in fields:
         row.reminder_time = fields["reminder_time"]
+
+    for flag in notification_preferences.MESSAGE_SWITCHES:
+        if flag in fields:
+            setattr(row, flag, fields[flag])
 
     db.commit()
     db.refresh(row)

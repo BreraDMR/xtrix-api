@@ -51,8 +51,23 @@ def test_failed_send_is_retried_next_run(client, make_user, headers_for, outbox)
     assert notification_tasks.send_automatic_reminders("email") == 1
 
 
-def test_followup_and_birthday_go_once(client, make_user, headers_for, outbox):
+def _marketing_on(client, db, a, monkeypatch):
+    from app.api.core import campaign_service
+    from app.api.core.config import settings
+
+    # greetings and thank-you notes are marketing: provider, salon switches and consent first
+    monkeypatch.setattr(settings, "smtp_host", "smtp.invalid")
+    monkeypatch.setattr(settings, "smtp_from", "notifications@example.com")
+    r = client.put("/businesses/me/notification-settings", headers=a["headers"], json={
+        "is_enabled": True, "birthday_greetings_enabled": True, "visit_followups_enabled": True})
+    assert r.status_code == 200, r.text
+    campaign_service.record_consent(db, business_id=a["business"]["id"], client_id=a["client"]["id"], source="test")
+    db.commit()
+
+
+def test_followup_and_birthday_go_once(client, db, make_user, headers_for, outbox, monkeypatch):
     a = build_tenant(client, make_user, headers_for, "Alpha", "+42070011")
+    _marketing_on(client, db, a, monkeypatch)
     done = (utcnow() - timedelta(hours=25, minutes=30)).replace(microsecond=0)
     _visit(client, a, done, status="completed", payment_method="cash")
     client.put(f"/clients/{a['client']['id']}", headers=a["headers"],

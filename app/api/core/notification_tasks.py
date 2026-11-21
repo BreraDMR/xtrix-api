@@ -1,5 +1,6 @@
 import calendar
 from datetime import date, timedelta
+from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
 from app.db.session import SessionLocal
@@ -7,6 +8,7 @@ from app.api.core.logger import logger
 from app.db.models.client import Client
 from app.db.models.visit import Visit
 from app.db.models.business import Business
+from app.api.core import campaign_service, notification_preferences, notification_templates
 from app.api.core.notify import (
     send_notifications,
     send_birthday_greeting_email,
@@ -58,6 +60,26 @@ def send_automatic_reminders(channel: str = "email") -> int:
         raise
     finally:
         db.close()
+BIRTHDAY_SWITCH = "birthday_greetings_enabled"
+FOLLOWUP_SWITCH = "visit_followups_enabled"
+
+
+def _marketing_consent(db: Session, business_id: Optional[int], client_id: int, channel: str, switch: str):
+    """The client's opt-in for this salon, or None if this marketing message must not go out.
+
+    Birthday wishes and thank-you notes are marketing: the salon has to switch the type on
+    and the client has to have agreed to marketing from this very salon.
+    """
+    if notification_preferences.message_channel(db, business_id, switch) != channel:
+        return None
+    return campaign_service.subscribed_consent(db, business_id, client_id, channel)
+
+
+def _opt_out_footer(consent, language: Optional[str], business_name: Optional[str]) -> str:
+    link = campaign_service.unsubscribe_link(consent.id)
+    return notification_templates.marketing_footer(language, business_name or "Xtrix", link)
+
+
 def send_birthday_greetings(channel: str = "email") -> int:
     db: Session = SessionLocal()
     try:
@@ -88,33 +110,32 @@ def send_birthday_greetings(channel: str = "email") -> int:
                 if not business_relations:
                     continue
                 for relation in business_relations:
-                    business = db.query(Business).filter(Business.id == relation.business_id).first()
-                    business_name = business.name if business else None
                     greeting_key = f"{client.id}:{relation.business_id}:{today.year}"
                     if was_sent(db, f"birthday_{channel}", greeting_key):
                         continue
-                    ok = False
-                    if channel == "email" and client.contact_email:
-                        ok = send_birthday_greeting_email(client.contact_email, client.full_name, business_name, language=client.language)
-                        if ok:
-                            sent_count += 1
-                            logger.info(f"Sent birthday email to client {client.id}")
-                    elif channel == "sms" and client.contact_phone:
-                        ok = send_birthday_greeting_sms(client.contact_phone, client.full_name, business_name, language=client.language)
-                        if ok:
-                            sent_count += 1
-                            logger.info(f"Sent birthday SMS to client {client.id}")
-                    elif channel == "whatsapp" and client.contact_phone:
-                        ok = send_birthday_greeting_whatsapp(client.contact_phone, client.full_name, business_name, language=client.language)
-                        if ok:
-                            sent_count += 1
-                            logger.info(f"Sent birthday WhatsApp to client {client.id}")
-                    if ok:
-                        mark_sent(db, f"birthday_{channel}", greeting_key)
+                    # the birthday bonus is loyalty, not a message - it doesn't wait for consent
                     try:
                         award_birthday_bonus(db, client.id, relation.business_id)
                     except Exception as e:
                         logger.warning(f"Failed to award birthday bonus for client {client.id}, business {relation.business_id}: {e}")
+                    consent = _marketing_consent(db, relation.business_id, client.id, channel, BIRTHDAY_SWITCH)
+                    if consent is None:
+                        continue
+                    business = db.query(Business).filter(Business.id == relation.business_id).first()
+                    business_name = business.name if business else None
+                    ok = False
+                    if channel == "email" and client.contact_email:
+                        footer = _opt_out_footer(consent, client.language, business_name)
+                        ok = send_birthday_greeting_email(client.contact_email, client.full_name, business_name,
+                                                          language=client.language, footer=footer)
+                    elif channel == "sms" and client.contact_phone:
+                        ok = send_birthday_greeting_sms(client.contact_phone, client.full_name, business_name, language=client.language)
+                    elif channel == "whatsapp" and client.contact_phone:
+                        ok = send_birthday_greeting_whatsapp(client.contact_phone, client.full_name, business_name, language=client.language)
+                    if ok:
+                        sent_count += 1
+                        logger.info(f"Sent birthday {channel} to client {client.id}")
+                        mark_sent(db, f"birthday_{channel}", greeting_key)
             except Exception as e:
                 logger.error(f"Error sending birthday greeting to client {client.id}: {e}")
                 continue
@@ -153,52 +174,30 @@ def send_visit_followups(channel: str = "email", hours_after: int = 24) -> int:
                 client = db.query(Client).filter(Client.id == visit.client_id).first()
                 if not client:
                     continue
-                business_name = None
-                if visit.business_id:
-                    business = db.query(Business).filter(Business.id == visit.business_id).first()
-                    business_name = business.name if business else None
+                consent = _marketing_consent(db, visit.business_id, client.id, channel, FOLLOWUP_SWITCH)
+                if consent is None:
+                    continue
+                business = db.query(Business).filter(Business.id == visit.business_id).first()
+                business_name = business.name if business else None
                 service_name = visit.service_name or (visit.service.name if visit.service else str(visit.service_id))
+                when = visit.date_end or visit.date_start
                 if channel == "email" and client.contact_email:
-                    ok = send_visit_followup_email(
-                        client.contact_email,
-                        client.full_name,
-                        visit.date_end or visit.date_start,
-                        service_name,
-                        business_name,
-                        language=client.language,
-                    )
-                    if ok:
-                        sent_count += 1
-                        logger.info(f"Sent follow-up email for visit {visit.id} to client {client.id}")
+                    footer = _opt_out_footer(consent, client.language, business_name)
+                    ok = send_visit_followup_email(client.contact_email, client.full_name, when, service_name,
+                                                   business_name, language=client.language, footer=footer)
                 elif channel == "sms" and client.contact_phone:
-                    ok = send_visit_followup_sms(
-                        client.contact_phone,
-                        client.full_name,
-                        visit.date_end or visit.date_start,
-                        service_name,
-                        business_name,
-                        language=client.language,
-                    )
-                    if ok:
-                        sent_count += 1
-                        logger.info(f"Sent follow-up SMS for visit {visit.id} to client {client.id}")
+                    ok = send_visit_followup_sms(client.contact_phone, client.full_name, when, service_name,
+                                                 business_name, language=client.language)
                 elif channel == "whatsapp" and client.contact_phone:
-                    ok = send_visit_followup_whatsapp(
-                        client.contact_phone,
-                        client.full_name,
-                        visit.date_end or visit.date_start,
-                        service_name,
-                        business_name,
-                        language=client.language,
-                    )
-                    if ok:
-                        sent_count += 1
-                        logger.info(f"Sent follow-up WhatsApp for visit {visit.id} to client {client.id}")
+                    ok = send_visit_followup_whatsapp(client.contact_phone, client.full_name, when, service_name,
+                                                      business_name, language=client.language)
+                if ok:
+                    sent_count += 1
+                    logger.info(f"Sent follow-up {channel} for visit {visit.id} to client {client.id}")
             except Exception as e:
                 logger.error(f"Error sending follow-up for visit {visit.id}: {e}")
             if ok:
                 mark_sent(db, f"followup_{channel}", str(visit.id))
-                continue
         logger.info(f"Sent {sent_count} follow-up messages via {channel}")
         return sent_count
     except Exception as e:

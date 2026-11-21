@@ -2088,15 +2088,21 @@
             "title": "Gender"
           },
           "language": {
-            "default": "ru",
-            "description": "Language of messages sent to the client: en, ru, cz",
-            "enum": [
-              "en",
-              "ru",
-              "cz"
+            "anyOf": [
+              {
+                "enum": [
+                  "en",
+                  "ru",
+                  "cz"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Language",
-            "type": "string"
+            "description": "Language of messages sent to the client: en, ru, cz; empty = the salon's language",
+            "title": "Language"
           },
           "location_lat": {
             "anyOf": [
@@ -10126,9 +10132,19 @@
             "title": "Available Channels",
             "type": "array"
           },
+          "birthday_greetings_enabled": {
+            "default": false,
+            "title": "Birthday Greetings Enabled",
+            "type": "boolean"
+          },
           "channel": {
             "title": "Channel",
             "type": "string"
+          },
+          "crm_visit_messages_enabled": {
+            "default": true,
+            "title": "Crm Visit Messages Enabled",
+            "type": "boolean"
           },
           "is_enabled": {
             "title": "Is Enabled",
@@ -10141,6 +10157,11 @@
           "reminder_time": {
             "title": "Reminder Time",
             "type": "string"
+          },
+          "visit_followups_enabled": {
+            "default": false,
+            "title": "Visit Followups Enabled",
+            "type": "boolean"
           }
         },
         "required": [
@@ -10155,6 +10176,17 @@
       },
       "NotificationSettingsUpdate": {
         "properties": {
+          "birthday_greetings_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birthday Greetings Enabled"
+          },
           "channel": {
             "anyOf": [
               {
@@ -10166,6 +10198,17 @@
               }
             ],
             "title": "Channel"
+          },
+          "crm_visit_messages_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Crm Visit Messages Enabled"
           },
           "is_enabled": {
             "anyOf": [
@@ -10188,6 +10231,17 @@
               }
             ],
             "title": "Reminder Time"
+          },
+          "visit_followups_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit Followups Enabled"
           }
         },
         "title": "NotificationSettingsUpdate",

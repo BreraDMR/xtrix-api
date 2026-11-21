@@ -1,17 +1,35 @@
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
+from app.api.core.config import settings
 from app.api.core.logger import logger
 from app.api.core.sendpulse import get_sendpulse_client
 from app.db.models.client import Client
 from app.db.models.user import User
 from app.db.models.business import Business
 from app.db.models.client_business_relation import ClientBusinessRelation
+
+
+def _sync_enabled() -> bool:
+    # SendPulse has a single address book here, so every salon's clients would land in one
+    # list; nothing is pushed unless SENDPULSE_CONTACT_SYNC_ENABLED is set on purpose
+    if not settings.sendpulse_contact_sync_enabled:
+        logger.info("SendPulse contact sync is disabled, nothing sent")
+        return False
+    return True
+
+
+def _disabled_result() -> Dict[str, Any]:
+    return {"synced": 0, "failed": 0, "skipped": 0, "disabled": True}
+
+
 def sync_client_to_sendpulse(
     db: Session,
     client_id: int,
     address_book_id: Optional[int] = None,
 ) -> bool:
+    if not _sync_enabled():
+        return False
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         logger.warning(f"Client {client_id} not found")
@@ -58,6 +76,8 @@ def sync_user_to_sendpulse(
     user_id: int,
     address_book_id: Optional[int] = None,
 ) -> bool:
+    if not _sync_enabled():
+        return False
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         logger.warning(f"User {user_id} not found")
@@ -95,7 +115,9 @@ def sync_user_to_sendpulse(
 def sync_all_clients_to_sendpulse(
     address_book_id: Optional[int] = None,
     limit: Optional[int] = None,
-) -> Dict[str, int]:
+) -> Dict[str, Any]:
+    if not _sync_enabled():
+        return _disabled_result()
     db: Session = SessionLocal()
     results = {"synced": 0, "failed": 0, "skipped": 0}
     try:
@@ -126,7 +148,9 @@ def sync_all_clients_to_sendpulse(
 def sync_all_users_to_sendpulse(
     address_book_id: Optional[int] = None,
     limit: Optional[int] = None,
-) -> Dict[str, int]:
+) -> Dict[str, Any]:
+    if not _sync_enabled():
+        return _disabled_result()
     db: Session = SessionLocal()
     results = {"synced": 0, "failed": 0, "skipped": 0}
     try:
