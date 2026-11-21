@@ -153,7 +153,7 @@ def test_services_list_only_active_timed_services_with_public_fields(client, mak
 
     services = _ok(client.get(f"/public/booking/{salon['slug']}/services"), "services")
     assert [s["id"] for s in services] == [salon["service"]["id"]]
-    assert set(services[0]) == {"id", "name", "description", "duration_minutes", "price"}
+    assert set(services[0]) == {"id", "name", "category", "description", "duration_minutes", "price"}
     assert services[0]["duration_minutes"] == 60 and services[0]["price"] == 450
     # a neighbour's service id is simply not there under this slug
     assert client.get(f"/public/booking/{salon['slug']}/staff", params={"service_id": other["service"]["id"]}).status_code == 404

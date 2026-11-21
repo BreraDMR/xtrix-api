@@ -6,12 +6,14 @@ produce at most one visit, while a changed body with the same key is rejected.
 """
 import hashlib
 import json
-from datetime import date, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.core.availability import (
+    MAX_SLOTS,
+    AvailableSlot,
     ChainTiming,
     booking_window,
     chain_start_available,
@@ -72,6 +74,54 @@ def _replay(db: Session, row: PublicBookingRequest, digest: str) -> Visit:
     if not visit:
         raise RequestInProgress()
     return visit
+
+
+def busy_minutes_on_day(busy: dict, staff_id: int, day: date, timezone_name: str) -> int:
+    """How many minutes of the salon-local day this master is already booked (buffers included)."""
+    zone = salon_zone(timezone_name)
+    day_start = datetime.combine(day, time.min).replace(tzinfo=zone).astimezone(timezone.utc).replace(tzinfo=None)
+    day_end = datetime.combine(day + timedelta(days=1), time.min).replace(tzinfo=zone).astimezone(
+        timezone.utc).replace(tzinfo=None)
+    total = timedelta()
+    for start, end in busy.get(staff_id, ()):
+        left, right = max(start, day_start), min(end, day_end)
+        if right > left:
+            total += right - left
+    return int(total.total_seconds() // 60)
+
+
+def least_loaded(staff_ids, busy: dict, day: date, timezone_name: str) -> int:
+    """The "any master" rule: fewest booked minutes that day, then the lowest id."""
+    return min(staff_ids, key=lambda staff_id: (busy_minutes_on_day(busy, staff_id, day, timezone_name), staff_id))
+
+
+def any_master_slots(per_master: dict, busy: dict, timezone_name: str) -> list[AvailableSlot]:
+    """Merge each master's free starts into one list, one entry per start time.
+
+    Each start carries the master the booking would get right now, so the page and the
+    booking agree unless someone else books in between (then the booking picks again).
+    """
+    free: dict[tuple[date, datetime], list[int]] = {}
+    for staff_id, slots in per_master.items():
+        for slot in slots:
+            free.setdefault((slot.day, slot.start), []).append(slot.staff_id)
+    merged = [
+        AvailableSlot(day=day, start=start, staff_id=least_loaded(ids, busy, day, timezone_name))
+        for (day, start), ids in sorted(free.items())
+    ]
+    return merged[:MAX_SLOTS]
+
+
+def _pick_free_master(db: Session, business, services, staff_ids: list[int], start) -> int | None:
+    """Among the locked candidates, the least loaded one who is still free at ``start``."""
+    free = [staff_id for staff_id in staff_ids if _chain_is_free(db, business, services, staff_id, start)]
+    if not free:
+        return None
+    day = start.replace(tzinfo=timezone.utc).astimezone(salon_zone(business.timezone)).date()
+    _schedules, _exceptions, _blocks, busy = crud_public_booking.availability_sources(
+        db, free, day, day, business.timezone
+    )
+    return least_loaded(free, busy, day, business.timezone)
 
 
 def _slot_is_free(
@@ -150,6 +200,11 @@ def snapshot_chain_is_free(db: Session, business, lines, start, exclude_visit_id
     return True
 
 
+def _common_masters(db: Session, business_id: int, services) -> set[int]:
+    sets = [crud_public_booking.public_service_master_ids(db, business_id, service) for service in services]
+    return set.intersection(*sets) if sets else set()
+
+
 def submit_booking(
     db: Session,
     business,
@@ -170,8 +225,6 @@ def submit_booking(
     if existing:
         return _replay(db, existing, digest)
 
-    from app.api.core.crm_metering import enforce_visit_quota
-    enforce_visit_quota(db, business.id, payload.staff_id, payload.start)
     service_ids = payload.service_ids or [payload.service_id]
     services = [
         crud_public_booking.get_public_service(db, business.id, service_id)
@@ -179,11 +232,19 @@ def submit_booking(
     ]
     if any(service is None for service in services):
         raise ServiceUnavailable()
-    for service in services:
-        if payload.staff_id not in crud_public_booking.public_service_master_ids(
-            db, business.id, service
-        ):
+    masters = _common_masters(db, business.id, services)
+    if payload.staff_id is not None:
+        if payload.staff_id not in masters:
             raise StaffUnavailable()
+        candidate_ids = [payload.staff_id]
+    else:
+        # no master chosen: anyone who does this service may get it, decided under the locks below
+        candidate_ids = sorted(masters)
+        if not candidate_ids:
+            raise StaffUnavailable()
+    from app.api.core.crm_metering import enforce_visit_quota
+    # the quota is counted per salon, so any candidate gives the same answer here
+    enforce_visit_quota(db, business.id, candidate_ids[0], payload.start)
     claim = PublicBookingRequest(
         business_id=business.id,
         request_id=payload.client_request_id,
@@ -205,17 +266,19 @@ def submit_booking(
             return _replay(db, existing, digest)
         raise RequestInProgress()
 
-    staff = (
+    # Lock every candidate in id order, so two "any master" bookings can't deadlock each other
+    locked = (
         db.query(User)
         .filter(
-            User.id == payload.staff_id,
+            User.id.in_(candidate_ids),
             User.deleted_at.is_(None),
             User.archived_at.is_(None),
         )
+        .order_by(User.id)
         .with_for_update()
-        .first()
+        .all()
     )
-    if not staff:
+    if not locked:
         db.rollback()
         raise StaffUnavailable()
 
@@ -230,19 +293,29 @@ def submit_booking(
     if any(service is None for service in services):
         db.rollback()
         raise ServiceUnavailable()
-    for service in services:
-        if payload.staff_id not in crud_public_booking.public_service_master_ids(db, business.id, service):
-            db.rollback()
-            raise StaffUnavailable()
+    masters = _common_masters(db, business.id, services)
+    locked = [person for person in locked if person.id in masters]
+    if not locked:
+        db.rollback()
+        raise StaffUnavailable()
     currency = visit_currency.currency_for_catalog(currency, business.id, services)
-    lines = [service_line(service, payload.staff_id) for service in services]
 
     start = payload.start
     if start.tzinfo is not None:
         start = start.astimezone(timezone.utc).replace(tzinfo=None)
-    if not _chain_is_free(db, business, services, staff.id, start):
-        db.rollback()
-        raise SlotUnavailable()
+    if payload.staff_id is not None:
+        staff = locked[0]
+        if not _chain_is_free(db, business, services, staff.id, start):
+            db.rollback()
+            raise SlotUnavailable()
+    else:
+        # checked again now that nobody else can book these masters until we commit
+        chosen = _pick_free_master(db, business, services, [person.id for person in locked], start)
+        if chosen is None:
+            db.rollback()
+            raise SlotUnavailable()
+        staff = next(person for person in locked if person.id == chosen)
+    lines = [service_line(service, staff.id) for service in services]
 
     client = crud_public_booking.find_or_create_client(
         db, business.id, staff.id, payload, language, secondary_phone=secondary_phone

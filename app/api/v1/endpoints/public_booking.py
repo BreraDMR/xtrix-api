@@ -154,6 +154,7 @@ def list_public_services(
         PublicServiceOut(
             id=service.id,
             name=service.name,
+            category=(service.category or "").strip() or None,
             description=service.description,
             duration_minutes=service.duration_minutes,
             price=service.price,
@@ -230,22 +231,32 @@ def list_public_slots(
     schedules, exceptions, blocks, busy = crud_public_booking.availability_sources(
         db, master_ids, first, last, business.timezone
     )
-    slots = collect_slots(
-        date_from=first,
-        date_to=last,
-        timezone_name=business.timezone,
-        horizon_days=business.booking_horizon_days,
-        lead_time_minutes=business.booking_lead_time_minutes,
-        duration_minutes=service.duration_minutes,
-        buffer_before_minutes=service.buffer_before_minutes or 0,
-        buffer_after_minutes=service.buffer_after_minutes or 0,
-        master_ids=master_ids,
-        schedules=schedules,
-        exceptions=exceptions,
-        blocks=blocks,
-        busy=busy,
-        now=now,
-    )
+
+    def slots_for(ids):
+        return collect_slots(
+            date_from=first,
+            date_to=last,
+            timezone_name=business.timezone,
+            horizon_days=business.booking_horizon_days,
+            lead_time_minutes=business.booking_lead_time_minutes,
+            duration_minutes=service.duration_minutes,
+            buffer_before_minutes=service.buffer_before_minutes or 0,
+            buffer_after_minutes=service.buffer_after_minutes or 0,
+            master_ids=ids,
+            schedules=schedules,
+            exceptions=exceptions,
+            blocks=blocks,
+            busy=busy,
+            now=now,
+        )
+
+    if staff_id is None and len(master_ids) > 1:
+        # "any master": every time someone is free, shown with the master the booking would get
+        slots = booking_service.any_master_slots(
+            {master: slots_for([master]) for master in master_ids}, busy, business.timezone,
+        )
+    else:
+        slots = slots_for(master_ids)
 
     by_day: dict[date, list[PublicSlotOut]] = {first + timedelta(days=offset): [] for offset in range((last - first).days + 1)}
     for slot in slots:

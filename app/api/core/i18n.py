@@ -647,6 +647,31 @@ messages: Dict[str, Dict[str, str]] = {
         "ru": "Пароль изменён. Войдите с новым паролем",
         "cz": "Heslo bylo změněno. Přihlaste se novým heslem",
     },
+    "password_setup_sent": {
+        "en": "We sent a link to set your password to your email",
+        "ru": "Мы отправили на вашу почту ссылку для установки пароля",
+        "cz": "Na váš e-mail jsme poslali odkaz pro nastavení hesla",
+    },
+    "password_already_set": {
+        "en": "This account already has a password. Change it instead",
+        "ru": "У аккаунта уже есть пароль. Его можно сменить",
+        "cz": "Tento účet už má heslo. Můžete ho změnit",
+    },
+    "password_not_set": {
+        "en": "This account has no password yet. Set one through the email link first",
+        "ru": "У аккаунта ещё нет пароля. Сначала установите его по ссылке из письма",
+        "cz": "Tento účet zatím nemá heslo. Nejdřív ho nastavte přes odkaz v e-mailu",
+    },
+    "password_email_missing": {
+        "en": "Add an email to your account to set a password",
+        "ru": "Чтобы установить пароль, добавьте email в аккаунт",
+        "cz": "Pro nastavení hesla přidejte k účtu e-mail",
+    },
+    "current_password_invalid": {
+        "en": "The current password is wrong",
+        "ru": "Текущий пароль указан неверно",
+        "cz": "Současné heslo není správné",
+    },
     "public_service_unavailable": {
         "en": "This service is not available for online booking",
         "ru": "Эта услуга недоступна для онлайн-записи",

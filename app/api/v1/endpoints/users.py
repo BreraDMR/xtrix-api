@@ -4,17 +4,22 @@ from app.api import deps
 from app.api.core.i18n import _
 from app.api.core.clock import utcnow
 from app.api.core.logger import get_logger, mask_email, mask_phone
-from app.api.core.security import verify_refresh_token, create_access_token, create_refresh_token
+from app.api.core.security import (
+    verify_refresh_token, create_access_token, create_refresh_token, get_password_hash, verify_password,
+)
+from app.api.core import login_guard, password_reset_email
 from app.api.core.pagination import MAX_PAGE, PaginationParams, PaginatedResponse
 from fastapi.responses import JSONResponse
 from app.api.core.login_guard import LoginThrottled
-from app.api.middleware.rate_limit import client_ip, limiter, LOGIN_LIMIT, SIGNUP_LIMIT, SENSITIVE_LIMIT
-from app.api.crud import crud_user, crud_refresh_token
+from app.api.middleware.rate_limit import (
+    client_ip, limiter, LOGIN_LIMIT, PASSWORD_RESET_LIMIT, SIGNUP_LIMIT, SENSITIVE_LIMIT,
+)
+from app.api.crud import crud_password_reset, crud_user, crud_refresh_token
 from app.db.models.user import User
 from app.schemas.user import (
     UserCreate, UserLogin, UserOut, TwoFactorSetup, 
     TwoFactorVerify, TwoFactorEnable, LoginResponse,
-    ModerationRequest, ModerationResponse
+    ModerationRequest, ModerationResponse, PasswordChange, PasswordSetupOut, UserMeOut,
 )
 from app.schemas.refresh_token import TokenRefresh, TokenResponse, RefreshTokenCreate
 router = APIRouter()
@@ -105,7 +110,7 @@ def login(
     except ValueError as e:
         logger.warning(f"Login blocked: {str(e)}")
         raise HTTPException(status_code=423, detail=str(e))
-@router.get("/me", response_model=UserOut)
+@router.get("/me", response_model=UserMeOut)
 def get_current_user_info(
     current_user: User = Depends(deps.get_current_user),
     db: Session = Depends(deps.get_db),
@@ -115,10 +120,75 @@ def get_current_user_info(
     # the job is the source of truth here: staff hired before the owner made the salon
     # have no business_id on their own row
     staff = get_staff_record(db, current_user)
-    me = UserOut.model_validate(current_user)
+    me = UserMeOut.model_validate(current_user)
     me.business_id = get_user_business_id(current_user, db)
     me.employer_id = staff.business_owner_id if staff else None
+    # Google signups are stored with an empty hash, they have nothing to type into the login form
+    me.has_password = bool(current_user.hashed_password)
     return me
+@router.post("/me/password/setup", status_code=202, response_model=PasswordSetupOut)
+@limiter.limit(PASSWORD_RESET_LIMIT)
+def request_password_setup(
+    request: Request,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    locale: str = Depends(deps.get_locale),
+):
+    # The link goes to the account's own email, so a stolen access token alone can't pick a password.
+    # From there it is the normal reset link: single use, 30 minutes, ends every session when used.
+    user = crud_user.get_active_user(db, current_user.id, for_update=True)
+    if user is None:
+        raise HTTPException(status_code=401, detail=_("user_not_found", locale))
+    if user.hashed_password:
+        raise HTTPException(status_code=409, detail=_("password_already_set", locale))
+    if not user.email:
+        raise HTTPException(status_code=400, detail=_("password_email_missing", locale))
+    password_reset_email.queue_password_reset(db, user, locale, setup=True)
+    db.commit()
+    logger.info(f"Password setup link queued for user_id={user.id}")
+    return PasswordSetupOut(message=_("password_setup_sent", locale))
+@router.post("/me/password", response_model=TokenResponse)
+@limiter.limit(SENSITIVE_LIMIT)
+def change_password(
+    request: Request,
+    data: PasswordChange,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    locale: str = Depends(deps.get_locale),
+):
+    user = crud_user.get_active_user(db, current_user.id, for_update=True)
+    if user is None:
+        raise HTTPException(status_code=401, detail=_("user_not_found", locale))
+    if not user.hashed_password:
+        raise HTTPException(status_code=409, detail=_("password_not_set", locale))
+    ip = client_ip(request)
+    try:
+        # same per-account throttle as the login form, otherwise this is a free password oracle
+        login_guard.check(user.id, ip)
+    except LoginThrottled as e:
+        return JSONResponse(
+            status_code=429,
+            content={"error": {"message": _("account_locked", locale), "status_code": 429, "type": "LoginThrottled"}},
+            headers={"Retry-After": str(e.retry_after)},
+        )
+    if not verify_password(data.current_password, user.hashed_password):
+        login_guard.failed(user.id, ip)
+        raise HTTPException(status_code=400, detail=_("current_password_invalid", locale))
+    login_guard.succeeded(user.id, ip)
+    user.hashed_password = get_password_hash(data.new_password)
+    # Like a reset: every other device is signed out and unused reset links die.
+    # This device gets a fresh pair so the person doesn't have to log in again right away.
+    user.tokens_valid_after = utcnow()
+    crud_refresh_token.revoke_all_user_tokens(db, user.id, commit=False)
+    crud_password_reset.mark_user_tokens_used(db, user.id, commit=False)
+    access = create_access_token({"sub": str(user.id), "role": user.role})
+    refresh, expires_at = create_refresh_token({"sub": str(user.id), "role": user.role})
+    crud_refresh_token.create_refresh_token(
+        db, RefreshTokenCreate(token=refresh, user_id=user.id, expires_at=expires_at), commit=False,
+    )
+    db.commit()
+    logger.info(f"Password changed for user_id={user.id}")
+    return TokenResponse(access_token=access, refresh_token=refresh, token_type="bearer")
 @router.post("/refresh", response_model=TokenResponse)
 @limiter.limit(SENSITIVE_LIMIT)
 def refresh_token(

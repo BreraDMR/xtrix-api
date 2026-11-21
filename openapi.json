@@ -11167,6 +11167,28 @@
         "title": "PaginatedResponse[WaitlistEntryOut]",
         "type": "object"
       },
+      "PasswordChange": {
+        "properties": {
+          "current_password": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Current Password",
+            "type": "string"
+          },
+          "new_password": {
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "New Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "title": "PasswordChange",
+        "type": "object"
+      },
       "PasswordResetConfirm": {
         "properties": {
           "new_password": {
@@ -11227,6 +11249,19 @@
           "message"
         ],
         "title": "PasswordResetRequestOut",
+        "type": "object"
+      },
+      "PasswordSetupOut": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "PasswordSetupOut",
         "type": "object"
       },
       "PaymentCurrencyValue": {
@@ -12829,9 +12864,17 @@
             "title": "Service Ids"
           },
           "staff_id": {
-            "exclusiveMinimum": 0.0,
-            "title": "Staff Id",
-            "type": "integer"
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The chosen master. Leave it out with service_id to take any free master; chains need one",
+            "title": "Staff Id"
           },
           "start": {
             "format": "date-time",
@@ -12840,7 +12883,6 @@
           }
         },
         "required": [
-          "staff_id",
           "start",
           "full_name",
           "processing_consent",
@@ -13546,6 +13588,18 @@
       },
       "PublicServiceOut": {
         "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Free-text group the salon put the service in; null when none",
+            "title": "Category"
+          },
           "description": {
             "anyOf": [
               {
@@ -18998,6 +19052,165 @@
           "password"
         ],
         "title": "UserLogin",
+        "type": "object"
+      },
+      "UserMeOut": {
+        "properties": {
+          "business_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Business the user works in: their own, or the employer's for staff",
+            "title": "Business Id"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "format": "email",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "employer_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User id of the owner who employs this user; null for owners and solo specialists",
+            "title": "Employer Id"
+          },
+          "full_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Full Name",
+            "type": "string"
+          },
+          "has_password": {
+            "default": false,
+            "description": "False for accounts made through Google that never set a password",
+            "title": "Has Password",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_2fa_enabled": {
+            "default": false,
+            "title": "Is 2Fa Enabled",
+            "type": "boolean"
+          },
+          "moderated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moderated At"
+          },
+          "moderated_by_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moderated By Id"
+          },
+          "moderation_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moderation Notes"
+          },
+          "moderation_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "pending",
+            "description": "Moderation status: pending, approved, rejected",
+            "title": "Moderation Status"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "role": {
+            "description": "admin|business_owner|specialist|employee|client",
+            "title": "Role",
+            "type": "string"
+          },
+          "specialist_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "beauty|wellness|healthcare, from specialist_type; null when unknown",
+            "readOnly": true,
+            "title": "Specialist Category"
+          },
+          "specialist_type": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Type of specialist (only for role='specialist')",
+            "title": "Specialist Type"
+          }
+        },
+        "required": [
+          "full_name",
+          "role",
+          "id",
+          "specialist_category"
+        ],
+        "title": "UserMeOut",
         "type": "object"
       },
       "UserOut": {
@@ -42068,7 +42281,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserOut"
+                  "$ref": "#/components/schemas/UserMeOut"
                 }
               }
             },
@@ -42091,6 +42304,124 @@
           }
         ],
         "summary": "Get Current User Info",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/me/password": {
+      "post": {
+        "operationId": "change_password_users_me_password_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Change Password",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/me/password/setup": {
+      "post": {
+        "operationId": "request_password_setup_users_me_password_setup_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordSetupOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Request Password Setup",
         "tags": [
           "users"
         ]

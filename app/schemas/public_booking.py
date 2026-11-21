@@ -99,6 +99,7 @@ class PublicBookingSettingsUpdate(InputModel):
 class PublicServiceOut(BaseModel):
     id: int
     name: str
+    category: Optional[str] = Field(None, description="Free-text group the salon put the service in; null when none")
     description: Optional[str] = None
     duration_minutes: int
     price: Optional[float] = None
@@ -134,7 +135,10 @@ class PublicBookingCreate(InputModel):
         None, min_length=1, max_length=20,
         description="Ordered services for a chain; use service_id for a single booking",
     )
-    staff_id: int = Field(..., gt=0)
+    staff_id: Optional[int] = Field(
+        None, gt=0,
+        description="The chosen master. Leave it out with service_id to take any free master; chains need one",
+    )
     start: UtcDatetime
     full_name: str = Field(..., min_length=1, max_length=255)
     phone: Optional[str] = Field(None, max_length=50)
@@ -183,6 +187,9 @@ class PublicBookingCreate(InputModel):
             )
         if self.service_ids and any(service_id <= 0 for service_id in self.service_ids):
             raise invalid("invalid_service", "Service ids must be positive")
+        if self.service_ids and self.staff_id is None:
+            # a chain runs with one master, picked from the chain slots
+            raise invalid("staff_required", "Choose a master for a chain of services")
         if any(ord(char) < 32 or ord(char) == 127 for char in self.full_name):
             raise invalid("invalid_name", "The name can't contain line breaks or control characters")
         if bool(self.phone) == bool(self.email):

@@ -47,6 +47,36 @@ _TEXTS = {
 }
 
 
+# Same link and token as a reset, but for accounts made through Google that never had a password
+_SETUP_TEXTS = {
+    "en": (
+        "Set a password for Xtrix",
+        "Hello {name},\n\nyou asked to add a password to your Xtrix account. "
+        "After that you can sign in with your email and password as well as with Google. "
+        "The link is valid for 30 minutes and can be used once:\n\n{link}\n\n"
+        "If you did not ask for this, ignore this email; nothing changes.\n\n{sign}",
+        "The Xtrix team",
+    ),
+    "ru": (
+        "Пароль для Xtrix",
+        "Здравствуйте, {name}!\n\nВы попросили добавить пароль к аккаунту Xtrix. "
+        "После этого входить можно будет и по email с паролем, и через Google. "
+        "Ссылка действует 30 минут и может быть использована один раз:\n\n{link}\n\n"
+        "Если вы этого не запрашивали, просто проигнорируйте письмо; ничего не изменится.\n\n{sign}",
+        "Команда Xtrix",
+    ),
+    "cz": (
+        "Nastavení hesla pro Xtrix",
+        "Dobrý den, {name},\n\npožádali jste o přidání hesla k účtu Xtrix. "
+        "Poté se budete moci přihlásit e-mailem a heslem i přes Google. "
+        "Odkaz je platný 30 minut a lze jej použít pouze jednou:\n\n{link}\n\n"
+        "Pokud jste o to nežádali, tento e-mail ignorujte; nic se nezmění.\n\n{sign}",
+        "Tým Xtrix",
+    ),
+}
+PURPOSE_SETUP = "setup"
+
+
 class PasswordResetEmailError(Exception):
     pass
 
@@ -70,7 +100,9 @@ def _html(body: str, link: str) -> str:
     return "<html><body>" + "".join(paragraphs) + "</body></html>"
 
 
-def queue_password_reset(db: Session, user: User, language: str | None = None) -> NotificationOutbox:
+def queue_password_reset(
+    db: Session, user: User, language: str | None = None, *, setup: bool = False,
+) -> NotificationOutbox:
     event_key = f"user:{user.id}:password_reset:{secrets.token_hex(12)}"
     return enqueue_notification(
         db,
@@ -79,6 +111,7 @@ def queue_password_reset(db: Session, user: User, language: str | None = None) -
         recipient=user.email,
         user_id=user.id,
         language=language if language in _TEXTS else None,
+        payload={"purpose": PURPOSE_SETUP} if setup else None,
     )
 
 
@@ -90,7 +123,8 @@ def render_password_reset(db: Session, row: NotificationOutbox) -> OutboundMessa
     raw_token = crud_password_reset.issue_token(db, user.id)[1]
     link = f"{base}/reset-password#token={quote(raw_token, safe='')}"
     language = row.language if row.language in _TEXTS else FALLBACK
-    subject, body, sign = _TEXTS[language]
+    texts = _SETUP_TEXTS if (row.payload or {}).get("purpose") == PURPOSE_SETUP else _TEXTS
+    subject, body, sign = texts[language]
     values = {"name": user.full_name or "", "link": link, "sign": sign}
     subject = subject.format(**values)
     body = body.format(**values)

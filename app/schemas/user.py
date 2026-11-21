@@ -73,6 +73,22 @@ class UserOut(UserBase):
     def specialist_category(self) -> Optional[str]:
         from app.db.models.specialist_type import category_value
         return category_value(self.specialist_type)
+class UserMeOut(UserOut):
+    # Only the signed-in user learns this about their own account
+    has_password: bool = Field(False, description="False for accounts made through Google that never set a password")
+class PasswordChange(InputModel):
+    current_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
+    @field_validator('new_password')
+    @classmethod
+    def validate_new_password(cls, v):
+        from app.api.core.security import validate_password_strength
+        is_valid, error_msg = validate_password_strength(v)
+        if not is_valid:
+            raise invalid("weak_password", error_msg)
+        return v
+class PasswordSetupOut(BaseModel):
+    message: str
 class TwoFactorSetup(BaseModel):
     secret: str
     qr_code: str

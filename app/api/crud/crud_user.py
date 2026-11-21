@@ -75,6 +75,11 @@ def authenticate(db: Session, credentials: UserLogin, totp_token: str | None = N
         user = query.filter(User.phone == credentials.phone).first()
     elif credentials.email:
         user = query.filter(User.email == credentials.email).first()
+        if user is None:
+            # Google signups store the address lowercased while people type it however they like.
+            # Fall back to a case-blind match, but only when exactly one account fits.
+            matches = query.filter(func.lower(User.email) == str(credentials.email).lower()).limit(2).all()
+            user = matches[0] if len(matches) == 1 else None
     else:
         return None, False
     if not user:
