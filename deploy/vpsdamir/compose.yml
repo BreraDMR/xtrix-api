@@ -1,0 +1,85 @@
+# Xtrix API on vpsdamir (CT 101 "services", /opt/xtrix). A second copy next to Render:
+# the web client stays on Vercel, nothing is published on the host, ngrok is the only way in.
+#
+# Layout on the server:
+#   /opt/xtrix/compose.yml   - this file
+#   /opt/xtrix/.env          - secrets, chmod 600 (keys: see .env.example)
+#   /opt/xtrix/src/          - xtrix-api at the deployed commit (git archive <sha> | tar -x)
+#   /opt/xtrix/postgres/     - database files
+#
+# First start on a dump: `docker compose up -d db`, pg_restore into it, then `docker compose up -d`.
+# api runs alembic on start (entrypoint.sh), so an empty db would get a fresh schema instead.
+
+name: xtrix
+
+x-app: &app
+  build: ./src
+  image: xtrix-api:local
+  env_file: .env
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      # postgres 18 images keep data under /var/lib/postgresql/<major>/docker
+      - ./postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits: { memory: 512m }
+
+  api:
+    <<: *app
+    depends_on:
+      db: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/metrics/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits: { memory: 768m }
+
+  # scheduled jobs (reminders, follow-ups, birthdays, subscriptions...) - scripts/run_jobs.py.
+  # There is no separate scheduler: --loop runs the frequent jobs every 15 min and the daily
+  # ones from JOBS_DAILY_HOUR. NOTIFICATION_TRANSPORT=capture in .env keeps it from sending anything.
+  worker:
+    <<: *app
+    entrypoint: []
+    # "all" only keeps argparse happy: on python 3.11 nargs="*" with choices rejects an empty list.
+    # With --loop the names are ignored anyway.
+    command: ["python", "scripts/run_jobs.py", "--loop", "all"]
+    depends_on:
+      api: { condition: service_healthy }
+    healthcheck: { disable: true }
+    deploy:
+      resources:
+        limits: { memory: 384m }
+
+  # --inspect=false: the local inspector at :4040 would keep request bodies, logins included
+  ngrok:
+    image: ngrok/ngrok:3
+    restart: unless-stopped
+    command: ["http", "--url=${NGROK_DOMAIN:-footer-phoenix-nemesis.ngrok-free.dev}", "--log=stdout", "--inspect=false", "api:8000"]
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    depends_on:
+      api: { condition: service_started }
+    deploy:
+      resources:
+        limits: { memory: 128m }
