@@ -1,10 +1,10 @@
 name: Scheduled jobs
 
-# Free stand-in for a worker on the free hosting: runs scripts/run_jobs.py every 15 minutes
-# against the real database. Does nothing until the JOBS_DATABASE_URL secret is set.
+# Free stand-in for a worker on the free hosting: runs scripts/run_jobs.py against the real
+# database. Does nothing until the JOBS_DATABASE_URL secret is set.
+# By hand only now: main is the default branch, so a schedule here would fire every 15 minutes,
+# and prod already has its own worker on vpsdamir running the same jobs.
 on:
-  schedule:
-    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 jobs:
