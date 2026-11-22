@@ -19,7 +19,9 @@ def client_ip(request: Request) -> str:
     Otherwise it's the socket peer, and X-Forwarded-For is ignored so it can't be spoofed.
     """
     if settings.trust_proxy:
-        forwarded = request.headers.get("x-forwarded-for", "")
+        # a proxy may add its own header line instead of appending to the client's one (ngrok does),
+        # so glue all lines together before taking the last hop
+        forwarded = ",".join(request.headers.getlist("x-forwarded-for"))
         last = forwarded.split(",")[-1].strip()
         if last:
             return last
