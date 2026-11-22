@@ -1,5 +1,6 @@
 # Xtrix API on vpsdamir (CT 101 "services", /opt/xtrix). A second copy next to Render:
-# the web client stays on Vercel, nothing is published on the host, ngrok is the only way in.
+# the web client stays on Vercel. The way in is Tailscale Funnel on the Proxmox host
+# (https://vpsdamir.tail7fa252.ts.net:8443 -> 192.168.0.122:18000); ngrok stays as a spare.
 #
 # Layout on the server:
 #   /opt/xtrix/compose.yml   - this file
@@ -45,6 +46,10 @@ services:
     <<: *app
     depends_on:
       db: { condition: service_healthy }
+    # only on the CT's LAN address, for the funnel on the host. /etc/pve/firewall/101.fw
+    # lets just the host (192.168.0.174) in on this port, the rest of the LAN gets dropped
+    ports:
+      - "${API_BIND:-192.168.0.122}:18000:8000"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/metrics/health/live"]
       interval: 30s
