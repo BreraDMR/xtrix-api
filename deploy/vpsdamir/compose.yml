@@ -1,6 +1,7 @@
 # Xtrix API on vpsdamir (CT 101 "services", /opt/xtrix). A second copy next to Render:
-# the web client stays on Vercel. The way in is Tailscale Funnel on the Proxmox host
-# (https://vpsdamir.tail7fa252.ts.net:8443 -> 192.168.0.122:18000); ngrok stays as a spare.
+# the web client stays on Vercel (https://xtrix.cz). The way in is Cloudflare Tunnel
+# (https://api.xtrix.cz -> api:8000, the cloudflared service below). Tailscale Funnel on the
+# Proxmox host (https://vpsdamir.tail7fa252.ts.net:8443 -> 192.168.0.122:18000) and ngrok stay as spares.
 #
 # Layout on the server:
 #   /opt/xtrix/compose.yml   - this file
@@ -75,6 +76,21 @@ services:
     deploy:
       resources:
         limits: { memory: 384m }
+
+  # Cloudflare Tunnel xtrix-vpsdamir, managed from the dashboard/API: api.xtrix.cz -> http://api:8000.
+  # Cloudflare puts the visitor's address last in X-Forwarded-For (and in CF-Connecting-IP),
+  # cloudflared passes it on as is, so TRUST_PROXY=true picks the right IP.
+  cloudflared:
+    image: cloudflare/cloudflared:2026.11.0
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "--metrics", "0.0.0.0:2000", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      api: { condition: service_started }
+    deploy:
+      resources:
+        limits: { memory: 128m }
 
   # --inspect=false: the local inspector at :4040 would keep request bodies, logins included
   ngrok:
