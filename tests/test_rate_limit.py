@@ -90,6 +90,19 @@ def test_client_ip_ignores_spoofed_forwarded_for_unless_behind_our_proxy(monkeyp
     assert client_ip(req("")) == "10.0.0.5"
 
 
+def test_client_ip_reads_the_last_forwarded_for_header_when_proxy_adds_its_own(monkeypatch):
+    # ngrok keeps the client's X-Forwarded-For and adds a second header line with the real peer,
+    # so reading just the first line would let the client pick its own address
+    from starlette.requests import Request
+
+    from app.api.middleware.rate_limit import client_ip
+
+    monkeypatch.setattr(config.settings, "trust_proxy", True)
+    headers = [(b"x-forwarded-for", b"6.6.6.6"), (b"x-forwarded-for", b"203.0.113.7")]
+    request = Request({"type": "http", "headers": headers, "client": ("10.0.0.5", 1234)})
+    assert client_ip(request) == "203.0.113.7"
+
+
 def test_browser_on_another_origin_can_read_retry_after(client):
     # the web app talks to the API cross-origin in production; without this header
     # listed the browser hides Retry-After from JS
