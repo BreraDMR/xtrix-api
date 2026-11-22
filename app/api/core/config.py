@@ -20,6 +20,11 @@ class Settings(BaseSettings):
             if v.startswith(prefix):
                 return "postgresql+psycopg2://" + v[len(prefix):]
         return v
+    # SQLAlchemy pool per process (api and worker each get their own). The default 5+10 ran out
+    # on a busy salon calendar, so the self-hosted stack sets these higher in .env.
+    db_pool_size: int = Field(5, ge=1, description="Connections kept open in the pool")
+    db_max_overflow: int = Field(10, ge=0, description="Extra connections allowed on top of the pool when it's busy")
+    db_pool_timeout: int = Field(30, ge=1, description="Seconds to wait for a free connection before giving up")
     redis_url: str = Field("redis://localhost:6379/0")
     jwt_secret: str = Field(
         ...,
